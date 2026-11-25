@@ -76,3 +76,61 @@ which gcon-vm avoids as below.
   the differential test against iconx, and the Go VM as a second oracle:
   both VMs run the same built file. The Go VM remains the reference
   until gcon-vm passes everything.
+
+## The loader (2026-11-25)
+
+`src/load.c` reads gcon's built-program format, format version 1, as
+gcon's `vm.Decode` and `vm.Validate` do: the same reads in the same
+order, the same checks, and the same messages, so gcon-vm and gcon
+report a damaged file identically. It is a transliteration, by design:
+as in gcon, a decoder records its first error and every later read
+returns zero, so the code reads straight through and checks once.
+
+- **Where the program is.** A built program (a `#!` file in which a
+  line holding `[gcon program follows]` is followed by the magic), or a
+  file that is just the encoded program (starting with the magic), the
+  form in which `gcon run` will hand over bytecode it has translated.
+- **What it makes.** A `Program` close to gcon's: procedures with their
+  instructions (one struct per instruction, fields as gcon's `Instr`),
+  record types, constants, globals with their names and initial values,
+  main, the invocable set and the build information. Constants are
+  values in the 16-byte layout planned above (a header holding kind,
+  flags and a 48-bit field; a word); strings point into the file's
+  bytes, which stay loaded. Translating instructions to the form the
+  interpreter dispatches on is the interpreter's business, done when it
+  exists.
+- **Builtins** stay references (a kind and a name), checked against the
+  names gcon knows, so an unknown one is refused at load as gcon refuses
+  it. The names are generated from gcon's sources
+  (`tools/gentables.sh`, through a `go run -overlay` that adds a command
+  to gcon's module without changing gcon). When gcon-vm has its own
+  builtins, the check becomes "names gcon-vm implements".
+- **Messages** are buffers with a length, not C strings: they quote
+  names from the file, which can hold any bytes, NUL included. (The
+  damage test found this: a builtin name with a NUL in it.)
+
+**Listing.** `gcon-vm -dis` writes exactly what `gcon dis` writes, so the
+two can be compared byte for byte. That needs gcon's images of
+constants, which the VM needs anyway for `image()`, `string()` and
+`write()`: `src/image.c` ports gcon's `quote` (Icon's escapes for ASCII;
+in text, Go's rule: printable characters as themselves, others as `\u` or
+`\U`), cset images (named csets, members, or ranges past 256 members),
+`rtos` (C's `%.10g`, which Go's `'g'` with precision 10 matches), and
+large integers (digits, or `integer(~10^n)` from iconx's estimate).
+Printability is Go's `strconv.IsPrint`, as a generated table of the
+non-printable ranges (741 ranges, Unicode 17.0.0): gcon's images follow
+the Unicode tables of the Go that built it, so the table is regenerated
+with the builtin names.
+
+**Tests.** `tests/dis.sh` builds programs with gcon and compares
+listings: 483 programs (the reference tests, the IPL programs, gcon's
+program tests, the samples in `icn/`, and `tests/values.icn`, whose
+constants exercise every image case) are identical. `tests/damage.sh`
+compares every truncation of a built program and every byte changed
+two ways; after a change it makes the checksum right again, so the
+change reaches the decoder's other checks and the validator instead of
+stopping at the checksum, and some variants are valid programs whose
+listings are compared. Over `tests/values.icn` and `icn/bbox.icn`,
+21,597 variants give identical output, messages and exit status, with
+gcon-vm built with the address and undefined-behaviour sanitizers; the
+messages cover every check in the decoder and most in the validator.

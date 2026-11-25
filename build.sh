@@ -5,4 +5,4 @@ set -eu
 cd "$(dirname "$0")"
 CC=${CC:-cc}
 mkdir -p bin
-$CC -std=gnu11 -O2 -Wall -Wextra -o bin/gcon-vm src/*.c
+$CC -std=gnu11 -O2 -Wall -Wextra ${CFLAGS:-} -o bin/gcon-vm src/*.c -lm
