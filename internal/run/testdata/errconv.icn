@@ -1,0 +1,59 @@
+# Error conversion: &error, &errornumber, &errortext, &errorvalue,
+# errorclear() and runerr(), at each kind of instruction that can fail.
+
+procedure main()
+   local e
+   show()
+   &error := 20
+   write(1 + "a" | "operator failed")
+   show()
+   write(repl("x", -1) | "call failed")
+   show()
+   write(([] ? 1) | "scan failed")
+   show()
+   write(@3 | "activation failed")
+   show()
+   write(p() | "procedure failed")
+   show()
+   e := create (1 + [])
+   write(@e | "co-expression failed")
+   show()
+   every write(gen() | "generator failed")
+   show()
+   write("a", "b", [], "c") | write("<- partial write")
+   show()
+   &error := "x" | write("assignment failed")
+   show()
+   runerr(500) | write("runerr(500) failed")
+   show()
+   runerr(500, "v") | write("runerr(500, \"v\") failed")
+   show()
+   runerr(500, &null) | write("runerr(500, &null) failed")
+   show()
+   runerr(0) | write("runerr(0) failed")
+   show()
+   errorclear()
+   show()
+   &error := -1
+   every 1 to 3 do 1 + []
+   show()
+   &error := 1
+   write(1 + [] | "converted once")
+   write("now fatal")
+   write(1 + [])
+   write("not reached")
+end
+
+procedure p()
+   return 1 + []
+end
+
+procedure gen()
+   suspend 1 | 2 + [] | 3
+end
+
+procedure show()
+   write("  &error=", &error, " &errornumber=", &errornumber | "fail",
+      " &errortext=", image(&errortext) | "fail",
+      " &errorvalue=", image(&errorvalue) | "fail")
+end

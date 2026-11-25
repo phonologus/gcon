@@ -323,6 +323,8 @@ func (p *pcomp) link() []vm.Instr {
 		case vm.OpOper, vm.OpCall, vm.OpResume, vm.OpIsNull, vm.OpActivate, vm.OpAssign:
 			in.L1 = p.resolve(label(in.L1))
 			in.L2 = p.resolve(label(in.L2))
+		case vm.OpScanEnter:
+			in.L2 = p.resolve(label(in.L2))
 		}
 	}
 	return code
@@ -644,7 +646,8 @@ func (p *pcomp) keyword(e *syntax.Keyword, fail, succ label) (label, label, vm.O
 		return succ, fail, p.c.constant("&letters", vm.CsetLetters)
 	case "uset":
 		return succ, fail, p.c.constant("&uset", vm.CsetUniv)
-	case "current", "source", "main", "subject", "pos", "input", "output", "errout":
+	case "current", "source", "main", "subject", "pos", "input", "output", "errout",
+		"error", "errornumber", "errortext", "errorvalue":
 		s := p.newLabel()
 		p.place(s)
 		t := p.temp()
@@ -1049,7 +1052,7 @@ func (p *pcomp) scan(x, y syntax.Expr, assign bool, fail, succ label) (label, la
 	env := p.temp()
 	b, d, res := p.newLabel(), p.newLabel(), p.newLabel()
 	p.place(a)
-	p.emit(vm.Instr{Op: vm.OpScanEnter, Dst: env, X: vx})
+	p.emit(vm.Instr{Op: vm.OpScanEnter, Dst: env, X: vx, L2: int32(r1)})
 	var r2 label
 	var vy vm.Operand
 	p.scans = append(p.scans, env)

@@ -52,6 +52,12 @@ type VM struct {
 	stderr      io.Writer
 	serials     map[string]int // last serial number issued, by type
 
+	// Error conversion (errors.go): &error, and the last error converted.
+	errorKw    Int
+	errNum     int
+	errVal     Value
+	haveErrVal bool
+
 	// Deadline, if set, stops the program with status DeadlineStatus
 	// once passed (checked every few thousand instructions). For tests.
 	Deadline time.Time
@@ -244,7 +250,33 @@ func (vm *VM) args(f *Frame, ops []Operand) []Value {
 }
 
 // run executes until the frame f, and so the program, returns or fails.
+// A run-time error that &error converts to failure resumes execution at
+// the failing instruction's failure label.
 func (vm *VM) run(f *Frame) {
+	for !vm.exec(f) {
+		f = vm.cur
+	}
+}
+
+// exec executes from frame f until the program returns or fails, and
+// reports true; it reports false when a run-time error has been
+// converted to failure.
+func (vm *VM) exec(f *Frame) (done bool) {
+	defer func() {
+		if done {
+			return
+		}
+		r := recover()
+		if e, ok := r.(*RuntimeError); !ok || !vm.convert(e) {
+			panic(r)
+		}
+	}()
+	vm.loop(f)
+	return true
+}
+
+// loop is the interpreter's main loop.
+func (vm *VM) loop(f *Frame) {
 	vm.cur = f
 	for {
 		if vm.steps++; vm.steps&0xffff == 0 && !vm.Deadline.IsZero() && time.Now().After(vm.Deadline) {

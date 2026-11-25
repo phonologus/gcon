@@ -591,6 +591,24 @@ conformance test with this reason.
   `uchar` and `utf8valid` do not occur at all). `text`, an earlier
   choice, was rejected: it is a natural variable name, used undeclared
   in `tests/general/diffwrds.icn`.
+- Error conversion (`internal/vm/errors.go`) follows iconx's `err_msg`
+  (`errmsg.r`). A run-time error is a Go panic carrying a
+  `RuntimeError`; the main loop runs under one deferred `recover`, so
+  the normal path pays nothing per instruction. When `&error` is
+  nonzero, it is decremented, `&errornumber`, `&errortext` and
+  `&errorvalue` record the error, and the instruction that raised it
+  takes its failure label: the frame that was running (`vm.cur`) is
+  still at that instruction, because the pc moves only after an
+  instruction completes. The instructions that can raise errors all
+  have failure labels (`OpOper`, `OpCall`, `OpResume`, `OpAssign`,
+  `OpActivate`, and `OpScanEnter`, which was given one, resuming the
+  subject expression). An error at any other instruction is reported
+  as usual. `&errornumber` and `&errortext` fail when there is no error
+  number; `&errorvalue` fails when the error had no offending value, as
+  with `runerr(i)` called with only one argument (an explicit `&null`
+  counts as a value). As in iconx, an interrupted `write` keeps the
+  output it had produced. `errorclear()` and `runerr()` are as in
+  `fmisc.r`. Checked against iconx by `testdata/errconv.icn`.
 - Operators that produce at most one result are `OpOper` instructions
   calling a Go function; generators (`to`, `!`, built-in generators)
   and procedure calls use `OpCall` and `OpResume` with a handle in a

@@ -59,7 +59,7 @@ const (
 	OpActivate            // Dst := result of activating co-expression X, transmitting Args[0]; success L1, failure L2
 	OpCoRet               // the running co-expression produces Deref(X); when resumed, goto L1
 	OpCoFail              // the running co-expression is exhausted
-	OpScanEnter           // Dst := the scanning environment; start scanning Deref(X)
+	OpScanEnter           // Dst := the scanning environment; start scanning Deref(X); goto L2 if a converted error fails it
 	OpScanSwap            // exchange the scanning environment with the one in temp X
 )
 
@@ -100,6 +100,8 @@ func (in *Instr) String() string {
 		s += fmt.Sprintf(" ->%d", in.L1)
 	case OpOper, OpCall, OpResume, OpIsNull, OpActivate, OpAssign:
 		s += fmt.Sprintf(" ->%d/%d", in.L1, in.L2)
+	case OpScanEnter:
+		s += fmt.Sprintf(" fail->%d", in.L2)
 	}
 	if in.Op == OpCall || in.Op == OpResume {
 		s += fmt.Sprintf(" h=t%d", in.H)

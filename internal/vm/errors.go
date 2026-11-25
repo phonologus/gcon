@@ -1,0 +1,87 @@
+package vm
+
+// Error conversion (&error), following iconx's err_msg (errmsg.r).
+//
+// While &error is nonzero, a run-time error does not stop the program:
+// &error is decremented, &errornumber, &errortext and &errorvalue record
+// the error, and the instruction that raised it fails. Only instructions
+// with a failure label can raise errors that are converted; an error
+// anywhere else is reported as usual.
+
+// convert converts run-time error e to failure if &error allows it,
+// reporting whether it did. The running frame then continues at the
+// failing instruction's failure label.
+func (vm *VM) convert(e *RuntimeError) bool {
+	vm.errNum, vm.errVal, vm.haveErrVal = e.Num, e.Value, e.HasValue
+	if !e.HasValue {
+		vm.errVal = NullValue
+	}
+	f := vm.cur
+	if vm.errorKw == 0 || f == nil || f.pc >= len(f.proc.Code) {
+		return false
+	}
+	in := &f.proc.Code[f.pc]
+	switch in.Op {
+	case OpOper, OpAssign, OpActivate, OpScanEnter:
+	case OpCall, OpResume:
+		f.temps[in.H] = nil
+	default:
+		return false
+	}
+	vm.errorKw--
+	// The output of an interrupted write call stays written.
+	if vm.partialFile != nil {
+		vm.emit(vm.partialFile, vm.partial, true)
+		vm.partial, vm.partialFile = nil, nil
+	}
+	f.pc = int(in.L2)
+	return true
+}
+
+// errorVar is the variable &error.
+type errorVar struct{ vm *VM }
+
+func (k errorVar) Get() Value { return k.vm.errorKw }
+func (k errorVar) Set(v Value) bool {
+	k.vm.errorKw = MustInt(v)
+	return true
+}
+
+func init() {
+	Ops["&error"] = &Builtin{Name: "&error", Fn: func(vm *VM, a []Value) (Value, bool) {
+		return errorVar{vm}, true
+	}}
+	Ops["&errornumber"] = &Builtin{Name: "&errornumber", Fn: func(vm *VM, a []Value) (Value, bool) {
+		if vm.errNum == 0 {
+			return nil, false
+		}
+		return Int(vm.errNum), true
+	}}
+	Ops["&errortext"] = &Builtin{Name: "&errortext", Fn: func(vm *VM, a []Value) (Value, bool) {
+		if vm.errNum == 0 {
+			return nil, false
+		}
+		return Text(errorText[vm.errNum]), true
+	}}
+	Ops["&errorvalue"] = &Builtin{Name: "&errorvalue", Fn: func(vm *VM, a []Value) (Value, bool) {
+		if !vm.haveErrVal {
+			return nil, false
+		}
+		return vm.errVal, true
+	}}
+	fn("errorclear", func(vm *VM, a []Value) (Value, bool) {
+		vm.errNum, vm.errVal, vm.haveErrVal = 0, NullValue, false
+		return NullValue, true
+	})
+	fn("runerr", func(vm *VM, a []Value) (Value, bool) {
+		i := MustInt(arg(a, 0))
+		if i <= 0 {
+			Runerr(205, i)
+		}
+		if len(a) > 1 {
+			Runerr(int(i), a[1])
+		}
+		Runerr(int(i))
+		return nil, false
+	})
+}

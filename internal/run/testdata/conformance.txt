@@ -8,6 +8,7 @@ ck
 concord
 cxprimes
 diffwrds
+errkwds
 fncs
 fncs1
 image
