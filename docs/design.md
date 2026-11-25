@@ -300,6 +300,24 @@ a third of iconx's time and `queens` level; `deal`, `concord` and
 `ipxref` (string and table work) are slower. Output is identical, and
 the differential test shows the same five known differences.
 
+**Strings in Values** (2026-11-25). `String` is a value type, and a
+string Value holds a pointer to its bytes with the length (56 bits),
+unit and ASCII flag in `n`, so making a string Value or a substring
+allocates nothing, as in iconx. `NewString` finds whether a string is
+ASCII as it is made; a substring of ASCII is ASCII; otherwise the flag
+is found when needed. A saved scanning environment packs the subject's
+length (32 bits) and the position (29 bits) beside the unit and flag,
+falling back to an allocated record (`KScanEnvBox`) beyond those.
+Generators take their arguments from the scratch buffer, since they
+take what they need when called (reversible assignment, which keeps its
+variables, copies them; the poison-argument run found it), and how a
+builtin's arguments are adjusted is worked out once rather than looked
+up by name at each call. `micro.icn`'s geometric mean went from 2.35 to
+1.97 times iconx's time (3.51 before the day's work); 12 operations are
+faster than iconx's, 8 within 1.5 times, 64 within three. What remains
+is mostly the number of instructions an operation takes and the cost
+of a call to a built-in function.
+
 ## Strings and Unicode
 
 Icon 9.5 strings are bytes, and a cset is a set of 256 byte values.
