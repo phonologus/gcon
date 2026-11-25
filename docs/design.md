@@ -378,7 +378,8 @@ root's `libexec`, where `tools/install.sh` puts it; with neither, or
 (the shell header, the marker, the encoding) or the bare encoding.
 
 gcon's `TestExecVM` runs all its program tests from source through the
-hand-over, when `GCONVM` names a gcon-vm: all 94 pass. Starting a
-program costs about the same either way (11 ms for a built program,
-most of it the shell header and gcon's own start); a built program's
-header could later run gcon-vm directly.
+hand-over, when `GCONVM` names a gcon-vm: all 94 pass. A built
+program's header runs gcon-vm directly (the gcon-vm of the building
+gcon's root, unless `GCONVM`, `GCON` or a gcon beside the program says
+otherwise), without starting gcon: hello world starts in 6.6 ms, of
+which gcon-vm is 4.2, against 11.2 for icont's output on iconx.
