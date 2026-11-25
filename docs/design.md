@@ -281,15 +281,23 @@ renders identically). 52 of the 99 reference tests call `image`.
   escapes, and as a literal that would be bytes, so its image does not
   carry its unit. This is accepted.
 - Csets use single quotes and escape `'` rather than `"`, as 9.5 does.
-- **Large csets are elided** (first approximation): a cset with more than
-  1,024 members images as its first 16 members, `...`, and its last 8,
-  inside the quotes, e.g. `image(~'a')` is
+- **Large csets are elided. This is a placeholder, not a decision.** A
+  cset with more than 1,024 members images as its first 16 members,
+  `...`, and its last 8, inside the quotes, e.g. `image(~'a')` is
   `'\x00\x01...\U0010fffe\U0010ffff'` (shortened here). The elision is
   unambiguous because a cset has no duplicate members, so `...` can never
   be three `.` members. The limit is above 256, so every 9.5 cset (and
-  `image(&cset)` in the reference tests) images in full. The image of an
-  elided cset is not a literal; nothing else uses it as one. The numbers
-  are provisional.
+  `image(&cset)` in the reference tests) images in full.
+
+  **Warning: this may come back to bite us.** It breaks the contract
+  implicit in `image()`, that the result is a complete and faithful
+  rendering of the value (for strings and csets, a literal that rebuilds
+  it). That is a bad smell. Programs and tools that compare images, or
+  that use `image()` for serialisation or debugging output, would get
+  wrong answers silently. The ellipsis is possibly no better than a
+  placeholder until a better solution is found, for example a range
+  syntax for cset literals that `image()` could then use. Revisit it
+  before anything depends on it.
 
 ### Compatibility cost and open points
 
