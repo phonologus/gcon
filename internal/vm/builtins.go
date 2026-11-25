@@ -80,7 +80,7 @@ func init() {
 			a = append(a, NullValue)
 		}
 		for _, v := range a[1:] {
-			l.Elems = append([]Value{v}, l.Elems...)
+			l.pushFront(v)
 		}
 		return ListVal(l), true
 	})

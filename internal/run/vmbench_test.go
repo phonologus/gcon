@@ -20,6 +20,7 @@ var vmBenchmarks = []struct{ name, body string }{
 	{"find", `"abcde" ? find("de")`},
 	{"add", `x + 407`},
 	{"call", `p()`},
+	{"call2", `q(1, 2)`},
 	{"subscript", `L[3]`},
 	{"left", `left("a", 10)`},
 	{"map", `map("quick brown fox", &lcase, &ucase)`},
@@ -31,7 +32,7 @@ var vmBenchmarks = []struct{ name, body string }{
 func BenchmarkVM(b *testing.B) {
 	for _, bm := range vmBenchmarks {
 		b.Run(bm.name, func(b *testing.B) {
-			src := "procedure p()\nend\nprocedure main()\n   local x, L, T\n   x := 7\n   L := [1, 2, 3]\n   T := table()\n" +
+			src := "procedure p()\nend\nprocedure q(a, b)\n   local c\n   c := a\n   return b\nend\nprocedure main()\n   local x, L, T\n   x := 7\n   L := [1, 2, 3]\n   T := table()\n" +
 				"   every 1 to " + strconv.Itoa(b.N) + " do " + bm.body + "\nend\n"
 			prog, errs := TranslateLinked("bench.icn", src, []string{}, []string{})
 			if len(errs) > 0 {

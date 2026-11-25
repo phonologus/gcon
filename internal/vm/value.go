@@ -125,8 +125,34 @@ func Concat(a, b String) String {
 
 // List is an Icon list.
 type List struct {
-	Elems  []Value
+	Elems []Value
+	// base is the array Elems was last placed in by pushFront, with
+	// room before it; pushFront reuses that room while Elems still lies
+	// in base (a put may have moved it).
+	base   []Value
 	serial int
+}
+
+// pushFront puts v at the front of l: in the room before Elems when
+// there is some (left by get and pop, or made by an earlier push), else
+// in a new array with room at both ends, so that a run of pushes and
+// pops allocates only now and then.
+func (l *List) pushFront(v Value) {
+	if b := l.base; len(l.Elems) > 0 && cap(l.Elems) <= cap(b) {
+		h := cap(b) - cap(l.Elems)
+		b = b[:cap(b)]
+		if h > 0 && &b[h] == &l.Elems[0] {
+			b[h-1] = v
+			l.Elems = b[h-1 : h+len(l.Elems)]
+			return
+		}
+	}
+	n := len(l.Elems)
+	room := n + 4
+	b := make([]Value, room+n+n/2+4)
+	copy(b[room:], l.Elems)
+	b[room-1] = v
+	l.Elems, l.base = b[room-1:room+n], b
 }
 
 // Proc is a compiled Icon procedure.

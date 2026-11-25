@@ -226,7 +226,9 @@ func (vm *VM) Run(args []string) (status int) {
 }
 
 func (vm *VM) newFrame(p *Proc, args []Value) *Frame {
-	f := &Frame{proc: p, locals: make([]Value, p.NLocals), temps: make([]Value, p.NTemps)}
+	// The locals and the temporaries share one allocation.
+	slots := make([]Value, p.NLocals+p.NTemps)
+	f := &Frame{proc: p, locals: slots[:p.NLocals:p.NLocals], temps: slots[p.NLocals:]}
 	for i := range f.locals {
 		f.locals[i] = NullValue
 	}
