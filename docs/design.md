@@ -15,7 +15,8 @@ gcon is meant to become a standalone Icon toolchain in the Go mould:
 gathers the tools under subcommands (run, build, fmt, the language
 server, ...). Over time it takes in what now lives in separate projects:
 the formatter and language server (icontools), the tree-sitter grammar
-and editor extensions, and a graphics back-end (see "Graphics" below).
+and editor extensions, and graphics (see "Graphics: a separate display
+server" below).
 
 icontools and icon-sdl remain standalone, for the wider Icon community,
 built around the reference implementation. gcon does not depend on them.
@@ -26,13 +27,40 @@ two evolve independently. Syntax facts are in [syntax.md](syntax.md).
 Dependencies: the core (front end, translator, VM, and tools that work on
 source) uses only the standard library.
 
-### Graphics (to do: note for when the work starts)
+### Graphics: a separate display server
 
-**Decision (2026-11-25): reuse icon-sdl's backend, not a Go toolkit such
-as Fyne.** Any graphics needs cgo, so rather than bring in another
-toolkit, gcon should plumb in the work already done in `icon-sdl` (branch
-`sdl-graphics`, design in `icon-sdl/sdl/design.md`), keeping all the
-dependencies under one roof:
+**Decision (2026-11-25): graphics runs in a separate display server
+process, X11 / Plan 9 style.** gconx and the server talk a protocol over
+a socket. This supersedes the earlier plan (same day) to link icon-sdl's
+backend into gcon through cgo; the choice of icon-sdl's backend over a Go
+toolkit such as Fyne stands, but it becomes the server.
+
+**Division of labour.** gconx owns everything Icon's graphics model
+demands of the language: the event queue as an Icon list (`Pending()`),
+`Event()` blocking and polling, `&x`, `&y`, `&interval` and the other
+event keywords, `WDelay`, window and context values. The server owns the
+display: it creates windows, keeps the canvases, draws, and feeds raw
+events back. It can be written in any language and run on its own.
+
+**Why.**
+
+- gcon stays pure Go: no cgo, no C++ toolchain, no build tag,
+  cross-compilation intact, and `go install` of gcon never needs C.
+- The macOS rule that SDL owns the main thread is the server's concern
+  alone; gconx needs no `LockOSThread`.
+- A server crash cannot corrupt the interpreter's state.
+- Precedent is close: plan9port's `devdraw` is a helper process that
+  libdraw (and Go's `9fans.net/go/draw`) drives over a pipe, adopted
+  partly to get Cocoa's main thread out of the client.
+
+**Canvases live in the server** (as in X11 and Plan 9's `/dev/draw`),
+not in the client (as in Wayland). A client-side canvas would make
+`Pixel`, `CopyArea` and `drawop=reverse` local, but would need a
+rasteriser in gconx: Blend2D through cgo again, or a pure-Go one built
+from scratch. With server-side canvases the reference server is
+icon-sdl's backend almost unchanged (branch `sdl-graphics`, design in
+`icon-sdl/sdl/design.md`), wrapped in a small C `main` that reads
+requests:
 
 - **Canvas layer** (`src/sdl/canvas.c`): each window is an RGBA image at
   the display's backing scale, drawn with Blend2D, holding the graphics
@@ -45,82 +73,55 @@ dependencies under one roof:
   (Linux).
 - **Dependencies** are vendored source tarballs pinned by SHA-256
   (`deps/deps.lock`: SDL3, Blend2D, AsmJit), and builds never use the
-  network. gcon should keep that discipline.
-- **Threads.** icon-sdl had to run the interpreter on a second thread so
-  that SDL could own the process's main thread (a macOS requirement),
-  because iconx's co-expressions are threads. gcon's are not, so this is
-  simpler: lock the main goroutine to the main OS thread
-  (`runtime.LockOSThread` in an `init`) for SDL, and run the VM in
-  another goroutine, with requests passed to the main thread as icon-sdl
-  does.
-- **Open questions:** how the C libraries are built for cgo (a script
-  producing static libraries from the vendored sources, or cgo compiling
-  sources directly; Blend2D is C++); and the boundary that keeps the core
-  installable without graphics (a build tag, or a separate module), so
-  `go install` of gcon without graphics still needs no C toolchain.
-  The new files in icon-sdl are MIT, by Sean Jensen, so they can be
-  brought into gcon as they are.
+  network. The server keeps that discipline, with its own build.
+- **Threads.** The server has no interpreter, so SDL keeps the main
+  thread and requests are read from the socket by another thread (or
+  woken into the SDL loop); icon-sdl's main-thread request mechanism
+  carries over. The new icon-sdl files are MIT, by Sean Jensen, so they
+  can be used as they are.
 
-**Proposal (2026-11-25, Sean): a separate display server, X11 / Plan 9
-style.** gconx and the graphics run as separate processes talking a
-protocol. gconx owns everything Icon's graphics model demands of the
-language: the event queue as an Icon list (`Pending()`), `Event()`
-blocking and polling, `&x`, `&y`, `&interval` and the other keywords,
-`WDelay`, window and context values. The server owns the display: it
-creates windows, keeps the canvases, draws, and feeds raw events back.
-The server can be written in anything and run on its own. Assessment
-(Claude), in favour, with conditions:
+**Protocol rules.**
 
-- **What it buys.** gcon itself stays pure Go: no cgo, no C++ toolchain,
-  no build tag, cross-compilation intact, and the open questions above
-  mostly disappear. The macOS main-thread rule becomes the server's
-  problem alone, with no `LockOSThread` in gconx. A server crash cannot
-  take the interpreter's state with it. Precedent is close:
-  plan9port's `devdraw` is exactly this, a helper process that libdraw
-  (and Go's `9fans.net/go/draw`) drives over a pipe, adopted partly to
-  get Cocoa's main thread out of the client.
-- **Canvases live in the server (X11 / Plan 9 `/dev/draw`), not in the
-  client (Wayland).** A client-side canvas would make `Pixel`,
-  `CopyArea` and `drawop=reverse` local, but needs a rasteriser in
-  gconx: Blend2D through cgo again, or a pure-Go one built from scratch.
-  Server-side canvases let the server be icon-sdl's canvas and platform
-  layers almost unchanged, wrapped in a small C `main` that reads
-  requests; it keeps the vendored, pinned deps and its own build.
-- **Latency is the cost, and the protocol must be shaped for it.** Icon
-  draws in many small synchronous calls. Drawing requests are
-  fire-and-forget into a buffer, flushed when gconx blocks (`Event`,
-  `WDelay`, `delay`), flushes (`WFlush`, `WSync`), needs a reply, or
-  exits. Round trips are kept to calls that need an answer: `Pixel` (one
-  request per rectangle), opening a window or font, geometry queries.
-  A local socket round trip is some tens of microseconds, comparable to
-  the ~35 µs icon-sdl already pays per main-thread request.
+- **Shaped for latency.** Icon draws in many small synchronous calls.
+  Drawing requests are fire-and-forget into a buffer, flushed when gconx
+  blocks (`Event`, `WDelay`, `delay`), flushes (`WFlush`, `WSync`), needs
+  a reply, or exits. Round trips are kept to calls that need an answer:
+  `Pixel` (one request per rectangle), opening a window or font, geometry
+  queries. A local socket round trip is some tens of microseconds,
+  comparable to the ~35 µs icon-sdl already pays per main-thread request.
 - **Answer locally where the semantics allow.** Colour names (Icon's
-  colour grammar is fixed) and attribute bookkeeping can be done in Go;
-  font metrics and glyph advances can come back once when a font is
-  opened, so `TextWidth` and `WAttrib("ascent")` need no round trip.
-  `ReadImage`/`WriteImage` can use Go's `image/gif` and `image/png`,
-  sending pixels rather than file names, so the server never touches
-  the program's files.
-- **Errors.** X11's asynchronous errors are the trap to avoid. Anything
-  that can fail in Icon terms (bad colour, font not found, window open
-  failing) is either decided in gconx or is a request with a reply.
-  Pipelined drawing requests should not fail; a server error on one is a
-  protocol error that ends the program.
-- **Shape.** Server-side objects by id: windows (canvases) and graphics
-  contexts, so `Clone` and `Couple` map onto X11's drawable / GC split.
-  A version handshake first. gconx starts the server lazily on the first
+  colour grammar is fixed) and attribute bookkeeping are done in Go; font
+  metrics and glyph advances come back once when a font is opened, so
+  `TextWidth` and `WAttrib("ascent")` need no round trip.
+  `ReadImage`/`WriteImage` use Go's `image/gif` and `image/png`, sending
+  pixels rather than file names, so the server never touches the
+  program's files.
+- **No asynchronous errors** (X11's trap). Anything that can fail in Icon
+  terms (bad colour, font not found, window open failing) is either
+  decided in gconx or is a request with a reply. Pipelined drawing
+  requests cannot fail; a server error on one is a protocol error that
+  ends the program.
+- **Objects by id:** windows (canvases) and graphics contexts, so
+  `Clone` and `Couple` map onto X11's drawable / GC split.
+- **Version handshake** first on every connection.
+- **Startup.** gconx starts the server lazily on the first
   `open(..., "g")`, as a child on a socketpair, found next to the gcon
-  binary or by an environment variable (which could also name a socket
-  to connect to, giving remote display for free).
-- **Testing gains.** A headless server in Go (drawing into `image.RGBA`,
-  or just recording requests) gives golden tests for the graphics
-  functions with no display; protocol transcripts are diffable.
-- **Costs.** A protocol to design, document and version; two programs to
-  distribute and to find at run time; bulk pixel traffic for images
-  (shared memory is a later optimisation if it ever matters).
+  binary or named by an environment variable (which could instead name a
+  socket to connect to, giving remote display).
 
-If adopted, this replaces the cgo plan above: "reuse icon-sdl's backend"
-then means "icon-sdl's backend becomes the display server".
+**Testing.** A headless server in Go (drawing into `image.RGBA`, or just
+recording requests) gives golden tests for the graphics functions with
+no display; protocol transcripts are diffable.
+
+**Costs accepted.** A protocol to design, document and version; two
+programs to distribute and to find at run time; bulk pixel traffic for
+images (shared memory is a later optimisation if it ever matters).
+
+**Open questions:** the wire format (binary, Plan 9 draw-message style,
+is the likely choice); the server's name and where its source lives (a C
+directory in gcon, or in icon-sdl); and how the Go headless server and
+the reference server are kept in step (a shared conformance suite over
+the protocol).
 
 ## Prior art
 
