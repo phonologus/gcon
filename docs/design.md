@@ -318,6 +318,23 @@ faster than iconx's, 8 within 1.5 times, 64 within three. What remains
 is mostly the number of instructions an operation takes and the cost
 of a call to a built-in function.
 
+**Built-in calls and structures** (2026-11-25). Unary `*`, `+`, `-` and
+`===`/`~===` have inline paths like integer arithmetic's; `tab`, `move`
+and `=s`, which produce one value and restore `&pos` when resumed, keep
+the old position in the handle instead of a generator object
+(`Builtin.Restore`); `upto` and `find` are struct generators (one
+allocation, not a closure and its captured offset); `push` reuses the
+room before a list's first element, so a run of pushes and pops does
+not allocate (`TestListDeque` checks the list against a slice over
+random sequences); a frame's locals and temporaries are one
+allocation; a cset caches its complement; `copy` of a table or set
+clones its index without hashing again. `micro.icn`'s geometric mean is
+now 1.61 times iconx's time (3.51 at the start of the day): 14
+operations faster than iconx's, 29 within 1.5 times, 55 within three,
+14 beyond. The rest is mostly a procedure call (about three times
+iconx's), `suspend`, conversion of strings to numbers, and the
+instruction count of compiled expressions.
+
 ## Strings and Unicode
 
 Icon 9.5 strings are bytes, and a cset is a set of 256 byte values.

@@ -138,10 +138,10 @@ type List struct {
 // in a new array with room at both ends, so that a run of pushes and
 // pops allocates only now and then.
 func (l *List) pushFront(v Value) {
-	if b := l.base; len(l.Elems) > 0 && cap(l.Elems) <= cap(b) {
+	if b := l.base; cap(l.Elems) > 0 && cap(l.Elems) <= cap(b) {
 		h := cap(b) - cap(l.Elems)
 		b = b[:cap(b)]
-		if h > 0 && &b[h] == &l.Elems[0] {
+		if h > 0 && &b[h] == &l.Elems[:1][0] {
 			b[h-1] = v
 			l.Elems = b[h-1 : h+len(l.Elems)]
 			return
