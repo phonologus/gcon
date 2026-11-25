@@ -77,6 +77,10 @@ func TestUnicode(t *testing.T) {
 			`f := open("u.txt"); s := reads(f, 1); write(*s, " ", image(s), " ", image(reads(f, 5))); close(f); ` +
 			`f := open("u.txt", "u"); s := reads(f, 1); write(*s, " ", image(s), " ", image(read(f))); close(f)`,
 			"2 \"é\" \"日\"\n1 \"\\xc3\" \"\\xa9\\xe6\\x97\\xa5\""},
+		// Table keys are compared as === compares: units matter only for
+		// non-ASCII strings; csets by members.
+		{"table keys", `t := table(); t["é"] := 1; t[bytes("é")] := 2; t["a"] := 3; t[bytes("a")] := 4; t['ba'] := 5; t['ab'] := 6; write(*t, " ", t["a"], " ", t['ab'])`,
+			"4 4 6"},
 		{"lone byte match", `s := runes("a\xffb"); write(upto('\xff', s), " ", image(upto('\uFFFD', s)) | "no")`,
 			"2 no"},
 	}
@@ -85,7 +89,7 @@ func TestUnicode(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			path := filepath.Join(dir, strings.ReplaceAll(tt.name, " ", "_")+".icn")
-			src := "procedure main()\n   local s, c, f\n   " + tt.body + "\nend\n"
+			src := "procedure main()\n   local s, c, f, t\n   " + tt.body + "\nend\n"
 			if err := os.WriteFile(path, []byte(src), 0o644); err != nil {
 				t.Fatal(err)
 			}

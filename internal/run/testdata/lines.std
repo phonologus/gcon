@@ -1,0 +1,17 @@
+"ab"
+"cd"
+"ef"
+"gh"
+"ab"
+"cd\r"
+"ef\rgh"
+FIRST line
+second line
+FIRST line
+FIRST line
+second line
+X
+FIRST line
+second line
+Xappended
+rw needs the file file(new.txt)

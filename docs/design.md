@@ -444,6 +444,32 @@ conformance test with this reason.
   the two stay in order when they go to one file; and `system` and a
   pipe's `close` return C's wait status (exit code times 256). Open
   files are flushed when the program ends, as C's `exit` does.
+- Tables and sets (`internal/vm/structs.go`) are insertion-ordered maps
+  keyed by `===`: numbers, strings and csets by value (a string's unit
+  counts only if it is non-ASCII), structures by identity. **They
+  iterate in insertion order**, where iconx iterates in the order of its
+  hash table; Icon does not define the order, and no reference test
+  depends on it (none fails only by the order of its lines). `sort`
+  follows iconx's `anycmp` order (null, integer, real, string, cset,
+  file, co-expression, procedure, list, set, table, record; structures
+  by serial number, records by type name then serial) and `sortf` its
+  `nthcmp`. gcon sorts stably where iconx uses `qsort`, so elements that
+  compare equal (such as table entries with equal values in `sort(t, 2)`)
+  may come out in a different order.
+- Output: iconx flushes the file at the end of every `write` call, so
+  output from an interrupted call appears after the error message. gcon
+  keeps standard output buffered but assembles each call's output, keeps
+  an interrupted call's output for after the error message, and flushes
+  standard output whenever something else could observe it: writing to
+  `&errout` or a pipe, closing a pipe, reading `&input`, `system`, exit.
+  Files the program opens are flushed per call, as in iconx.
+- `read` ends a line at `\n`, `\r\n` or a lone `\r`, except in an
+  untranslated (`"u"`) file, where only `\n` does and `\r` is kept, as
+  iconx's own line reading does. `open`'s mode letters map onto C's
+  `fopen` modes exactly as in iconx (`"rw"` and `"b"` update a file
+  without truncating it).
+- Limitation `e \ n` evaluates n first; when e's results run out, n is
+  resumed and e starts again.
 - Records: a declaration's global holds a `RecordType`, whose call makes a
   `Record`. Field references are looked up by name when they run, so
   `x.f` works on any record type with a field `f`; `r[i]` and `r["f"]`
@@ -472,9 +498,8 @@ conformance test with this reason.
   iconx shows their fields, `record point_1(0,0)` (with the traceback).
 - Integers beyond 64 bits: `integer(1e30)` and strings of more than 19
   digits are not numbers yet, where 9.5 makes large integers.
-- Not yet implemented: sets, tables, programmer-defined control
-  operations, many keywords and built-in functions, the preprocessor,
-  `link`.
+- Not yet implemented: programmer-defined control operations, many
+  keywords and built-in functions, the preprocessor, `link`.
 
 ## Verification
 

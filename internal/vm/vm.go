@@ -43,10 +43,14 @@ type VM struct {
 	output  *File         // &output
 	errfile *File         // &errout
 	files   []*File       // files opened, to flush at exit
-	stdin   io.Reader     // the streams the VM was given, for child processes
-	stdout  io.Writer
-	stderr  io.Writer
-	serials map[string]int // last serial number issued, by type
+	// The output of a write call interrupted by an error, written after
+	// the error message (see writeArgs).
+	partial     []byte
+	partialFile *File
+	stdin       io.Reader // the streams the VM was given, for child processes
+	stdout      io.Writer
+	stderr      io.Writer
+	serials     map[string]int // last serial number issued, by type
 
 	// Deadline, if set, stops the program with status DeadlineStatus
 	// once passed (checked every few thousand instructions). For tests.
@@ -126,6 +130,10 @@ func (vm *VM) Run(args []string) (status int) {
 		case *RuntimeError:
 			vm.out.Flush()
 			vm.report(e)
+			vm.errout.Flush()
+			if vm.partialFile != nil && vm.partialFile.w != nil {
+				vm.partialFile.w.Write(vm.partial)
+			}
 			status = 1
 		default:
 			panic(e)

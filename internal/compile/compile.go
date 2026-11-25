@@ -721,6 +721,8 @@ func (p *pcomp) binary(e *syntax.Binary, fail, succ label) (label, label, vm.Ope
 		return p.alt(e, fail, succ)
 	case op == "@":
 		return p.activate(e.X, e.Y, fail, succ)
+	case op == `\`:
+		return p.limit(e.X, e.Y, fail, succ)
 	case op == ":=":
 		a := p.newLabel()
 		st, r, vs := p.seq([]syntax.Expr{e.X, e.Y}, fail, a)
@@ -1078,4 +1080,32 @@ func (p *pcomp) scan(x, y syntax.Expr, assign bool, fail, succ label) (label, la
 	p.emit(vm.Instr{Op: vm.OpScanSwap, X: env})
 	p.jump(r1)
 	return st, res, v
+}
+
+// limit compiles e \ n: n is evaluated first, then e produces at most n
+// results; when e's results run out, n is resumed and e starts again (so
+// (1 to 10) \ (1 | 2) produces 1, 1, 2).
+func (p *pcomp) limit(e, n syntax.Expr, fail, succ label) (label, label, vm.Operand) {
+	a := p.newLabel()
+	st, rn, vn := p.expr(n, fail, a)
+	lim, cnt, junk := p.temp(), p.temp(), p.temp()
+	b, c, res := p.newLabel(), p.newLabel(), p.newLabel()
+	p.place(a)
+	p.emit(vm.Instr{Op: vm.OpOper, Fn: vm.Ops["limit"], Dst: lim, Args: []vm.Operand{vn}, L1: int32(b), L2: int32(rn)})
+	p.place(b)
+	p.emit(vm.Instr{Op: vm.OpMove, Dst: cnt, X: p.c.constant("i0", vm.Int(0))})
+	var re label
+	var ve vm.Operand
+	p.enter(func() label {
+		var se label
+		se, re, ve = p.expr(e, rn, c)
+		return se
+	})
+	// e produced a result: count it.
+	p.place(c)
+	p.emit(vm.Instr{Op: vm.OpOper, Fn: vm.Ops["+"], Dst: cnt, Args: []vm.Operand{cnt, p.c.constant("i1", vm.Int(1))}, L1: int32(succ), L2: int32(succ)})
+	// Resumed: resume e if the limit allows, else resume n.
+	p.place(res)
+	p.emit(vm.Instr{Op: vm.OpOper, Fn: vm.Ops["<"], Dst: junk, Args: []vm.Operand{cnt, lim}, L1: int32(re), L2: int32(rn)})
+	return st, res, ve
 }

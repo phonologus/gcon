@@ -71,16 +71,32 @@ func (vm *VM) writer(f *File) *bufio.Writer {
 	return f.w
 }
 
-// readLine reads a line, without its "\n" or "\r\n"; false at end of file.
+// readLine reads a line; false at end of file. As in iconx, a line ends
+// at "\n", "\r\n" or a lone "\r", except in an untranslated ("u") file,
+// where only "\n" ends it and a "\r" is kept.
 func (vm *VM) readLine(f *File) (*String, bool) {
 	r := vm.reader(f)
-	s, err := r.ReadString('\n')
-	if err != nil && s == "" {
-		return nil, false
+	var b []byte
+	for {
+		c, err := r.ReadByte()
+		if err != nil {
+			if len(b) == 0 {
+				return nil, false
+			}
+			break
+		}
+		if c == '\n' {
+			break
+		}
+		if c == '\r' && f.unit == TextUnit {
+			if next, err := r.Peek(1); err == nil && next[0] == '\n' {
+				r.Discard(1)
+			}
+			break
+		}
+		b = append(b, c)
 	}
-	s = strings.TrimSuffix(s, "\n")
-	s = strings.TrimSuffix(s, "\r")
-	return NewString(s, f.unit), true
+	return NewString(string(b), f.unit), true
 }
 
 // readChars reads up to n characters; false at end of file. In text, a
@@ -115,35 +131,64 @@ func (vm *VM) readChars(f *File, n int) (*String, bool) {
 // file, initially f; a file argument becomes the current file, and for
 // write, after the first argument, ends the line on the file before it.
 // It returns the last argument (&null if none).
+//
+// iconx flushes the file at the end of each call, so a call's output
+// appears as a whole, and output from a call interrupted by an error
+// appears only when the program exits, after the error message. gcon
+// assembles each call's output before writing it, and keeps the output
+// of an interrupted call for Run to write after the error message.
+// Files the program opens are flushed at the end of each call, as in
+// iconx; standard output stays buffered, and is flushed whenever
+// anything else could observe it (writing to &errout, reading &input,
+// running a command, exiting).
 func (vm *VM) writeArgs(f *File, a []Value, nl bool) Value {
 	var last Value = NullValue
+	var buf []byte
 	for n, v := range a {
 		last = v
 		switch x := v.(type) {
 		case *File:
 			if nl && n > 0 {
-				w := vm.writer(f)
-				w.WriteByte('\n')
-				w.Flush()
+				buf = append(buf, '\n')
+				vm.emit(f, buf, true)
+			} else if len(buf) > 0 {
+				vm.emit(f, buf, false)
 			}
+			buf = nil
 			f = x
 		case Null:
 		default:
 			s, ok := CvStr(x)
 			if !ok {
+				vm.writer(f)
+				if f.errout {
+					vm.emit(f, buf, true)
+				} else {
+					vm.partial, vm.partialFile = buf, f
+				}
 				Runerr(109, x)
 			}
-			vm.writer(f).WriteString(s.s)
+			buf = append(buf, s.s...)
 		}
 	}
-	w := vm.writer(f)
 	if nl {
-		w.WriteByte('\n')
+		buf = append(buf, '\n')
 	}
-	if f.errout {
+	vm.emit(f, buf, true)
+	return last
+}
+
+// emit writes the output of a write call to f; at the end of the call
+// (end), files other than &output are flushed.
+func (vm *VM) emit(f *File, b []byte, end bool) {
+	w := vm.writer(f)
+	if f.cmd != nil {
+		vm.out.Flush() // the command may write to standard output at any time
+	}
+	w.Write(b)
+	if end && f != vm.output {
 		w.Flush()
 	}
-	return last
 }
 
 // openFile implements open(name, mode).
@@ -185,18 +230,32 @@ func (vm *VM) openFile(name, mode string) (*File, bool) {
 		f.cmd = cmd
 		return f, true
 	}
-	flag := os.O_RDONLY
-	read, write := true, false
+	// As iconx: the letters set read, write, append and create, and these
+	// choose C's fopen mode ("w" if create, else "a" if append, else "r"
+	// if read, else "w"; with "+" for both read and write).
+	read := has('r') || has('b')
+	write := has('w') || has('b') || has('a') || has('c')
+	if !read && !write {
+		read = true
+	}
+	var flag int
 	switch {
-	case has('b'):
-		flag, write = os.O_RDWR, true
-		if has('c') {
-			flag |= os.O_CREATE | os.O_TRUNC
-		}
+	case has('c'):
+		flag = os.O_CREATE | os.O_TRUNC
 	case has('a'):
-		flag, read, write = os.O_WRONLY|os.O_CREATE|os.O_APPEND, false, true
-	case has('w') || has('c'):
-		flag, read, write = os.O_WRONLY|os.O_CREATE|os.O_TRUNC, false, true
+		flag = os.O_CREATE | os.O_APPEND
+	case read:
+		flag = 0 // the file must exist
+	default:
+		flag = os.O_CREATE | os.O_TRUNC
+	}
+	switch {
+	case read && write:
+		flag |= os.O_RDWR
+	case write:
+		flag |= os.O_WRONLY
+	default:
+		flag |= os.O_RDONLY
 	}
 	osf, err := os.OpenFile(name, flag, 0o666)
 	if err != nil {
@@ -228,6 +287,9 @@ func (vm *VM) closeFile(f *File) Value {
 	}
 	if f.keyword {
 		return f
+	}
+	if f.cmd != nil {
+		vm.out.Flush() // the command may write to standard output as it ends
 	}
 	f.closed = true
 	if f.closer != nil {

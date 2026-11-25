@@ -205,6 +205,10 @@ func TypeName(v Value) string {
 		return "procedure"
 	case *File:
 		return "file"
+	case *Table:
+		return "table"
+	case *Set:
+		return "set"
 	}
 	return "unknown"
 }

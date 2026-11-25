@@ -297,6 +297,10 @@ var Ops = map[string]*Builtin{
 			return Int(x.Size()), true
 		case *Record:
 			return Int(len(x.Fields)), true
+		case *Table:
+			return Int(x.m.len()), true
+		case *Set:
+			return Int(x.m.len()), true
 		}
 		if s, ok := CvStr(a[0]); ok {
 			return Int(s.Len()), true
@@ -320,12 +324,23 @@ var Ops = map[string]*Builtin{
 		return vm.NewList(append([]Value(nil), a...)), true
 	}},
 	"to": {Name: "to", Gen: toBy},
+	// limit validates the limit of e \ n: an integer, at least 0; a limit
+	// of 0 fails, so that e produces nothing.
+	"limit": {Name: "limit", Fn: func(vm *VM, a []Value) (Value, bool) {
+		n := MustInt(a[0])
+		if n < 0 {
+			Runerr(205, n)
+		}
+		return n, n > 0
+	}},
 }
 
 func index(vm *VM, a []Value) (Value, bool) {
 	switch x := a[0].(type) {
 	case *Record:
 		return recordIndex(x, a[1])
+	case *Table:
+		return TableElem{x, a[1]}, true
 	case *List:
 		i := MustInt(a[1])
 		n := Int(len(x.Elems))
@@ -418,6 +433,10 @@ func bang(vm *VM, a []Value) Generator {
 		return &recordGen{r: x}
 	case *File:
 		return lineGen{x}
+	case *Table:
+		return tableVals(x)
+	case *Set:
+		return setElems(x)
 	}
 	s, ok := CvStr(a[0])
 	if !ok {
@@ -484,6 +503,10 @@ func (vm *VM) Image(v Value) string {
 	case *RecordType:
 		return "record constructor " + x.Name
 	case *File:
+		return x.image()
+	case *Table:
+		return x.image()
+	case *Set:
 		return x.image()
 	}
 	return "?"
