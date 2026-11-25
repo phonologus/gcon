@@ -348,8 +348,13 @@ cset rules above:
   `image(~&ascii)` is `'\u0080..\U10ffff\x80..\xff'`, not the 128
   bytes `\x80`–`\xff`.
 
-Both differences are complements of ASCII csets, which is where the new
-meaning is intended. They are kept deliberately and will be listed in
+A third follows from the same rule and showed up when csets were built:
+`~&cset` is the empty cset, which is neutral, so `~~&cset` is `&uset`
+rather than 9.5's `&cset`. Complement is therefore not an involution for
+a bytes cset whose complement is all ASCII.
+
+All these differences are complements of ASCII csets, which is where the
+new meaning is intended. They are kept deliberately and will be listed in
 the conformance test with this reason.
 
 
@@ -376,6 +381,23 @@ the conformance test with this reason.
   creator's locals. One function, `transfer`, resumes a co-expression
   in whichever state it is, so activation, results, failure and
   symmetric transfer through `&source` are all the same operation.
+- String scanning follows Jcon's translation: `OpScanEnter` saves the
+  scanning environment in a temporary and `OpScanSwap` exchanges it with
+  the current one. `&subject` and `&pos` are global, as in iconx:
+  switching co-expressions does not switch them. Leaving scans early
+  (`return`, `fail`, `suspend`, `break`, `next`) exchanges the
+  environments of the scans being left, innermost first, as iconx's
+  results show; `suspend` re-enters them when resumed.
+- `break e` is resumable: a gate in the loop records e's resume label.
+- Csets (`internal/vm/cset.go`) are a 256-bit set of single-byte
+  characters plus, for text, sorted code-point ranges. Cset literals
+  with `..` ranges are decoded by `lit.Cset`.
+- gcon's extra built-ins (`text`, `bytes`, `uchar`, `utf8valid`) and the
+  keyword `&uset` are in the catalogue marked `Gcon`. Like any built-in,
+  they are hidden by a declaration of the same name but not by an
+  undeclared use: `text := read()` in an undeclared context assigns to
+  the global `text`. In the corpus only `tests/general/diffwrds.icn`
+  does this, in `main`, where it makes no difference.
 - Operators that produce at most one result are `OpOper` instructions
   calling a Go function; generators (`to`, `!`, built-in generators)
   and procedure calls use `OpCall` and `OpResume` with a handle in a
@@ -383,17 +405,17 @@ the conformance test with this reason.
 
 ### Deliberate simplifications (to be removed)
 
-- `break e` produces only e's first result; Icon resumes e when the loop
-  is resumed.
 - Procedures return values, never variables.
 - String subscripts are values, not assignable variables.
 - Integers are 64-bit; overflow is run-time error 203 until large
   integers exist.
 - Run-time errors print iconx's header lines but no traceback.
-- Non-ASCII text is indexed by scanning from the start; the sparse index
-  and scanning cursor of "Fast positions" are still to come.
-- Not yet implemented: csets, reals, records, sets, tables, string
-  scanning, programmer-defined control operations, files and input, most keywords and built-in
+- Non-ASCII text positions are found from a cursor (the last position
+  looked up in that string), so scanning is cheap; the sparse index of
+  "Fast positions", for random access far from the cursor, is still to
+  come.
+- Not yet implemented: reals, records, sets, tables, programmer-defined
+  control operations, files and input, most keywords and built-in
   functions, the preprocessor, `link`.
 
 ## Verification

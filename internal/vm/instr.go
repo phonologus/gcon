@@ -41,29 +41,31 @@ type Op uint8
 // Instructions. Unless stated otherwise an instruction continues with
 // the next one. L1 and L2 are code indices.
 const (
-	OpGoto     Op = iota // goto L1
-	OpIGoto              // goto the code index held in temp X
-	OpSetLabel           // Dst := L1 (for OpIGoto)
-	OpMove               // Dst := Deref(X)
-	OpMoveVar            // Dst := X as a variable (locals and globals become references)
-	OpAssign             // variable Dst := Deref(X)
-	OpOper               // Dst := Fn(Args...); success goto L1, failure goto L2
-	OpCall               // Dst := X(Args...), resumable through temp H; success L1, failure L2
-	OpResume             // Dst := next result of temp H; success L1, failure L2
-	OpReturn             // return Deref(X)
-	OpFail               // fail
-	OpSuspend            // suspend Deref(X); when resumed, goto L1
-	OpOnce               // if global X is set goto L1, else set it and continue (initial clauses)
-	OpIsNull             // if Deref(X) is &null goto L1 else goto L2
-	OpCreate             // Dst := a new co-expression whose body starts at L1
-	OpActivate           // Dst := result of activating co-expression X, transmitting Args[0]; success L1, failure L2
-	OpCoRet              // the running co-expression produces Deref(X); when resumed, goto L1
-	OpCoFail             // the running co-expression is exhausted
+	OpGoto      Op = iota // goto L1
+	OpIGoto               // goto the code index held in temp X
+	OpSetLabel            // Dst := L1 (for OpIGoto)
+	OpMove                // Dst := Deref(X)
+	OpMoveVar             // Dst := X as a variable (locals and globals become references)
+	OpAssign              // variable Dst := Deref(X); success goto L1, failure goto L2
+	OpOper                // Dst := Fn(Args...); success goto L1, failure goto L2
+	OpCall                // Dst := X(Args...), resumable through temp H; success L1, failure L2
+	OpResume              // Dst := next result of temp H; success L1, failure L2
+	OpReturn              // return Deref(X)
+	OpFail                // fail
+	OpSuspend             // suspend Deref(X); when resumed, goto L1
+	OpOnce                // if global X is set goto L1, else set it and continue (initial clauses)
+	OpIsNull              // if Deref(X) is &null goto L1 else goto L2
+	OpCreate              // Dst := a new co-expression whose body starts at L1
+	OpActivate            // Dst := result of activating co-expression X, transmitting Args[0]; success L1, failure L2
+	OpCoRet               // the running co-expression produces Deref(X); when resumed, goto L1
+	OpCoFail              // the running co-expression is exhausted
+	OpScanEnter           // Dst := the scanning environment; start scanning Deref(X)
+	OpScanSwap            // exchange the scanning environment with the one in temp X
 )
 
 var opNames = [...]string{"goto", "igoto", "setlabel", "move", "movevar", "assign",
 	"oper", "call", "resume", "return", "fail", "suspend", "once", "isnull",
-	"create", "activate", "coret", "cofail"}
+	"create", "activate", "coret", "cofail", "scanenter", "scanswap"}
 
 func (op Op) String() string { return opNames[op] }
 
@@ -96,7 +98,7 @@ func (in *Instr) String() string {
 	switch in.Op {
 	case OpGoto, OpSetLabel, OpOnce, OpSuspend, OpCreate, OpCoRet:
 		s += fmt.Sprintf(" ->%d", in.L1)
-	case OpOper, OpCall, OpResume, OpIsNull, OpActivate:
+	case OpOper, OpCall, OpResume, OpIsNull, OpActivate, OpAssign:
 		s += fmt.Sprintf(" ->%d/%d", in.L1, in.L2)
 	}
 	if in.Op == OpCall || in.Op == OpResume {

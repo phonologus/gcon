@@ -1,5 +1,7 @@
 package vm
 
+import "unicode/utf8"
+
 // Functions holds the built-in functions gcon implements, by name. A
 // program that uses another of Icon's built-in functions gets a stub
 // that raises error 121 ("function not supported") when called.
@@ -155,4 +157,52 @@ func mustList(v Value) *List {
 		Runerr(108, v)
 	}
 	return l
+}
+
+// Unicode functions (docs/design.md, "Strings and Unicode").
+func init() {
+	relabel := func(u Unit) func(vm *VM, a []Value) (Value, bool) {
+		return func(vm *VM, a []Value) (Value, bool) {
+			if c, ok := arg(a, 0).(*Cset); ok {
+				return c.relabel(u), true
+			}
+			s := MustStr(arg(a, 0))
+			return &String{s: s.s, unit: u, ascii: s.ascii, n: -1}, true
+		}
+	}
+	fn("text", relabel(TextUnit))
+	fn("bytes", relabel(BytesUnit))
+	fn("utf8valid", func(vm *VM, a []Value) (Value, bool) {
+		s := MustStr(arg(a, 0))
+		return s, utf8.ValidString(s.s)
+	})
+	fn("uchar", func(vm *VM, a []Value) (Value, bool) {
+		i := MustInt(arg(a, 0))
+		r := utf8.RuneError
+		if i >= 0 && i <= utf8.MaxRune {
+			r = rune(i) // string(r) gives U+FFFD for surrogates, as Go does
+		}
+		return Text(string(r)), true
+	})
+	fn("char", func(vm *VM, a []Value) (Value, bool) {
+		i := MustInt(arg(a, 0))
+		if i < 0 || i > 255 {
+			Runerr(205, i)
+		}
+		if i < utf8.RuneSelf {
+			return Text(string(rune(i))), true
+		}
+		return NewString(string([]byte{byte(i)}), BytesUnit), true
+	})
+	fn("ord", func(vm *VM, a []Value) (Value, bool) {
+		s := MustStr(arg(a, 0))
+		if s.Len() != 1 {
+			Runerr(205, s)
+		}
+		if s.unit == BytesUnit || s.IsASCII() {
+			return Int(s.s[0]), true
+		}
+		r, _ := utf8.DecodeRuneInString(s.s) // U+FFFD for a lone byte
+		return Int(r), true
+	})
 }

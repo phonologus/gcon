@@ -141,6 +141,10 @@ type loop struct {
 	fail   label      // where the loop goes when it fails
 	succ   label      // where the loop goes when break succeeds
 	result vm.Operand // the loop's result, set by break
+	gate   vm.Operand // resume label of the break expression that produced the result
+	resume label      // where resuming the loop goes
+	broken bool       // the loop has a break
+	scans  int        // depth of enclosing scans at the loop
 }
 
 // pcomp compiles one procedure.
@@ -156,8 +160,9 @@ type pcomp struct {
 	ntemps int
 	locals map[*sema.Symbol]int
 	loops  []*loop
-	pfail  label // the procedure's failure
-	inCo   int   // depth of create expressions being compiled
+	pfail  label        // the procedure's failure
+	inCo   int          // depth of create expressions being compiled
+	scans  []vm.Operand // environments of the scans enclosing the code being compiled
 	line   int32
 }
 
@@ -304,7 +309,7 @@ func (p *pcomp) link() []vm.Instr {
 		switch in.Op {
 		case vm.OpGoto, vm.OpSetLabel, vm.OpSuspend, vm.OpOnce, vm.OpCreate, vm.OpCoRet:
 			in.L1 = p.resolve(label(in.L1))
-		case vm.OpOper, vm.OpCall, vm.OpResume, vm.OpIsNull, vm.OpActivate:
+		case vm.OpOper, vm.OpCall, vm.OpResume, vm.OpIsNull, vm.OpActivate, vm.OpAssign:
 			in.L1 = p.resolve(label(in.L1))
 			in.L2 = p.resolve(label(in.L2))
 		}
@@ -443,7 +448,8 @@ func (p *pcomp) expr(e syntax.Expr, fail, succ label) (start, resume label, v vm
 			p.errorf(e, "invalid context for next")
 			return fail, fail, p.null()
 		}
-		return p.loops[len(p.loops)-1].next, fail, p.null()
+		l := p.loops[len(p.loops)-1]
+		return p.leave(l.next, l.scans), fail, p.null()
 	case *syntax.Case:
 		return p.caseExpr(e, fail, succ)
 	case *syntax.Create:
@@ -560,7 +566,20 @@ func (p *pcomp) literal(e *syntax.Literal) vm.Operand {
 		}
 		return p.c.constant(fmt.Sprintf("s%d%q", unit, s), vm.NewString(s, unit))
 	case token.CSETLIT:
-		p.errorf(e, "csets are not yet supported")
+		segs, ranges, u, err := lit.Cset(t.Text)
+		if err != nil {
+			p.errorf(e, "%v", err)
+			return p.null()
+		}
+		unit := vm.TextUnit
+		if u == lit.Bytes {
+			unit = vm.BytesUnit
+		}
+		rs := make([]vm.CsetRange, len(ranges))
+		for i, r := range ranges {
+			rs[i] = vm.CsetRange{Lo: r.Lo, Hi: r.Hi, LoneBytes: r.LoneBytes}
+		}
+		return p.c.constant(fmt.Sprintf("c%d%q%v", unit, segs, ranges), vm.NewCsetLiteral(segs, rs, unit))
 	case token.INTLIT:
 		n, err := lit.ParseNumber(t.Text)
 		if err == lit.ErrRange {
@@ -584,7 +603,21 @@ func (p *pcomp) keyword(e *syntax.Keyword, fail, succ label) (label, label, vm.O
 		return succ, fail, p.null()
 	case "fail":
 		return fail, fail, p.null()
-	case "current", "source", "main":
+	case "cset":
+		return succ, fail, p.c.constant("&cset", vm.CsetAll)
+	case "ascii":
+		return succ, fail, p.c.constant("&ascii", vm.CsetASCII)
+	case "digits":
+		return succ, fail, p.c.constant("&digits", vm.CsetDigits)
+	case "lcase":
+		return succ, fail, p.c.constant("&lcase", vm.CsetLcase)
+	case "ucase":
+		return succ, fail, p.c.constant("&ucase", vm.CsetUcase)
+	case "letters":
+		return succ, fail, p.c.constant("&letters", vm.CsetLetters)
+	case "uset":
+		return succ, fail, p.c.constant("&uset", vm.CsetUniv)
+	case "current", "source", "main", "subject", "pos":
 		s := p.newLabel()
 		p.place(s)
 		t := p.temp()
@@ -596,7 +629,7 @@ func (p *pcomp) keyword(e *syntax.Keyword, fail, succ label) (label, label, vm.O
 }
 
 // unaryOps maps prefix operators to their implementations.
-var unaryOps = map[string]string{"-": "u-", "+": "u+", "*": "u*"}
+var unaryOps = map[string]string{"-": "u-", "+": "u+", "*": "u*", "~": "u~"}
 
 func (p *pcomp) unary(e *syntax.Unary, fail, succ label) (label, label, vm.Operand) {
 	op := e.Op.Text
@@ -605,6 +638,8 @@ func (p *pcomp) unary(e *syntax.Unary, fail, succ label) (label, label, vm.Opera
 		return p.oper(vm.Ops[unaryOps[op]], []syntax.Expr{e.X}, fail, succ)
 	case op == "!":
 		return p.genOp(vm.Ops["u!"], []syntax.Expr{e.X}, fail, succ)
+	case op == "=":
+		return p.genOp(vm.Ops["u="], []syntax.Expr{e.X}, fail, succ)
 	case op == "/" || op == `\`:
 		a := p.newLabel()
 		st, r, v := p.expr(e.X, fail, a)
@@ -644,6 +679,7 @@ var binaryOps = map[string]bool{
 	"<": true, "<=": true, ">": true, ">=": true, "=": true, "~=": true,
 	"==": true, "~==": true, "<<": true, "<<=": true, ">>": true, ">>=": true,
 	"===": true, "~===": true, "||": true, "|||": true,
+	"++": true, "--": true, "**": true,
 }
 
 func (p *pcomp) binary(e *syntax.Binary, fail, succ label) (label, label, vm.Operand) {
@@ -662,8 +698,7 @@ func (p *pcomp) binary(e *syntax.Binary, fail, succ label) (label, label, vm.Ope
 		a := p.newLabel()
 		st, r, vs := p.seq([]syntax.Expr{e.X, e.Y}, fail, a)
 		p.place(a)
-		p.emit(vm.Instr{Op: vm.OpAssign, Dst: vs[0], X: vs[1]})
-		p.jump(succ)
+		p.emit(vm.Instr{Op: vm.OpAssign, Dst: vs[0], X: vs[1], L1: int32(succ), L2: int32(r)})
 		return st, r, vs[0]
 	case op == ":=:":
 		a := p.newLabel()
@@ -671,10 +706,15 @@ func (p *pcomp) binary(e *syntax.Binary, fail, succ label) (label, label, vm.Ope
 		p.place(a)
 		t := p.temp()
 		p.emit(vm.Instr{Op: vm.OpMove, Dst: t, X: vs[0]})
-		p.emit(vm.Instr{Op: vm.OpAssign, Dst: vs[0], X: vs[1]})
-		p.emit(vm.Instr{Op: vm.OpAssign, Dst: vs[1], X: t})
-		p.jump(succ)
+		b := p.newLabel()
+		p.emit(vm.Instr{Op: vm.OpAssign, Dst: vs[0], X: vs[1], L1: int32(b), L2: int32(r)})
+		p.place(b)
+		p.emit(vm.Instr{Op: vm.OpAssign, Dst: vs[1], X: t, L1: int32(succ), L2: int32(r)})
 		return st, r, vs[0]
+	case op == "?":
+		return p.scan(e.X, e.Y, false, fail, succ)
+	case op == "?:=":
+		return p.scan(e.X, e.Y, true, fail, succ)
 	case strings.HasSuffix(op, ":=") && binaryOps[strings.TrimSuffix(op, ":=")]:
 		// x op:= y is x := x op y, evaluating x once.
 		a := p.newLabel()
@@ -684,8 +724,7 @@ func (p *pcomp) binary(e *syntax.Binary, fail, succ label) (label, label, vm.Ope
 		b := p.newLabel()
 		p.emit(vm.Instr{Op: vm.OpOper, Fn: vm.Ops[strings.TrimSuffix(op, ":=")], Dst: t, Args: vs, L1: int32(b), L2: int32(r)})
 		p.place(b)
-		p.emit(vm.Instr{Op: vm.OpAssign, Dst: vs[0], X: t})
-		p.jump(succ)
+		p.emit(vm.Instr{Op: vm.OpAssign, Dst: vs[0], X: t, L1: int32(succ), L2: int32(r)})
 		return st, r, vs[0]
 	}
 	p.errorf(e, "operator %s is not yet supported", op)
@@ -742,9 +781,19 @@ func (p *pcomp) ifExpr(e *syntax.If, fail, succ label) (label, label, vm.Operand
 func (p *pcomp) loop(e *syntax.Loop, fail, succ label) (label, label, vm.Operand) {
 	// The loop is the context of break and next in both its control
 	// expression and its body: "while break" exits the while.
-	l := &loop{next: p.newLabel(), fail: fail, succ: succ, result: p.temp()}
+	l := &loop{next: p.newLabel(), fail: fail, succ: succ, result: p.temp(), gate: p.temp(),
+		resume: p.newLabel(), scans: len(p.scans)}
 	p.loops = append(p.loops, l)
-	defer func() { p.loops = p.loops[:len(p.loops)-1] }()
+	defer func() {
+		p.loops = p.loops[:len(p.loops)-1]
+		// Resuming the loop resumes the break expression that ended it.
+		if l.broken {
+			p.place(l.resume)
+			p.emit(vm.Instr{Op: vm.OpIGoto, X: l.gate})
+		} else {
+			p.bind(l.resume, fail)
+		}
+	}()
 	switch e.Keyword.Kind {
 	case token.EVERY:
 		body := p.newLabel()
@@ -752,7 +801,7 @@ func (p *pcomp) loop(e *syntax.Loop, fail, succ label) (label, label, vm.Operand
 		p.bind(l.next, r)
 		s2, _, _ := p.expr(e.Body, r, r)
 		p.bind(body, s2)
-		return st, fail, l.result
+		return st, l.resume, l.result
 	case token.WHILE, token.UNTIL, token.REPEAT:
 		top, cond := p.newLabel(), p.newLabel()
 		p.place(top)
@@ -771,30 +820,55 @@ func (p *pcomp) loop(e *syntax.Loop, fail, succ label) (label, label, vm.Operand
 		}
 		s2, _, _ := p.expr(e.Body, top, top)
 		p.bind(body, s2)
-		return top, fail, l.result
+		return top, l.resume, l.result
 	}
 	p.errorf(e, "invalid loop")
 	return fail, fail, p.null()
 }
 
-// brk compiles break [e]: the loop produces e's first result.
-//
-// TODO: Icon resumes e when the loop is resumed.
+// brk compiles break [e]: the loop produces e's results, e being
+// evaluated in the loop's context; resuming the loop resumes e.
 func (p *pcomp) brk(e *syntax.Break, fail label) (label, label, vm.Operand) {
 	if len(p.loops) == 0 {
 		p.errorf(e, "invalid context for break")
 		return fail, fail, p.null()
 	}
 	l := p.loops[len(p.loops)-1]
+	l.broken = true
 	a := p.newLabel()
-	saved := p.loops
-	p.loops = p.loops[:len(p.loops)-1] // break's expression is outside the loop
-	st, _, v := p.expr(e.X, l.fail, a)
-	p.loops = saved
+	savedLoops, savedScans := p.loops, p.scans
+	p.loops, p.scans = p.loops[:len(p.loops)-1], p.scans[:l.scans]
+	st, r, v := p.expr(e.X, l.fail, a)
+	p.loops, p.scans = savedLoops, savedScans
 	p.place(a)
+	p.emit(vm.Instr{Op: vm.OpSetLabel, Dst: l.gate, L1: int32(r)})
 	p.emit(vm.Instr{Op: vm.OpMoveVar, Dst: l.result, X: v})
 	p.jump(l.succ)
-	return st, fail, p.null()
+	return p.leave(st, l.scans), fail, p.null()
+}
+
+// leave returns a label that leaves the scans entered since depth (the
+// innermost first), restoring their outer environments, and goes to
+// target.
+func (p *pcomp) leave(target label, depth int) label {
+	if len(p.scans) == depth {
+		return target
+	}
+	l := p.newLabel()
+	p.place(l)
+	for i := len(p.scans) - 1; i >= depth; i-- {
+		p.emit(vm.Instr{Op: vm.OpScanSwap, X: p.scans[i]})
+	}
+	p.jump(target)
+	return l
+}
+
+// reenter emits code that re-enters the scans left by leave(_, 0), the
+// outermost first.
+func (p *pcomp) reenter() {
+	for _, env := range p.scans {
+		p.emit(vm.Instr{Op: vm.OpScanSwap, X: env})
+	}
 }
 
 func (p *pcomp) ret(e *syntax.Return, fail, succ label) (label, label, vm.Operand) {
@@ -807,13 +881,19 @@ func (p *pcomp) ret(e *syntax.Return, fail, succ label) (label, label, vm.Operan
 		}
 		return fail, fail, p.null()
 	}
+	// Leaving the procedure from inside scans restores the caller's
+	// scanning environment first, as iconx does; values are then
+	// dereferenced, so "return &subject" returns the caller's subject.
 	switch e.Keyword.Kind {
 	case token.FAIL:
-		return p.pfail, fail, p.null()
+		return p.leave(p.pfail, 0), fail, p.null()
 	case token.RETURN:
 		a := p.newLabel()
-		st, _, v := p.expr(e.X, p.pfail, a)
+		st, _, v := p.expr(e.X, p.leave(p.pfail, 0), a)
 		p.place(a)
+		for i := len(p.scans) - 1; i >= 0; i-- {
+			p.emit(vm.Instr{Op: vm.OpScanSwap, X: p.scans[i]})
+		}
 		p.emit(vm.Instr{Op: vm.OpReturn, X: v})
 		return st, fail, p.null()
 	case token.SUSPEND:
@@ -825,7 +905,14 @@ func (p *pcomp) ret(e *syntax.Return, fail, succ label) (label, label, vm.Operan
 			resume = s2
 		}
 		p.place(a)
-		p.emit(vm.Instr{Op: vm.OpSuspend, X: v, L1: int32(resume)})
+		for i := len(p.scans) - 1; i >= 0; i-- {
+			p.emit(vm.Instr{Op: vm.OpScanSwap, X: p.scans[i]})
+		}
+		back := p.newLabel()
+		p.emit(vm.Instr{Op: vm.OpSuspend, X: v, L1: int32(back)})
+		p.place(back)
+		p.reenter()
+		p.jump(resume)
 		return st, fail, p.null()
 	}
 	p.errorf(e, "invalid return")
@@ -885,11 +972,13 @@ func (p *pcomp) caseExpr(e *syntax.Case, fail, succ label) (label, label, vm.Ope
 func (p *pcomp) create(e *syntax.Create, fail, succ label) (label, label, vm.Operand) {
 	saved := p.loops
 	p.loops = nil // break and next cannot leave a co-expression
+	savedScans := p.scans
+	p.scans = nil
 	p.inCo++
 	a, done := p.newLabel(), p.newLabel()
 	body, r, v := p.expr(e.X, done, a)
 	p.inCo--
-	p.loops = saved
+	p.loops, p.scans = saved, savedScans
 	p.place(a)
 	p.emit(vm.Instr{Op: vm.OpCoRet, X: v, L1: int32(r)})
 	p.place(done)
@@ -918,4 +1007,48 @@ func (p *pcomp) activate(x, c syntax.Expr, fail, succ label) (label, label, vm.O
 	}
 	p.emit(in)
 	return st, r, t
+}
+
+// scan compiles x ? y (or x ?:= y when assign is set, which assigns the
+// result to x), following Jcon: entering y saves the outer scanning
+// environment; when y produces a value, the environments are exchanged,
+// so the outer one is current; resuming y exchanges them back; when y
+// fails, the outer one is restored.
+func (p *pcomp) scan(x, y syntax.Expr, assign bool, fail, succ label) (label, label, vm.Operand) {
+	a := p.newLabel()
+	st, r1, vx := p.expr(x, fail, a)
+	env := p.temp()
+	b, d, res := p.newLabel(), p.newLabel(), p.newLabel()
+	p.place(a)
+	p.emit(vm.Instr{Op: vm.OpScanEnter, Dst: env, X: vx})
+	var r2 label
+	var vy vm.Operand
+	p.scans = append(p.scans, env)
+	p.enter(func() label {
+		var s2 label
+		s2, r2, vy = p.expr(y, d, b)
+		return s2
+	})
+	p.scans = p.scans[:len(p.scans)-1]
+	// y succeeded: back to the outer environment.
+	p.place(b)
+	p.emit(vm.Instr{Op: vm.OpScanSwap, X: env})
+	v := vy
+	if assign {
+		t := p.temp()
+		p.emit(vm.Instr{Op: vm.OpMove, Dst: t, X: vy})
+		p.emit(vm.Instr{Op: vm.OpAssign, Dst: vx, X: t, L1: int32(succ), L2: int32(res)})
+		v = vx
+	} else {
+		p.jump(succ)
+	}
+	// Resumed (or the assignment failed): back into y's environment.
+	p.place(res)
+	p.emit(vm.Instr{Op: vm.OpScanSwap, X: env})
+	p.jump(r2)
+	// y failed: restore the outer environment.
+	p.place(d)
+	p.emit(vm.Instr{Op: vm.OpScanSwap, X: env})
+	p.jump(r1)
+	return st, res, v
 }

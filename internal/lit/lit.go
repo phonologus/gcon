@@ -52,17 +52,25 @@ func isSpace(c byte) bool {
 	return c == ' ' || c == '\t' || c == '\n' || c == '\v' || c == '\f' || c == '\r'
 }
 
-// String decodes a string or cset literal token, quotes included. It
-// returns the literal's bytes and their unit.
-func String(tok string) (string, Unit, error) {
+// piece is one decoded character of a literal: the bytes it stands for,
+// and whether it was written as an escape.
+type piece struct {
+	s   string
+	esc bool
+}
+
+// decode decodes a string or cset literal token, quotes included, into
+// pieces, and returns the literal's unit.
+func decode(tok string) ([]piece, Unit, error) {
 	if len(tok) < 2 || (tok[0] != '"' && tok[0] != '\'') || tok[len(tok)-1] != tok[0] {
-		return "", ASCII, fmt.Errorf("malformed literal %s", tok)
+		return nil, ASCII, fmt.Errorf("malformed literal %s", tok)
 	}
 	src := tok[1 : len(tok)-1]
-	var b strings.Builder
+	var ps []piece
 	codePoint := false // a non-ASCII code point has been seen
 	highByte := false  // a non-ASCII byte that is not part of a code point
-	cont := -1         // output length at a '_' followed only by blanks, else -1
+	cont := -1         // len(ps) at a '_' followed only by blanks, else -1
+	add := func(s string, esc bool) { ps = append(ps, piece{s, esc}) }
 	for i := 0; i < len(src); {
 		c := src[i]
 		switch {
@@ -70,9 +78,7 @@ func String(tok string) (string, Unit, error) {
 			// A '_' that was the last non-blank before the newline joins
 			// the next line, from its first non-blank, dropping the '_'.
 			if cont >= 0 {
-				s := b.String()[:cont]
-				b.Reset()
-				b.WriteString(s)
+				ps = ps[:cont]
 			}
 			i++
 			for i < len(src) && isSpace(src[i]) {
@@ -96,7 +102,7 @@ func String(tok string) (string, Unit, error) {
 				if v >= 0x80 {
 					highByte = true
 				}
-				b.WriteByte(byte(v))
+				add(string([]byte{byte(v)}), true)
 			case e == 'x' || e == 'X':
 				// Up to two hex digits; none gives NUL, as in icont.
 				v := 0
@@ -111,9 +117,9 @@ func String(tok string) (string, Unit, error) {
 				if v >= 0x80 {
 					highByte = true
 				}
-				b.WriteByte(byte(v))
+				add(string([]byte{byte(v)}), true)
 			case e == '^' && i < len(src):
-				b.WriteByte(src[i] & 037)
+				add(string([]byte{src[i] & 037}), true)
 				i++
 			case e == 'u' || e == 'U':
 				min, max := 4, 4
@@ -131,24 +137,30 @@ func String(tok string) (string, Unit, error) {
 					n++
 				}
 				if n < min {
-					return "", ASCII, fmt.Errorf("\\%c escape needs %d hex digits", e, min)
+					return nil, ASCII, fmt.Errorf("\\%c escape needs %d hex digits", e, min)
 				}
 				if v > utf8.MaxRune || (0xD800 <= v && v <= 0xDFFF) {
-					return "", ASCII, fmt.Errorf("invalid code point U+%X", v)
+					return nil, ASCII, fmt.Errorf("invalid code point U+%X", v)
 				}
 				if v >= 0x80 {
 					codePoint = true
 				}
-				b.WriteRune(rune(v))
+				add(string(rune(v)), true)
 			default:
 				if v, ok := esc[e]; ok {
-					b.WriteByte(v)
-				} else {
-					if e >= 0x80 {
-						i-- // an escaped non-ASCII character: decode it below
-						continue
+					add(string([]byte{v}), true)
+				} else if e >= 0x80 {
+					i-- // an escaped non-ASCII character: decode it below
+					r, w := utf8.DecodeRuneInString(src[i:])
+					if r == utf8.RuneError && w == 1 {
+						highByte = true
+					} else {
+						codePoint = true
 					}
-					b.WriteByte(e)
+					add(src[i:i+w], true)
+					i += w
+				} else {
+					add(string([]byte{e}), true)
 				}
 			}
 			continue
@@ -159,17 +171,17 @@ func String(tok string) (string, Unit, error) {
 			} else {
 				codePoint = true
 			}
-			b.WriteString(src[i : i+w])
+			add(src[i:i+w], false)
 			i += w
 			cont = -1
 			continue
 		}
 		if c == '_' {
-			cont = b.Len()
+			cont = len(ps)
 		} else if !isSpace(c) {
 			cont = -1
 		}
-		b.WriteByte(c)
+		add(string([]byte{c}), false)
 		i++
 	}
 	u := ASCII
@@ -179,7 +191,104 @@ func String(tok string) (string, Unit, error) {
 	case highByte:
 		u = Bytes
 	}
+	return ps, u, nil
+}
+
+// String decodes a string or cset literal token, quotes included. It
+// returns the literal's bytes and their unit.
+func String(tok string) (string, Unit, error) {
+	ps, u, err := decode(tok)
+	if err != nil {
+		return "", ASCII, err
+	}
+	var b strings.Builder
+	for _, p := range ps {
+		b.WriteString(p.s)
+	}
 	return b.String(), u, nil
+}
+
+// Range is an inclusive range in a cset literal. In a text literal its
+// ends are code points, or both lone bytes (LoneBytes); in a bytes literal
+// they are bytes (LoneBytes is then set too).
+type Range struct {
+	Lo, Hi    rune
+	LoneBytes bool
+}
+
+// Cset decodes a cset literal token. An unescaped ".." between two
+// characters is a range (docs/design.md, "Csets"). It returns the text of
+// the literal between ranges, as separate segments (to be read
+// separately, so that bytes cannot fuse across a range), the ranges, and
+// the unit.
+func Cset(tok string) ([]string, []Range, Unit, error) {
+	ps, u, err := decode(tok)
+	if err != nil {
+		return nil, nil, ASCII, err
+	}
+	dot := func(i int) bool { return i < len(ps) && ps[i].s == "." && !ps[i].esc }
+	var segs []string
+	var b strings.Builder
+	for i := 0; i < len(ps); i++ {
+		if dot(i) && dot(i+1) {
+			if dot(i + 2) {
+				return nil, nil, ASCII, fmt.Errorf("three dots in cset literal %s", tok)
+			}
+			segs = append(segs, b.String())
+			b.Reset()
+			i++
+			continue
+		}
+		b.WriteString(ps[i].s)
+	}
+	segs = append(segs, b.String())
+	var ranges []Range
+	for k := 0; k+1 < len(segs); k++ {
+		lo, loLone, ok1 := lastChar(segs[k], u)
+		hi, hiLone, ok2 := firstChar(segs[k+1], u)
+		if !ok1 || !ok2 {
+			return nil, nil, ASCII, fmt.Errorf("\"..\" needs a character on each side in %s", tok)
+		}
+		if u != Bytes && loLone != hiLone {
+			return nil, nil, ASCII, fmt.Errorf("range mixes a code point and a byte in %s", tok)
+		}
+		if lo > hi {
+			return nil, nil, ASCII, fmt.Errorf("descending range in %s", tok)
+		}
+		ranges = append(ranges, Range{Lo: lo, Hi: hi, LoneBytes: u == Bytes || loLone})
+	}
+	return segs, ranges, u, nil
+}
+
+// firstChar and lastChar return the first or last character of s read in
+// unit u, and whether it is a byte (in bytes) or lone byte (in text).
+func firstChar(s string, u Unit) (rune, bool, bool) {
+	if s == "" {
+		return 0, false, false
+	}
+	if u == Bytes || s[0] < utf8.RuneSelf {
+		return rune(s[0]), u == Bytes && s[0] >= utf8.RuneSelf, true
+	}
+	r, w := utf8.DecodeRuneInString(s)
+	if r == utf8.RuneError && w == 1 {
+		return rune(s[0]), true, true
+	}
+	return r, false, true
+}
+
+func lastChar(s string, u Unit) (rune, bool, bool) {
+	if s == "" {
+		return 0, false, false
+	}
+	n := len(s) - 1
+	if u == Bytes || s[n] < utf8.RuneSelf {
+		return rune(s[n]), u == Bytes && s[n] >= utf8.RuneSelf, true
+	}
+	r, w := utf8.DecodeLastRuneInString(s)
+	if r == utf8.RuneError && w == 1 {
+		return rune(s[n]), true, true
+	}
+	return r, false, true
 }
 
 // Number is a decoded numeric literal.

@@ -31,9 +31,11 @@ type Frame struct {
 type VM struct {
 	prog    *Program
 	globals []Value
-	cur     *Frame // the running frame
-	co      *Coexp // the running co-expression
-	main    *Coexp // &main
+	cur     *Frame  // the running frame
+	co      *Coexp  // the running co-expression
+	main    *Coexp  // &main
+	subject *String // &subject
+	pos     int     // &pos
 	out     *bufio.Writer
 	errout  *bufio.Writer
 	serials map[string]int // last serial number issued, by type
@@ -57,6 +59,8 @@ func New(prog *Program, stdout, stderr io.Writer) *VM {
 		out:     bufio.NewWriter(stdout),
 		errout:  bufio.NewWriter(stderr),
 		serials: map[string]int{},
+		subject: Text(""),
+		pos:     1,
 	}
 }
 
@@ -157,25 +161,27 @@ func (vm *VM) ref(f *Frame, o Operand) Value {
 	return vm.get(f, o)
 }
 
-func (vm *VM) assign(f *Frame, o Operand, v Value) {
+// assign assigns v to the variable o, reporting whether the assignment
+// succeeded (assigning an invalid position to &pos fails).
+func (vm *VM) assign(f *Frame, o Operand, v Value) bool {
 	switch o.Kind {
 	case LocalOp:
 		f.locals[o.Index] = v
-		return
+		return true
 	case GlobalOp:
 		vm.globals[o.Index] = v
-		return
+		return true
 	case TempOp:
 		switch x := f.temps[o.Index].(type) {
 		case *Value:
 			*x = v
-			return
+			return true
 		case Var:
-			x.Set(v)
-			return
+			return x.Set(v)
 		}
 	}
 	Runerr(111, Deref(vm.get(f, o)))
+	return false
 }
 
 // args dereferences the argument operands.
@@ -213,7 +219,16 @@ func (vm *VM) run(f *Frame) {
 			f.temps[in.Dst.Index] = vm.ref(f, in.X)
 			f.pc++
 		case OpAssign:
-			vm.assign(f, in.Dst, Deref(vm.get(f, in.X)))
+			if vm.assign(f, in.Dst, Deref(vm.get(f, in.X))) {
+				f.pc = int(in.L1)
+			} else {
+				f.pc = int(in.L2)
+			}
+		case OpScanEnter:
+			f.temps[in.Dst.Index] = vm.scanEnter(Deref(vm.get(f, in.X)))
+			f.pc++
+		case OpScanSwap:
+			vm.scanSwap(f.temps[in.X.Index].(*scanEnv))
 			f.pc++
 		case OpIsNull:
 			if _, ok := Deref(vm.get(f, in.X)).(Null); ok {

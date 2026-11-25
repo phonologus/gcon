@@ -195,6 +195,10 @@ func TestOracle(t *testing.T) {
 				if f, ok := builtin.LookupFunction(m[1]); ok && f.Graphics {
 					continue
 				}
+				// gcon's own built-ins are undeclared identifiers to icont.
+				if f, ok := builtin.LookupFunction(m[1]); ok && f.Gcon {
+					continue
+				}
 				// Which feature symbols (_GRAPHICS, _MS_WINDOWS, ...) icont
 				// predefines depends on how it was built; we treat them
 				// all as possibly defined.

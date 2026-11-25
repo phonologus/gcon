@@ -1,0 +1,64 @@
+hello|12| |world|12
+"abc" 1
+"" 1
+2
+pos fails 2
+4
+3
+backtracked to 3
+a@2
+abc@4
+2 3 3 2 3
+2 5 
+1 2 3 4 
+3 4 
+4 nomatch 1
+4 no many no any
+2 3 4 5 6 
+5 4 3 2 1 
+aa 4 a no
+1 not 2
+6
+adef
+new 1
+"new"
+y
+new
+""
+"a"
+"ab"
+1
+1 2 5 6 12 
+2 8 
+1
+the,quick,brown,fox,
+world
+outer outer 3
+failed outer 3
+3 outer 3
+3 outer 3
+x
+xy
+1
+2
+3
+4
+5
+98
+98
+q
+w
+1
+q
+2
+w
+3
+e
+4
+r
+5
+t
+6
+y
+ inner 3
+2 2

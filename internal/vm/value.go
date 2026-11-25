@@ -36,6 +36,10 @@ type String struct {
 	unit  Unit
 	ascii int8 // 0 unknown, 1 all ASCII, -1 not
 	n     int  // character count, -1 unknown
+	// A cursor: character position cpos (0 if none) is at byte offset
+	// coff. Scanning moves through a subject in small steps, so finding
+	// an offset from the last one found is cheap.
+	cpos, coff int
 }
 
 // NewString returns a string with the given bytes and unit.
@@ -82,19 +86,24 @@ func (s *String) Len() int {
 }
 
 // offset returns the byte offset of character position i (1-based,
-// 1 <= i <= Len()+1).
+// 1 <= i <= Len()+1). For non-ASCII text it steps from the cursor, or
+// from the start if the cursor is beyond i, and leaves the cursor at i.
 //
-// TODO: non-ASCII text is scanned from the start; the design calls for
-// a sparse offset index and a scanning cursor.
+// TODO: the sparse offset index of docs/design.md ("Fast positions"),
+// for random access far from the cursor.
 func (s *String) offset(i int) int {
 	if s.unit == BytesUnit || s.IsASCII() {
 		return i - 1
 	}
-	off := 0
-	for k := 1; k < i; k++ {
+	k, off := 1, 0
+	if s.cpos > 0 && s.cpos <= i {
+		k, off = s.cpos, s.coff
+	}
+	for ; k < i; k++ {
 		_, w := utf8.DecodeRuneInString(s.s[off:])
 		off += w
 	}
+	s.cpos, s.coff = i, off
 	return off
 }
 
@@ -102,17 +111,7 @@ func (s *String) offset(i int) int {
 // (1 <= i <= j <= Len()+1).
 func (s *String) Slice(i, j int) *String {
 	a := s.offset(i)
-	b := a
-	if j > i {
-		if s.unit == BytesUnit || s.IsASCII() {
-			b = j - 1
-		} else {
-			for k := i; k < j; k++ {
-				_, w := utf8.DecodeRuneInString(s.s[b:])
-				b += w
-			}
-		}
-	}
+	b := s.offset(j)
 	r := &String{s: s.s[a:b], unit: s.unit, n: j - i}
 	if s.ascii > 0 {
 		r.ascii = 1
@@ -172,7 +171,7 @@ type Generator interface {
 // element. Locals and globals are referenced by *Value.
 type Var interface {
 	Get() Value
-	Set(v Value)
+	Set(v Value) bool // false if the assignment fails
 }
 
 // ListElem is the variable L[i] (0-based index into Elems).
@@ -188,10 +187,11 @@ func (e ListElem) Get() Value {
 	return NullValue
 }
 
-func (e ListElem) Set(v Value) {
+func (e ListElem) Set(v Value) bool {
 	if e.I < len(e.L.Elems) {
 		e.L.Elems[e.I] = v
 	}
+	return true
 }
 
 // Deref returns the value of v if it is a variable, else v.
@@ -220,6 +220,8 @@ func TypeName(v Value) string {
 		return "procedure"
 	case *Coexp:
 		return "co-expression"
+	case *Cset:
+		return "cset"
 	}
 	return "unknown"
 }

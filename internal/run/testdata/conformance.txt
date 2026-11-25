@@ -2,4 +2,6 @@
 # Maintained by: go test ./internal/run -run Conformance -update
 cxprimes
 primes
+scan1
+scan2
 statics

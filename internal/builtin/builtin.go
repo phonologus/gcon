@@ -6,7 +6,10 @@
 // loaded from a local cache; see Docs.
 package builtin
 
-import "strings"
+import (
+	"sort"
+	"strings"
+)
 
 //go:generate go run ../../tools/mkbuiltin -o catalog_gen.go
 
@@ -17,6 +20,7 @@ type Function struct {
 	Signature string // e.g. "left(s1,i,s2)"
 	Summary   string // one line, from the Icon runtime sources
 	Graphics  bool   // part of the graphics facilities
+	Gcon      bool   // a gcon extension, not in Icon 9.5
 }
 
 // Predefined is a symbol the Icon preprocessor defines (as 1) on systems
@@ -40,6 +44,7 @@ func LookupPredefined(name string) (*Predefined, bool) {
 type Keyword struct {
 	Name    string
 	Summary string
+	Gcon    bool // a gcon extension, not in Icon 9.5
 }
 
 var (
@@ -48,6 +53,10 @@ var (
 )
 
 func init() {
+	functions = append(functions, gconFunctions...)
+	sort.Slice(functions, func(i, j int) bool { return functions[i].Name < functions[j].Name })
+	keywords = append(keywords, gconKeywords...)
+	sort.Slice(keywords, func(i, j int) bool { return keywords[i].Name < keywords[j].Name })
 	for i := range functions {
 		funcIndex[functions[i].Name] = &functions[i]
 	}
@@ -92,8 +101,12 @@ func (f *Function) Params() []string {
 
 const site = "https://www2.cs.arizona.edu/icon/"
 
-// URL returns the address of f's entry in the online Icon reference.
+// URL returns the address of f's entry in the online Icon reference, or
+// "" for a gcon extension.
 func (f *Function) URL() string {
+	if f.Gcon {
+		return ""
+	}
 	if f.Graphics {
 		return site + "docs/ipd281/gipd_a.htm#" + f.Name
 	}

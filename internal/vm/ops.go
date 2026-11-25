@@ -103,6 +103,8 @@ func CvStr(v Value) (*String, bool) {
 		return x, true
 	case Int:
 		return &String{s: itoa(x), n: -1, ascii: 1}, true
+	case *Cset:
+		return x.String(), true
 	}
 	return nil, false
 }
@@ -265,6 +267,9 @@ func Identical(x, y Value) bool {
 	case *String:
 		b, ok := y.(*String)
 		return ok && a.s == b.s && (a.unit == b.unit || a.IsASCII())
+	case *Cset:
+		b, ok := y.(*Cset)
+		return ok && equalCsets(a, b)
 	}
 	return x == y
 }
@@ -328,6 +333,8 @@ var Ops = map[string]*Builtin{
 			return Int(len(x.Elems)), true
 		case *Coexp:
 			return Int(x.results), true
+		case *Cset:
+			return Int(x.Size()), true
 		}
 		if s, ok := CvStr(a[0]); ok {
 			return Int(s.Len()), true
@@ -496,6 +503,8 @@ func (vm *VM) Image(v Value) string {
 		return "function " + x.Name
 	case *Coexp:
 		return "co-expression_" + strconv.Itoa(x.serial) + "(" + strconv.Itoa(x.results) + ")"
+	case *Cset:
+		return imageCset(x)
 	}
 	return "?"
 }
