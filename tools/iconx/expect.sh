@@ -8,6 +8,9 @@
 #
 #   tools/iconx/expect.sh FILE.icn...
 #
+# Files a program links are taken from lib/ beside it (translated to
+# ucode with icont -c, for icont to link).
+#
 # Uses tools/iconx/build.sh to build icont and iconx if needed.
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
@@ -18,7 +21,18 @@ for f in "$@"; do
   base=${f%.icn}
   name=$(basename "$base")
   cp "$f" "$tmp/$name.icn"
-  (cd "$tmp" && "$bin/icont" -s -o "$name" "$name.icn")
+  lib=$(cd "$(dirname "$f")" && pwd)/lib
+  if [ -d "$lib" ]; then
+    cp "$lib"/*.icn "$tmp/"
+    (cd "$tmp" && for u in "$lib"/*.icn; do "$bin/icont" -s -c "$(basename "$u")"; done)
+  fi
+  if ! (cd "$tmp" && "$bin/icont" -s -o "$name" "$name.icn"); then
+    # Translation or linking failed: no output, status 1.
+    : >"$base.std"
+    echo 1 >"$base.exit"
+    echo "$f: translation failed, status 1"
+    continue
+  fi
   in=/dev/null
   [ -f "$base.dat" ] && in=$base.dat
   args=

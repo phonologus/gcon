@@ -67,7 +67,10 @@ func TestConformance(t *testing.T) {
 			stdin = bytes.NewReader(b)
 		}
 		var out bytes.Buffer
-		File(name+".icn", Config{Stdin: stdin, Stdout: &out, Stderr: &out, Timeout: 5 * time.Second})
+		// link finds the Icon Program Library's procedures, from source,
+		// where iconx's tests find them built in icon/lib.
+		lib := []string{filepath.Join(root, "ipl", "procs")}
+		File(name+".icn", Config{Stdin: stdin, Stdout: &out, Stderr: &out, Timeout: 5 * time.Second, LibPath: lib})
 		ok := out.String() == string(want)
 		switch {
 		case ok:

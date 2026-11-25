@@ -1,0 +1,14 @@
+# Linked by link.icn; links linkb, which links back (a cycle).
+link linkb
+
+procedure a(n)
+   return n * 10 + b2()
+end
+
+procedure whichfile()
+   return &file
+end
+
+procedure fails_here(x)
+   return x + []
+end

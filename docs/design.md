@@ -524,6 +524,18 @@ procedures nothing reaches and nothing declares invocable are dropped.
 The Icon Program Library is used from its source (`ipl/procs`), which
 gcon finds on `IPATH`.
 
+Implemented in `run.TranslateLinked`: files are read breadth first from
+the main file, each once (by absolute path), so cycles are harmless; a
+linked file is known in the program by the name it was linked by plus
+".icn" (`&file`, tracebacks and trace lines say "printf.icn"), as icont
+knows a library file by the name it was translated under. An unfound
+file is an error at its `link` ("cannot resolve reference to file
+'foo.icn'"; icont names 'foo.u1'). A redeclaration across files is
+reported at the later declaration with the earlier one named, where
+icont's linker gives only the file. Program tests link files from
+`internal/run/testdata/lib`, which `expect.sh` translates with `icont
+-c` for iconx; the conformance test links the IPL from `ipl/procs`.
+
 ## Implementation status
 
 ### Translation and VM

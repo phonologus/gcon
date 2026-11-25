@@ -73,6 +73,7 @@ struct
 subjpos
 substring
 table
+tprintf
 tracer
 transmit
 traps

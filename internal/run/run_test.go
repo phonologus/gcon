@@ -61,7 +61,9 @@ func TestPrograms(t *testing.T) {
 			if err := os.WriteFile(name, src, 0o644); err != nil {
 				t.Fatal(err)
 			}
-			status := File(name, Config{Args: args, Stdin: stdin, Stdout: &stdout, Stderr: &stderr, Timeout: 10 * time.Second})
+			// Files the programs link are in testdata/lib.
+			lib := []string{filepath.Join(wd, "testdata", "lib")}
+			status := File(name, Config{Args: args, Stdin: stdin, Stdout: &stdout, Stderr: &stderr, Timeout: 10 * time.Second, LibPath: lib})
 			if got := stdout.String(); got != string(want) {
 				t.Errorf("output differs\n--- got\n%s--- want\n%s--- stderr\n%s", got, want, stderr.String())
 			}

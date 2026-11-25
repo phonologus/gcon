@@ -1,0 +1,20 @@
+#STDERR
+# link: files linked transitively (linka links linkb, which links linka
+# back), by name and by string; a global declared only in a linked file
+# (counter, used undeclared here, is that global, not a local); a record
+# from a linked file; procedures nothing reaches are dropped unless
+# declared invocable; &file and the traceback name the linked file.
+link linka, "linkc"
+
+procedure main()
+   write(a(2))
+   counter := 5
+   write(b())
+   p := pt(1, 2)
+   write(p.y, " ", type(p))
+   write(c("x"))
+   write(image(proc("hidden")) | "hidden is not reachable")
+   write(image(proc("shown")) | "shown is not reachable", " ", proc("shown")())
+   write(whichfile())
+   fails_here(3)
+end

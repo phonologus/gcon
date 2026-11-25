@@ -94,8 +94,8 @@ func Compile(p *sema.Program, infos []*sema.Info) (*vm.Program, []error) {
 				}
 				c.prog.Globals[c.global(d.Name.Text, vm.NullValue)] = vm.NewRecordType(d.Name.Text, fields)
 			case *syntax.LinkDecl:
-				line, _ := lines.Position(d.Link.Offset)
-				c.errorf(info.File.Path, line, "link is not yet supported")
+				// Resolved by run.TranslateLinked, which passes the
+				// linked files in.
 			case *syntax.InvocableDecl:
 				for _, it := range d.Items.Elems {
 					if it == nil || it.Name == nil {
