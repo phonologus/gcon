@@ -136,7 +136,7 @@ static _Noreturn void report(void) {
 
 static Frame *newframe(Proc *p, Value *args, int nargs) {
 	int slots = p->nlocals + p->ntemps;
-	Frame *f = xmalloc(sizeof *f + (size_t)slots * sizeof(Value));
+	Frame *f = gcnew(sizeof *f + (size_t)slots * sizeof(Value), T_FRAME);
 	f->proc = p;
 	f->locals = f->slots;
 	f->temps = f->slots + p->nlocals;
@@ -210,7 +210,7 @@ static Value *scratchargs(Frame *f, Operand *ops, int n, int need) {
 	int cap = (n > need ? n : need) + ScratchRoom;
 	if (vm.nscratch < cap) {
 		vm.nscratch = cap > 16 ? cap * 2 : 32;
-		vm.scratch = xmalloc((size_t)vm.nscratch * sizeof(Value));
+		vm.scratch = xcalloc((size_t)vm.nscratch, sizeof(Value)); /* a root: zeroed */
 	}
 	for (int i = 0; i < n; i++)
 		vm.scratch[i] = deref(get(f, ops[i]));
@@ -261,7 +261,7 @@ static void pop(Frame *f) {
 /* ---- Co-expressions ---- */
 
 Coexp *newcoexp(Proc *p, int entry, Value *init) {
-	Coexp *c = xcalloc(1, sizeof *c);
+	Coexp *c = gcnew(sizeof *c, T_COEXP);
 	c->serial = ++vm.serial_coexps;
 	c->proc = p;
 	c->entry = entry;
@@ -275,7 +275,7 @@ static Frame *transfer(Coexp *c, Value v, bool ok) {
 	switch (c->state) {
 	case CoNew: {
 		Proc *p = c->proc;
-		f = xmalloc(sizeof *f + (size_t)(p->nlocals + p->ntemps) * sizeof(Value));
+		f = gcnew(sizeof *f + (size_t)(p->nlocals + p->ntemps) * sizeof(Value), T_FRAME);
 		f->proc = p;
 		f->locals = f->slots;
 		f->temps = f->slots + p->nlocals;
@@ -463,14 +463,14 @@ static Value callable(Value v, int nargs) {
 static Value *applyargs(Value x, int *n) {
 	if (VKIND(x) == KList) {
 		List *l = x.w.p;
-		Value *a = xmalloc((size_t)(l->n + ScratchRoom + 8) * sizeof(Value));
+		Value *a = gcnew((size_t)(l->n + ScratchRoom + 8) * sizeof(Value), T_VALUES);
 		memcpy(a, list_at(l, 0), (size_t)l->n * sizeof(Value));
 		*n = (int)l->n;
 		return a;
 	}
 	if (VKIND(x) == KRecord) {
 		Record *r = x.w.p;
-		Value *a = xmalloc((size_t)(r->t->nfields + ScratchRoom + 8) * sizeof(Value));
+		Value *a = gcnew((size_t)(r->t->nfields + ScratchRoom + 8) * sizeof(Value), T_VALUES);
 		memcpy(a, r->f, (size_t)r->t->nfields * sizeof(Value));
 		*n = r->t->nfields;
 		return a;
@@ -481,8 +481,7 @@ static Value *applyargs(Value x, int *n) {
 static char *fromstr(Frame *f) {
 	Buf b = {0};
 	calledfrom(&b, f);
-	bufputc(&b, 0);
-	return b.b;
+	return cstr(bufstring(&b, TextUnit));
 }
 
 /* ---- The loop ---- */
@@ -490,6 +489,10 @@ static char *fromstr(Frame *f) {
 static void loop(Frame *f) {
 	vm.cur = f;
 	for (;;) {
+		if (gc_pending) { /* the safe point: no C code holds heap pointers */
+			vm.cur = f;
+			gc_collect();
+		}
 		Instr *in = &f->proc->code[f->pc];
 		switch (in->op) {
 		case OpGoto:
@@ -770,7 +773,7 @@ static void loop(Frame *f) {
 			break;
 		}
 		case OpCreate: {
-			Value *init = xmalloc((size_t)(f->proc->nlocals + 1) * sizeof(Value));
+			Value *init = gcnew((size_t)(f->proc->nlocals + 1) * sizeof(Value), T_VALUES);
 			memcpy(init, f->locals, (size_t)f->proc->nlocals * sizeof(Value));
 			Coexp *c = newcoexp(f->proc, in->l1, init);
 			c->from = fromstr(f);
@@ -889,7 +892,7 @@ int run_program(Program *p, const char *progname, int argc, char **argv) {
 		nm = 1;
 	}
 	vm.serial_coexps = 1;
-	vm.main = xcalloc(1, sizeof *vm.main);
+	vm.main = gcnew(sizeof *vm.main, T_COEXP);
 	vm.main->serial = 1;
 	vm.main->proc = main;
 	vm.main->state = CoRunning;

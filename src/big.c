@@ -11,7 +11,7 @@
 #include <string.h>
 
 static Big *newbig(int n) {
-	Big *b = xcalloc(1, sizeof *b + (size_t)(n > 0 ? n : 1) * sizeof b->d[0]);
+	Big *b = gcnew(sizeof *b + (size_t)(n > 0 ? n : 1) * sizeof b->d[0], T_RAW);
 	b->n = n;
 	return b;
 }

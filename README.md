@@ -9,8 +9,8 @@ display server: C builds are kept out of the Go repository.
 **Status: running programs.** `gcon-vm prog args...` runs a program gcon
 has built (`gcon build`), with the same results as gcon's Go VM on
 gcon's program tests and the reference tests; `gcon-vm -dis prog` lists
-one. There is no garbage collector yet, so memory is never freed. See [docs/design.md](docs/design.md) for
-why the VM is in C and how it is built, and `experiments/spike` for the
+one. Memory is managed by a precise mark-and-sweep collector. See
+[docs/design.md](docs/design.md) for why the VM is in C and how it is built, and `experiments/spike` for the
 measurement behind it.
 
 ## Building

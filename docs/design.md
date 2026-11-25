@@ -211,9 +211,7 @@ Go VM is the reference, and the tests compare the two.
   gcon: at exit, gcon-vm waits for the commands of pipes still open for
   writing, so their output is complete when it ends; gcon waits only
   when it relays their output, and iconx never waits.
-- **Memory is never freed yet.** Everything is `malloc`ed; the collector
-  (above, "Memory") is the next step, and programs that allocate
-  heavily grow without bound until then.
+- **Memory** is managed by the collector (below, "The collector").
 
 **Tests.** `tests/programs.sh` runs gcon's program tests (expected
 output, exit status and standard error recorded from iconx) built, as
@@ -245,3 +243,57 @@ gcon-vm): `@C` round trip 2,659 / 42.3 / 24.5; `@(create 1)` 17,488 /
 geometric mean is about 0.82 of iconx's time and 0.65 of the Go VM's,
 before tuning and without a collector; `left` (1.7 times iconx) and
 `map` (2.1) are the outliers.
+
+## The collector (2026-11-25)
+
+`src/gc.c`: precise mark and sweep, as planned above ("Memory").
+
+- **Safe points.** A collection runs only at the top of the
+  interpreter's loop, between instructions. There no C code holds a
+  heap pointer the roots do not, so builtins allocate freely (their
+  temporaries are simply garbage afterwards) and nothing on the C
+  stack need be found. Allocation sets a flag when the threshold is
+  passed; the loop tests it.
+- **Roots** are all known: the globals, the constants, the running
+  frame and co-expression and `&main` (frames reach their callers;
+  suspended frames, co-expressions and generators are reached through
+  the values that hold them), a few fields of the VM (`&subject`, the
+  scratch arguments, the error values, the files, `map`'s table), and
+  statics registered with `gcroot` (the predefined csets).
+- **The heap** is 1 MB chunks, aligned, each holding blocks of one size
+  class (16 bytes to 32 KB), and larger objects in chunks of their own.
+  A hash of megabyte addresses finds the chunk of any pointer, so a
+  pointer into the middle of an object (a substring's bytes, a
+  variable that is a local of a frame, a generator over a table)
+  finds and keeps the whole object; a pointer outside the heap (a
+  constant's bytes in the loaded file, a C string) is ignored. Every
+  block has a type, from which the collector knows how to trace it;
+  generators (and `map`'s table) carry their own mark function. Marking
+  uses an explicit stack, so deep structures do not recurse in C.
+- **Sweeping** puts dead blocks on per-class free lists and frees dead
+  large objects. The next collection comes when as much has been
+  allocated as was live after this one, and at least 16 MB.
+- **Constants** stay outside the heap, but a cset constant's cached
+  string is in it, so marking a constant cset traces its fields.
+- **Testing.** `GCONVMSTRESS=n` collects at the first safe point after
+  every n allocations and poisons freed blocks, so that a missing root
+  shows up as wrong output or a crash: the program and reference tests
+  pass with `n` = 1, also with ASan and UBSan (which see each chunk as
+  one allocation, so the poisoning stands in for them inside the
+  heap). `GCONVMDEBUG=gc` reports each collection.
+
+**Measured.** A loop making two million strings, lists and table
+entries runs in 20 MB (291 KB live at each collection). With a
+co-expression made and activated in each iteration as well, everything
+stays live: `create` copies the procedure's locals, including the
+variable holding the previous co-expression, so each keeps the one
+before reachable. The Go VM keeps the same chain (2.8 GB); gcon-vm
+finishes in 0.9 s and 2.2 GB; iconx fails at once ("cannot create
+thread"). Copying only the locals a co-expression's body uses would
+break such chains; that is the compiler's to decide (gcon), and is
+observable only through `variable` and `display` in the body, which
+would then not find the locals left out.
+
+The micro-benchmarks barely move: `@(create 1)` goes from 77.9 to
+47.8 ns (memory is reused rather than touched fresh), the rest within a
+few per cent.

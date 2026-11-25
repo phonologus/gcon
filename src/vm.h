@@ -3,8 +3,7 @@
  * ported from gcon's Go VM (gcon's internal/vm), whose semantics it
  * follows exactly; the Go VM is the reference (docs/design.md).
  *
- * Memory is allocated and, for now, never freed: the collector comes
- * next (docs/design.md, "Memory").
+ * Memory is managed by the collector (gc.c): objects are made with gcnew.
  */
 #ifndef GCON_VM_RT_H
 #define GCON_VM_RT_H
@@ -133,7 +132,31 @@ typedef struct File {
 typedef struct Gen Gen;
 struct Gen {
 	bool (*next)(Gen *g, Value *out);
+	void (*mark)(Gen *g); /* marks what it refers to (gc.c); NULL if nothing */
 };
+
+/* ---- The collector (gc.c) ---- */
+
+/* The types of heap blocks: how the collector traces them. */
+enum {
+	T_RAW,     /* no pointers: string bytes, digits, ranges */
+	T_VALUES,  /* an array of Values */
+	T_LIST, T_RECORD, T_TABLE, T_SET, T_SUBSTR, T_VAR, T_SCANENV,
+	T_GEN,     /* begins with a Gen: its mark function traces it */
+	T_FRAME, T_COEXP, T_CSET,
+	T_STRHDR,  /* a String */
+	T_FILE,
+	T_GCVOID,  /* an array of pointers to heap objects */
+	T_STRINGS, /* an array of Strings */
+};
+
+void *gcnew(size_t n, int type);
+bool markptr(const void *p);
+void markvalue(Value v);
+void gcroot(void **p);
+void gc_collect(void);
+void gc_init(void);
+extern bool gc_pending;
 
 /* ---- Builtins ---- */
 

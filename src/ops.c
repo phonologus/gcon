@@ -17,7 +17,7 @@ static bool strvar(Value x) {
 }
 
 static Value newsubstr(Value v, int64_t pos, int64_t len) {
-	Substr *s = xmalloc(sizeof *s);
+	Substr *s = gcnew(sizeof *s, T_SUBSTR);
 	if (VKIND(v) == KSubstr) {
 		Substr *o = v.w.p;
 		s->v = o->v;
@@ -144,7 +144,7 @@ static bool tonext(Gen *gg, Value *out) {
 
 GENFN(o_to) {
 	(void)b;
-	ToGen *g = xcalloc(1, sizeof *g);
+	ToGen *g = gcnew(sizeof *g, T_GEN);
 	g->g.next = tonext;
 	g->i = mustint(a[0]);
 	g->j = mustint(a[1]);
@@ -216,9 +216,16 @@ static bool linenext(Gen *gg, Value *out) {
 	return true;
 }
 
+static void idxmark(Gen *gg) {
+	IdxGen *g = (IdxGen *)gg;
+	markptr(g->p);
+	markvalue(g->v);
+}
+
 static Gen *idxgen(bool (*next)(Gen *, Value *), void *p, Value v) {
-	IdxGen *g = xcalloc(1, sizeof *g);
+	IdxGen *g = gcnew(sizeof *g, T_GEN);
 	g->g.next = next;
+	g->g.mark = idxmark;
 	g->p = p;
 	g->v = v;
 	return &g->g;
@@ -370,6 +377,15 @@ typedef struct RevGen {
 	bool done;
 } RevGen;
 
+static void revmark(Gen *gg) {
+	RevGen *g = (RevGen *)gg;
+	for (int i = 0; i < 2; i++) {
+		markvalue(g->vars[i]);
+		markvalue(g->olds[i]);
+		markvalue(g->news[i]);
+	}
+}
+
 static bool revnext(Gen *gg, Value *out) {
 	RevGen *g = (RevGen *)gg;
 	if (g->done) {
@@ -388,8 +404,9 @@ static bool revnext(Gen *gg, Value *out) {
 GENFN(o_nrevassign) {
 	(void)b;
 	(void)n;
-	RevGen *g = xcalloc(1, sizeof *g);
+	RevGen *g = gcnew(sizeof *g, T_GEN);
 	g->g.next = revnext;
+	g->g.mark = revmark;
 	g->k = 1;
 	g->vars[0] = a[0];
 	g->olds[0] = deref(a[0]);
@@ -400,8 +417,9 @@ GENFN(o_nrevassign) {
 GENFN(o_nrevswap) {
 	(void)b;
 	(void)n;
-	RevGen *g = xcalloc(1, sizeof *g);
+	RevGen *g = gcnew(sizeof *g, T_GEN);
 	g->g.next = revnext;
+	g->g.mark = revmark;
 	g->k = 2;
 	Value x = deref(a[0]), y = deref(a[1]);
 	g->vars[0] = a[0];

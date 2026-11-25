@@ -23,7 +23,7 @@ static Chars charsin(String s) {
 	Chars c = {s.s, NULL, s.n};
 	if (onebyte(s))
 		return c;
-	c.offs = xmalloc((size_t)(s.n + 1) * sizeof(int64_t));
+	c.offs = gcnew((size_t)(s.n + 1) * sizeof(int64_t), T_RAW);
 	int64_t k = 0;
 	for (int64_t i = 0; i < s.n; i += width(s, i))
 		c.offs[k++] = i;
@@ -160,7 +160,7 @@ FN(f_repl) {
 FN(f_reverse) {
 	(void)b;
 	String s = muststr(ARG(0));
-	char *r = xmalloc((size_t)s.n + 1);
+	char *r = gcnew((size_t)s.n + 1, T_RAW);
 	if (onebyte(s)) {
 		for (int64_t i = 0; i < s.n; i++)
 			r[i] = s.s[s.n - 1 - i];
@@ -201,17 +201,27 @@ FN(f_trim) {
 
 /* map's translation table: the last one made is kept, as iconx does. */
 typedef struct MapTab {
+	Gen g; /* only its mark function: a map table is traced as a generator is */
 	String s2, s3;
 	bool bytes;
 	uint8_t tab[256];
 	Chars c2, c3; /* otherwise: characters of s2 map to those of s3 */
 } MapTab;
 
+static void mapmark(Gen *g) {
+	MapTab *t = (MapTab *)g;
+	markptr(t->s2.s);
+	markptr(t->s3.s);
+	markptr(t->c2.offs);
+	markptr(t->c3.offs);
+}
+
 static MapTab *newmaptab(String s2, String s3) {
 	Chars c2 = charsin(s2), c3 = charsin(s3);
 	if (c2.n != c3.n)
 		runerr(208);
-	MapTab *t = xcalloc(1, sizeof *t);
+	MapTab *t = gcnew(sizeof *t, T_GEN);
+	t->g.mark = mapmark;
 	t->s2 = s2, t->s3 = s3;
 	if (!c2.offs && !c3.offs) {
 		t->bytes = true;
@@ -314,7 +324,7 @@ static bool printable(const char *c, int w, int unit) {
 static String tabs(Value *a, int n, bool entab) {
 	String s = muststr(ARG(0));
 	Tabs t = {0};
-	t.stops = xmalloc((size_t)(n + 1) * sizeof(int64_t));
+	t.stops = gcnew((size_t)(n + 1) * sizeof(int64_t), T_RAW);
 	for (int k = 1; k < n; k++) {
 		int64_t i = mustint(a[k]);
 		if ((k == 1 && i <= 1) || (k > 1 && i <= t.stops[k - 2]))
@@ -477,6 +487,7 @@ static Builtin fns[] = {
 
 void strfn_init(void) {
 	trimspace = csetfrom(" ", 1, TextUnit);
+	gcroot((void **)&trimspace);
 	for (size_t i = 0; i < sizeof fns / sizeof fns[0]; i++)
 		reg(&fns[i], BuiltinFunction);
 }

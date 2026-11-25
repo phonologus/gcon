@@ -94,7 +94,7 @@ static int rgetc(IOBuf *r) {
 }
 
 static File *newfile(const char *name, bool keyword) {
-	File *f = xcalloc(1, sizeof *f);
+	File *f = gcnew(sizeof *f, T_FILE);
 	f->name = textc(name);
 	f->keyword = keyword;
 	f->fd = -1;

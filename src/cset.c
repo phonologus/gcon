@@ -13,7 +13,7 @@ typedef uint32_t Range2[2];
 
 Cset *CsetAll, *CsetASCII, *CsetDigits, *CsetLcase, *CsetUcase, *CsetLetters, *CsetUniv;
 
-Cset *newcset(void) { return xcalloc(1, sizeof(Cset)); }
+Cset *newcset(void) { return gcnew(sizeof(Cset), T_CSET); }
 
 bool cset_has(const Cset *c, int b) { return c->bits[b >> 6] >> (b & 63) & 1; }
 void cset_set(Cset *c, int b) { c->bits[b >> 6] |= (uint64_t)1 << (b & 63); }
@@ -123,9 +123,15 @@ static RL complementr(Range2 *rs, int n) {
 	return r;
 }
 
+/* setranges gives c the ranges l, copied to the heap; l is freed. */
 static void setranges(Cset *c, RL l) {
-	c->ranges = l.n ? (Range2 *)l.r : NULL;
+	c->ranges = NULL;
+	if (l.n) {
+		c->ranges = gcnew((size_t)l.n * sizeof(Range2), T_RAW);
+		memcpy(c->ranges, l.r, (size_t)l.n * sizeof(Range2));
+	}
 	c->nranges = l.n;
+	free(l.r);
 }
 
 /* ---- Operations ---- */
@@ -203,7 +209,7 @@ static String csetstr(const Cset *c);
 
 String cset_string(const Cset *c) {
 	if (!c->str) {
-		String *s = xmalloc(sizeof *s);
+		String *s = gcnew(sizeof *s, T_STRHDR);
 		*s = csetstr(c);
 		((Cset *)c)->str = s;
 	}
@@ -321,4 +327,7 @@ void cset_init(void) {
 	CsetUcase = csetfrom("ABCDEFGHIJKLMNOPQRSTUVWXYZ", 26, TextUnit);
 	CsetLetters = csetop('+', CsetLcase, CsetUcase);
 	CsetUniv = complement(newcset());
+	Cset **statics[] = {&CsetAll, &CsetASCII, &CsetDigits, &CsetLcase, &CsetUcase, &CsetLetters, &CsetUniv};
+	for (size_t i = 0; i < sizeof statics / sizeof statics[0]; i++)
+		gcroot((void **)statics[i]);
 }

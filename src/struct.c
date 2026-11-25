@@ -16,9 +16,9 @@
 /* ---- Lists ---- */
 
 List *newlist(int64_t n) {
-	List *l = xcalloc(1, sizeof *l);
+	List *l = gcnew(sizeof *l, T_LIST);
 	l->cap = n > 4 ? n : 4;
-	l->e = xmalloc((size_t)l->cap * sizeof(Value));
+	l->e = gcnew((size_t)l->cap * sizeof(Value), T_VALUES);
 	l->n = n;
 	l->serial = ++vm.serial_lists;
 	return l;
@@ -26,12 +26,12 @@ List *newlist(int64_t n) {
 
 static void list_grow(List *l, int64_t front, int64_t back) {
 	int64_t cap = l->n + front + back + l->n / 2 + 4;
-	Value *e = xmalloc((size_t)cap * sizeof(Value));
+	Value *e = gcnew((size_t)cap * sizeof(Value), T_VALUES);
 	int64_t off = front + (l->n / 4) + 2;
 	if (off + l->n + back > cap)
 		off = front;
 	memcpy(e + off, l->e + l->off, (size_t)l->n * sizeof(Value));
-	l->e = e; /* the old array stays: a generator may be reading it */
+	l->e = e;
 	l->off = off;
 	l->cap = cap;
 }
@@ -52,7 +52,7 @@ void list_pushfront(List *l, Value v) {
 /* ---- Records ---- */
 
 Record *construct(RecordType *t, Value *a, int n) {
-	Record *r = xmalloc(sizeof *r + (size_t)t->nfields * sizeof(Value));
+	Record *r = gcnew(sizeof *r + (size_t)t->nfields * sizeof(Value), T_RECORD);
 	r->t = t;
 	r->serial = ++t->serial;
 	for (int i = 0; i < t->nfields; i++)
@@ -145,7 +145,7 @@ static int64_t find(OMap *m, Value k, uint64_t h, int64_t *slot) {
 
 static void reindex(OMap *m, int64_t size) {
 	m->isize = size;
-	m->index = xcalloc((size_t)size, sizeof(int32_t));
+	m->index = gcnew((size_t)size * sizeof(int32_t), T_RAW);
 	int64_t mask = size - 1;
 	for (int64_t e = 0; e < m->n; e++) {
 		if (VKIND(m->keys[e]) == KNone)
@@ -168,10 +168,10 @@ bool omap_get(OMap *m, Value k, Value *out) {
 
 static void growentries(OMap *m) {
 	int64_t cap = m->cap ? 2 * m->cap : 8;
-	Value *k = xmalloc((size_t)cap * sizeof(Value)), *v = xmalloc((size_t)cap * sizeof(Value));
+	Value *k = gcnew((size_t)cap * sizeof(Value), T_VALUES), *v = gcnew((size_t)cap * sizeof(Value), T_VALUES);
 	memcpy(k, m->keys, (size_t)m->n * sizeof(Value));
 	memcpy(v, m->vals, (size_t)m->n * sizeof(Value));
-	m->keys = k, m->vals = v, m->cap = cap; /* old arrays stay for traversals */
+	m->keys = k, m->vals = v, m->cap = cap; /* a traversal keeps the old ones alive */
 }
 
 void omap_put(OMap *m, Value k, Value v) {
@@ -196,7 +196,7 @@ void omap_put(OMap *m, Value k, Value v) {
 
 static void compact(OMap *m) {
 	if (m->shared) {
-		Value *k = xmalloc((size_t)(m->live + 1) * sizeof(Value)), *v = xmalloc((size_t)(m->live + 1) * sizeof(Value));
+		Value *k = gcnew((size_t)(m->live + 1) * sizeof(Value), T_VALUES), *v = gcnew((size_t)(m->live + 1) * sizeof(Value), T_VALUES);
 		int64_t j = 0;
 		for (int64_t i = 0; i < m->n; i++)
 			if (VKIND(m->keys[i]) != KNone) {
@@ -243,20 +243,20 @@ void omap_copy(OMap *dst, const OMap *src) {
 /* ---- Tables and sets ---- */
 
 Table *newtable(Value dflt) {
-	Table *t = xcalloc(1, sizeof *t);
+	Table *t = gcnew(sizeof *t, T_TABLE);
 	t->dflt = dflt;
 	t->serial = ++vm.serial_tables;
 	return t;
 }
 
 Set *newset(void) {
-	Set *s = xcalloc(1, sizeof *s);
+	Set *s = gcnew(sizeof *s, T_SET);
 	s->serial = ++vm.serial_sets;
 	return s;
 }
 
 Value tableelem(Table *t, Value k) {
-	Var *v = xcalloc(1, sizeof *v);
+	Var *v = gcnew(sizeof *v, T_VAR);
 	v->kind = VTableElem;
 	v->t = t;
 	v->k = k;
@@ -309,16 +309,24 @@ static bool omapnext(Gen *gg, Value *out) {
 	return false;
 }
 
+static void omapmark(Gen *gg) {
+	OMapGen *g = (OMapGen *)gg;
+	markptr(g->m); /* inside its table or set */
+	markptr(g->t);
+	markptr(g->keys);
+}
+
 Gen *omapgen(OMap *m, Table *t, int mode) {
-	OMapGen *g = xcalloc(1, sizeof *g);
+	OMapGen *g = gcnew(sizeof *g, T_GEN);
 	g->g.next = omapnext;
+	g->g.mark = omapmark;
 	g->m = m, g->t = t, g->mode = mode;
 	return &g->g;
 }
 
 /* members returns the live keys of m, in order. */
 static Value *members(const OMap *m, int64_t *np) {
-	Value *out = xmalloc((size_t)(m->live + 1) * sizeof(Value));
+	Value *out = gcnew((size_t)(m->live + 1) * sizeof(Value), T_VALUES);
 	int64_t j = 0;
 	for (int64_t i = 0; i < m->n; i++)
 		if (VKIND(m->keys[i]) != KNone)
@@ -484,7 +492,7 @@ static bool elements(Value v, Value **out, int64_t *np) {
 	switch (VKIND(v)) {
 	case KList: {
 		List *l = v.w.p;
-		*out = xmalloc((size_t)(l->n + 1) * sizeof(Value));
+		*out = gcnew((size_t)(l->n + 1) * sizeof(Value), T_VALUES);
 		memcpy(*out, list_at(l, 0), (size_t)l->n * sizeof(Value));
 		*np = l->n;
 		return true;
@@ -494,7 +502,7 @@ static bool elements(Value v, Value **out, int64_t *np) {
 		return true;
 	case KRecord: {
 		Record *r = v.w.p;
-		*out = xmalloc((size_t)(r->t->nfields + 1) * sizeof(Value));
+		*out = gcnew((size_t)(r->t->nfields + 1) * sizeof(Value), T_VALUES);
 		memcpy(*out, r->f, (size_t)r->t->nfields * sizeof(Value));
 		*np = r->t->nfields;
 		return true;
@@ -648,7 +656,7 @@ FN(f_sort) {
 		if (i < 1 || i > 4)
 			runerrv(205, intval(i));
 		int64_t np = 0;
-		Value *pairs = xmalloc((size_t)(t->m.live * 2 + 2) * sizeof(Value));
+		Value *pairs = gcnew((size_t)(t->m.live * 2 + 2) * sizeof(Value), T_VALUES);
 		for (int64_t k = 0; k < t->m.n; k++)
 			if (VKIND(t->m.keys[k]) != KNone) {
 				pairs[2 * np] = t->m.keys[k];
@@ -657,11 +665,11 @@ FN(f_sort) {
 			}
 		int by = (i == 2 || i == 4) ? 1 : 0;
 		/* Sort indices stably by the chosen element. */
-		Value *keys = xmalloc((size_t)(np + 1) * sizeof(Value));
+		Value *keys = gcnew((size_t)(np + 1) * sizeof(Value), T_VALUES);
 		for (int64_t k = 0; k < np; k++)
 			keys[k] = idxval(KInt, NULL, 0), keys[k].w.i = k;
 		/* insertion of a stable merge over pair indices */
-		Value *tmp = xmalloc((size_t)(np + 1) * sizeof(Value));
+		Value *tmp = gcnew((size_t)(np + 1) * sizeof(Value), T_VALUES);
 		for (int64_t width = 1; width < np; width *= 2) {
 			for (int64_t lo = 0; lo < np; lo += 2 * width) {
 				int64_t mid = lo + width < np ? lo + width : np;
@@ -777,7 +785,7 @@ static bool seqnext(Gen *gg, Value *out) {
 
 GENFN(f_seq) {
 	(void)b;
-	SeqGen *g = xcalloc(1, sizeof *g);
+	SeqGen *g = gcnew(sizeof *g, T_GEN);
 	g->g.next = seqnext;
 	g->i = g->j = 1;
 	if (!ISNULL(ARG(0)))

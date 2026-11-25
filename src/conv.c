@@ -25,7 +25,7 @@ String mkstr(const char *s, int64_t n, int unit) {
 String textc(const char *s) { return mkstr(s, (int64_t)strlen(s), TextUnit); }
 
 String strcopy(const char *s, int64_t n, int unit) {
-	char *p = xmalloc((size_t)n);
+	char *p = gcnew((size_t)n, T_RAW);
 	memcpy(p, s, (size_t)n);
 	return mkstr(p, n, unit);
 }
@@ -69,7 +69,7 @@ String concat(String a, String b) {
 		return a;
 	if (a.n == 0 && b.unit == u)
 		return b;
-	char *p = xmalloc((size_t)(a.n + b.n));
+	char *p = gcnew((size_t)(a.n + b.n), T_RAW);
 	memcpy(p, a.s, (size_t)a.n);
 	memcpy(p + a.n, b.s, (size_t)b.n);
 	return (String){p, a.n + b.n, (uint8_t)u, (int8_t)(aa && ba ? 1 : -1)};
@@ -107,7 +107,7 @@ bool streq_(String a, const char *t) {
 }
 
 char *cstr(String s) {
-	char *p = xmalloc((size_t)s.n + 1);
+	char *p = gcnew((size_t)s.n + 1, T_RAW);
 	memcpy(p, s.s, (size_t)s.n);
 	p[s.n] = 0;
 	return p;
@@ -471,13 +471,13 @@ bool cvstr(Value v, String *out) {
 	case KBig: {
 		Buf b = {0};
 		bigstr(&b, v.w.p);
-		*out = mkstr(b.b, (int64_t)b.n, TextUnit);
+		*out = bufstring(&b, TextUnit);
 		return true;
 	}
 	case KReal: {
 		Buf b = {0};
 		rtos(&b, v.w.r);
-		*out = mkstr(b.b, (int64_t)b.n, TextUnit);
+		*out = bufstring(&b, TextUnit);
 		return true;
 	}
 	case KCset:
@@ -609,8 +609,10 @@ const char *typename_(Value v) {
 	return "unknown";
 }
 
+/* bufstring returns the bytes of b as a string in the heap, and frees b. */
 String bufstring(Buf *b, int unit) {
-	if (b->n == 0)
-		return mkstr("", 0, unit);
-	return mkstr(b->b, (int64_t)b->n, unit);
+	String s = b->n == 0 ? mkstr("", 0, unit) : strcopy(b->b, (int64_t)b->n, unit);
+	free(b->b);
+	*b = (Buf){0};
+	return s;
 }

@@ -14,7 +14,7 @@ Value scanenter(Value v) {
 	String s;
 	if (!cvstr(v, &s))
 		runerrv(103, v);
-	ScanEnv *e = xmalloc(sizeof *e);
+	ScanEnv *e = gcnew(sizeof *e, T_SCANENV);
 	e->subject = vm.subject;
 	e->pos = vm.pos;
 	vm.subject = s;
@@ -23,7 +23,7 @@ Value scanenter(Value v) {
 }
 
 void scanswap(Value *ev) {
-	ScanEnv *e = ev->w.p, *ne = xmalloc(sizeof *ne);
+	ScanEnv *e = ev->w.p, *ne = gcnew(sizeof *ne, T_SCANENV);
 	ne->subject = vm.subject;
 	ne->pos = vm.pos;
 	vm.subject = e->subject;
@@ -39,7 +39,7 @@ static bool failnext(Gen *g, Value *out) {
 	return false;
 }
 
-Gen failgen = {failnext};
+Gen failgen = {failnext, NULL};
 
 typedef struct Restorer {
 	Gen g;
@@ -59,9 +59,12 @@ static bool restnext(Gen *gg, Value *out) {
 	return true;
 }
 
+static void restmark(Gen *g) { markvalue(((Restorer *)g)->v); }
+
 Gen *newrestorer(Value v, int64_t old) {
-	Restorer *g = xcalloc(1, sizeof *g);
+	Restorer *g = gcnew(sizeof *g, T_GEN);
 	g->g.next = restnext;
+	g->g.mark = restmark;
 	g->v = v;
 	g->old = old;
 	return &g->g;
@@ -227,14 +230,21 @@ static bool findnext(Gen *gg, Value *out) {
 	return false;
 }
 
+static void findmark(Gen *gg) {
+	FindGen *g = (FindGen *)gg;
+	markptr(g->s.s);
+	markptr(g->t.s);
+}
+
 GENFN(f_find) {
 	(void)b;
 	String s;
 	int64_t i, j;
 	if (!scanargs(a, n, 1, &s, &i, &j))
 		return &failgen;
-	FindGen *g = xcalloc(1, sizeof *g);
+	FindGen *g = gcnew(sizeof *g, T_GEN);
 	g->g.next = findnext;
+	g->g.mark = findmark;
 	g->t = muststr(ARG(0));
 	g->s = s;
 	g->off = i - 1;
@@ -264,6 +274,12 @@ static bool uptonext(Gen *gg, Value *out) {
 	return false;
 }
 
+static void uptomark(Gen *gg) {
+	UptoGen *g = (UptoGen *)gg;
+	markptr(g->s.s);
+	markvalue(ptrval(KCset, g->c));
+}
+
 GENFN(f_upto) {
 	(void)b;
 	Cset *c = mustcset(ARG(0));
@@ -271,8 +287,9 @@ GENFN(f_upto) {
 	int64_t i, j;
 	if (!scanargs(a, n, 1, &s, &i, &j))
 		return &failgen;
-	UptoGen *g = xcalloc(1, sizeof *g);
+	UptoGen *g = gcnew(sizeof *g, T_GEN);
 	g->g.next = uptonext;
+	g->g.mark = uptomark;
 	g->c = c;
 	g->s = s;
 	g->off = i - 1;
@@ -346,6 +363,14 @@ static bool balnext(Gen *gg, Value *out) {
 
 static Cset *lparen, *rparen;
 
+static void balmark(Gen *gg) {
+	BalGen *g = (BalGen *)gg;
+	markptr(g->s.s);
+	markvalue(ptrval(KCset, g->c1));
+	markvalue(ptrval(KCset, g->c2));
+	markvalue(ptrval(KCset, g->c3));
+}
+
 GENFN(f_bal) {
 	(void)b;
 	String s;
@@ -356,8 +381,9 @@ GENFN(f_bal) {
 	Cset *c3 = csetarg(a, n, 2, rparen);
 	if (!ok)
 		return &failgen;
-	BalGen *g = xcalloc(1, sizeof *g);
+	BalGen *g = gcnew(sizeof *g, T_GEN);
 	g->g.next = balnext;
+	g->g.mark = balmark;
 	g->c1 = c1, g->c2 = c2, g->c3 = c3;
 	g->s = s;
 	g->off = i - 1;
@@ -388,6 +414,8 @@ static Builtin fns[] = {
 void scan_init(void) {
 	lparen = csetfrom("(", 1, TextUnit);
 	rparen = csetfrom(")", 1, TextUnit);
+	gcroot((void **)&lparen);
+	gcroot((void **)&rparen);
 	for (size_t i = 0; i < sizeof ops / sizeof ops[0]; i++)
 		reg(&ops[i], BuiltinOp);
 	for (size_t i = 0; i < sizeof fns / sizeof fns[0]; i++)

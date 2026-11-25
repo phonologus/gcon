@@ -353,6 +353,8 @@ typedef struct NamesGen {
 	Builtin **b;
 } NamesGen;
 
+static void namesmark(Gen *g) { markptr(((NamesGen *)g)->b); }
+
 static bool namesnext(Gen *gg, Value *out) {
 	NamesGen *g = (NamesGen *)gg;
 	if (g->i >= g->n)
@@ -365,10 +367,11 @@ GENFN(f_function) {
 	(void)b;
 	(void)a;
 	(void)n;
-	NamesGen *g = xcalloc(1, sizeof *g);
+	NamesGen *g = gcnew(sizeof *g, T_GEN);
 	g->g.next = namesnext;
+	g->g.mark = namesmark;
 	g->n = nfns;
-	g->b = xmalloc((size_t)nfns * sizeof *g->b);
+	g->b = gcnew((size_t)nfns * sizeof *g->b, T_RAW); /* static builtins */
 	memcpy(g->b, fntab, (size_t)nfns * sizeof *g->b);
 	qsort(g->b, (size_t)nfns, sizeof *g->b, cmpfn);
 	return &g->g;
@@ -564,6 +567,8 @@ typedef struct StrsGen {
 	int64_t *v; /* or integers */
 } StrsGen;
 
+static void strsmark(Gen *g) { markptr(((StrsGen *)g)->v); }
+
 static bool strsnext(Gen *gg, Value *out) {
 	StrsGen *g = (StrsGen *)gg;
 	if (g->i >= g->n)
@@ -576,8 +581,9 @@ static bool strsnext(Gen *gg, Value *out) {
 }
 
 static Gen *strsgen(const char *const *s, int64_t *v, int k) {
-	StrsGen *g = xcalloc(1, sizeof *g);
+	StrsGen *g = gcnew(sizeof *g, T_GEN);
 	g->g.next = strsnext;
+	g->g.mark = strsmark;
 	g->s = s, g->v = v, g->n = k;
 	return &g->g;
 }
@@ -598,7 +604,7 @@ GENFN(k_features) {
 
 GENFN(k_collections) {
 	(void)b; (void)a; (void)n;
-	int64_t *v = xmalloc(4 * sizeof *v);
+	int64_t *v = gcnew(4 * sizeof *v, T_RAW);
 	memcpy(v, vm.collections, 4 * sizeof *v);
 	return strsgen(NULL, v, 4);
 }
@@ -718,6 +724,7 @@ static Builtin fns[] = {
 void ops_init(void);
 
 void builtins_init(void) {
+	gc_init();
 	cset_init();
 	num_init();
 	struct_init();
