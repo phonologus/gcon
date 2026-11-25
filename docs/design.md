@@ -570,6 +570,18 @@ version; gcon refuses a file whose version it does not read, saying to
 rebuild it, as a newer iconx refuses old icode. (Bundling the linked
 sources instead, translated at each run, was considered and set aside.)
 
+Reconsidered the same day, with measurements: translating at each run
+is cheap. For `phwbi` in `icn/` (seven local libraries and the IPL's
+graphics library, 1167 globals), translation takes 25 ms and `gcon run`
+to its usage message 32 ms, against 8 ms for iconx running the icont-
+built program and 92 ms for icont to build it; a small program
+translates in 2 ms. So running from source (an executable `.icn` with a
+`#!/usr/bin/env gcon` first line, which is an Icon comment) would be
+fast enough. The snapshot was kept for what it isolates: a built
+program depends only on gcon, not on the application's source tree and
+the library sources (`IPATH`, `LPATH`) being present and unchanged at
+run time. Defining the serialisation is a one-off cost.
+
 ## The preprocessor
 
 `internal/ipp` is icont's preprocessor (`src/common/ipp.c`), ported
