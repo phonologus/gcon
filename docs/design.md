@@ -230,6 +230,49 @@ gcon's VM never recurses on the Go stack for Icon-level control:
 Cost: built-in generators are more work to write than yield loops. That
 is the deliberate trade.
 
+### Decision (2026-11-25): values as tagged structs
+
+A Value was a Go interface (`any`). Storing an integer or a real in an
+interface allocates (Go preboxes only 0 to 255), and so does a variable
+such as `L[i]`, a struct; profiles of the VM showed boxing and the
+garbage collection it causes as the largest cost after the string
+functions were fixed. Working around it (preboxed small integers,
+inline integer paths) recovered some of the gap with iconx, not the
+gap, so a Value becomes a tagged struct:
+
+```go
+type Value struct {
+	k Kind           // the type, or the kind of variable
+	n uint64         // an integer, a real's bits, or an index
+	p unsafe.Pointer // the heap object, or nil
+}
+```
+
+Integers, reals and `&null` are held in the struct; strings, csets,
+large integers and structures by pointer; a variable is a kind with a
+pointer and an index (a list element is the list and the index, a
+field the record and the field's number; a local or global, a pointer
+to its slot), so making one allocates nothing. The kind 0 is "no
+value" (Go's nil interface in the old representation), distinct from
+`&null`. `p` always holds a real pointer or nil, so the garbage
+collector sees the struct as it would any pointer. Values are 24 bytes
+instead of 16, so lists and tables take half as much memory again.
+
+**Evidence** (`experiments/valuerep`): two interpreters with gcon's
+dispatch loop, frames and instruction layout, differing only in the
+representation, running the same loops. The struct is 3.2 times as
+fast in each, with no allocation: an integer loop `x := i + 407` 12.3
+ns to 3.9, a subscript `v := L[3]` 15.8 to 4.9, a real loop `r := r +
+1.5` 12.4 to 4.0 (Apple M-series). iconx takes 7 ns for `4 + 7`,
+including its loop.
+
+**Migration.** The VM's code works through constructors and accessors
+(`v.Kind()`, `v.Int()`, `IntVal(i)`, ...) in place of Go type switches
+and assertions; Go's type checker finds every place that relied on a
+concrete type converting to an interface, so the change is checked
+mechanically, and the test suite, the conformance tests and the
+differential test against iconx confirm it.
+
 ## Strings and Unicode
 
 Icon 9.5 strings are bytes, and a cset is a set of 256 byte values.
