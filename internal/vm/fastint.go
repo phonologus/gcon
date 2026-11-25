@@ -1,5 +1,7 @@
 package vm
 
+import "math"
+
 // Integers on the VM's fast paths.
 //
 // The VM computes integer arithmetic and comparison itself (fastInt),
@@ -24,11 +26,18 @@ const (
 	intGE
 	intEQ
 	intNE
+	// Not only for Ints (fastOp): unary *, + and -, and === and ~===.
+	opSize
+	opPlus
+	opNeg
+	opIdent
+	opNotIdent
 )
 
 func init() {
 	for k, op := range map[string]intOp{"+": intAdd, "-": intSub, "*": intMul,
-		"<": intLT, "<=": intLE, ">": intGT, ">=": intGE, "=": intEQ, "~=": intNE} {
+		"<": intLT, "<=": intLE, ">": intGT, ">=": intGE, "=": intEQ, "~=": intNE,
+		"u*": opSize, "u+": opPlus, "u-": opNeg, "===": opIdent, "~===": opNotIdent} {
 		Ops[k].intOp = op
 	}
 }
@@ -63,4 +72,43 @@ func fastInt(op intOp, x, y Int, yv Value) (v Value, ok, done bool) {
 		return Value{}, false, false
 	}
 	return mkInt(r), true, true
+}
+
+// fastOp computes a unary operator or an identity test for the common
+// cases, reporting done false for the operator's function to handle the
+// rest (a string to convert to a number, for instance).
+func fastOp(op intOp, x, y Value) (v Value, ok, done bool) {
+	switch op {
+	case opSize:
+		switch x.k {
+		case KString:
+			return IntVal(Int(x.n & strLenMask)), true, true
+		case KList:
+			return IntVal(Int(len(x.List().Elems))), true, true
+		case KTable:
+			return IntVal(Int(x.Table().m.len())), true, true
+		case KSet:
+			return IntVal(Int(x.Set().m.len())), true, true
+		case KRecord:
+			return IntVal(Int(len(x.Record().Fields))), true, true
+		case KCset:
+			return IntVal(Int(x.Cset().Size())), true, true
+		}
+	case opPlus:
+		if x.k == KInt || x.k == KReal {
+			return x, true, true
+		}
+	case opNeg:
+		if x.k == KInt && x.Int() != math.MinInt64 {
+			return IntVal(-x.Int()), true, true
+		}
+		if x.k == KReal {
+			return RealVal(-x.Real()), true, true
+		}
+	case opIdent:
+		return y, Identical(x, y), true
+	case opNotIdent:
+		return y, !Identical(x, y), true
+	}
+	return Value{}, false, false
 }

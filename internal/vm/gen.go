@@ -12,9 +12,10 @@ import "unsafe"
 // (TestFuncGenInValue checks that it round-trips).
 
 const (
-	genOther = iota // p is a *genBox
-	genFunc         // p is a funcGen's closure
-	genFail         // failGen
+	genOther   = iota // p is a *genBox
+	genFunc           // p is a funcGen's closure
+	genFail           // failGen
+	genRestore        // restore &pos to n >> 8 and fail (restoring)
 	gen_toGen
 	gen_listGen
 	gen_strGen
@@ -23,6 +24,8 @@ const (
 	gen_omapGen
 	gen_seqGen
 	gen_strVarGen
+	gen_findGen
+	gen_uptoGen
 	gen_stringsGen
 	gen_revGen
 	gen_intsGen
@@ -51,6 +54,10 @@ func genVal(g Generator) Value {
 		return Value{k: KGen, n: gen_seqGen, p: unsafe.Pointer(g)}
 	case *strVarGen:
 		return Value{k: KGen, n: gen_strVarGen, p: unsafe.Pointer(g)}
+	case *uptoGen:
+		return Value{k: KGen, n: gen_uptoGen, p: unsafe.Pointer(g)}
+	case *findGen:
+		return Value{k: KGen, n: gen_findGen, p: unsafe.Pointer(g)}
 	case *stringsGen:
 		return Value{k: KGen, n: gen_stringsGen, p: unsafe.Pointer(g)}
 	case *revGen:
@@ -63,11 +70,13 @@ func genVal(g Generator) Value {
 
 // gen returns the generator a KGen Value holds.
 func (v Value) gen() Generator {
-	switch v.n {
+	switch v.n & 0xff { // the low byte: a restoring handle keeps &pos above it
 	case genFunc:
 		return funcOf(v)
 	case genFail:
 		return failGen{}
+	case genRestore:
+		return &restorer{old: int(v.n >> 8), done: true}
 	case gen_toGen:
 		return (*toGen)(v.p)
 	case gen_listGen:
@@ -84,6 +93,10 @@ func (v Value) gen() Generator {
 		return (*seqGen)(v.p)
 	case gen_strVarGen:
 		return (*strVarGen)(v.p)
+	case gen_uptoGen:
+		return (*uptoGen)(v.p)
+	case gen_findGen:
+		return (*findGen)(v.p)
 	case gen_stringsGen:
 		return (*stringsGen)(v.p)
 	case gen_revGen:
@@ -99,10 +112,13 @@ func genNext(v Value, vm *VM) (Value, bool) {
 	if v.n == gen_toGen { // the commonest, driving every i := m to n
 		return (*toGen)(v.p).Next(vm)
 	}
-	switch v.n {
+	switch v.n & 0xff { // the low byte: a restoring handle keeps &pos above it
 	case genFunc:
 		return funcOf(v)()
 	case genFail:
+		return Value{}, false
+	case genRestore:
+		vm.pos = int(v.n >> 8)
 		return Value{}, false
 	case gen_toGen:
 		return (*toGen)(v.p).Next(vm)
@@ -120,6 +136,10 @@ func genNext(v Value, vm *VM) (Value, bool) {
 		return (*seqGen)(v.p).Next(vm)
 	case gen_strVarGen:
 		return (*strVarGen)(v.p).Next(vm)
+	case gen_uptoGen:
+		return (*uptoGen)(v.p).Next(vm)
+	case gen_findGen:
+		return (*findGen)(v.p).Next(vm)
 	case gen_stringsGen:
 		return (*stringsGen)(v.p).Next(vm)
 	case gen_revGen:

@@ -302,17 +302,28 @@ func (vm *VM) args(f *Frame, ops []Operand) []Value {
 	return a
 }
 
-// operInt executes OpOper in for an operator with an inline integer
-// path (fastInt), reporting false if the operands are not both Ints or
-// the result does not fit, for the general path to handle. It is kept
-// out of loop so as not to burden the dispatch loop's code.
+// operInt executes OpOper in for an operator with an inline path
+// (fastInt, fastOp), reporting false if the operands are not of the
+// kinds it handles, for the general path to handle. It is kept out of
+// loop so as not to burden the dispatch loop's code.
 func (vm *VM) operInt(f *Frame, in *Instr) bool {
-	xv, yv := Deref(vm.get(f, in.Args[0])), Deref(vm.get(f, in.Args[1]))
-	if xv.k != KInt || yv.k != KInt {
-		return false
+	op := in.Fn.intOp
+	var v Value
+	var ok, done bool
+	if op >= opSize {
+		x := Deref(vm.get(f, in.Args[0]))
+		var y Value
+		if len(in.Args) > 1 {
+			y = Deref(vm.get(f, in.Args[1]))
+		}
+		v, ok, done = fastOp(op, x, y)
+	} else {
+		xv, yv := Deref(vm.get(f, in.Args[0])), Deref(vm.get(f, in.Args[1]))
+		if xv.k != KInt || yv.k != KInt {
+			return false
+		}
+		v, ok, done = fastInt(op, xv.Int(), yv.Int(), yv)
 	}
-	x, y := xv.Int(), yv.Int()
-	v, ok, done := fastInt(in.Fn.intOp, x, y, yv)
 	if !done {
 		return false
 	}
@@ -358,17 +369,17 @@ type poisoned struct{}
 
 var poisonArgs = os.Getenv("GCONDEBUG") == "poisonargs"
 
-// release ends the use of a scratch argument slice, including any
-// padding adjustArgs appended in its spare capacity.
+// release ends the use of a scratch argument slice. It does nothing
+// unless poisoning: the next call overwrites the buffer, and the few
+// values it may hold meanwhile do no harm. Poisoning covers the spare
+// capacity too, where adjustArgs's padding goes.
 func (vm *VM) release(a []Value) {
-	a = a[:cap(a)]
 	if poisonArgs {
+		a = a[:cap(a)]
 		for i := range a {
 			a[i] = Value{k: KPoison}
 		}
-		return
 	}
-	clear(a) // so that the buffer keeps nothing alive
 }
 
 // run executes until the frame f, and so the program, returns or fails.
@@ -536,7 +547,18 @@ func (vm *VM) loop(f *Frame) {
 					// operator calls have constant callees).
 					args = adjustArgs(p, args)
 				}
-				if p.Gen != nil {
+				if p.Restore != nil {
+					v, old, ok := p.Restore(vm, args)
+					vm.release(scratch)
+					if ok {
+						f.temps[in.Dst.Index] = v
+						f.temps[in.H] = Value{k: KGen, n: genRestore | uint64(old)<<8}
+						f.pc = int(in.L1)
+					} else {
+						f.temps[in.H] = Value{}
+						f.pc = int(in.L2)
+					}
+				} else if p.Gen != nil {
 					// A generator takes what it needs from its arguments
 					// when called, so they too are in the scratch buffer
 					// (the poison-argument run checks that none keeps them).

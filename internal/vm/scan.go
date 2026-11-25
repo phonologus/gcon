@@ -219,7 +219,9 @@ type failGen struct{}
 func (failGen) Next(*VM) (Value, bool) { return Value{}, false }
 
 // tabTo moves &pos to p, producing the substring passed over.
-func (vm *VM) tabTo(p int) Generator {
+// tabTo sets &pos to p, returning the substring passed over and the old
+// &pos, which resumption restores.
+func (vm *VM) tabTo(p int) (Value, int, bool) {
 	old := vm.pos
 	i, j := old, p
 	if i > j {
@@ -227,7 +229,21 @@ func (vm *VM) tabTo(p int) Generator {
 	}
 	v := vm.subject.Slice(i, j)
 	vm.pos = p
-	return &restorer{v: StrVal(v), old: old}
+	return StrVal(v), old, true
+}
+
+// restoring makes a builtin that produces one value and, resumed,
+// restores &pos and fails (tab, move, =s). The VM calls f directly and
+// keeps the old &pos in the handle, allocating nothing; Gen, for other
+// callers, wraps it in a restorer.
+func restoring(name string, f func(vm *VM, a []Value) (Value, int, bool)) *Builtin {
+	return &Builtin{Name: name, Restore: f, Gen: func(vm *VM, a []Value) Generator {
+		v, old, ok := f(vm, a)
+		if !ok {
+			return failGen{}
+		}
+		return &restorer{v: v, old: old}
+	}}
 }
 
 // funcGen is a generator from a Go function returning successive results.
@@ -247,13 +263,13 @@ func init() {
 		return varVal(posVar{vm}), true
 	}}
 	// =s is tab(match(s)).
-	Ops["u="] = &Builtin{Name: "=", Gen: func(vm *VM, a []Value) Generator {
+	Ops["u="] = restoring("=", func(vm *VM, a []Value) (Value, int, bool) {
 		t := MustStr(a[0])
 		if !matches(vm.subject, vm.pos-1, len(vm.subject.s), t) {
-			return failGen{}
+			return Value{}, 0, false
 		}
 		return vm.tabTo(vm.pos + len(t.s))
-	}}
+	})
 	Ops["u~"] = &Builtin{Name: "~", Fn: func(vm *VM, a []Value) (Value, bool) {
 		return CsetVal(Complement(MustCset(a[0]))), true
 	}}
@@ -287,26 +303,26 @@ func init() {
 		c, ok := CvCset(arg(a, 0))
 		return CsetVal(c), ok
 	})
-	gen("tab", func(vm *VM, a []Value) Generator {
+	Functions["tab"] = restoring("tab", func(vm *VM, a []Value) (Value, int, bool) {
 		p, ok := cvpos(MustInt(arg(a, 0)), vm.subject.Len())
 		if !ok {
-			return failGen{}
+			return Value{}, 0, false
 		}
 		return vm.tabTo(p)
 	})
 	// move(n) moves over n characters (backwards if n is negative).
-	gen("move", func(vm *VM, a []Value) Generator {
+	Functions["move"] = restoring("move", func(vm *VM, a []Value) (Value, int, bool) {
 		n := MustInt(arg(a, 0))
 		s, off := vm.subject, vm.pos-1
 		for ; n > 0; n-- {
 			if off >= len(s.s) {
-				return failGen{}
+				return Value{}, 0, false
 			}
 			off += s.width(off)
 		}
 		for ; n < 0; n++ {
 			if off <= 0 {
-				return failGen{}
+				return Value{}, 0, false
 			}
 			off -= s.widthBefore(off)
 		}
@@ -332,20 +348,7 @@ func init() {
 		t := MustStr(arg(a, 0))
 		// Every byte position from i to j where t occurs (an empty t
 		// occurs at each, j included), as iconx and strings.Index find.
-		off, end := i-1, j-1
-		return funcGen(func() (Value, bool) {
-			if off > end {
-				return Value{}, false
-			}
-			k := strings.Index(s.s[off:end], t.s)
-			if k < 0 {
-				off = end + 1
-				return Value{}, false
-			}
-			p := off + k + 1
-			off += k + 1
-			return IntVal(Int(p)), true
-		})
+		return &findGen{s: s, t: t, off: i - 1, end: j - 1}
 	})
 	gen("upto", func(vm *VM, a []Value) Generator {
 		c := MustCset(arg(a, 0))
@@ -353,18 +356,7 @@ func init() {
 		if !ok {
 			return failGen{}
 		}
-		off, end := i-1, j-1
-		return funcGen(func() (Value, bool) {
-			for off < end {
-				w, in := c.matchAt(s, off)
-				p := off + 1
-				off += w
-				if in {
-					return IntVal(Int(p)), true
-				}
-			}
-			return Value{}, false
-		})
+		return &uptoGen{c: c, s: s, off: i - 1, end: j - 1}
 	})
 	fn("many", func(vm *VM, a []Value) (Value, bool) {
 		c := MustCset(arg(a, 0))
@@ -428,4 +420,46 @@ func init() {
 			return Value{}, false
 		})
 	})
+}
+
+// findGen generates the positions where t occurs in s between byte
+// offsets off and end (an empty t occurs at each, end included), as
+// iconx's find and strings.Index find them.
+type findGen struct {
+	s, t     String
+	off, end int
+}
+
+func (g *findGen) Next(vm *VM) (Value, bool) {
+	if g.off > g.end {
+		return Value{}, false
+	}
+	k := strings.Index(g.s.s[g.off:g.end], g.t.s)
+	if k < 0 {
+		g.off = g.end + 1
+		return Value{}, false
+	}
+	p := g.off + k + 1
+	g.off += k + 1
+	return IntVal(Int(p)), true
+}
+
+// uptoGen generates the positions of characters of s in c between byte
+// offsets off and end.
+type uptoGen struct {
+	c        *Cset
+	s        String
+	off, end int
+}
+
+func (g *uptoGen) Next(vm *VM) (Value, bool) {
+	for g.off < g.end {
+		w, in := g.c.matchAt(g.s, g.off)
+		p := g.off + 1
+		g.off += w
+		if in {
+			return IntVal(Int(p)), true
+		}
+	}
+	return Value{}, false
 }

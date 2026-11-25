@@ -156,6 +156,10 @@ type Builtin struct {
 	Name string
 	Fn   func(vm *VM, args []Value) (Value, bool)
 	Gen  func(vm *VM, args []Value) Generator
+	// Restore, if set, is Gen for a builtin that produces one value
+	// and, resumed, restores &pos and fails (see restoring): the value,
+	// the old &pos, and whether it succeeds.
+	Restore func(vm *VM, args []Value) (Value, int, bool)
 	// NoDeref: the arguments are passed as variables (the assignment
 	// operators, invoked by name).
 	NoDeref bool
