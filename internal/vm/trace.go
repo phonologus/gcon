@@ -200,17 +200,10 @@ func init() {
 // asgnOps are markers naming the operator an OpAssign belongs to, for
 // the traceback, where it is not plain := (the compiler marks the first
 // assignment of :=:, <- and <->).
-var asgnOps = map[string]*Builtin{}
+var asgnOps = newMemo(func(name string) *Builtin { return &Builtin{Name: name} })
 
 // AsgnOp returns the marker for assignment operator name.
-func AsgnOp(name string) *Builtin {
-	b := asgnOps[name]
-	if b == nil {
-		b = &Builtin{Name: name}
-		asgnOps[name] = b
-	}
-	return b
-}
+func AsgnOp(name string) *Builtin { return asgnOps.get(name) }
 
 // traceback writes iconx's traceback after a run-time error message
 // (rdebug.r, tracebk): each active procedure call from the outermost,

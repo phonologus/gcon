@@ -71,6 +71,11 @@ func (vm *VM) SetProgname(path string) {
 	vm.progname = Text(name)
 }
 
+// SetInvokedName sets &progname to name exactly: for a built program,
+// the name it was invoked by, as iconx's &progname is the icode file's
+// name as the shell header passes it.
+func (vm *VM) SetInvokedName(name string) { vm.progname = Text(name) }
+
 // termDump writes iconx's termination dump if &dump is nonzero.
 func (vm *VM) termDump() {
 	if vm.dump == 0 {

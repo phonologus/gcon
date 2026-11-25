@@ -53,7 +53,9 @@ func (r *Record) image() string {
 }
 
 // FieldOp returns the operator x.name.
-func FieldOp(name string) *Builtin {
+func FieldOp(name string) *Builtin { return fieldOps.get(name) }
+
+var fieldOps = newMemo(func(name string) *Builtin {
 	return &Builtin{Name: "." + name, Fn: func(vm *VM, a []Value) (Value, bool) {
 		r, ok := a[0].(*Record)
 		if !ok {
@@ -65,7 +67,7 @@ func FieldOp(name string) *Builtin {
 		}
 		return FieldVar{r, i}, true
 	}}
-}
+})
 
 // recordIndex is r[x]: by position, or by field name.
 func recordIndex(r *Record, x Value) (Value, bool) {

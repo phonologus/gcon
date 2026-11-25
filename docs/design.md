@@ -582,6 +582,84 @@ program depends only on gcon, not on the application's source tree and
 the library sources (`IPATH`, `LPATH`) being present and unchanged at
 run time. Defining the serialisation is a one-off cost.
 
+### The built program's format
+
+Defined in `internal/vm/encode.go`; `gcon dis` lists a built program (or
+source) in full. The file is the shell header, the marker line
+`[gcon program follows]`, then the encoded program:
+
+- **Magic** `\x89GCN\r\n\x1a\n` (PNG's device: a non-ASCII first
+  byte and line endings that a text-mode copy would mangle), then the
+  **format version**, a varint. gcon reads exactly one version; any
+  other is refused with "program built by a newer (older) gcon ...:
+  rebuild it", as iconx refuses icode of another version. A file is
+  recognised as built when it starts `#!` and a line holding the
+  marker is followed by the magic, so `gcon run` takes either source
+  or a built program, and the header simply runs `gcon run "$0" "$@"`.
+- **Sections**, each a four-byte tag, a varint length and that many
+  bytes. As in PNG, a tag whose first letter is upper case is
+  required: a gcon that does not know it refuses the file ("built by
+  a newer gcon?"). One with a lower-case first letter may be skipped,
+  so information can be added later without invalidating built
+  programs. The required sections come in a fixed order:
+  `Bltn` (builtins), `Recd` (record types), `Proc` (procedures),
+  `Cnst` (constants), `Glob` (globals with their names and initial
+  values, then main and the invocable set). The optional `info`
+  section holds the build information: gcon's version and the
+  preprocessor's predefined symbols, which are decided when the
+  program is built (a program built without `_GRAPHICS` keeps its
+  non-graphics branches). The last section, `End `, holds the CRC-32
+  of everything before it.
+- **Builtins by reference.** A program holds no Go function values:
+  each builtin is a (table, name) pair: an `Ops` key (`u-` for unary
+  minus, `&pos`), a `Functions` name, an assignment marker, `!`, a
+  field operator `.name`, or a stub for an unimplemented function.
+  Decoding a pair gives the very same `*Builtin` (the VM compares
+  some by identity), so `FieldOp`, `Unsupported` and `AsgnOp` are
+  memoised, one per name. An unknown name is refused at load ("built
+  by a newer gcon?"), not left to fail when called.
+- **Values** are tagged: null, integer, large integer (sign and
+  magnitude), real (its IEEE bits, so exact), string (unit and
+  bytes), cset (its byte bitmap and code-point ranges), and builtin,
+  procedure or record type by index in their sections, so that each
+  stays one shared object.
+- **Instructions**: the opcode, a byte of flags saying which fields
+  are nonzero, the line as a difference from the previous
+  instruction's, then the present fields (operands as
+  `index<<3 | kind`). Writing only nonzero fields, rather than a
+  fixed shape per opcode, keeps the format independent of which
+  fields each instruction uses.
+
+**What changes the version.** The opcode numbers in `instr.go` are now
+explicit and are part of the format: an opcode is never renumbered or
+reused. Adding one, changing what an instruction does with its fields,
+or changing the encoding changes `FormatVersion`. So does a change in
+what the compiler decides at build time that a built program would
+keep: for example, the graphics keywords (`&x`, `&col`, ...) now compile
+to failure, so when graphics arrives the version should change and old
+built programs be rebuilt. New builtins do not change it: names are
+resolved at load.
+
+**Checking.** Decoding checks every count, index and label, the operand
+kinds the VM relies on (`vm.Validate`), and the checksum, so a
+truncated, damaged or mismatched file is reported, not run. This guards
+against accidents, not malice: a built program is a program, and can do
+what it likes anyway. Tests: every test program and 621 programs of the
+reference tree round-trip (the decoded program lists identically, its
+builtins are the same values, and re-encoding gives the same bytes);
+every program test runs again from its built file; every truncation
+and every changed byte of a sample is reported; unknown optional
+sections are skipped and unknown required ones refused.
+
+Measured on `phwbi` (see above): the built file is 342 KB (icont's
+icode is 717 KB) and runs to its usage message in 5 to 10 ms, against
+30 ms from source and 8 ms for iconx.
+
+`gcon build file.icn` writes `file` in the current directory, as icont
+does (`-o` names it), executable where readable. `gcon dis file` lists
+constants, globals and each procedure's instructions, with builtins by
+reference (`[op u-]`) and every field shown.
+
 ## The preprocessor
 
 `internal/ipp` is icont's preprocessor (`src/common/ipp.c`), ported
@@ -963,6 +1041,5 @@ a procedure, `$line`, the predefined symbols and digraphs against iconx.
    `*C`, `&current`, `&source` and `&main`, with symmetric transfer.
    Switch cost confirmed on the real VM loop (see "Co-expressions").
 4. Grow the value types and built-ins, driven by the conformance suite.
-5. `gcon build` producing an icont-style script (see "Decision: the
-   built program is an icont-style script"), the counterpart of
-   icont's output.
+5. `gcon build` producing an icont-style script. Done (see "The built
+   program's format"), with `gcon dis`.

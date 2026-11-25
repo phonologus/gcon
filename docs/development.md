@@ -10,8 +10,8 @@ gofmt -l .
 
 | Path | Purpose |
 |---|---|
-| `cmd/gcon` | the `gcon` command: `gcon run file.icn [args]` |
-| `internal/run` | translate and run a program; end-to-end and conformance tests |
+| `cmd/gcon` | the `gcon` command: `run`, `build`, `dis`, `version` |
+| `internal/run` | translate, build and run a program; end-to-end, round-trip and conformance tests |
 | `internal/compile` | syntax tree to VM code (Proebsting's translation) |
 | `internal/vm` | values, instructions, the interpreter loop, operators and built-ins |
 | `internal/lit` | decoding of string, cset and numeric literals |

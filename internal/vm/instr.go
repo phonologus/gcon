@@ -40,30 +40,36 @@ type Op uint8
 
 // Instructions. Unless stated otherwise an instruction continues with
 // the next one. L1 and L2 are code indices.
+//
+// The numbers are part of the built program's format (encode.go): an
+// opcode is never renumbered or reused, and adding one, or changing what
+// an instruction does with its fields, changes FormatVersion.
 const (
-	OpGoto      Op = iota // goto L1
-	OpIGoto               // goto the code index held in temp X
-	OpSetLabel            // Dst := L1 (for OpIGoto)
-	OpMove                // Dst := Deref(X)
-	OpMoveVar             // Dst := X as a variable (locals and globals become references)
-	OpAssign              // variable Dst := Deref(X); success goto L1, failure goto L2
-	OpOper                // Dst := Fn(Args...); success goto L1, failure goto L2
-	OpCall                // Dst := X(Args...), resumable through temp H; success L1, failure L2
-	OpResume              // Dst := next result of temp H; success L1, failure L2
-	OpReturn              // return Deref(X)
-	OpFail                // fail
-	OpSuspend             // suspend Deref(X); when resumed, goto L1
-	OpOnce                // if global X is set goto L1, else set it and continue (initial clauses)
-	OpIsNull              // if Deref(X) is &null goto L1 else goto L2
-	OpCreate              // Dst := a new co-expression whose body starts at L1
-	OpActivate            // Dst := result of activating co-expression X, transmitting Args[0]; success L1, failure L2
-	OpCoRet               // the running co-expression produces Deref(X); when resumed, goto L1
-	OpCoFail              // the running co-expression is exhausted
-	OpScanEnter           // Dst := the scanning environment; start scanning Deref(X); goto L2 if a converted error fails it
-	OpScanSwap            // exchange the scanning environment with the one in temp X
+	OpGoto      Op = 0  // goto L1
+	OpIGoto     Op = 1  // goto the code index held in temp X
+	OpSetLabel  Op = 2  // Dst := L1 (for OpIGoto)
+	OpMove      Op = 3  // Dst := Deref(X)
+	OpMoveVar   Op = 4  // Dst := X as a variable (locals and globals become references)
+	OpAssign    Op = 5  // variable Dst := Deref(X); success goto L1, failure goto L2
+	OpOper      Op = 6  // Dst := Fn(Args...); success goto L1, failure goto L2
+	OpCall      Op = 7  // Dst := X(Args...), resumable through temp H; success L1, failure L2
+	OpResume    Op = 8  // Dst := next result of temp H; success L1, failure L2
+	OpReturn    Op = 9  // return Deref(X)
+	OpFail      Op = 10 // fail
+	OpSuspend   Op = 11 // suspend Deref(X); when resumed, goto L1
+	OpOnce      Op = 12 // if global X is set goto L1, else set it and continue (initial clauses)
+	OpIsNull    Op = 13 // if Deref(X) is &null goto L1 else goto L2
+	OpCreate    Op = 14 // Dst := a new co-expression whose body starts at L1
+	OpActivate  Op = 15 // Dst := result of activating co-expression X, transmitting Args[0]; success L1, failure L2
+	OpCoRet     Op = 16 // the running co-expression produces Deref(X); when resumed, goto L1
+	OpCoFail    Op = 17 // the running co-expression is exhausted
+	OpScanEnter Op = 18 // Dst := the scanning environment; start scanning Deref(X); goto L2 if a converted error fails it
+	OpScanSwap  Op = 19 // exchange the scanning environment with the one in temp X
+
+	numOps = 20
 )
 
-var opNames = [...]string{"goto", "igoto", "setlabel", "move", "movevar", "assign",
+var opNames = [numOps]string{"goto", "igoto", "setlabel", "move", "movevar", "assign",
 	"oper", "call", "resume", "return", "fail", "suspend", "once", "isnull",
 	"create", "activate", "coret", "cofail", "scanenter", "scanswap"}
 

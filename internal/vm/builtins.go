@@ -20,12 +20,14 @@ func arg(a []Value, i int) Value {
 }
 
 // Unsupported returns a stub for a built-in function gcon lacks.
-func Unsupported(name string) *Builtin {
+func Unsupported(name string) *Builtin { return unsupported.get(name) }
+
+var unsupported = newMemo(func(name string) *Builtin {
 	return &Builtin{Name: name, Fn: func(vm *VM, a []Value) (Value, bool) {
 		Runerr(121)
 		return nil, false
 	}}
-}
+})
 
 func init() {
 	fn("exit", func(vm *VM, a []Value) (Value, bool) {

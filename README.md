@@ -17,6 +17,10 @@ Library, point `IPATH` at its source, for example
 (`ipl/incl`) for `$include`. Nothing is written beside your
 sources: there are no `.u1`/`.u2` files.
 
+`gcon build file.icn` writes `file`, an executable that runs the built
+program with the installed gcon, as icont's output runs with iconx; it
+no longer needs the sources. `gcon dis` lists a program's VM code.
+
 The front end (lexer, parser and name resolution) was forked from
 [icontools](https://github.com/phonologus/icontools).
 

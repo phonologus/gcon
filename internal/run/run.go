@@ -62,24 +62,33 @@ func Predefined() map[string]string {
 // EnvLibPath returns the directories of IPATH.
 func EnvLibPath() []string { return envPath("IPATH") }
 
-// File translates the Icon source file at path, with the files it links,
-// and runs it, returning the exit status. Translation errors are written
-// to stderr, as icont writes them, with status 1.
+// libPath returns the directories link searches.
+func (cfg Config) libPath() []string {
+	if cfg.LibPath != nil {
+		return cfg.LibPath
+	}
+	return EnvLibPath()
+}
+
+// includePath returns the directories $include searches.
+func (cfg Config) includePath() []string {
+	if cfg.IncludePath != nil {
+		return cfg.IncludePath
+	}
+	return envPath("LPATH")
+}
+
+// File runs the program at path, returning the exit status: a built
+// program, or Icon source, translated with the files it links.
+// Translation errors are written to stderr, as icont writes them, with
+// status 1.
 func File(path string, cfg Config) int {
-	src, err := os.ReadFile(path)
+	data, err := os.ReadFile(path)
 	if err != nil {
 		fmt.Fprintln(cfg.Stderr, err)
 		return 1
 	}
-	lib := cfg.LibPath
-	if lib == nil {
-		lib = EnvLibPath()
-	}
-	incl := cfg.IncludePath
-	if incl == nil {
-		incl = envPath("LPATH")
-	}
-	prog, errs := TranslateLinked(path, string(src), lib, incl)
+	prog, info, errs := Load(path, data, cfg)
 	if len(errs) > 0 {
 		for _, e := range errs {
 			fmt.Fprintln(cfg.Stderr, e)
@@ -91,7 +100,11 @@ func File(path string, cfg Config) int {
 		stdin = strings.NewReader("")
 	}
 	m := vm.New(prog, stdin, cfg.Stdout, cfg.Stderr)
-	m.SetProgname(path)
+	if info != nil {
+		m.SetInvokedName(path)
+	} else {
+		m.SetProgname(path)
+	}
 	if cfg.Timeout > 0 {
 		m.Deadline = time.Now().Add(cfg.Timeout)
 	}
