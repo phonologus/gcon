@@ -1,0 +1,16 @@
+co-expression_2(0) co-expression 0
+1
+2
+3
+exhausted 3 co-expression_2(3)
+1 co-expression_3(1) co-expression_2(3)
+co-expression_1(1) co-expression_1(1) co-expression_1(1)
+11 12 100
+got echo:a
+got echo:b
+consumer got 1
+consumer got 2
+consumer got 3
+2 done 2 1
+co-expression_1(1)
+&null

@@ -1,4 +1,5 @@
 # Reference tests (icon/tests/general) that gcon passes.
 # Maintained by: go test ./internal/run -run Conformance -update
+cxprimes
 primes
 statics

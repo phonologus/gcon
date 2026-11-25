@@ -157,6 +157,7 @@ type pcomp struct {
 	locals map[*sema.Symbol]int
 	loops  []*loop
 	pfail  label // the procedure's failure
+	inCo   int   // depth of create expressions being compiled
 	line   int32
 }
 
@@ -301,9 +302,9 @@ func (p *pcomp) link() []vm.Instr {
 	for i := range code {
 		in := &code[i]
 		switch in.Op {
-		case vm.OpGoto, vm.OpSetLabel, vm.OpSuspend, vm.OpOnce:
+		case vm.OpGoto, vm.OpSetLabel, vm.OpSuspend, vm.OpOnce, vm.OpCreate, vm.OpCoRet:
 			in.L1 = p.resolve(label(in.L1))
-		case vm.OpOper, vm.OpCall, vm.OpResume, vm.OpIsNull:
+		case vm.OpOper, vm.OpCall, vm.OpResume, vm.OpIsNull, vm.OpActivate:
 			in.L1 = p.resolve(label(in.L1))
 			in.L2 = p.resolve(label(in.L2))
 		}
@@ -445,8 +446,10 @@ func (p *pcomp) expr(e syntax.Expr, fail, succ label) (start, resume label, v vm
 		return p.loops[len(p.loops)-1].next, fail, p.null()
 	case *syntax.Case:
 		return p.caseExpr(e, fail, succ)
-	case *syntax.PDCO, *syntax.Create:
-		p.errorf(e, "co-expressions are not yet supported")
+	case *syntax.Create:
+		return p.create(e, fail, succ)
+	case *syntax.PDCO:
+		p.errorf(e, "programmer-defined control operations are not yet supported")
 	case *syntax.Field:
 		p.errorf(e, "records are not yet supported")
 	default:
@@ -581,6 +584,12 @@ func (p *pcomp) keyword(e *syntax.Keyword, fail, succ label) (label, label, vm.O
 		return succ, fail, p.null()
 	case "fail":
 		return fail, fail, p.null()
+	case "current", "source", "main":
+		s := p.newLabel()
+		p.place(s)
+		t := p.temp()
+		p.emit(vm.Instr{Op: vm.OpOper, Fn: vm.Ops["&"+e.Name.Text], Dst: t, L1: int32(succ), L2: int32(fail)})
+		return s, fail, t
 	}
 	p.errorf(e, "&%s is not yet supported", e.Name.Text)
 	return fail, fail, p.null()
@@ -612,6 +621,10 @@ func (p *pcomp) unary(e *syntax.Unary, fail, succ label) (label, label, vm.Opera
 		p.place(a)
 		p.jump(succ)
 		return st, fail, p.null()
+	case op == "@":
+		return p.activate(nil, e.X, fail, succ)
+	case op == "^":
+		return p.oper(vm.Ops["u^"], []syntax.Expr{e.X}, fail, succ)
 	case op == ".":
 		a := p.newLabel()
 		st, r, v := p.expr(e.X, fail, a)
@@ -643,6 +656,8 @@ func (p *pcomp) binary(e *syntax.Binary, fail, succ label) (label, label, vm.Ope
 		return st, r, vs[1]
 	case op == "|":
 		return p.alt(e, fail, succ)
+	case op == "@":
+		return p.activate(e.X, e.Y, fail, succ)
 	case op == ":=":
 		a := p.newLabel()
 		st, r, vs := p.seq([]syntax.Expr{e.X, e.Y}, fail, a)
@@ -783,6 +798,15 @@ func (p *pcomp) brk(e *syntax.Break, fail label) (label, label, vm.Operand) {
 }
 
 func (p *pcomp) ret(e *syntax.Return, fail, succ label) (label, label, vm.Operand) {
+	if p.inCo > 0 {
+		// As icont: a co-expression's body cannot leave its procedure.
+		if e.Keyword.Kind == token.SUSPEND {
+			p.errorf(e, "invalid context for suspend")
+		} else {
+			p.errorf(e, "invalid context for return or fail")
+		}
+		return fail, fail, p.null()
+	}
 	switch e.Keyword.Kind {
 	case token.FAIL:
 		return p.pfail, fail, p.null()
@@ -852,4 +876,46 @@ func (p *pcomp) caseExpr(e *syntax.Case, fail, succ label) (label, label, vm.Ope
 	p.place(r)
 	p.emit(vm.Instr{Op: vm.OpIGoto, X: gate})
 	return st, r, res
+}
+
+// create compiles create e. The body is a separate region of the
+// procedure's code, run in a frame of its own with copies of the
+// creator's locals: each result is produced by OpCoRet, and exhaustion
+// is OpCoFail.
+func (p *pcomp) create(e *syntax.Create, fail, succ label) (label, label, vm.Operand) {
+	saved := p.loops
+	p.loops = nil // break and next cannot leave a co-expression
+	p.inCo++
+	a, done := p.newLabel(), p.newLabel()
+	body, r, v := p.expr(e.X, done, a)
+	p.inCo--
+	p.loops = saved
+	p.place(a)
+	p.emit(vm.Instr{Op: vm.OpCoRet, X: v, L1: int32(r)})
+	p.place(done)
+	p.emit(vm.Instr{Op: vm.OpCoFail})
+	s := p.newLabel()
+	p.place(s)
+	t := p.temp()
+	p.emit(vm.Instr{Op: vm.OpCreate, Dst: t, L1: int32(body)})
+	p.jump(succ)
+	return s, fail, t
+}
+
+// activate compiles x @ c, or @c if x is nil (transmitting &null).
+func (p *pcomp) activate(x, c syntax.Expr, fail, succ label) (label, label, vm.Operand) {
+	es := []syntax.Expr{c}
+	if x != nil {
+		es = []syntax.Expr{x, c}
+	}
+	a := p.newLabel()
+	st, r, vs := p.seq(es, fail, a)
+	p.place(a)
+	t := p.temp()
+	in := vm.Instr{Op: vm.OpActivate, Dst: t, X: vs[len(vs)-1], L1: int32(succ), L2: int32(r)}
+	if x != nil {
+		in.Args = []vm.Operand{vs[0]}
+	}
+	p.emit(in)
+	return st, r, t
 }

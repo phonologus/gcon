@@ -1,0 +1,15 @@
+# Co-expression switch and creation cost, for gcon and iconx alike:
+#   gcon run vmswitch.icn N switch|create|loop    (or: icont vmswitch.icn)
+# Time it externally; subtract the "loop" run for the loop overhead.
+procedure main(a)
+   local n, c
+   n := integer(a[1])
+   if a[2] == "switch" then {
+      c := create 1 to n
+      every 1 to n do @c
+      }
+   else if a[2] == "create" then
+      every 1 to n do @(create 1)
+   else
+      every 1 to n do 1   # loop overhead only
+end

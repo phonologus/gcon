@@ -218,6 +218,8 @@ func TypeName(v Value) string {
 		return "list"
 	case *Proc, *Builtin:
 		return "procedure"
+	case *Coexp:
+		return "co-expression"
 	}
 	return "unknown"
 }

@@ -32,6 +32,8 @@ type VM struct {
 	prog    *Program
 	globals []Value
 	cur     *Frame // the running frame
+	co      *Coexp // the running co-expression
+	main    *Coexp // &main
 	out     *bufio.Writer
 	errout  *bufio.Writer
 	serials map[string]int // last serial number issued, by type
@@ -101,6 +103,10 @@ func (vm *VM) Run(args []string) (status int) {
 		}
 		margs = []Value{l}
 	}
+	vm.serials["co-expression"] = 1
+	vm.main = &Coexp{serial: 1, proc: main, state: coRunning, results: 1}
+	vm.main.activator = vm.main
+	vm.co = vm.main
 	vm.run(vm.newFrame(main, margs))
 	return 0
 }
@@ -283,6 +289,10 @@ func (vm *VM) run(f *Frame) {
 			v := Deref(vm.get(f, in.X))
 			c := f.caller
 			if c == nil {
+				if vm.co != vm.main {
+					f = vm.cofail() // not generated: the compiler rejects this, as icont does
+					continue
+				}
 				return
 			}
 			ci := &c.proc.Code[c.pc]
@@ -294,6 +304,10 @@ func (vm *VM) run(f *Frame) {
 		case OpFail:
 			c := f.caller
 			if c == nil {
+				if vm.co != vm.main {
+					f = vm.cofail()
+					continue
+				}
 				return
 			}
 			ci := &c.proc.Code[c.pc]
@@ -306,6 +320,10 @@ func (vm *VM) run(f *Frame) {
 			f.pc = int(in.L1)
 			c := f.caller
 			if c == nil {
+				if vm.co != vm.main {
+					f = vm.cofail()
+					continue
+				}
 				return
 			}
 			ci := &c.proc.Code[c.pc]
@@ -315,6 +333,19 @@ func (vm *VM) run(f *Frame) {
 			f.caller = nil
 			f = c
 			vm.cur = f
+		case OpCreate:
+			f.temps[in.Dst.Index] = vm.newCoexp(f.proc, int(in.L1), append([]Value(nil), f.locals...))
+			f.pc++
+		case OpActivate:
+			v := NullValue
+			if len(in.Args) > 0 {
+				v = Deref(vm.get(f, in.Args[0]))
+			}
+			f = vm.activate(f, in, Deref(vm.get(f, in.X)), v)
+		case OpCoRet:
+			f = vm.coret(f, Deref(vm.get(f, in.X)), int(in.L1))
+		case OpCoFail:
+			f = vm.cofail()
 		default:
 			panic(fmt.Sprintf("vm: bad opcode %d", in.Op))
 		}

@@ -102,6 +102,15 @@ problems of their own:
 - A runtime error inside a co-expression's goroutine has to be recovered
   and handed to `&main`.
 
+Measured again on gcon's real VM loop once co-expressions were built
+(2026-11-25, same machine; `experiments/coswitch/vmswitch.icn`, timed
+externally, per operation including about 10 ns of loop overhead):
+
+| implementation | `@c` round trip | `@(create 1)` |
+|----------------|----------------:|--------------:|
+| iconx 9.5      |        2,520 ns |     17,750 ns |
+| gcon           |           30 ns |        150 ns |
+
 ### Decision: a non-recursive VM
 
 gcon's VM never recurses on the Go stack for Icon-level control:
@@ -360,6 +369,13 @@ the conformance test with this reason.
   Expressions that produce variables (alternation, `if`, list elements)
   carry references: `*Value` for locals and globals, and `Var` values
   such as list elements.
+- A co-expression (`internal/vm/coexpr.go`) is a frame chain plus its
+  activator and state: not started, suspended after a result, waiting
+  at its own activation, or exhausted. Its body is a separate region of
+  the creating procedure's code, run in a new frame with copies of the
+  creator's locals. One function, `transfer`, resumes a co-expression
+  in whichever state it is, so activation, results, failure and
+  symmetric transfer through `&source` are all the same operation.
 - Operators that produce at most one result are `OpOper` instructions
   calling a Go function; generators (`to`, `!`, built-in generators)
   and procedure calls use `OpCall` and `OpResume` with a handle in a
@@ -377,7 +393,7 @@ the conformance test with this reason.
 - Non-ASCII text is indexed by scanning from the start; the sparse index
   and scanning cursor of "Fast positions" are still to come.
 - Not yet implemented: csets, reals, records, sets, tables, string
-  scanning, co-expressions, files and input, most keywords and built-in
+  scanning, programmer-defined control operations, files and input, most keywords and built-in
   functions, the preprocessor, `link`.
 
 ## Verification
@@ -397,8 +413,9 @@ the conformance test with this reason.
    strings, lists, locals, globals and statics, procedures and generators,
    the control structures, `write` and a few other built-ins. The string
    value carries its unit and ASCII flag from the start.
-3. **Co-expressions** in the slice: `create`, `@`, `^`, `&source`,
-   `&current`. Confirm the switch cost from the real VM loop.
+3. **Co-expressions.** Done: `create`, `@` with transmission, `^`,
+   `*C`, `&current`, `&source` and `&main`, with symmetric transfer.
+   Switch cost confirmed on the real VM loop (see "Co-expressions").
 4. Grow the value types and built-ins, driven by the conformance suite.
 5. `gcon build` producing a self-contained executable (the gcon binary
    with the bytecode appended), the counterpart of icont's output.

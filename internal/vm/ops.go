@@ -326,6 +326,8 @@ var Ops = map[string]*Builtin{
 		switch x := a[0].(type) {
 		case *List:
 			return Int(len(x.Elems)), true
+		case *Coexp:
+			return Int(x.results), true
 		}
 		if s, ok := CvStr(a[0]); ok {
 			return Int(s.Len()), true
@@ -492,6 +494,8 @@ func (vm *VM) Image(v Value) string {
 		return "procedure " + x.Name
 	case *Builtin:
 		return "function " + x.Name
+	case *Coexp:
+		return "co-expression_" + strconv.Itoa(x.serial) + "(" + strconv.Itoa(x.results) + ")"
 	}
 	return "?"
 }

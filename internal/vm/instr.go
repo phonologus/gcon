@@ -55,10 +55,15 @@ const (
 	OpSuspend            // suspend Deref(X); when resumed, goto L1
 	OpOnce               // if global X is set goto L1, else set it and continue (initial clauses)
 	OpIsNull             // if Deref(X) is &null goto L1 else goto L2
+	OpCreate             // Dst := a new co-expression whose body starts at L1
+	OpActivate           // Dst := result of activating co-expression X, transmitting Args[0]; success L1, failure L2
+	OpCoRet              // the running co-expression produces Deref(X); when resumed, goto L1
+	OpCoFail             // the running co-expression is exhausted
 )
 
 var opNames = [...]string{"goto", "igoto", "setlabel", "move", "movevar", "assign",
-	"oper", "call", "resume", "return", "fail", "suspend", "once", "isnull"}
+	"oper", "call", "resume", "return", "fail", "suspend", "once", "isnull",
+	"create", "activate", "coret", "cofail"}
 
 func (op Op) String() string { return opNames[op] }
 
@@ -89,9 +94,9 @@ func (in *Instr) String() string {
 		s += " " + a.String()
 	}
 	switch in.Op {
-	case OpGoto, OpSetLabel, OpOnce, OpSuspend:
+	case OpGoto, OpSetLabel, OpOnce, OpSuspend, OpCreate, OpCoRet:
 		s += fmt.Sprintf(" ->%d", in.L1)
-	case OpOper, OpCall, OpResume, OpIsNull:
+	case OpOper, OpCall, OpResume, OpIsNull, OpActivate:
 		s += fmt.Sprintf(" ->%d/%d", in.L1, in.L2)
 	}
 	if in.Op == OpCall || in.Op == OpResume {
