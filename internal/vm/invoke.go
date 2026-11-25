@@ -147,3 +147,20 @@ func (g *revGen) Next(vm *VM) (Value, bool) {
 	}
 	return g.vars[0], true
 }
+
+// ApplyOp marks an OpCall that is p ! L: the call's one argument is a
+// list or record whose elements are the arguments (iconx's Op_Apply;
+// anything else is error 126).
+var ApplyOp = &Builtin{Name: "!"}
+
+// applyArgs returns the arguments that p ! x passes.
+func applyArgs(x Value) []Value {
+	switch l := x.(type) {
+	case *List:
+		return append([]Value(nil), l.Elems...)
+	case *Record:
+		return append([]Value(nil), l.Fields...)
+	}
+	Runerr(126, x)
+	return nil
+}

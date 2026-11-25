@@ -1,0 +1,38 @@
+#STDERR
+record pt(x, y)
+procedure main()
+   local c, x, L, i
+   write(max ! [3, 9, 4])
+   every write(p ! pt(5, 6))
+   write(image(write ! []))
+   every writes(" ", seq ! [10, 5]) \ 3
+   write()
+   write(++2, " ", --3, " ", **"abc", " ", ++"4")
+   write(image(~=&lcase === &ucase) | "x")
+   "abcabc" ? { every writes(" ", ==("abc")); write(" ", &pos) }
+   every writes(" ", |(1 to 2)) \ 7
+   write()
+   i := 0
+   every writes(" ", |((i +:= 1) < 4)) \ 10
+   write()
+   write(image(|&fail) | "|&fail fails")
+   L := []
+   every put(L, ||"x") \ 3
+   write(*L)
+   c := create (x := @&source)
+   x := 7
+   x @:= c
+   write(x)
+   x := 1
+   x &:= 5
+   write(x)
+   &error := -1
+   write(p ! 3 | "error " || &errornumber)
+   write(&errorvalue)
+end
+procedure max(a, b, c)
+   return a < b < c | (a >= b & a >= c & a) | (b >= c & b) | c
+end
+procedure p(a, b)
+   suspend a | b
+end

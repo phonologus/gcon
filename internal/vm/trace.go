@@ -41,6 +41,8 @@ func (vm *VM) OutImage(v Value, noimage int) string {
 		return "&trace = " + vm.OutImage(x.Get(), noimage)
 	case errorVar:
 		return "&error = " + vm.OutImage(x.Get(), noimage)
+	case *SubstrVar:
+		return x.image(vm, noimage)
 	case *Value, Var:
 		return "(variable = " + vm.OutImage(Deref(v), noimage) + ")"
 	}
@@ -333,6 +335,9 @@ func (vm *VM) offending(f *Frame, pc int) string {
 			return vm.offending(f, pc-1)
 		}
 	case OpCall:
+		if in.Fn == ApplyOp {
+			return val(in.X) + " ! " + val(in.Args[0])
+		}
 		switch fv := Deref(vm.get(f, in.X)).(type) {
 		case *Builtin:
 			if Functions[fv.Name] == fv || fv.NoDeref {

@@ -751,9 +751,29 @@ func (p *pcomp) keyword(e *syntax.Keyword, fail, succ label) (label, label, vm.O
 // unaryOps maps prefix operators to their implementations.
 var unaryOps = map[string]string{"-": "u-", "+": "u+", "*": "u*", "~": "u~"}
 
+// compoundUnary are the tokens that, in prefix position, are sequences
+// of unary operators, applied right to left as icont's unopb does:
+// ++x is +(+x) and ~==x is ~(=(=x)).
+var compoundUnary = map[string][]string{
+	"++": {"+", "+"}, "--": {"-", "-"}, "**": {"*", "*"},
+	"==": {"=", "="}, "===": {"=", "=", "="}, "~=": {"~", "="},
+	"~==": {"~", "=", "="}, "~===": {"~", "=", "=", "="},
+}
+
 func (p *pcomp) unary(e *syntax.Unary, fail, succ label) (label, label, vm.Operand) {
 	op := e.Op.Text
+	if seq, ok := compoundUnary[op]; ok {
+		x := e.X
+		for i := len(seq) - 1; i >= 0; i-- {
+			t := *e.Op
+			t.Text = seq[i]
+			x = &syntax.Unary{Op: &t, X: x}
+		}
+		return p.unary(x.(*syntax.Unary), fail, succ)
+	}
 	switch {
+	case op == "|" || op == "||" || op == "|||":
+		return p.repalt(e.X, fail, succ)
 	case unaryOps[op] != "":
 		return p.oper(vm.Ops[unaryOps[op]], []syntax.Expr{e.X}, fail, succ)
 	case op == "!":
@@ -831,9 +851,39 @@ func (p *pcomp) binary(e *syntax.Binary, fail, succ label) (label, label, vm.Ope
 		t := p.temp()
 		p.emit(vm.Instr{Op: vm.OpMove, Dst: t, X: vs[0]})
 		b := p.newLabel()
-		p.emit(vm.Instr{Op: vm.OpAssign, Fn: vm.AsgnOp(":=:"), Dst: vs[0], X: vs[1], L1: int32(b), L2: int32(r)})
+		// Each assignment names the other operand (Args), which shifts if
+		// both are substrings of one string (see vm's OpAssign).
+		p.emit(vm.Instr{Op: vm.OpAssign, Fn: vm.AsgnOp(":=:"), Dst: vs[0], X: vs[1], Args: []vm.Operand{vs[1]}, L1: int32(b), L2: int32(r)})
 		p.place(b)
-		p.emit(vm.Instr{Op: vm.OpAssign, Dst: vs[1], X: t, L1: int32(succ), L2: int32(r)})
+		p.emit(vm.Instr{Op: vm.OpAssign, Dst: vs[1], X: t, Args: []vm.Operand{vs[0]}, L1: int32(succ), L2: int32(r)})
+		return st, r, vs[0]
+	case op == "!":
+		// p ! L calls p with the elements of list or record L.
+		a := p.newLabel()
+		st, r, vs := p.seq([]syntax.Expr{e.X, e.Y}, fail, a)
+		p.place(a)
+		t, h := p.temp(), p.temp()
+		p.emit(vm.Instr{Op: vm.OpCall, Fn: vm.ApplyOp, Dst: t, X: vs[0], H: h.Index, Args: vs[1:], L1: int32(succ), L2: int32(r)})
+		res := p.newLabel()
+		p.place(res)
+		p.emit(vm.Instr{Op: vm.OpResume, Dst: t, H: h.Index, L1: int32(succ), L2: int32(r)})
+		return st, res, t
+	case op == "@:=":
+		// x @:= c is x := x @ c.
+		a, b := p.newLabel(), p.newLabel()
+		st, r, vs := p.seq([]syntax.Expr{e.X, e.Y}, fail, a)
+		p.place(a)
+		t := p.temp()
+		p.emit(vm.Instr{Op: vm.OpActivate, Dst: t, X: vs[1], Args: []vm.Operand{vs[0]}, L1: int32(b), L2: int32(r)})
+		p.place(b)
+		p.emit(vm.Instr{Op: vm.OpAssign, Dst: vs[0], X: t, L1: int32(succ), L2: int32(r)})
+		return st, r, vs[0]
+	case op == "&:=":
+		// x &:= y is x := (x & y), which is x := y with x evaluated first.
+		a := p.newLabel()
+		st, r, vs := p.seq([]syntax.Expr{e.X, e.Y}, fail, a)
+		p.place(a)
+		p.emit(vm.Instr{Op: vm.OpAssign, Dst: vs[0], X: vs[1], L1: int32(succ), L2: int32(r)})
 		return st, r, vs[0]
 	case op == "<-":
 		// x <- y assigns y to x; resumed, it restores x's old value and
@@ -856,13 +906,13 @@ func (p *pcomp) binary(e *syntax.Binary, fail, succ label) (label, label, vm.Ope
 		ox, oy := p.temp(), p.temp()
 		p.emit(vm.Instr{Op: vm.OpMove, Dst: ox, X: vs[0]})
 		p.emit(vm.Instr{Op: vm.OpMove, Dst: oy, X: vs[1]})
-		p.emit(vm.Instr{Op: vm.OpAssign, Fn: vm.AsgnOp("<->"), Dst: vs[0], X: vs[1], L1: int32(b), L2: int32(r)})
+		p.emit(vm.Instr{Op: vm.OpAssign, Fn: vm.AsgnOp("<->"), Dst: vs[0], X: vs[1], Args: []vm.Operand{vs[1]}, L1: int32(b), L2: int32(r)})
 		p.place(b)
-		p.emit(vm.Instr{Op: vm.OpAssign, Dst: vs[1], X: ox, L1: int32(succ), L2: int32(r)})
+		p.emit(vm.Instr{Op: vm.OpAssign, Dst: vs[1], X: ox, Args: []vm.Operand{vs[0]}, L1: int32(succ), L2: int32(r)})
 		p.place(rr)
-		p.emit(vm.Instr{Op: vm.OpAssign, Dst: vs[0], X: ox, L1: int32(c), L2: int32(c)})
+		p.emit(vm.Instr{Op: vm.OpAssign, Dst: vs[0], X: ox, Args: []vm.Operand{vs[1]}, L1: int32(c), L2: int32(c)})
 		p.place(c)
-		p.emit(vm.Instr{Op: vm.OpAssign, Dst: vs[1], X: oy, L1: int32(r), L2: int32(r)})
+		p.emit(vm.Instr{Op: vm.OpAssign, Dst: vs[1], X: oy, Args: []vm.Operand{vs[0]}, L1: int32(r), L2: int32(r)})
 		return st, rr, vs[0]
 	case op == "?":
 		return p.scan(e.X, e.Y, false, fail, succ)
@@ -882,6 +932,32 @@ func (p *pcomp) binary(e *syntax.Binary, fail, succ label) (label, label, vm.Ope
 	}
 	p.errorf(e, "operator %s is not yet supported", op)
 	return fail, fail, p.null()
+}
+
+// repalt compiles |e, repeated alternation: e's results, then e's
+// results again, and so on, until e produces none.
+func (p *pcomp) repalt(x syntax.Expr, fail, succ label) (label, label, vm.Operand) {
+	produced := p.temp() // non-null once e has produced a result this round
+	entry, again, a, efail, reset := p.newLabel(), p.newLabel(), p.newLabel(), p.newLabel(), p.newLabel()
+	null := p.null()
+	p.place(entry)
+	p.emit(vm.Instr{Op: vm.OpMove, Dst: produced, X: null})
+	p.jump(again)
+	st, r, v := p.expr(x, efail, a)
+	p.bind(again, st)
+	// e has no more results: stop if it produced none this round, else
+	// start it again.
+	p.place(efail)
+	p.emit(vm.Instr{Op: vm.OpIsNull, X: produced, L1: int32(fail), L2: int32(reset)})
+	p.place(reset)
+	p.emit(vm.Instr{Op: vm.OpMove, Dst: produced, X: null})
+	p.jump(again)
+	p.place(a)
+	p.emit(vm.Instr{Op: vm.OpMove, Dst: produced, X: p.c.constant("i1", vm.Int(1))})
+	t := p.temp()
+	p.emit(vm.Instr{Op: vm.OpMoveVar, Dst: t, X: v})
+	p.jump(succ)
+	return entry, r, t
 }
 
 // alt compiles x | y. A gate records which alternative to resume.

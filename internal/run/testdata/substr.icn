@@ -1,0 +1,99 @@
+#STDERR
+# Substring variables: assigning to s[i], s[i:j], s[i+:n], ?s and !s
+# changes the string in s; substrings of substrings, of &subject, of
+# list and table elements; the substring variable follows its new length;
+# errors when the string has changed underneath.
+global g
+
+procedure main()
+   local s, t, L, T, v, i
+   s := "abcdef"
+   s[2] := "XYZ"
+   write(s)
+   s[1:3] := ""
+   write(s)
+   s[2+:2] := "--"
+   write(s)
+   s[-1] := "!"
+   write(s)
+   s := "hello"
+   every !s := "*"
+   write(s)
+   s := "abcdefgh"
+   s[2:6][2] := "Q"
+   write(s)
+   s[2:6][2:4] := "@@@@"
+   write(s)
+   &random := 3
+   s := "abc"
+   ?s := "?"
+   write(s)
+   L := ["abc", "def"]
+   L[2][1] := "D"
+   write(L[1], L[2])
+   T := table()
+   T["k"] := "xyz"
+   T["k"][3] := "Z"
+   write(T["k"])
+   g := "glob"
+   g[1] := "G"
+   write(g)
+   "subject" ? {
+      &subject[1] := "S"
+      write(&subject, " ", &pos)
+      tab(3)
+      write(&pos)
+   }
+   s := "abcdef"
+   v := s[2:4]
+   v := "q"
+   write(s, " ", v)
+   s := "abcdef"
+   (s[3] := "XX") := "Y"
+   write(s)
+   s := "abcdef"
+   t := s
+   s[1] := "z"
+   write(s, " ", t)
+   s := "abcdef"
+   every i := 1 to 3 do s[i] := string(i)
+   write(s)
+   &error := -1
+   s := 12345
+   write((s[2] := "x") | "integer s[2] := ...: error " || &errornumber)
+   s := "abc"
+   write(image(s[1] := 7), " ", s)
+   s := "abcdef"
+   every (s[2:4] <- "Z") & &fail
+   write(s)
+   s := "ab"
+   write(image(s[3]) | "s[3] fails")
+   s := "abc"
+   write((s[1] := []) | "error " || &errornumber)
+   x := "abcdef"
+   v := r(x)
+   write(v)
+   s := "abcdef"
+   every s[1] := ("x" | "y")
+   write(s)
+   s := "abcdef"
+   s[3:5] :=: s[1]
+   write(s)
+   s := "abcdef"
+   shorten(s[4:6])
+   s := "abc"
+   write(f(s[2]) | "f failed")
+end
+
+procedure r(x)
+   x[1] := "R"
+   return x
+end
+
+procedure shorten(v)
+   write(image(v))
+end
+
+procedure f(v)
+   return v
+end

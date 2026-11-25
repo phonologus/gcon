@@ -31,22 +31,33 @@ func (vm *VM) randomChar(s *String) (Value, bool) {
 	}
 	k := vm.randIndex(n)
 	if n == s.Len() {
+		vm.lastCharPos = k + 1
 		return s.Slice(k+1, k+2), true
 	}
 	i := 1
 	for ; k > 0; k-- {
 		i += s.width(i - 1)
 	}
+	vm.lastCharPos = i
 	return s.Slice(i, i+s.width(i-1)), true
 }
 
 // random is ?x. Elements of lists, records and tables are produced as
 // variables, so ?L := x assigns to a random element. Tables and sets
 // choose among their entries in insertion order, where iconx uses its
-// hash order. A character of a string is a value, not a variable (as
-// for s[i]; see "Deliberate simplifications").
+// hash order. A character of a string held in a variable is a
+// substring variable, so ?s := "x" replaces it.
 func random(vm *VM, a []Value) (Value, bool) {
-	switch x := a[0].(type) {
+	if strVar(a[0]) {
+		s := Deref(a[0]).(*String)
+		c, ok := vm.randomChar(s)
+		if !ok {
+			return nil, false
+		}
+		// The character's position: randomChar chose it by index.
+		return newSubstr(a[0], vm.lastCharPos, c.(*String).Len()), true
+	}
+	switch x := Deref(a[0]).(type) {
 	case *String:
 		return vm.randomChar(x)
 	case *Cset:
@@ -69,9 +80,9 @@ func random(vm *VM, a []Value) (Value, bool) {
 	case *Set:
 		return vm.randomEntry(&x.m)
 	}
-	n, ok := CvInteger(a[0])
+	n, ok := CvInteger(Deref(a[0]))
 	if !ok {
-		Runerr(113, a[0])
+		Runerr(113, Deref(a[0]))
 	}
 	if b, isBig := n.(*Big); isBig {
 		return vm.bigRand(b.v), true
@@ -79,7 +90,7 @@ func random(vm *VM, a []Value) (Value, bool) {
 	v := n.(Int)
 	switch {
 	case v < 0:
-		Runerr(205, a[0])
+		Runerr(205, Deref(a[0]))
 	case v == 0:
 		return Real(vm.randVal()), true
 	}
@@ -136,7 +147,7 @@ func (k randomVar) Set(v Value) bool {
 }
 
 func init() {
-	Ops["u?"] = &Builtin{Name: "?", Fn: random}
+	Ops["u?"] = &Builtin{Name: "?", Fn: random, RefFirst: true}
 	Ops["&random"] = &Builtin{Name: "&random", Fn: func(vm *VM, a []Value) (Value, bool) {
 		return randomVar{vm}, true
 	}}

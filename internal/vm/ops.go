@@ -242,10 +242,10 @@ var Ops = map[string]*Builtin{
 		Runerr(112, a[0])
 		return nil, false
 	}},
-	"u!": {Name: "!", Gen: bang},
+	"u!": {Name: "!", Gen: bang, RefFirst: true},
 
-	"[]":  {Name: "[]", Fn: index},
-	"[:]": {Name: "[:]", Fn: section},
+	"[]":  {Name: "[]", Fn: index, RefFirst: true},
+	"[:]": {Name: "[:]", Fn: section, RefFirst: true},
 	"[...]": {Name: "[...]", Fn: func(vm *VM, a []Value) (Value, bool) {
 		return vm.NewList(append([]Value(nil), a...)), true
 	}},
@@ -262,7 +262,8 @@ var Ops = map[string]*Builtin{
 }
 
 func index(vm *VM, a []Value) (Value, bool) {
-	switch x := a[0].(type) {
+	ref := a[0]
+	switch x := Deref(ref).(type) {
 	case *Record:
 		return recordIndex(x, a[1])
 	case *Table:
@@ -278,28 +279,32 @@ func index(vm *VM, a []Value) (Value, bool) {
 		}
 		return ListElem{x, int(i - 1)}, true
 	}
-	// TODO: subscripts of string variables are assignable in Icon.
-	s, ok := CvStr(a[0])
+	s, ok := CvStr(Deref(ref))
 	if !ok {
-		Runerr(114, a[0])
+		Runerr(114, Deref(ref))
 	}
 	i, ok := cvpos(MustInt(a[1]), s.Len())
 	if !ok || i > s.Len() {
 		return nil, false
 	}
+	if strVar(ref) {
+		return newSubstr(ref, i, 1), true
+	}
 	return s.Slice(i, i+1), true
 }
 
 func section(vm *VM, a []Value) (Value, bool) {
+	ref := a[0]
+	x := Deref(ref)
 	var n int
-	l, isList := a[0].(*List)
+	l, isList := x.(*List)
 	var s *String
 	if isList {
 		n = len(l.Elems)
 	} else {
 		var ok bool
-		if s, ok = CvStr(a[0]); !ok {
-			Runerr(110, a[0])
+		if s, ok = CvStr(x); !ok {
+			Runerr(110, x)
 		}
 		n = s.Len()
 	}
@@ -313,6 +318,9 @@ func section(vm *VM, a []Value) (Value, bool) {
 	}
 	if isList {
 		return vm.NewList(append([]Value(nil), l.Elems[i-1:j-1]...)), true
+	}
+	if strVar(ref) {
+		return newSubstr(ref, i, j-i), true
 	}
 	return s.Slice(i, j), true
 }
@@ -352,7 +360,10 @@ func (g *toGen) Next(vm *VM) (Value, bool) {
 
 // bang generates the elements of a list, or the characters of a string.
 func bang(vm *VM, a []Value) Generator {
-	switch x := a[0].(type) {
+	if strVar(a[0]) {
+		return &strVarGen{v: a[0]}
+	}
+	switch x := Deref(a[0]).(type) {
 	case *List:
 		return &listGen{l: x}
 	case *Record:
@@ -364,9 +375,9 @@ func bang(vm *VM, a []Value) Generator {
 	case *Set:
 		return setElems(x)
 	}
-	s, ok := CvStr(a[0])
+	s, ok := CvStr(Deref(a[0]))
 	if !ok {
-		Runerr(116, a[0])
+		Runerr(116, Deref(a[0]))
 	}
 	return &strGen{s: s}
 }

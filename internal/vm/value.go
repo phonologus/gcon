@@ -137,6 +137,9 @@ type Builtin struct {
 	// NoDeref: the arguments are passed as variables (the assignment
 	// operators, invoked by name).
 	NoDeref bool
+	// RefFirst: the first argument is passed as a variable (subscripts,
+	// sections, ?x and !x, which make substring variables of strings).
+	RefFirst bool
 }
 
 // Generator is a suspended built-in generator: Next produces its next

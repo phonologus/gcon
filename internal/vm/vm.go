@@ -60,9 +60,10 @@ type VM struct {
 	errVal     Value
 	haveErrVal bool
 
-	random Int // &random (random.go)
-	trace  Int // &trace (trace.go)
-	level  int // &level
+	random      Int // &random (random.go)
+	lastCharPos int // position of randomChar's last choice
+	trace       Int // &trace (trace.go)
+	level       int // &level
 
 	// Deadline, if set, stops the program with status DeadlineStatus
 	// once passed (checked every few thousand instructions). For tests.
@@ -323,6 +324,26 @@ func (vm *VM) loop(f *Frame) {
 					}
 				}
 			}
+			if len(in.Args) == 1 {
+				// One assignment of :=: or <->, naming the other operand:
+				// if both are substrings of one string, the other one,
+				// when to the right, shifts by the change in length, as
+				// iconx's swap and rswap adjust it.
+				d, ok1 := vm.ref(f, in.Dst).(*SubstrVar)
+				o, ok2 := vm.ref(f, in.Args[0]).(*SubstrVar)
+				if ok1 && ok2 && d.v == o.v {
+					n := d.n
+					if !vm.assign(f, in.Dst, Deref(vm.get(f, in.X))) {
+						f.pc = int(in.L2)
+						continue
+					}
+					if o.pos > d.pos {
+						o.pos += d.n - n
+					}
+					f.pc = int(in.L1)
+					continue
+				}
+			}
 			if vm.assign(f, in.Dst, Deref(vm.get(f, in.X))) {
 				f.pc = int(in.L1)
 			} else {
@@ -348,7 +369,11 @@ func (vm *VM) loop(f *Frame) {
 				f.pc = int(in.L1)
 			}
 		case OpOper:
-			if v, ok := in.Fn.Fn(vm, vm.args(f, in.Args)); ok {
+			args := vm.args(f, in.Args)
+			if in.Fn.RefFirst {
+				args[0] = vm.ref(f, in.Args[0])
+			}
+			if v, ok := in.Fn.Fn(vm, args); ok {
 				f.temps[in.Dst.Index] = v
 				f.pc = int(in.L1)
 			} else {
@@ -357,6 +382,9 @@ func (vm *VM) loop(f *Frame) {
 		case OpCall:
 			fv := Deref(vm.get(f, in.X))
 			args := vm.args(f, in.Args)
+			if in.Fn == ApplyOp {
+				args = applyArgs(args[0])
+			}
 			switch fv.(type) {
 			case *Proc, *Builtin, *RecordType, Int:
 			default:
@@ -381,6 +409,9 @@ func (vm *VM) loop(f *Frame) {
 				f = nf
 				vm.cur = f
 			case *Builtin:
+				if p.RefFirst && len(args) > 0 && in.Fn != ApplyOp {
+					args[0] = vm.ref(f, in.Args[0])
+				}
 				if p.Gen != nil {
 					g := p.Gen(vm, args)
 					vm.next(f, in, g)

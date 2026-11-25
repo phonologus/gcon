@@ -672,7 +672,7 @@ conformance test with this reason.
   produced as variables (`?L := x`). Tables and sets choose by position
   in insertion order where iconx uses its hash order, so `?T` and `?S`
   differ from iconx even with the same seed. A random character of a
-  string is a value, as `s[i]` is (see "Deliberate simplifications").
+  string held in a variable is a substring variable, as `s[i]` is.
 - Reversible assignment: `x <- y` and `x <-> y` save the old values
   before assigning; resumed, they restore them and fail (iconx's `rasgn`
   and `rswap`). The compiler emits them inline, as it does `:=:`.
@@ -718,6 +718,31 @@ conformance test with this reason.
   as icont does (so `s[1+:"z"]` is error 102), and `:=:` and `<->` check
   that both operands are variables before assigning either. Checked by
   the programs in `testdata/traceback`, each one error.
+- **Substring variables** (`internal/vm/substr.go`), iconx's substring
+  trapped variables: `s[i]`, `s[i:j]`, `s[i+:n]`, `?s` and `!s` produce
+  a `SubstrVar` (the variable, a byte position and a length) when `s` is
+  a variable holding a string, not merely one convertible to a string
+  (`s := 12345; s[2] := "x"` is error 111, as in iconx). Assigning to it
+  converts the value to a string, replaces that part of the string,
+  assigns the whole back to the variable (assigning to `&subject` this
+  way resets `&pos`) and takes the new length; dereferencing checks the
+  string is still a string and long enough (errors 103, 205). A
+  substring of a substring refers to the original variable. The
+  operators that make them (`Builtin.RefFirst`) receive their first
+  operand as a variable. When `:=:` or `<->` exchanges two substrings of
+  one string, each assignment shifts the other substring, if it is to
+  the right, by the change in length (the compiler records the partner
+  operand on each assignment), which reproduces iconx's `adj1`/`adj2`
+  in `swap` and `rswap`, forward and when `<->` is resumed.
+- `p ! L` calls `p` with the elements of list or record `L` (error 126
+  otherwise), as iconx's `Op_Apply`: an `OpCall` marked `ApplyOp`.
+- Repeated alternation `|e` (also written `||e`, `|||e`, as icont reads
+  them) generates e's results over and over until a round produces none.
+- Prefix tokens that are sequences of unary operators apply right to
+  left, as icont's `unopb` emits them: `++x` is `+(+x)`, `~==x` is
+  `~(=(=x))`.
+- `x @:= c` is `x := x @ c`, and `x &:= y` is `x := y` with x evaluated
+  first; the other augmented assignments are `x := x op y` as before.
 - Operators that produce at most one result are `OpOper` instructions
   calling a Go function; generators (`to`, `!`, built-in generators)
   and procedure calls use `OpCall` and `OpResume` with a handle in a
@@ -725,7 +750,6 @@ conformance test with this reason.
 
 ### Deliberate simplifications (to be removed)
 
-- String subscripts are values, not assignable variables.
 - `display()` checks its arguments as iconx does (errors 101 and 105)
   but does not list variables yet: valid arguments raise error 121.
 - Not yet implemented: programmer-defined control operations, many
