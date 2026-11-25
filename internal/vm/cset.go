@@ -9,22 +9,19 @@ import (
 )
 
 // Cset is an Icon cset (docs/design.md, "Csets"): a set of characters
-// in one unit.
+// drawn from one universe: the ASCII characters, the 128 non-ASCII bytes,
+// and the code points from 0x80 that UTF-8 can encode. A byte such as
+// 0xE9 and a code point such as U+00E9 are different members. Csets have
+// no unit, so they form one Boolean algebra: ~~c === c, De Morgan's laws
+// hold, and === is equality of members.
 //
-// A bytes cset is a set of byte values, held in bits. A text cset holds
-// its single-byte characters (ASCII, and lone invalid bytes 0x80-0xFF)
-// in bits, and its code points from 0x80 up in ranges. A cset whose
-// members are all ASCII is neutral: the same in either unit.
-//
-// Relabelling a bytes cset as text keeps its bits (its high bytes become
-// lone bytes), so it is lossless; relabelling a text cset as bytes adds
-// the bytes of its code points' UTF-8 encodings.
+// The ASCII characters and the non-ASCII bytes are held in bits; code
+// points in ranges.
 type Cset struct {
-	unit   Unit
 	bits   [4]uint64
 	ranges []runeRange // sorted, disjoint, not adjacent; >= 0x80; no surrogates
 	n      int         // member count, -1 if not yet known
-	bytes  *[4]uint64  // cache: the bits of the cset relabelled as bytes
+	bytes  *[4]uint64  // cache: the bits of the cset read as bytes
 }
 
 type runeRange struct{ lo, hi rune }
@@ -36,12 +33,6 @@ const (
 
 func (c *Cset) has(b byte) bool { return c.bits[b>>6]&(1<<(b&63)) != 0 }
 func (c *Cset) set(b byte)      { c.bits[b>>6] |= 1 << (b & 63) }
-
-// Neutral reports whether every member is ASCII.
-func (c *Cset) Neutral() bool { return c.bits[2] == 0 && c.bits[3] == 0 && len(c.ranges) == 0 }
-
-// IsBytes reports whether c is a bytes cset with non-ASCII members.
-func (c *Cset) IsBytes() bool { return c.unit == BytesUnit && !c.Neutral() }
 
 // Size returns the number of members.
 func (c *Cset) Size() int {
@@ -63,7 +54,8 @@ func (c *Cset) hasRune(r rune) bool {
 	return i < len(c.ranges) && c.ranges[i].lo <= r
 }
 
-// bytesBits returns the bits of c relabelled as bytes.
+// bytesBits returns the bytes that match c in a bytes subject: its byte
+// members, and the bytes of its code points' UTF-8 encodings.
 func (c *Cset) bytesBits() *[4]uint64 {
 	if len(c.ranges) == 0 {
 		return &c.bits
@@ -100,59 +92,39 @@ func (c *Cset) bytesBits() *[4]uint64 {
 	return c.bytes
 }
 
-// MatchByte reports whether byte b of a bytes subject is in c.
+// MatchByte reports whether byte b of a bytes subject is in c: a byte
+// member, or a byte of a member code point's encoding.
 func (c *Cset) MatchByte(b byte) bool {
 	bb := c.bytesBits()
 	return bb[b>>6]&(1<<(b&63)) != 0
 }
 
 // MatchText reports whether the character of a text subject at byte
-// offset i of s is in c, and returns the character's width.
+// offset i of s is in c, and returns the character's width. An invalid
+// byte of the subject is that byte.
 func (c *Cset) MatchText(s string, i int) (int, bool) {
 	if s[i] < utf8.RuneSelf {
 		return 1, c.has(s[i])
 	}
 	r, w := utf8.DecodeRuneInString(s[i:])
 	if r == utf8.RuneError && w == 1 {
-		return 1, c.has(s[i]) // a lone byte (a bytes cset's high bytes read as lone bytes)
+		return 1, c.has(s[i])
 	}
-	return w, c.unit == TextUnit && c.hasRune(r)
+	return w, c.hasRune(r)
 }
 
-// relabel returns c in unit u.
-func (c *Cset) relabel(u Unit) *Cset {
-	if c.unit == u || c.Neutral() {
-		if c.unit == u {
-			return c
-		}
-		r := *c
-		r.unit = u
-		return &r
+// AsBytes returns the cset of the bytes that match c in a bytes subject
+// (bytes(c)): a code point is replaced by the bytes of its encoding.
+func (c *Cset) AsBytes() *Cset {
+	if len(c.ranges) == 0 {
+		return c
 	}
-	if u == TextUnit {
-		return &Cset{unit: TextUnit, bits: c.bits, n: -1}
-	}
-	return &Cset{unit: BytesUnit, bits: *c.bytesBits(), n: -1}
-}
-
-// csetUnit returns the unit of the result of a set operation on a and b:
-// text if either is non-neutral text, else bytes if either is non-neutral
-// bytes, else neutral (held as text).
-func csetUnit(a, b *Cset) Unit {
-	if (a.unit == TextUnit && !a.Neutral()) || (b.unit == TextUnit && !b.Neutral()) {
-		return TextUnit
-	}
-	if a.IsBytes() || b.IsBytes() {
-		return BytesUnit
-	}
-	return TextUnit
+	return &Cset{bits: *c.bytesBits(), n: -1}
 }
 
 // CsetOp computes a union ('+'), intersection ('*') or difference ('-').
 func CsetOp(op byte, a, b *Cset) *Cset {
-	u := csetUnit(a, b)
-	a, b = a.relabel(u), b.relabel(u)
-	r := &Cset{unit: u, n: -1}
+	r := &Cset{n: -1}
 	for i := range r.bits {
 		switch op {
 		case '+':
@@ -174,18 +146,11 @@ func CsetOp(op byte, a, b *Cset) *Cset {
 	return r
 }
 
-// Complement returns ~c, over c's unit; a neutral cset complements as
-// text.
+// Complement returns ~c: every character of the universe not in c.
 func Complement(c *Cset) *Cset {
-	r := &Cset{unit: c.unit, n: -1}
-	if c.Neutral() {
-		r.unit = TextUnit
-	}
+	r := &Cset{n: -1, ranges: complementRanges(c.ranges)}
 	for i := range r.bits {
 		r.bits[i] = ^c.bits[i]
-	}
-	if r.unit == TextUnit {
-		r.ranges = complementRanges(c.ranges)
 	}
 	return r
 }
@@ -268,7 +233,7 @@ func CsetOf(s *String) *Cset {
 }
 
 func csetFrom(s string, u Unit) *Cset {
-	c := &Cset{unit: u, n: -1}
+	c := &Cset{n: -1}
 	if u == BytesUnit {
 		for i := 0; i < len(s); i++ {
 			c.set(s[i])
@@ -306,7 +271,7 @@ type CsetRange struct {
 // segments (each read separately, so that bytes never fuse across a
 // range) and its ranges.
 func NewCsetLiteral(segments []string, ranges []CsetRange, u Unit) *Cset {
-	c := &Cset{unit: u, n: -1}
+	c := &Cset{n: -1}
 	for _, s := range segments {
 		c = CsetOp('+', c, csetFrom(s, u))
 	}
@@ -331,7 +296,6 @@ func NewCsetLiteral(segments []string, ranges []CsetRange, u Unit) *Cset {
 	if len(rs) > 0 {
 		c.addRunes(rs)
 	}
-	c.unit = u
 	return c
 }
 
@@ -339,7 +303,7 @@ func NewCsetLiteral(segments []string, ranges []CsetRange, u Unit) *Cset {
 // as a one-character string.
 func (c *Cset) Members() iter.Seq[string] {
 	return func(yield func(string) bool) {
-		if c.unit == BytesUnit || len(c.ranges) == 0 {
+		if len(c.ranges) == 0 {
 			for b := 0; b < 256; b++ {
 				if c.has(byte(b)) && !yield(string([]byte{byte(b)})) {
 					return
@@ -377,17 +341,22 @@ func (c *Cset) Members() iter.Seq[string] {
 	}
 }
 
-// String returns c's canonical string: its members in order.
+// String returns c's canonical string: its members in order. It is
+// text if c has a code point (its byte members are then lone bytes), else
+// bytes: the unit a literal with those members would have.
 func (c *Cset) String() *String {
 	var b strings.Builder
 	for m := range c.Members() {
 		b.WriteString(m)
 	}
-	return NewString(b.String(), c.unit)
+	u := BytesUnit
+	if len(c.ranges) > 0 {
+		u = TextUnit
+	}
+	return NewString(b.String(), u)
 }
 
-// equalCsets reports whether a and b have the same members in the same
-// unit (or are both neutral).
+// equalCsets reports whether a and b have the same members.
 func equalCsets(a, b *Cset) bool {
 	if a.bits != b.bits || len(a.ranges) != len(b.ranges) {
 		return false
@@ -397,12 +366,12 @@ func equalCsets(a, b *Cset) bool {
 			return false
 		}
 	}
-	return a.unit == b.unit || a.Neutral()
+	return true
 }
 
 // Predefined csets.
 var (
-	CsetAll     = &Cset{unit: BytesUnit, bits: [4]uint64{^uint64(0), ^uint64(0), ^uint64(0), ^uint64(0)}, n: -1}
+	CsetAll     = &Cset{bits: [4]uint64{^uint64(0), ^uint64(0), ^uint64(0), ^uint64(0)}, n: -1}
 	CsetASCII   = &Cset{bits: [4]uint64{^uint64(0), ^uint64(0)}, n: -1}
 	CsetDigits  = csetFrom("0123456789", TextUnit)
 	CsetLcase   = csetFrom("abcdefghijklmnopqrstuvwxyz", TextUnit)

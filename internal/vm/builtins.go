@@ -161,17 +161,23 @@ func mustList(v Value) *List {
 
 // Unicode functions (docs/design.md, "Strings and Unicode").
 func init() {
-	relabel := func(u Unit) func(vm *VM, a []Value) (Value, bool) {
-		return func(vm *VM, a []Value) (Value, bool) {
-			if c, ok := arg(a, 0).(*Cset); ok {
-				return c.relabel(u), true
-			}
-			s := MustStr(arg(a, 0))
-			return &String{s: s.s, unit: u, ascii: s.ascii, n: -1}, true
+	// runes(x) and bytes(x) relabel a string's bytes. A cset has no unit:
+	// runes(c) is c, and bytes(c) is the cset of the bytes that match c in
+	// a bytes subject.
+	fn("runes", func(vm *VM, a []Value) (Value, bool) {
+		if c, ok := arg(a, 0).(*Cset); ok {
+			return c, true
 		}
-	}
-	fn("text", relabel(TextUnit))
-	fn("bytes", relabel(BytesUnit))
+		s := MustStr(arg(a, 0))
+		return &String{s: s.s, unit: TextUnit, ascii: s.ascii, n: -1}, true
+	})
+	fn("bytes", func(vm *VM, a []Value) (Value, bool) {
+		if c, ok := arg(a, 0).(*Cset); ok {
+			return c.AsBytes(), true
+		}
+		s := MustStr(arg(a, 0))
+		return &String{s: s.s, unit: BytesUnit, ascii: s.ascii, n: -1}, true
+	})
 	fn("utf8valid", func(vm *VM, a []Value) (Value, bool) {
 		s := MustStr(arg(a, 0))
 		return s, utf8.ValidString(s.s)

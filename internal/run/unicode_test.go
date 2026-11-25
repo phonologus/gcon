@@ -2,6 +2,7 @@ package run
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -24,7 +25,7 @@ func TestUnicode(t *testing.T) {
 			`"é" "\xc3\xa9" "\u00a0" "😀"`},
 		// Malformed UTF-8: each invalid byte is one character, read as U+FFFD,
 		// and never rewritten.
-		{"lone bytes", `s := text("caf\xe9"); write(*s, " ", ord(s[4]), " ", image(s), " ", *(s || "é"))`,
+		{"lone bytes", `s := runes("caf\xe9"); write(*s, " ", ord(s[4]), " ", image(s), " ", *(s || "é"))`,
 			`4 65533 "caf\xe9" 5`},
 		{"bytes ord", `write(ord(bytes("é")[1]), " ", ord(char(200)), " ", ord("é"))`, "195 200 233"},
 		// Mixed units: non-ASCII text makes text; else non-ASCII bytes make bytes.
@@ -48,15 +49,18 @@ func TestUnicode(t *testing.T) {
 		{"big images", `write(image(~&ascii), " ", image(~'a'), " ", image(~'/'))`,
 			`'\u0080..\U10ffff\x80..\xff' '\x00..` + "`" + `b..\U10ffff\x80..\xff' '\x00..\.0..\U10ffff\x80..\xff'`},
 		{"sizes", `write(*&uset, " ", *~&ascii, " ", *~&lcase, " ", image(&uset))`, "1112192 1112064 1112166 &uset"},
-		// A neutral cset complements as text: ~&cset is '', whose
-		// complement is &uset, not &cset as in 9.5.
-		{"double complement", `write(image(~&cset), " ", image(~~&cset))`, "'' &uset"},
-		// Relabelling: bytes -> text -> bytes is lossless for csets.
-		{"relabel", `c := bytes('\xc3\xa9'); write(*c, " ", *text(c), " ", image(bytes(text(c)) === c), " ", *bytes('é'))`,
-			"2 2 '\\xa9\\xc3' 2"},
+		// Csets have one universe, so complement is over all of it: ~&cset
+		// is every code point from 0x80 (in 9.5, '').
+		{"complement of &cset", `write(image(~&cset), " ", image(~~&cset), " ", *~&cset)`,
+			`'\u0080..\U10ffff' &cset 1111936`},
+		// The byte 0xE9 and the code point U+00E9 are different members.
+		{"byte vs code point", `write(*'\xe9é', " ", image('\xe9' ** 'é'), " ", image('\xe9é'))`, `2 '' 'é\xe9'`},
+		// bytes(c) is the bytes matching c in a bytes subject.
+		{"bytes of cset", `c := bytes('\xc3\xa9'); write(*c, " ", image(runes(c) === c), " ", image(bytes('é')), " ", *bytes('é'))`,
+			`2 '\xa9\xc3' '\xa9\xc3' 2`},
 		// Matching across units.
 		{"bytes subject", `write(upto('é', bytes("aé")), " ", image(upto(bytes('\xc3'), "aé")) | "no")`, "2 no"},
-		{"lone byte match", `s := text("a\xffb"); write(upto(text(bytes('\xff')), s), " ", image(upto('\uFFFD', s)) | "no")`,
+		{"lone byte match", `s := runes("a\xffb"); write(upto('\xff', s), " ", image(upto('\uFFFD', s)) | "no")`,
 			"2 no"},
 	}
 	dir := t.TempDir()
@@ -83,5 +87,36 @@ func TestCsetLiteralErrors(t *testing.T) {
 		if len(errs) == 0 {
 			t.Errorf("%s: no error", lit)
 		}
+	}
+}
+
+// TestCsetAlgebra checks that csets form a Boolean algebra over one
+// universe: complement is an involution, De Morgan's laws hold, and
+// identical csets have identical complements.
+func TestCsetAlgebra(t *testing.T) {
+	csets := []string{`''`, `&cset`, `&ascii`, `&uset`, `'abc'`, `'\xe9é'`, `~&ascii`,
+		`&cset -- &ascii`, `'α..ω\x80..\x8f'`, `bytes('é')`, `~'\xff'`}
+	for i, c := range csets {
+		csets[i] = "(" + c + ")" // operands are substituted into expressions
+	}
+	var body strings.Builder
+	for _, a := range csets {
+		fmt.Fprintf(&body, "   (~~%s === %s) | write(\"involution fails: \", image(%s))\n", a, a, a)
+		for _, b := range csets {
+			fmt.Fprintf(&body, "   (~(%s ++ %s) === (~%s ** ~%s)) | write(\"De Morgan ++ fails: \", image(%s), image(%s))\n", a, b, a, b, a, b)
+			fmt.Fprintf(&body, "   (~(%s ** %s) === (~%s ++ ~%s)) | write(\"De Morgan ** fails: \", image(%s), image(%s))\n", a, b, a, b, a, b)
+			fmt.Fprintf(&body, "   (%s -- %s === %s ** ~%s) | write(\"difference fails: \", image(%s), image(%s))\n", a, b, a, b, a, b)
+			fmt.Fprintf(&body, "   if %s === %s then (~%s === ~%s) | write(\"substitution fails\")\n", a, b, a, b)
+		}
+	}
+	path := filepath.Join(t.TempDir(), "algebra.icn")
+	src := "procedure main()\n" + body.String() + "   write(\"ok\")\nend\n"
+	if err := os.WriteFile(path, []byte(src), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var out, errs bytes.Buffer
+	File(path, Config{Stdout: &out, Stderr: &errs})
+	if out.String() != "ok\n" {
+		t.Errorf("%s%s", out.String(), errs.String())
 	}
 }

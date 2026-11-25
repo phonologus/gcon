@@ -3,7 +3,7 @@ procedure main()
    local c
    write(image('cab'), " ", image('\'"\\'), " ", image(''), " ", *'abca', " ", type('a'))
    write(image(&digits), " ", image(&lcase), " ", image(&ucase), " ", image(&letters))
-   write(image(&ascii), " ", image(&cset), " ", image(~&cset))
+   write(image(&ascii), " ", image(&cset))
    write(image('0123456789'), " ", image(&lcase ++ &ucase), " ", image(&lcase ++ &digits))
    write(*&cset, " ", *&ascii, " ", *&letters)
    write(&lcase -- 'aeiou', " ", 'abc' ** 'bcd', " ", 'ab' ++ 'cd', " ", 'abc' ++ "d")

@@ -169,8 +169,8 @@ Go's handling of UTF-8 throughout. All encoding and decoding goes through
   Joining two text strings can complete a split sequence, so
   `*(a || b)` may be less than `*a + *b`. That happens only with invalid
   UTF-8, as it does in Go.
-- **Conversions never fail or copy.** `text(s)` and `bytes(s)` relabel the
-  same bytes. `utf8valid(s)` is available for programs that need to check.
+- **Conversions never fail or copy.** `runes(s)` and `bytes(s)` relabel
+  the same bytes, as Go's `[]rune` and `[]byte` conversions read them. `utf8valid(s)` is available for programs that need to check.
 - **ASCII is neutral.** A cached flag marks all-ASCII strings, which
   behave identically in either unit and take a fast path. Every ASCII-only
   9.5 program therefore behaves as in 9.5.
@@ -202,7 +202,8 @@ Go's handling of UTF-8 throughout. All encoding and decoding goes through
 - **I/O.** Files are text by default; mode `"b"` reads bytes. Reading does
   no validation or rewriting; it only sets the unit. In text mode
   `reads(f, n)` reads n characters and never splits a sequence.
-- **Csets** carry a unit too (see "Csets" below).
+- **Csets** have no unit; their characters are ASCII, bytes and code
+  points (see "Csets" below).
 - **Fast positions.** A scanning environment caches its cursor
   (`&pos` and the matching byte offset), so scanning functions cost only
   the distance they move. Random subscripts on non-ASCII text use a
@@ -219,114 +220,111 @@ Go's handling of UTF-8 throughout. All encoding and decoding goes through
 
 ### Csets
 
-A cset is a set of *characters*, in one unit, like a string. A
-character is identified by its bytes, as a one-character substring is:
+**Decision (revised 2026-11-25): csets have no unit.** There is one
+universe of characters:
 
-- In a **bytes cset**, a character is one byte. This is 9.5's cset.
-- In a **text cset**, a character is either the UTF-8 encoding of a code
-  point, or a **lone invalid byte** (0x80–0xFF), exactly as
-  `utf8.DecodeRuneInString` splits a string. A lone invalid byte *reads*
-  as U+FFFD (`ord` gives 0xFFFD) but is not rewritten: the cset
-  containing byte 0xE9 is a different cset from the one containing byte
-  0xFF, and from the one containing U+FFFD itself. Strings behave the
-  same way.
+- the 128 ASCII characters;
+- the 128 non-ASCII **bytes**, 0x80–0xFF; and
+- the non-ASCII **code points**: 0x80–0x10FFFF less the 2,048 surrogates.
 
-A cset whose members are all ASCII is neutral, since ASCII characters
-are the same in both units.
+That makes 1,112,192 characters. A cset is a set of them. The byte 0xE9
+and the code point U+00E9 are different members: `'\xe9é'` has two. Since
+there is a single universe, csets form a Boolean algebra: `~~c === c`, De
+Morgan's laws hold, `a -- b === a ** ~b`, and `===` is equality of
+members, so identical csets behave identically. `TestCsetAlgebra` checks
+these laws over a range of csets.
 
-**The value is a string.** A cset is its members sorted in string (`<<`)
-order and concatenated, together with its unit. That string is
-canonical, and it reads back, in its unit, as exactly its members.
-For text this holds because, in sorted order, a lone lead byte
-(0xC2–0xF4) is followed only by members whose first byte is at least
-as large, which is never a continuation byte, so it cannot fuse with
-them. (`experiments/csetorder` checks this, and the bytes case below, on
-random sets; it becomes a fuzz test of the real cset type.) Hence:
+(The first design gave each cset a unit, text or bytes, with ASCII-only
+csets neutral and complement taken over the cset's own unit. That broke
+the laws: `~&cset` was the empty cset, which is neutral, so `~~&cset` was
+`&uset`. Keeping a unit even on ASCII-only csets would restore
+`~~c === c`, but then two `===` csets could have different complements.
+The problem was having two universes.)
 
-- `string(c)` is that string, and `!c` generates the members in order.
+- **Matching.** Scanning functions read the subject's characters in the
+  subject's unit. In a text subject, a character is a code point or an
+  invalid byte (as `utf8.DecodeRuneInString` splits it), and matches
+  when it is a member: an invalid byte matches only that byte member, and
+  a real U+FFFD only the code point U+FFFD. In a bytes subject, a
+  character is a byte, and matches when it is a byte member or a byte of
+  a member code point's UTF-8 encoding: a bytes subject sees `'é'` as
+  `{0xC3, 0xA9}`, which is what 9.5 makes of `'é'` in a UTF-8 source
+  file.
+- **The value is a string.** A cset's canonical string is its members
+  sorted in string (`<<`) order and concatenated, a code point by its
+  UTF-8 encoding and a byte as itself. Read as text, it is exactly its
+  members: in sorted order a lone lead byte (0xC2–0xF4) is followed only
+  by members whose first byte is at least as large, which is never a
+  continuation byte, so it cannot fuse with them
+  (`experiments/csetorder` checks this). Its unit is text if the cset has
+  a code point, else bytes: the unit a literal with those members has.
+  `string(c)` is that string, and `!c` generates the members in order.
   `string(&cset)` is 9.5's 256-byte string.
-- `cset(s)` reads the characters of `s` in its unit, then sorts and
-  removes duplicates.
-- **Relabelling reads the same bytes in the other unit**, exactly as for
-  strings: `text(c)` and `bytes(c)` keep the stored bytes. Reading the
-  sorted bytes of a bytes cset as text yields only lone invalid bytes,
-  never a fused sequence (the same argument as above). So
-  bytes → text → bytes is lossless: `bytes(text(c)) === c`.
-  Text → bytes splits a multi-byte character into its bytes
-  (`bytes('é')` is `{0xC3, 0xA9}`, which is what 9.5 makes of `'é'` in a
-  UTF-8 source file). Going back to text then gives two lone bytes, not
-  `é`. That loss cannot be avoided: a set of bytes has no order in which
-  to remember that they formed a sequence.
-- **Literals** follow the string rule for their unit.
+- `cset(s)` reads the characters of `s` in its unit: in text, valid
+  sequences are code points and invalid bytes are bytes; in bytes, every
+  byte is a byte.
+- `runes(c)` is `c`. `bytes(c)` is the cset of the bytes that match `c`
+  in a bytes subject: each code point is replaced by its encoding's
+  bytes. So `bytes('é')` is `'\xa9\xc3'`.
+- **Literals.** A cset literal's characters are read in the literal's
+  unit, by the same rule as strings: in a text literal, `é` is a code
+  point and `\xe9` a byte; in a bytes literal, everything is bytes.
 - **Ranges** use Pascal's `..`: `'a..zA..Z_'`, `'\u0370..\u03ff'`,
   `'\x00..\x1f'`. A range is inclusive, and the two characters `..` can
   never be one byte or one code point. An unescaped `..` must have a
   member on each side; a `.` endpoint is written `\.` (which 9.5 already
   reads as `.`), so `'\...z'` is the range from `.` to `z`. A `..` at
   either end of a literal, or three unescaped dots, is a compile-time
-  error. In a text literal both ends are code points (a range spanning
-  the surrogates skips them) or both are lone bytes (`\x80..\xff`); in a
-  bytes literal both ends are bytes. A mixed or descending range is a
-  compile-time error. In 9.5, `..` inside a cset literal only repeats the
-  member `.`, and none of the 1,655 cset literals in the reference tree
-  and `icn/` contains it, so no existing literal changes meaning. String
-  literals do not have ranges.
-- **Set operations** (`++`, `**`, `--`) choose the result's unit as
-  strings do (non-ASCII text, else non-ASCII bytes, else neutral). The
-  other operand is first relabelled.
-- **Matching.** Scanning functions read the subject's characters in the
-  subject's unit and test each one's bytes for membership in the cset,
-  relabelled to the subject's unit. A lone invalid byte in a text subject
-  matches only that same byte; a real U+FFFD matches only U+FFFD.
-- **Complement** is over the cset's own unit. For bytes, that is all 256
-  bytes. For text, it is every code point that UTF-8 can encode
-  (0–0x10FFFF less the 2,048 surrogates), plus the 128 lone invalid bytes:
-  1,112,192 characters. A neutral cset complements as text, so
-  `upto(~' ')` steps over `é` in text. `&cset` is the bytes cset of all
-  256 bytes, so `~&cset` is `''` as in 9.5. `&ascii`, `&letters`,
-  `&lcase`, `&ucase` and `&digits` are neutral. `&uset` (Object Icon's
-  name) is the full text universe.
-- **Representation.** The canonical string is the *meaning*, not
-  necessarily the storage: `~'a'` would be about 4 MB as a string.
-  Storage is a 256-bit bitmap for single-byte characters (ASCII, plus
-  lone bytes in text or all bytes in bytes csets) and a sorted list of
-  code-point ranges for multi-byte characters. The string is built only
-  when asked for.
-- **Unicode classes.** Go's `unicode` tables give text csets for
-  categories and scripts (names to be settled, e.g. `ucat("L")`,
-  `uscript("Greek")`).
+  error. Both ends are code points (a range spanning the surrogates
+  skips them) or both are bytes (`\x80..\xff`); a mixed or descending
+  range is a compile-time error. In 9.5, `..` inside a cset literal only
+  repeats the member `.`, and none of the 1,655 cset literals in the
+  reference tree and `icn/` contains it, so no existing literal changes
+  meaning. String literals do not have ranges.
+- **Complement** is over the whole universe. `&cset` is ASCII plus the
+  128 bytes, as in 9.5, so `~&cset` is every non-ASCII code point.
+  `&uset` (Object Icon's name) is the whole universe, `~''`.
+- **Representation.** The canonical string is the meaning, not the
+  storage: `~'a'` would be about 4 MB as a string. Storage is a 256-bit
+  set for ASCII and the bytes, and a sorted list of code-point ranges.
+  The string is built only when asked for.
+- **Unicode classes.** Go's `unicode` tables give csets for categories
+  and scripts (names to be settled, e.g. `ucat("L")`, `uscript("Greek")`).
 
 ### image()
 
 `image()` follows Go's `%q` (`strconv.Quote`): printable characters
-appear as themselves, other code points as `\u`/`\U` escapes, and lone
-invalid bytes as `\xNN`. Two Icon escapes are kept: `\e` for 0x1B and
-`\d` for 0x7F, where Go writes `\x1b` and `\x7f`. With those, `image()`
-of ASCII matches 9.5 (checked against icont: `"\x00\x01\b\t\n\v\f\r\e\d"`
-renders identically). 52 of the 99 reference tests call `image`.
+appear as themselves, other code points as `\u`/`\U` escapes, and invalid
+bytes as `\xNN`. Two Icon escapes are kept: `\e` for 0x1B and `\d` for
+0x7F, where Go writes `\x1b` and `\x7f`. With those, `image()` of ASCII
+matches 9.5 (checked against icont: `"\x00\x01\b\t\n\v\f\r\e\d"` renders
+identically). 52 of the 99 reference tests call `image`.
 
-- A **bytes** string or cset escapes every byte 0x80–0xFF as `\xNN`, as
-  9.5 does. So the image shows the unit: `"é"` is text, while
-  `"\xc3\xa9"` is the same bytes as a bytes string. Both images are
-  literals that rebuild the value with its unit.
-- Csets use single quotes and escape `'` rather than `"`, as 9.5 does.
-- **Csets with ranges.** A cset images by listing every member, as 9.5
-  does, when it has at most 256 members; that covers every bytes cset,
-  every neutral cset, and so every 9.5 cset. A larger text cset images
-  with ranges: code-point ranges first, then lone-byte ranges, with runs
-  of 4 or more consecutive members written `x..y`, shorter runs listed,
-  and a `.` at either end of a range written `\.`. For example,
-  `image(~&ascii)` is `'\u0080..\U10ffff\x80..\xff'`, and `image(~'a')`
-  is `` '\x00..`b..\U10ffff\x80..\xff' ``. Because they contain
-  non-ASCII code points, these literals read back as text with lone bytes:
-  exact, and short.
-- **One inexact case, accepted.** A text value whose only non-ASCII
-  content is lone bytes (for example `"caf\xe9"`, from reading a Latin-1
-  file in text mode) has no literal of its own unit: its image reads back
-  as bytes. The two differ only where units matter (`ord` gives 0xFFFD
-  rather than 233, and cset matching). This is accepted, following Go:
-  such a value is malformed text, and gcon does not try to make it
-  first-class (see "UTF-8 is the only text encoding").
+- A **bytes** string escapes every byte 0x80–0xFF as `\xNN`, as 9.5 does.
+  So the image shows the unit: `"é"` is text, while `"\xc3\xa9"` is the
+  same bytes as a bytes string. Both images are literals that rebuild the
+  value with its unit.
+- Csets use single quotes and escape `'` rather than `"`, as 9.5 does. A
+  cset whose members are those of a predefined cset images as its name
+  (`&digits`, `&letters`, `&cset`, `&uset`, ...), as iconx's `csname`
+  does.
+- **Csets with ranges.** Otherwise a cset images by listing every member,
+  as 9.5 does, when it has at most 256 members; that covers every 9.5
+  cset. A larger cset images with ranges: code-point ranges first, then
+  byte ranges, with runs of 4 or more consecutive members written `x..y`,
+  shorter runs listed, and a `.` at either end of a range written `\.`.
+  For example, `image(~&ascii)` is `'\u0080..\U10ffff\x80..\xff'`, and
+  `image(~'a')` is `` '\x00..`b..\U10ffff\x80..\xff' ``.
+- Since a cset has no unit, every cset's image is a literal that rebuilds
+  it exactly: the literal's characters are read by the same rule that
+  produced the image.
+- **One inexact case, accepted.** A text string whose only non-ASCII
+  content is invalid bytes (for example `"caf\xe9"`, from reading a
+  Latin-1 file in text mode) has no literal of its own unit: its image
+  reads back as bytes. The two differ only where units matter (`ord`
+  gives 0xFFFD rather than 233, and cset matching). This is accepted,
+  following Go: such a value is malformed text, and gcon does not try to
+  make it first-class (see "UTF-8 is the only text encoding").
 
 ### Compatibility cost and open points
 
@@ -335,28 +333,23 @@ pure ASCII. Of the 1,197 `.icn` files in `icon/tests` and `icon/ipl`, 19
 contain non-ASCII bytes (14 of them valid UTF-8); it has not yet been
 checked whether those bytes are in literals or only comments.
 
-The four tests that use characters 128–255, traced by hand under the
-cset rules above:
+Differences from 9.5 are confined to complements, which now include the
+code points. Matching is unaffected: a complement matches the same bytes
+of a bytes subject as in 9.5. What differs is a complement's size, image,
+string and elements. In the four reference tests that use characters
+128–255:
 
 - `collate.icn` and `iobig.icn` use only `&cset` (`string`, `reverse`,
-  `left`, subscripts, `!&cset`). It is a bytes cset, so both behave as in
-  9.5.
+  `left`, subscripts, `!&cset`), which is as in 9.5.
 - `checkc.icn`: `&cset -- ~&ascii` gives `&ascii` and `image(&cset)` is
   unchanged, both as in 9.5. **Differs:** `&letters ++ ~&ucase` is the
-  full text universe (1,112,192 characters), not 256.
-- `scan.icn`: `image(~&cset)` is `''` as in 9.5. **Differs:**
-  `image(~&ascii)` is `'\u0080..\U10ffff\x80..\xff'`, not the 128
-  bytes `\x80`–`\xff`.
+  whole universe, `&uset`, not 256 characters.
+- `scan.icn`: **differs** in `image(~&cset)`, which is
+  `'\u0080..\U10ffff'`, not `''`; and in `image(~&ascii)`, which is
+  `'\u0080..\U10ffff\x80..\xff'`, not the 128 bytes.
 
-A third follows from the same rule and showed up when csets were built:
-`~&cset` is the empty cset, which is neutral, so `~~&cset` is `&uset`
-rather than 9.5's `&cset`. Complement is therefore not an involution for
-a bytes cset whose complement is all ASCII.
-
-All these differences are complements of ASCII csets, which is where the
-new meaning is intended. They are kept deliberately and will be listed in
-the conformance test with this reason.
-
+These three lines are kept deliberately and will be listed in the
+conformance test with this reason.
 
 ## Implementation status
 
@@ -389,15 +382,17 @@ the conformance test with this reason.
   environments of the scans being left, innermost first, as iconx's
   results show; `suspend` re-enters them when resumed.
 - `break e` is resumable: a gate in the loop records e's resume label.
-- Csets (`internal/vm/cset.go`) are a 256-bit set of single-byte
-  characters plus, for text, sorted code-point ranges. Cset literals
+- Csets (`internal/vm/cset.go`) are a 256-bit set of ASCII and bytes plus
+  sorted code-point ranges. Cset literals
   with `..` ranges are decoded by `lit.Cset`.
-- gcon's extra built-ins (`text`, `bytes`, `uchar`, `utf8valid`) and the
-  keyword `&uset` are in the catalogue marked `Gcon`. Like any built-in,
-  they are hidden by a declaration of the same name but not by an
-  undeclared use: `text := read()` in an undeclared context assigns to
-  the global `text`. In the corpus only `tests/general/diffwrds.icn`
-  does this, in `main`, where it makes no difference.
+- gcon's extra built-ins (`runes`, `bytes`, `uchar`, `utf8valid`) and
+  the keyword `&uset` are in the catalogue marked `Gcon`. Like any
+  built-in, they are hidden by a declaration of the same name but not by
+  an undeclared use, which would assign to the global. None of these
+  names is used undeclared in the reference tree or `icn/` (`runes`,
+  `uchar` and `utf8valid` do not occur at all). `text`, an earlier
+  choice, was rejected: it is a natural variable name, used undeclared
+  in `tests/general/diffwrds.icn`.
 - Operators that produce at most one result are `OpOper` instructions
   calling a Go function; generators (`to`, `!`, built-in generators)
   and procedure calls use `OpCall` and `OpResume` with a handle in a
