@@ -333,7 +333,24 @@ func (vm *VM) offending(f *Frame, pc int) string {
 		}
 		switch fv := Deref(vm.get(f, in.X)).(type) {
 		case *Builtin:
-			if Functions[fv.Name] == fv || fv.NoDeref {
+			if Functions[fv.Name] == fv {
+				// The arguments as the function receives them: padded
+				// with &null to its arity, or cut to it, as iconx
+				// shows them.
+				vals := make([]Value, len(in.Args))
+				for i, o := range in.Args {
+					vals[i] = Deref(vm.get(f, o))
+				}
+				if in.X.Kind != ConstOp {
+					vals = adjustArgs(fv, vals)
+				}
+				parts := make([]string, len(vals))
+				for i, v := range vals {
+					parts[i] = vm.OutImage(v, 0)
+				}
+				return fv.Name + "(" + strings.Join(parts, ",") + ")"
+			}
+			if fv.NoDeref {
 				return fv.Name + "(" + args(in.Args) + ")"
 			}
 			return operator(fv, in.Args)
@@ -351,7 +368,13 @@ func (vm *VM) offending(f *Frame, pc int) string {
 					return p.Name + "(" + args(in.Args) + ")"
 				}
 			}
-			return vm.OutImage(fv, 0) + "(" + args(in.Args) + ")"
+			// Not a procedure (error 106): iconx shows the arguments
+			// undereferenced, variables as variables.
+			parts := make([]string, len(in.Args))
+			for i, o := range in.Args {
+				parts[i] = vari(o)
+			}
+			return vm.OutImage(fv, 0) + "(" + strings.Join(parts, ",") + ")"
 		}
 	}
 	return "{...}"

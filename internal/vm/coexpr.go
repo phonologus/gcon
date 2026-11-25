@@ -33,6 +33,8 @@ type Coexp struct {
 	// from is where the creating procedure was called from, as the
 	// traceback shows for the base of a co-expression's calls.
 	from string
+	// stack is the evaluation stack its active calls take (see push).
+	stack int
 }
 
 func (vm *VM) newCoexp(proc *Proc, entry int, init []Value) *Coexp {

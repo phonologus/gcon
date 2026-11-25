@@ -218,18 +218,25 @@ func (vm *VM) openFile(name, mode string) (*File, bool) {
 	}
 	if has('p') {
 		vm.output.w.Flush()
-		cmd := exec.Command("/bin/sh", "-c", name)
+		cmd := vm.shell(name)
 		vm.errout.Flush()
-		cmd.Stderr = vm.stderr
 		if has('w') {
+			cmd.Stdin = nil
 			in, err := cmd.StdinPipe()
 			if err != nil {
 				return nil, false
 			}
-			cmd.Stdout = vm.stdout
 			f.w, f.closer = bufio.NewWriter(in), in
 			vm.files = append(vm.files, f)
 		} else {
+			// The command reads gcon's standard input, as with popen,
+			// but only when that is a file: a reader gcon was given
+			// (as in tests) cannot be shared.
+			cmd.Stdin = nil
+			if vm.stdinFile != nil {
+				cmd.Stdin = vm.stdinFile
+			}
+			cmd.Stdout = nil
 			out, err := cmd.StdoutPipe()
 			if err != nil {
 				return nil, false
@@ -301,7 +308,8 @@ func (vm *VM) openFile(name, mode string) (*File, bool) {
 }
 
 // closeFile closes f, returning f, or for a pipe the command's exit
-// status.
+// code (iconx returns pclose's status shifted right 8 bits, masked to a
+// byte: the exit code, not the wait status that system() returns).
 func (vm *VM) closeFile(f *File) Value {
 	if f.closed {
 		return f
@@ -320,12 +328,31 @@ func (vm *VM) closeFile(f *File) Value {
 		f.closer.Close()
 	}
 	if f.cmd != nil {
-		return Int(waitStatus(f.cmd.Wait()))
+		return Int(waitStatus(f.cmd.Wait()) >> 8 & 0xff)
 	}
 	if f.os != nil {
 		f.os.Close()
 	}
 	return f
+}
+
+// shell returns a command that runs s with /bin/sh as C's system and
+// popen do (so sh's messages begin "sh:"), with gcon's standard streams,
+// as files when they are.
+func (vm *VM) shell(s string) *exec.Cmd {
+	cmd := exec.Command("/bin/sh", "-c", s)
+	cmd.Args[0] = "sh"
+	cmd.Stdin, cmd.Stdout, cmd.Stderr = vm.stdin, vm.stdout, vm.stderr
+	if vm.stdinFile != nil {
+		cmd.Stdin = vm.stdinFile
+	}
+	if vm.stdoutFile != nil {
+		cmd.Stdout = vm.stdoutFile
+	}
+	if vm.stderrFile != nil {
+		cmd.Stderr = vm.stderrFile
+	}
+	return cmd
 }
 
 // waitStatus returns the C wait status of a finished command, as iconx's
@@ -442,8 +469,7 @@ func init() {
 	fn("system", func(vm *VM, a []Value) (Value, bool) {
 		vm.output.w.Flush()
 		vm.errfile.w.Flush()
-		cmd := exec.Command("/bin/sh", "-c", MustStr(arg(a, 0)).s)
-		cmd.Stdin, cmd.Stdout, cmd.Stderr = vm.stdin, vm.stdout, vm.stderr
+		cmd := vm.shell(MustStr(arg(a, 0)).s)
 		return Int(waitStatus(cmd.Run())), true
 	})
 }

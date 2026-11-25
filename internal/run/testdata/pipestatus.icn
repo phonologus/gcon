@@ -1,0 +1,18 @@
+# close() of a pipe returns the command's exit code; system() returns the
+# wait status; commands run as "sh"; the messages of errors iconx knows;
+# a pipe still open at exit is flushed and closed, so its command runs.
+procedure main()
+   local f, i
+   write(close(open("exit 3", "p")))
+   write(system("exit 3"))
+   system("echo $0")
+   write(close(open("cat", "pw")))
+   every i := 131 | 134 | 300 | 301 | 308 | 402 do {
+      &error := 1
+      runerr(i)
+      write(&errornumber, " ", &errortext)
+      }
+   f := open("cat", "pw")
+   write(f, "written to a pipe left open")
+   write("last line of main")
+end

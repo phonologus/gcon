@@ -32,19 +32,20 @@ type Frame struct {
 
 // VM executes a compiled program.
 type VM struct {
-	prog    *Program
-	globals []Value
-	cur     *Frame        // the running frame
-	co      *Coexp        // the running co-expression
-	main    *Coexp        // &main
-	subject *String       // &subject
-	pos     int           // &pos
-	out     *bufio.Writer // &output's writer
-	errout  *bufio.Writer // &errout's writer
-	input   *File         // &input
-	output  *File         // &output
-	errfile *File         // &errout
-	files   []*File       // files opened, to flush at exit
+	prog       *Program
+	stackLimit int // evaluation stack capacity in descriptors (see push)
+	globals    []Value
+	cur        *Frame        // the running frame
+	co         *Coexp        // the running co-expression
+	main       *Coexp        // &main
+	subject    *String       // &subject
+	pos        int           // &pos
+	out        *bufio.Writer // &output's writer
+	errout     *bufio.Writer // &errout's writer
+	input      *File         // &input
+	output     *File         // &output
+	errfile    *File         // &errout
+	files      []*File       // files opened, to flush at exit
 	// The output of a write call interrupted by an error, written after
 	// the error message (see writeArgs).
 	partial     []byte
@@ -52,7 +53,12 @@ type VM struct {
 	stdin       io.Reader // the streams the VM was given, for child processes
 	stdout      io.Writer
 	stderr      io.Writer
-	serials     map[string]int // last serial number issued, by type
+	// The streams as operating-system files, when they are (nil when
+	// not): a child process is given these directly, as C's popen and
+	// system give a child the parent's descriptors, so that its output
+	// does not depend on gcon relaying it and survives gcon's exit.
+	stdinFile, stdoutFile, stderrFile *os.File
+	serials                           map[string]int // last serial number issued, by type
 
 	// Error conversion (errors.go): &error, and the last error converted.
 	errorKw    Int
@@ -95,21 +101,28 @@ func (l lockedWriter) Write(p []byte) (int, error) {
 
 // New returns a VM for prog with the given standard streams.
 func New(prog *Program, stdin io.Reader, stdout, stderr io.Writer) *VM {
+	inF, _ := stdin.(*os.File)
+	outF, _ := stdout.(*os.File)
+	errF, _ := stderr.(*os.File)
 	mu := new(sync.Mutex)
 	stdout, stderr = lockedWriter{mu, stdout}, lockedWriter{mu, stderr}
 	g := make([]Value, len(prog.Globals))
 	copy(g, prog.Globals)
 	vm := &VM{
-		prog:    prog,
-		globals: g,
-		out:     bufio.NewWriter(stdout),
-		errout:  bufio.NewWriter(stderr),
-		serials: map[string]int{},
-		subject: Text(""),
-		pos:     1,
-		stdin:   stdin,
-		stdout:  stdout,
-		stderr:  stderr,
+		prog:       prog,
+		globals:    g,
+		stackLimit: stackLimit(),
+		out:        bufio.NewWriter(stdout),
+		errout:     bufio.NewWriter(stderr),
+		serials:    map[string]int{},
+		subject:    Text(""),
+		pos:        1,
+		stdin:      stdin,
+		stdout:     stdout,
+		stderr:     stderr,
+		stdinFile:  inF,
+		stdoutFile: outF,
+		stderrFile: errF,
 	}
 	vm.progname = Text("")
 	vm.eventcode, vm.eventsource, vm.eventvalue = NullValue, NullValue, NullValue
@@ -131,10 +144,24 @@ func (vm *VM) Run(args []string) (status int) {
 	defer vm.out.Flush()
 	defer vm.errout.Flush()
 	defer func() {
-		// As C's exit does for iconx, flush every open file.
+		// As C's exit does for iconx, flush every open file, and close
+		// the pipes written to, so that their commands see the end of
+		// their input and finish. gcon then waits for a command only
+		// if it must relay the command's output (when its own output
+		// is not a file, as in tests); iconx does not wait. gcon's own
+		// output goes first, so that a command's cannot overtake it.
+		vm.out.Flush()
 		for _, f := range vm.files {
-			if f.w != nil && !f.closed {
-				f.w.Flush()
+			if f.w == nil || f.closed {
+				continue
+			}
+			f.w.Flush()
+			if f.cmd != nil {
+				f.closed = true
+				f.closer.Close()
+				if vm.stdoutFile == nil || vm.stderrFile == nil {
+					f.cmd.Wait()
+				}
 			}
 		}
 	}()
@@ -407,6 +434,7 @@ func (vm *VM) loop(f *Frame) {
 			}
 			switch p := fv.(type) {
 			case *Proc:
+				vm.push(p)
 				nf := vm.newFrame(p, args)
 				if vm.tracing() {
 					// The arguments as the procedure receives them, as
@@ -463,6 +491,7 @@ func (vm *VM) loop(f *Frame) {
 			case nil:
 				f.pc = int(in.L2)
 			case *Frame:
+				vm.push(h.proc)
 				if vm.tracing() {
 					vm.traceAt(f, f.pc, h.proc.Name+" resumed")
 				}
@@ -478,6 +507,7 @@ func (vm *VM) loop(f *Frame) {
 		case OpReturn:
 			v := vm.retDeref(f, vm.ref(f, in.X))
 			vm.level--
+			vm.pop(f)
 			if vm.tracing() {
 				vm.traceAt(f, f.pc, f.proc.Name+" returned "+vm.OutImage(v, 0))
 			}
@@ -497,6 +527,7 @@ func (vm *VM) loop(f *Frame) {
 			vm.cur = f
 		case OpFail:
 			vm.level--
+			vm.pop(f)
 			if vm.tracing() {
 				vm.traceAt(f, f.pc, f.proc.Name+" failed")
 			}
@@ -516,6 +547,7 @@ func (vm *VM) loop(f *Frame) {
 		case OpSuspend:
 			v := vm.retDeref(f, vm.ref(f, in.X))
 			vm.level--
+			vm.pop(f)
 			if vm.tracing() {
 				vm.traceAt(f, f.pc, f.proc.Name+" suspended "+vm.OutImage(v, 0))
 			}
@@ -583,6 +615,7 @@ type RuntimeError struct {
 	Num      int
 	Value    Value
 	HasValue bool
+	Fatal    bool // never converted to failure (stack overflow)
 }
 
 func (e *RuntimeError) Error() string { return fmt.Sprintf("run-time error %d", e.Num) }
@@ -640,4 +673,48 @@ func (vm *VM) isVar(f *Frame, o Operand) bool {
 		}
 	}
 	return false
+}
+
+// The evaluation stack. gcon's frames are on the heap, so recursion is
+// limited only by memory; to stop runaway recursion as iconx does, with
+// run-time error 301, each co-expression counts the stack its active
+// calls would take in iconx: a frame costs 9 descriptors plus one for
+// each parameter and local, which gives exactly the depths at which
+// iconx overflows (55554 calls of a procedure with no parameters or
+// locals, 45454 with one of each, 29412 with three and five). The
+// capacity is 500000 descriptors, as measured, or MSTKSIZE words at two
+// words a descriptor, as iconx reads MSTKSIZE. A suspended frame is not
+// counted (as it is not in &level), nor is the base frame of main or of
+// a co-expression.
+
+// DefaultStackLimit is the evaluation stack's capacity in descriptors.
+const DefaultStackLimit = 500000
+
+func frameCost(p *Proc) int { return 9 + p.NLocals }
+
+// push counts a call of p, failing with error 301 if the stack would
+// overflow.
+func (vm *VM) push(p *Proc) {
+	c := frameCost(p)
+	if vm.co.stack+c > vm.stackLimit {
+		panic(&RuntimeError{Num: 301, Fatal: true})
+	}
+	vm.co.stack += c
+}
+
+// pop uncounts the active frame f as it returns, fails or suspends, if
+// a call or resumption counted it (it has a caller).
+func (vm *VM) pop(f *Frame) {
+	if f.caller != nil {
+		vm.co.stack -= frameCost(f.proc)
+	}
+}
+
+// stackLimit returns the capacity from MSTKSIZE, if set to a positive
+// number of words.
+func stackLimit() int {
+	if n, err := strconv.Atoi(os.Getenv("MSTKSIZE")); err == nil && n > 1 {
+		return n / 2
+	}
+	return DefaultStackLimit
 }

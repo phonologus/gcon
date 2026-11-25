@@ -818,9 +818,34 @@ a procedure, `$line`, the predefined symbols and digraphs against iconx.
   `stop`, `flush`, `seek`, `where`, `remove`, `rename`, `getenv`,
   `system`, `!f`, and `&input`, `&output`, `&errout`. As in iconx,
   standard output is flushed before anything is written to `&errout`, so
-  the two stay in order when they go to one file; and `system` and a
-  pipe's `close` return C's wait status (exit code times 256). Open
-  files are flushed when the program ends, as C's `exit` does.
+  the two stay in order when they go to one file. `system` returns C's
+  wait status (exit code times 256), but a pipe's `close` returns the
+  exit code itself: iconx returns `(pclose(fp) >> 8) & 0377` (fsys.r).
+  Commands run as C's `system` and `popen` run them: `/bin/sh` with
+  `argv[0]` "sh" (so the shell's messages begin "sh:"), inheriting
+  gcon's standard streams; a command read through a pipe reads gcon's
+  standard input. gcon passes its streams to a command as the
+  operating-system files they are, so a command's output never depends
+  on gcon relaying it; only when gcon was given other streams (as in
+  tests) does it relay them, and a pipe command then gets empty input,
+  since a reader cannot be shared. Open files are flushed when the
+  program ends, as C's `exit` does, and pipes written to are closed so
+  their commands see the end of their input and finish; gcon waits for
+  them only if it is relaying their output (iconx does not wait).
+- The evaluation stack (`push` in `internal/vm/vm.go`). gcon's frames
+  are on the heap, so recursion is bounded only by memory; runaway
+  recursion stops, as in iconx, with run-time error 301, which `&error`
+  never converts (though `runerr(301)` is converted, as any error is).
+  Each co-expression counts what its active calls would take on iconx's
+  stack: nine descriptors a frame plus one per parameter and local,
+  against a capacity of 500000 descriptors, or `MSTKSIZE` words at two
+  to a descriptor. Measured against iconx, this gives its overflow depth
+  to within two calls for simple recursion (55554 calls of a procedure
+  with no parameters or locals, 45454 with one of each, 29412 with three
+  and five). iconx's stack also holds expression temporaries, which the
+  model leaves out, so where those are deep gcon goes deeper (the IPL's
+  `lisp` overflows at 45455 calls, iconx at 13158). A suspended frame
+  is not counted, as it is not in `&level`.
 - Tables and sets (`internal/vm/structs.go`) are insertion-ordered maps
   keyed by `===`: numbers, strings and csets by value (a string's unit
   counts only if it is non-ASCII), structures by identity.
@@ -1101,6 +1126,57 @@ a procedure, `$line`, the predefined symbols and digraphs against iconx.
   output is checked.
 - New syntax and semantics facts go here, with the C source or test that
   shows them.
+- Differential testing (`tools/difftest`): for programs with no
+  recorded output, such as the IPL's, each program is built by icont
+  and by gcon and run under both, as `./NAME` in its own directory, with
+  its own source as standard input; output, standard error and exit
+  status are compared, and a program whose iconx output differs between
+  two runs is set aside as nondeterministic.
+
+  ```
+  go run ./tools/difftest -iconx $(tools/iconx/build.sh) -gcon bin/gcon ../icon/ipl/progs/*.icn
+  ```
+
+  On `ipl/progs` (2026-11-25), 247 of 275 programs behave identically.
+  The first run found five bugs, now fixed and covered by program tests:
+  a pipe's `close` returned the wait status, not the exit code; a
+  command read through a pipe got no standard input; a pipe left open
+  at exit lost its command's output (gcon relayed the command's output
+  and died first); commands ran as "/bin/sh", not "sh"; and runaway
+  recursion had no limit (error 301). Tracebacks also now show a
+  built-in function's arguments adjusted to its arity, and the
+  arguments of a call of a non-procedure as variables, as iconx does.
+  The remaining differences are understood:
+
+  | Program | Difference |
+  |---|---|
+  | `gftrace` | prints `&version` |
+  | `ifncsgen` | `function()` includes gcon's Unicode functions and not `loadfunc` |
+  | `lisp` | overflows the stack at another depth (see "The evaluation stack") |
+  | `normalize` | iconx gives `p ! L` the previous location: icont's `N_Apply` emits none (tcode.c); not copied |
+  | `when` | parses `ls -al` columns of its own directory, whose built files differ in size |
+  | `htget`, `weblinks` | link `cfunc`, C functions loaded by `loadfunc` |
+
+  Eight programs are nondeterministic under iconx (clocks, dates,
+  orphaned processes) and 13 do not finish with their source as input.
+
+- Performance (`icon/tests/bench`, 2026-11-25, Apple M-series, both
+  programs built). The five benchmarks give identical output; whole
+  programs run from twice as fast to 2.5 times slower than iconx, and the
+  IPL programs above at a median 1.07 times iconx's time, being
+  dominated by start-up and I/O. `micro.icn` (from Jcon), which times
+  each of 108 operations in a loop, shows where the time goes:
+  - gcon wins co-expression activation by two orders of magnitude (21
+    ns to 2611: iconx on macOS switches co-expressions through
+    threads), and conjunction (`1&2&3&4&5`, compiled to jumps);
+  - I/O, global access and real conversion are level;
+  - most operations take three to five times as long (geometric mean
+    3.5): the cost of each instruction, in which boxing integers into
+    `Value` (`any`) is a likely part;
+  - some string functions take ten to seventy times as long (`map`,
+    `reverse`, `detab`, `entab`, `left`, `right`, `center`, `trim`;
+    scanning functions about seven), which points to each function
+    rather than the VM (iconx's `map` caches its last table).
 
 ## Plan
 

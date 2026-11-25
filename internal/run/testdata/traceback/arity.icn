@@ -1,0 +1,6 @@
+#STDERR
+# A built-in function's arguments in a traceback are those it receives:
+# padded with &null to its arity.
+procedure main()
+   map(&null, "ab")
+end

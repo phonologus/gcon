@@ -31,6 +31,7 @@ is a gcon root (`lib/ipl`), so that gcon finds the library (`gcon env`).
 | `tools/mkbuiltin` | generator for `internal/builtin/catalog_gen.go` |
 | `tools/ipl` | copies the IPL into `lib/ipl`, recording `lib/ipl/UPSTREAM` |
 | `lib/ipl` | the Icon Program Library's source (public domain), searched after `IPATH`/`LPATH` |
+| `tools/difftest` | differential test: runs programs under iconx and gcon and compares (docs/design.md, "Verification") |
 | `tools/iconx` | builds the reference icont and iconx; generates expected test output |
 | `experiments/` | measurements behind design decisions; not part of gcon |
 

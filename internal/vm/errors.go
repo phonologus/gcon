@@ -22,6 +22,9 @@ func (vm *VM) convert(e *RuntimeError) bool {
 	if vm.errorKw == 0 || f == nil || f.pc >= len(f.proc.Code) {
 		return false
 	}
+	if e.Fatal {
+		return false // as in iconx, stack overflow is never converted
+	}
 	in := &f.proc.Code[f.pc]
 	switch in.Op {
 	case OpOper, OpAssign, OpActivate, OpScanEnter:

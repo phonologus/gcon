@@ -1,0 +1,12 @@
+3
+768
+sh
+0
+131 external expected
+134 malformed external value
+300 interrupted
+301 evaluation stack overflow
+308 system stack overflow in co-expression
+402 program not compiled with debugging option
+last line of main
+written to a pipe left open

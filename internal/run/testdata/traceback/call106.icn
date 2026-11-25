@@ -1,0 +1,8 @@
+#STDERR
+# Calling something that is not a procedure: iconx's traceback shows the
+# arguments undereferenced, variables as variables.
+procedure main()
+   local L, x
+   L := "a"
+   x(L, "b", L, 3)
+end
