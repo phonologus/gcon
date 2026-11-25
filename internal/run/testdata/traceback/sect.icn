@@ -1,0 +1,4 @@
+#STDERR
+procedure main()
+   "abc"[1:[]]
+end

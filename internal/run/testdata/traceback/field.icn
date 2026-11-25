@@ -1,0 +1,5 @@
+#STDERR
+record r(a)
+procedure main()
+   3 .a
+end

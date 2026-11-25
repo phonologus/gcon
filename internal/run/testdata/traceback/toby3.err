@@ -1,0 +1,8 @@
+
+Run-time error 211
+File toby3.icn; Line 3
+by value equal to zero
+offending value: 0
+Traceback:
+main()
+{1 to 5 by 0} from line 3 in toby3.icn

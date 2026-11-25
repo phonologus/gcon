@@ -1,0 +1,8 @@
+
+Run-time error 107
+File field.icn; Line 4
+record expected
+offending value: 3
+Traceback:
+main()
+{3 . field} from line 4 in field.icn

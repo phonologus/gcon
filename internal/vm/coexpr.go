@@ -30,6 +30,9 @@ type Coexp struct {
 	activator *Coexp
 	state     coState
 	results   int
+	// from is where the creating procedure was called from, as the
+	// traceback shows for the base of a co-expression's calls.
+	from string
 }
 
 func (vm *VM) newCoexp(proc *Proc, entry int, init []Value) *Coexp {
@@ -119,7 +122,9 @@ func init() {
 		if c == vm.main {
 			Runerr(215, c)
 		}
-		return vm.newCoexp(c.proc, c.entry, c.init), true
+		r := vm.newCoexp(c.proc, c.entry, c.init)
+		r.from = c.from
+		return r, true
 	}}
 	Ops["&current"] = &Builtin{Name: "&current", Fn: func(vm *VM, a []Value) (Value, bool) {
 		return vm.co, true

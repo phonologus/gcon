@@ -700,6 +700,24 @@ conformance test with this reason.
   their elements (`list_1 = [1,2,3]`, at most 3 at each end), records
   their fields, and inside them lists and records are shown by size;
   variables appear as `(variable = ...)` or `&pos = ...`.
+- **Run-time error messages** are iconx's (`errmsg.r`, and `tracebk`
+  and `ttrace` in `rdebug.r`): the header, the offending value by
+  `OutImage`, then a traceback of the active calls from the outermost,
+  each with its parameters' current values and " from line n in file"
+  (main has none; the base of a co-expression shows where its creating
+  procedure was called from), and last the failing operation: `{x + y}`,
+  `{x[i]}`, `{x[i:j]}`, `{x to y by z}`, `{x ? ..}`, `{v @ c}`,
+  `{x . field}` (iconx prints the word "field"), `limit counter: n`,
+  `f(args)` for a call (by the name a string resolved to, if it did), and
+  so on. Details reproduced: operands that iconx's operators take as
+  variables (the subscripted value, the targets of assignments, `!x`,
+  `?x`) show as `(variable = ...)`; the left operand of a binary
+  operator shows as already converted (`{"5" || list_1 = []}` for `5 || []`), as
+  iconx converts in place; a built-in generator failing on resumption
+  shows its call. To match, `x[i+:j]` compiles to `i + j` then a section,
+  as icont does (so `s[1+:"z"]` is error 102), and `:=:` and `<->` check
+  that both operands are variables before assigning either. Checked by
+  the programs in `testdata/traceback`, each one error.
 - Operators that produce at most one result are `OpOper` instructions
   calling a Go function; generators (`to`, `!`, built-in generators)
   and procedure calls use `OpCall` and `OpResume` with a handle in a
@@ -708,7 +726,6 @@ conformance test with this reason.
 ### Deliberate simplifications (to be removed)
 
 - String subscripts are values, not assignable variables.
-- Run-time errors print iconx's header lines but no traceback.
 - `display()` checks its arguments as iconx does (errors 101 and 105)
   but does not list variables yet: valid arguments raise error 121.
 - Not yet implemented: programmer-defined control operations, many

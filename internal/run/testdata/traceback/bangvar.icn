@@ -1,0 +1,5 @@
+#STDERR
+procedure main()
+   local x
+   every !x
+end

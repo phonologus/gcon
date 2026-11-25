@@ -1,0 +1,10 @@
+
+Run-time error 102
+File chain.icn; Line 10
+numeric expected
+offending value: "x"
+Traceback:
+main()
+a(1) from line 3 in chain.icn
+b(1) from line 6 in chain.icn
+{1 + "x"} from line 10 in chain.icn

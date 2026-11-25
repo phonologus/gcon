@@ -1,0 +1,8 @@
+
+Run-time error 205
+File limit.icn; Line 3
+invalid value
+offending value: -1
+Traceback:
+main()
+limit counter: -1 from line 3 in limit.icn

@@ -194,3 +194,179 @@ func init() {
 		return Int(vm.level), true
 	}}
 }
+
+// asgnOps are markers naming the operator an OpAssign belongs to, for
+// the traceback, where it is not plain := (the compiler marks the first
+// assignment of :=:, <- and <->).
+var asgnOps = map[string]*Builtin{}
+
+// AsgnOp returns the marker for assignment operator name.
+func AsgnOp(name string) *Builtin {
+	b := asgnOps[name]
+	if b == nil {
+		b = &Builtin{Name: name}
+		asgnOps[name] = b
+	}
+	return b
+}
+
+// traceback writes iconx's traceback after a run-time error message
+// (rdebug.r, tracebk): each active procedure call from the outermost,
+// with its parameters' current values and the line it was called from,
+// then the operation that failed.
+func (vm *VM) traceback(w interface{ WriteString(string) (int, error) }) {
+	f := vm.cur
+	if f == nil || f.pc >= len(f.proc.Code) {
+		return
+	}
+	w.WriteString("Traceback:\n")
+	var chain []*Frame
+	for g := f; g != nil; g = g.caller {
+		chain = append(chain, g)
+	}
+	for i := len(chain) - 1; i >= 0; i-- {
+		g := chain[i]
+		parts := make([]string, g.proc.NParams)
+		for j := range parts {
+			parts[j] = vm.OutImage(g.locals[j], 0)
+		}
+		s := g.proc.Name + "(" + strings.Join(parts, ",") + ")"
+		s += vm.calledFrom(g)
+		w.WriteString(s + "\n")
+	}
+	in := &f.proc.Code[f.pc]
+	w.WriteString(vm.offending(f, f.pc) + fmt.Sprintf(" from line %d in %s\n", in.Line, f.proc.File))
+}
+
+// offending describes the operation at instruction pc of frame f as
+// iconx's ttrace does: "{x + y}", "{x[i]}", "f(args)" and so on, showing
+// the operands of operators that take variables (subscripts, sections,
+// assignments, ! and ?) as variables.
+func (vm *VM) offending(f *Frame, pc int) string {
+	in := &f.proc.Code[pc]
+	val := func(o Operand) string { return vm.OutImage(Deref(vm.get(f, o)), 0) }
+	// converted shows the left operand of binary operator op as iconx
+	// does: already converted to the type op wants, since iconx converts
+	// its operands in place, the left first.
+	converted := func(op string, x Value) string {
+		var c Value
+		ok := false
+		switch op {
+		case "+", "-", "*", "/", "%", "^", "<", "<=", ">", ">=", "=", "~=":
+			c, ok = CvNum(x)
+		case "||", "==", "~==", "<<", "<<=", ">>", ">>=":
+			c, ok = CvStr(x)
+		case "++", "--", "**":
+			if _, isSet := x.(*Set); !isSet {
+				c, ok = CvCset(x)
+			}
+		}
+		if !ok {
+			c = x
+		}
+		return vm.OutImage(c, 0)
+	}
+	vari := func(o Operand) string { return vm.OutImage(vm.ref(f, o), 0) }
+	args := func(ops []Operand) string {
+		parts := make([]string, len(ops))
+		for i, o := range ops {
+			parts[i] = val(o)
+		}
+		return strings.Join(parts, ",")
+	}
+	// operator describes operator b applied to ops.
+	operator := func(b *Builtin, ops []Operand) string {
+		switch {
+		case b.Name == "[]" && len(ops) == 2:
+			return "{" + vari(ops[0]) + "[" + val(ops[1]) + "]}"
+		case b.Name == "[:]" && len(ops) == 3:
+			return "{" + vari(ops[0]) + "[" + val(ops[1]) + ":" + val(ops[2]) + "]}"
+		case b.Name == "limit":
+			return "limit counter: " + val(ops[0])
+		case b.Name == "[...]":
+			return "[ ... ]"
+		case strings.HasPrefix(b.Name, "&"):
+			return "bad keyword reference"
+		case strings.HasPrefix(b.Name, ".") && len(ops) == 1:
+			// iconx shows the word "field", not the field's name.
+			return "{" + val(ops[0]) + " . field}"
+		case b.Name == "to":
+			by := "1"
+			if len(ops) > 2 {
+				by = val(ops[2])
+			}
+			return "{" + val(ops[0]) + " to " + val(ops[1]) + " by " + by + "}"
+		case (b.Name == "!" || b.Name == "?") && len(ops) == 1:
+			return "{" + b.Name + vari(ops[0]) + "}"
+		case len(ops) == 1:
+			return "{" + b.Name + val(ops[0]) + "}"
+		case len(ops) == 2:
+			return "{" + converted(b.Name, Deref(vm.get(f, ops[0]))) + " " + b.Name + " " + val(ops[1]) + "}"
+		}
+		return b.Name + "(" + args(ops) + ")"
+	}
+	switch in.Op {
+	case OpOper:
+		return operator(in.Fn, in.Args)
+	case OpAssign:
+		name := ":="
+		if in.Fn != nil {
+			name = in.Fn.Name
+		}
+		x := val(in.X)
+		if name == ":=:" || name == "<->" {
+			x = vari(in.X)
+		}
+		return "{" + vari(in.Dst) + " " + name + " " + x + "}"
+	case OpActivate:
+		v := "&null"
+		if len(in.Args) > 0 {
+			v = val(in.Args[0])
+		}
+		return "{" + v + " @ " + val(in.X) + "}"
+	case OpScanEnter:
+		return "{" + val(in.X) + " ? ..}"
+	case OpResume:
+		// A resumed built-in generator: its call is the instruction
+		// before (see compile's call).
+		if pc > 0 && f.proc.Code[pc-1].Op == OpCall && f.proc.Code[pc-1].H == in.H {
+			return vm.offending(f, pc-1)
+		}
+	case OpCall:
+		switch fv := Deref(vm.get(f, in.X)).(type) {
+		case *Builtin:
+			if Functions[fv.Name] == fv || fv.NoDeref {
+				return fv.Name + "(" + args(in.Args) + ")"
+			}
+			return operator(fv, in.Args)
+		case *Proc:
+			return fv.Name + "(" + args(in.Args) + ")"
+		default:
+			// Invoked by name: shown by the name it resolved to, if any.
+			if s, ok := CvStr(fv); ok {
+				switch p := vm.strproc(s.s, len(in.Args)).(type) {
+				case *Builtin:
+					return p.Name + "(" + args(in.Args) + ")"
+				case *Proc:
+					return p.Name + "(" + args(in.Args) + ")"
+				case *RecordType:
+					return p.Name + "(" + args(in.Args) + ")"
+				}
+			}
+			return vm.OutImage(fv, 0) + "(" + args(in.Args) + ")"
+		}
+	}
+	return "{...}"
+}
+
+// calledFrom returns " from line n in file" for the call that made the
+// active frame f. A frame without a caller is main's (called from
+// nowhere) or the base of the running co-expression, a copy of its
+// creator's frame, which was called from where the creator was.
+func (vm *VM) calledFrom(f *Frame) string {
+	c := f.caller
+	if c == nil {
+		return vm.co.from
+	}
+	return fmt.Sprintf(" from line %d in %s", c.proc.Code[c.pc].Line, c.proc.File)
+}

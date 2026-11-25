@@ -1,0 +1,8 @@
+
+Run-time error 116
+File bangvar.icn; Line 4
+invalid type to element generator
+offending value: &null
+Traceback:
+main()
+{!(variable = &null)} from line 4 in bangvar.icn

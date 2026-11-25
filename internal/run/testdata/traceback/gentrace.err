@@ -1,0 +1,8 @@
+
+Run-time error 101
+File gentrace.icn; Line 3
+integer expected or out of range
+offending value: "q"
+Traceback:
+main()
+limit counter: "q" from line 3 in gentrace.icn

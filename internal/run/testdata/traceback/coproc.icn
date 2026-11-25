@@ -1,0 +1,12 @@
+#STDERR
+procedure main()
+   p(5)
+end
+procedure p(k)
+   local c
+   c := create q(k)
+   @c
+end
+procedure q(j)
+   return j || []
+end

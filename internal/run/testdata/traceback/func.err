@@ -1,0 +1,8 @@
+
+Run-time error 109
+File func.icn; Line 3
+string or file expected
+offending value: list_1 = []
+Traceback:
+main()
+write("a",list_1 = [],3) from line 3 in func.icn

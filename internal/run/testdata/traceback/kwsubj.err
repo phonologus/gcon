@@ -1,0 +1,8 @@
+
+Run-time error 103
+File kwsubj.icn; Line 3
+string expected
+offending value: list_1 = []
+Traceback:
+main()
+{&subject = "" := list_1 = []} from line 3 in kwsubj.icn

@@ -1,0 +1,6 @@
+#STDERR
+procedure main()
+   local s, i, j
+   s := "abc"; i := 1; j := []
+   s[i:j]
+end

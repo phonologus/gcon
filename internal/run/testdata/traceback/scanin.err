@@ -1,0 +1,8 @@
+
+Run-time error 101
+File scanin.icn; Line 3
+integer expected or out of range
+offending value: list_1 = []
+Traceback:
+main()
+tab(list_1 = []) from line 3 in scanin.icn

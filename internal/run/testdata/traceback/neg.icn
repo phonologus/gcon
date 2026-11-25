@@ -1,0 +1,4 @@
+#STDERR
+procedure main()
+   -"x"
+end

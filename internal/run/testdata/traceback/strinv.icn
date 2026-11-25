@@ -1,0 +1,4 @@
+#STDERR
+procedure main()
+   "zzz"(1, 2)
+end

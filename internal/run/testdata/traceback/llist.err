@@ -1,0 +1,8 @@
+
+Run-time error 102
+File llist.icn; Line 6
+numeric expected
+offending value: record pt_1(1,"a long string of...")
+Traceback:
+main()
+{1 + record pt_1(1,"a long string of...")} from line 6 in llist.icn

@@ -1,0 +1,8 @@
+
+Run-time error 101
+File sect.icn; Line 3
+integer expected or out of range
+offending value: list_1 = []
+Traceback:
+main()
+{"abc"[1:list_1 = []]} from line 3 in sect.icn

@@ -1,0 +1,8 @@
+
+Run-time error 111
+File asgnbyname.icn; Line 3
+variable expected
+offending value: 1
+Traceback:
+main()
+:=(1,2) from line 3 in asgnbyname.icn

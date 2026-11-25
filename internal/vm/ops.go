@@ -123,22 +123,14 @@ func cvpos(p Int, n int) (int, bool) {
 // ---------------------------------------------------------------------
 // Operators
 
-// add and sub are word-sized additions where iconx raises error 203 on
-// overflow rather than making a large integer (seq, s[i+:j]).
+// add is word-sized addition where iconx raises error 203 on overflow
+// rather than making a large integer (seq).
 func add(x, y Int) Int {
 	s, ok := addInt(x, y)
 	if !ok {
 		Runerr(203)
 	}
 	return s
-}
-
-func sub(x, y Int) Int {
-	d, ok := subInt(x, y)
-	if !ok {
-		Runerr(203)
-	}
-	return d
 }
 
 func strCompare(name string, ok func(c int) bool) *Builtin {
@@ -254,14 +246,6 @@ var Ops = map[string]*Builtin{
 
 	"[]":  {Name: "[]", Fn: index},
 	"[:]": {Name: "[:]", Fn: section},
-	"[+:]": {Name: "[+:]", Fn: func(vm *VM, a []Value) (Value, bool) {
-		i := MustInt(a[1])
-		return section(vm, []Value{a[0], i, add(i, MustInt(a[2]))})
-	}},
-	"[-:]": {Name: "[-:]", Fn: func(vm *VM, a []Value) (Value, bool) {
-		i := MustInt(a[1])
-		return section(vm, []Value{a[0], i, sub(i, MustInt(a[2]))})
-	}},
 	"[...]": {Name: "[...]", Fn: func(vm *VM, a []Value) (Value, bool) {
 		return vm.NewList(append([]Value(nil), a...)), true
 	}},

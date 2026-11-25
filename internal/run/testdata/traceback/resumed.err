@@ -1,0 +1,9 @@
+
+Run-time error 102
+File resumed.icn; Line 8
+numeric expected
+offending value: "z"
+Traceback:
+main()
+gen("z") from line 3 in resumed.icn
+{"z" + 1} from line 8 in resumed.icn

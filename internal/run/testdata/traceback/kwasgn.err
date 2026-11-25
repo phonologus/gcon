@@ -1,0 +1,8 @@
+
+Run-time error 101
+File kwasgn.icn; Line 3
+integer expected or out of range
+offending value: "x"
+Traceback:
+main()
+{&pos = 1 := "x"} from line 3 in kwasgn.icn

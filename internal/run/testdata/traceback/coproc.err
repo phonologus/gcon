@@ -1,0 +1,9 @@
+
+Run-time error 103
+File coproc.icn; Line 11
+string expected
+offending value: list_1 = []
+Traceback:
+p(5) from line 3 in coproc.icn
+q(5) from line 7 in coproc.icn
+{"5" || list_1 = []} from line 11 in coproc.icn

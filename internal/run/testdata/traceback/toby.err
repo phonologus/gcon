@@ -1,0 +1,8 @@
+
+Run-time error 101
+File toby.icn; Line 3
+integer expected or out of range
+offending value: "a"
+Traceback:
+main()
+{1 to "a" by 1} from line 3 in toby.icn

@@ -1,0 +1,12 @@
+
+Run-time error 102
+File deep.icn; Line 6
+numeric expected
+offending value: list_1 = []
+Traceback:
+main()
+p(1) from line 3 in deep.icn
+p(2) from line 6 in deep.icn
+p(3) from line 6 in deep.icn
+p(4) from line 6 in deep.icn
+{4 + list_1 = []} from line 6 in deep.icn

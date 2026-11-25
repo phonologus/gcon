@@ -1,0 +1,4 @@
+#STDERR
+procedure main()
+   "abc"[2+:"z"]
+end

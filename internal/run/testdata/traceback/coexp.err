@@ -1,0 +1,9 @@
+
+Run-time error 102
+File coexp.icn; Line 8
+numeric expected
+offending value: list_1 = []
+Traceback:
+main()
+g(2) from line 4 in coexp.icn
+{2 + list_1 = []} from line 8 in coexp.icn

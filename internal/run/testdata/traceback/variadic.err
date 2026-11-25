@@ -1,0 +1,9 @@
+
+Run-time error 102
+File variadic.icn; Line 6
+numeric expected
+offending value: list_1 = [2,3]
+Traceback:
+main()
+v(1,list_1 = [2,3]) from line 3 in variadic.icn
+{list_1 = [2,3] + 1} from line 6 in variadic.icn

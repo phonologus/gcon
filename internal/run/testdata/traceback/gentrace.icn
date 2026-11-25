@@ -1,0 +1,4 @@
+#STDERR
+procedure main()
+   every write(seq(1) \ "q")
+end

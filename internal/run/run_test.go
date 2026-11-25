@@ -24,6 +24,10 @@ func TestPrograms(t *testing.T) {
 	if err != nil || len(files) == 0 {
 		t.Fatal("no test programs")
 	}
+	// testdata/traceback: run-time errors, checking the error message
+	// and traceback.
+	more, _ := filepath.Glob("testdata/traceback/*.icn")
+	files = append(files, more...)
 	wd, err := os.Getwd()
 	if err != nil {
 		t.Fatal(err)

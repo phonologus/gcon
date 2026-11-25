@@ -1,0 +1,8 @@
+
+Run-time error 102
+File psect.icn; Line 3
+numeric expected
+offending value: "z"
+Traceback:
+main()
+{2 + "z"} from line 3 in psect.icn

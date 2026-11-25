@@ -1,0 +1,8 @@
+
+Run-time error 118
+File coact1.icn; Line 3
+co-expression expected
+offending value: "c"
+Traceback:
+main()
+{&null @ "c"} from line 3 in coact1.icn

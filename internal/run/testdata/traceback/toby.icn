@@ -1,0 +1,4 @@
+#STDERR
+procedure main()
+   every 1 to "a"
+end

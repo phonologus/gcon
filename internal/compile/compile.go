@@ -497,8 +497,25 @@ func (p *pcomp) expr(e syntax.Expr, fail, succ label) (start, resume label, v vm
 		p.jump(succ)
 		return st, r, x
 	case *syntax.Section:
-		op := map[token.Kind]string{token.COLON: "[:]", token.PCOLON: "[+:]", token.MCOLON: "[-:]"}[e.Op.Kind]
-		return p.oper(vm.Ops[op], []syntax.Expr{e.X, e.Lo, e.Hi}, fail, succ)
+		if e.Op.Kind == token.COLON {
+			return p.oper(vm.Ops["[:]"], []syntax.Expr{e.X, e.Lo, e.Hi}, fail, succ)
+		}
+		// x[i+:j] is x[i:i+j] and x[i-:j] is x[i:i-j], the arithmetic
+		// being an operation of its own, as icont compiles it (so its
+		// errors are the operator's: 102 for x[1+:"z"]).
+		op := "+"
+		if e.Op.Kind == token.MCOLON {
+			op = "-"
+		}
+		a, b := p.newLabel(), p.newLabel()
+		st, r, vs := p.seq([]syntax.Expr{e.X, e.Lo, e.Hi}, fail, a)
+		p.place(a)
+		hi := p.temp()
+		p.emit(vm.Instr{Op: vm.OpOper, Fn: vm.Ops[op], Dst: hi, Args: []vm.Operand{vs[1], vs[2]}, L1: int32(b), L2: int32(r)})
+		p.place(b)
+		t := p.temp()
+		p.emit(vm.Instr{Op: vm.OpOper, Fn: vm.Ops["[:]"], Dst: t, Args: []vm.Operand{vs[0], vs[1], hi}, L1: int32(succ), L2: int32(r)})
+		return st, r, t
 	case *syntax.Call:
 		a := p.newLabel()
 		st, r, vs := p.seq(append([]syntax.Expr{e.Fun}, e.Args.Elems...), fail, a)
@@ -814,7 +831,7 @@ func (p *pcomp) binary(e *syntax.Binary, fail, succ label) (label, label, vm.Ope
 		t := p.temp()
 		p.emit(vm.Instr{Op: vm.OpMove, Dst: t, X: vs[0]})
 		b := p.newLabel()
-		p.emit(vm.Instr{Op: vm.OpAssign, Dst: vs[0], X: vs[1], L1: int32(b), L2: int32(r)})
+		p.emit(vm.Instr{Op: vm.OpAssign, Fn: vm.AsgnOp(":=:"), Dst: vs[0], X: vs[1], L1: int32(b), L2: int32(r)})
 		p.place(b)
 		p.emit(vm.Instr{Op: vm.OpAssign, Dst: vs[1], X: t, L1: int32(succ), L2: int32(r)})
 		return st, r, vs[0]
@@ -826,7 +843,7 @@ func (p *pcomp) binary(e *syntax.Binary, fail, succ label) (label, label, vm.Ope
 		p.place(a)
 		old := p.temp()
 		p.emit(vm.Instr{Op: vm.OpMove, Dst: old, X: vs[0]})
-		p.emit(vm.Instr{Op: vm.OpAssign, Dst: vs[0], X: vs[1], L1: int32(succ), L2: int32(r)})
+		p.emit(vm.Instr{Op: vm.OpAssign, Fn: vm.AsgnOp("<-"), Dst: vs[0], X: vs[1], L1: int32(succ), L2: int32(r)})
 		p.place(rr)
 		p.emit(vm.Instr{Op: vm.OpAssign, Dst: vs[0], X: old, L1: int32(r), L2: int32(r)})
 		return st, rr, vs[0]
@@ -839,7 +856,7 @@ func (p *pcomp) binary(e *syntax.Binary, fail, succ label) (label, label, vm.Ope
 		ox, oy := p.temp(), p.temp()
 		p.emit(vm.Instr{Op: vm.OpMove, Dst: ox, X: vs[0]})
 		p.emit(vm.Instr{Op: vm.OpMove, Dst: oy, X: vs[1]})
-		p.emit(vm.Instr{Op: vm.OpAssign, Dst: vs[0], X: oy, L1: int32(b), L2: int32(r)})
+		p.emit(vm.Instr{Op: vm.OpAssign, Fn: vm.AsgnOp("<->"), Dst: vs[0], X: vs[1], L1: int32(b), L2: int32(r)})
 		p.place(b)
 		p.emit(vm.Instr{Op: vm.OpAssign, Dst: vs[1], X: ox, L1: int32(succ), L2: int32(r)})
 		p.place(rr)

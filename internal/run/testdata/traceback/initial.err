@@ -1,0 +1,9 @@
+
+Run-time error 102
+File initial.icn; Line 6
+numeric expected
+offending value: list_1 = []
+Traceback:
+main()
+p() from line 3 in initial.icn
+{1 + list_1 = []} from line 6 in initial.icn

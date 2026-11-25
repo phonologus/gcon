@@ -1,0 +1,7 @@
+
+Run-time error 203
+File seqovf.icn; Line 3
+integer overflow
+Traceback:
+main()
+seq(9223372036854775806,1) from line 3 in seqovf.icn

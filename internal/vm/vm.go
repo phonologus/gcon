@@ -314,6 +314,15 @@ func (vm *VM) loop(f *Frame) {
 			f.temps[in.Dst.Index] = vm.ref(f, in.X)
 			f.pc++
 		case OpAssign:
+			if in.Fn != nil && (in.Fn.Name == ":=:" || in.Fn.Name == "<->") {
+				// Both operands must be variables before either is
+				// assigned (iconx's swap and rswap).
+				for _, o := range []Operand{in.Dst, in.X} {
+					if !vm.isVar(f, o) {
+						Runerr(111, Deref(vm.get(f, o)))
+					}
+				}
+			}
 			if vm.assign(f, in.Dst, Deref(vm.get(f, in.X))) {
 				f.pc = int(in.L1)
 			} else {
@@ -481,7 +490,9 @@ func (vm *VM) loop(f *Frame) {
 			f = c
 			vm.cur = f
 		case OpCreate:
-			f.temps[in.Dst.Index] = vm.newCoexp(f.proc, int(in.L1), append([]Value(nil), f.locals...))
+			c := vm.newCoexp(f.proc, int(in.L1), append([]Value(nil), f.locals...))
+			c.from = vm.calledFrom(f)
+			f.temps[in.Dst.Index] = c
 			f.pc++
 		case OpActivate:
 			v := NullValue
@@ -552,6 +563,7 @@ func (vm *VM) report(e *RuntimeError) {
 	if e.HasValue {
 		fmt.Fprintf(w, "offending value: %s\n", vm.OutImage(e.Value, 0))
 	}
+	vm.traceback(w)
 }
 
 // retDeref prepares v, the operand of a return or suspend in frame f: as
@@ -568,4 +580,18 @@ func (vm *VM) retDeref(f *Frame, v Value) Value {
 		}
 	}
 	return v
+}
+
+// isVar reports whether operand o of frame f is a variable.
+func (vm *VM) isVar(f *Frame, o Operand) bool {
+	switch o.Kind {
+	case LocalOp, GlobalOp:
+		return true
+	case TempOp:
+		switch f.temps[o.Index].(type) {
+		case *Value, Var:
+			return true
+		}
+	}
+	return false
 }

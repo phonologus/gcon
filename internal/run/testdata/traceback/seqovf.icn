@@ -1,0 +1,4 @@
+#STDERR
+procedure main()
+   every seq(9223372036854775806, 1)
+end

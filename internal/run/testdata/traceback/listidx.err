@@ -1,0 +1,8 @@
+
+Run-time error 101
+File listidx.icn; Line 3
+integer expected or out of range
+offending value: "a"
+Traceback:
+main()
+{list_1 = [1,2]["a"]} from line 3 in listidx.icn

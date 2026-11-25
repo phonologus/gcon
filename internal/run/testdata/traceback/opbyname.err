@@ -1,0 +1,8 @@
+
+Run-time error 102
+File opbyname.icn; Line 3
+numeric expected
+offending value: list_1 = []
+Traceback:
+main()
++(1,list_1 = []) from line 3 in opbyname.icn

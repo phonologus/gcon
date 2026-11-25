@@ -1,0 +1,4 @@
+#STDERR
+procedure main()
+   "abc" ? (move(1) & tab([]))
+end

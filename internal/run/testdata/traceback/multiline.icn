@@ -1,0 +1,6 @@
+#STDERR
+procedure main()
+   write("a",
+      [] + 1,
+      "b")
+end

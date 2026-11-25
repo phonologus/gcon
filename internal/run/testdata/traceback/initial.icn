@@ -1,0 +1,7 @@
+#STDERR
+procedure main()
+   p()
+end
+procedure p()
+   initial 1 + []
+end

@@ -1,0 +1,8 @@
+
+Run-time error 106
+File strinv.icn; Line 3
+procedure or integer expected
+offending value: "zzz"
+Traceback:
+main()
+"zzz"(1,2) from line 3 in strinv.icn

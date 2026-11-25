@@ -1,0 +1,7 @@
+#STDERR
+procedure main()
+   f() := 1
+end
+procedure f()
+   return 3
+end
