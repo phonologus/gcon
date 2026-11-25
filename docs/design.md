@@ -623,6 +623,14 @@ conformance test with this reason.
   icont, the only identifier `invocable` accepts is `all`. The
   assignment operators (`:=`, `<-`, `:=:`, `<->`) and `?` cannot yet be
   invoked by name.
+- `&line` is the line of the keyword; `&file` is the source path as
+  given to gcon, as iconx's is the path given to icont. iconx looks the
+  line up from its instruction pointer after the keyword instruction,
+  so when icont's line table starts a new entry right there (it emits
+  one for nearly every node whose line or column differs), `&line`
+  reports the next entry's line: in `f(&line,` / `&line)` spread over
+  lines 8 and 9, iconx gives 9 and 8. That depends on icont's code order
+  and is not reproduced; on one line the two agree.
 - Operators that produce at most one result are `OpOper` instructions
   calling a Go function; generators (`to`, `!`, built-in generators)
   and procedure calls use `OpCall` and `OpResume` with a handle in a

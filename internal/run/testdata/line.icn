@@ -1,0 +1,18 @@
+# &line and &file. (Not tested: iconx reports the line of the next
+# line-table entry when one starts right after the keyword, which gcon
+# does not reproduce; see docs/design.md.)
+procedure main()
+   write(&line, " ", &file[-8:0])  # &file is the path as given
+   write(
+      &line,
+      " ", p(&line))
+   every write(&line | 1 + &line)
+   x := create &line
+   write(@x, " ", f(&line, &line))
+end
+procedure p(x)
+   return x || "/" || &line
+end
+procedure f(a, b)
+   return a || "," || b
+end

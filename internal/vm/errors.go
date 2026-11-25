@@ -85,3 +85,14 @@ func init() {
 		return nil, false
 	})
 }
+
+// &line and &file: where the running code is.
+func init() {
+	Ops["&line"] = &Builtin{Name: "&line", Fn: func(vm *VM, a []Value) (Value, bool) {
+		f := vm.cur
+		return Int(f.proc.Code[f.pc].Line), true
+	}}
+	Ops["&file"] = &Builtin{Name: "&file", Fn: func(vm *VM, a []Value) (Value, bool) {
+		return Text(vm.cur.proc.File), true
+	}}
+}
