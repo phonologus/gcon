@@ -217,16 +217,16 @@ String cset_string(const Cset *c) {
 }
 
 static String csetstr(const Cset *c) {
-	Buf b = {0};
+	SB b = {0};
 	if (c->nranges == 0) {
 		for (int x = 0; x < 256; x++)
 			if (cset_has(c, x))
-				bufputc(&b, x);
-		return bufstring(&b, BytesUnit);
+				sbputc(&b, x);
+		return sbstring(&b, BytesUnit);
 	}
 	for (int x = 0; x < 0x80; x++)
 		if (cset_has(c, x))
-			bufputc(&b, x);
+			sbputc(&b, x);
 	int next = 0x80;
 	for (int i = 0; i < c->nranges; i++)
 		for (uint32_t x = c->ranges[i][0]; x <= c->ranges[i][1]; x++) {
@@ -234,13 +234,13 @@ static String csetstr(const Cset *c) {
 			int k = utf8encode(e, (int32_t)x);
 			for (; next <= e[0]; next++)
 				if (cset_has(c, next))
-					bufputc(&b, next);
-			bufadd(&b, e, (size_t)k);
+					sbputc(&b, next);
+			sbadd(&b, e, (size_t)k);
 		}
 	for (; next < 256; next++)
 		if (cset_has(c, next))
-			bufputc(&b, next);
-	return bufstring(&b, TextUnit);
+			sbputc(&b, next);
+	return sbstring(&b, TextUnit);
 }
 
 /* bytesbits returns the bytes that match c in a bytes subject. */

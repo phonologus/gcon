@@ -189,11 +189,11 @@ Go VM is the reference, and the tests compare the two.
   ASCII flag in the header's flags, their length in its 48-bit field;
   list elements and record fields as variables are the structure and
   an index, so subscripting allocates nothing.
-- **Frames and control** are as in the Go VM, for now: frames on the
-  heap, chained by caller; a suspended procedure is a frame held in a
-  temporary of its caller; a co-expression is a chain of frames, and
-  switching co-expressions switches the running chain. Moving frames to
-  per-co-expression stacks is for later, measured.
+- **Frames and control** are as in the Go VM: frames chained by caller;
+  a suspended procedure is a frame held in a temporary of its caller; a
+  co-expression is a chain of frames, and switching co-expressions
+  switches the running chain. Frames are recycled when they return
+  (below, "Tuning").
 - **Run-time errors** unwind by `longjmp` to the loop's caller, which
   converts the error to failure at the failing instruction if `&error`
   allows (as the Go VM's `recover` does), or reports it with iconx's
@@ -297,3 +297,70 @@ would then not find the locals left out.
 The micro-benchmarks barely move: `@(create 1)` goes from 77.9 to
 47.8 ns (memory is reused rather than touched fresh), the rest within a
 few per cent.
+
+## Tuning (2026-11-26)
+
+Four changes, measured one at a time with `tests/bench.sh`:
+
+- **Strings are built in the heap** (`SB` in `src/vm.h`): the buffer
+  becomes the string, uncopied, which is safe because the collector
+  runs only between instructions. String bytes are allocated unzeroed
+  (`gcraw`), and a result's ASCII flag is passed on when already known
+  (`mkstrf`) rather than found by scanning. `left`, `right` and
+  `center` write one-byte characters straight into a block of the
+  result's size; `map` with a byte table likewise.
+- **Link-time optimisation** (`-flto`): the small functions that every
+  operation calls across files (`deref`, `cvstr`, `strval`, the ASCII
+  test) are inlined. `left` went from 1.7 times iconx's time to parity
+  with these first two.
+- **Frames are recycled, not stacked.** A frame per co-expression stack
+  in the strict sense does not fit gcon's code: a suspended generator's
+  frame must stay while its caller goes on calling, and iconx reclaims
+  the stack above abandoned generators when a bounded expression ends
+  (its mark and unmark), which gcon's instructions do not record (an
+  abandoned generator's handle is simply overwritten). So `while x :=
+  gen()` would leave a dead frame on the stack per iteration. What a
+  stack gives, cheap last-in first-out allocation of memory still in
+  the cache, comes instead from recycling: a frame that returns or
+  fails without ever having suspended goes on a free list by its number
+  of slots, and the next call of that size reuses it at once. Nothing
+  else can refer to it: arguments are dereferenced, `return`
+  dereferences locals, co-expressions copy values. The one escape, a
+  substring of a local returned (`return s[2]`), is detected and left
+  to the collector, as are frames that have suspended. A collection
+  forgets the free lists (the sweep frees those frames). Allocation
+  finds a block's chunk by masking its address (each chunk begins with
+  a pointer to its header), and frames are initialised directly, not
+  zeroed first. Under `GCONVMSTRESS` a returned frame is poisoned
+  instead of recycled, so that any later use shows: the tests pass so,
+  under ASan and UBSan (the collector may still trace a stale
+  reference to one, from the scratch arguments or an old temporary,
+  and skips it; none is read).
+- **Computed goto**: each handler dispatches the next instruction
+  itself; a switch is used where the compiler lacks the extension
+  (`-DGCONVM_SWITCH` forces it; the tests pass both ways).
+
+| benchmark | iconx | gcon-vm before | after | after / iconx |
+|---|---:|---:|---:|---:|
+| empty loop | 7.4 | 3.3 | 2.8 | 0.38 |
+| `*"abcde"` | 10.1 | 5.8 | 4.2 | 0.41 |
+| `upto` | 40.6 | 43.6 | 39.0 | 0.96 |
+| `find` | 39.7 | 42.0 | 37.6 | 0.95 |
+| `x + 407` | 15.3 | 6.9 | 6.0 | 0.39 |
+| `p()` | 15.8 | 17.4 | 9.6 | 0.61 |
+| `q(1, 2)` | 31.1 | 22.0 | 15.8 | 0.51 |
+| `L[3]` | 15.0 | 11.0 | 9.5 | 0.63 |
+| `left("a", 10)` | 26.2 | 49.7 | 25.2 | 0.96 |
+| `map(...)` | 27.7 | 62.5 | 25.5 | 0.92 |
+| `move(1)` | 36.1 | 28.5 | 25.0 | 0.69 |
+| table insert/delete | 37.3 | 25.8 | 24.1 | 0.65 |
+| `pop(push(L, 0))` | 27.9 | 19.6 | 17.8 | 0.64 |
+| same, empty list | 27.9 | 21.6 | 18.7 | 0.67 |
+| `@C` | 2615 | 17.8 | 14.7 | 0.006 |
+| `@(create 1)` | 17522 | 47.8 | 41.9 | 0.002 |
+
+(ns per iteration; "before" is the collector's commit.) gcon-vm is now
+faster than iconx on every one; the geometric mean over the first
+fourteen is about 0.64 of iconx's time, and 0.51 of the Go VM's.
+`upto` and `find` are nearest parity: the cost there is the call and
+the generator, which a later pass can take on.

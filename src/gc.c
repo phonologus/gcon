@@ -18,6 +18,9 @@
 
 #define CHUNK ((size_t)1 << 20)
 #define CHUNKSHIFT 20
+/* A small-object chunk begins with a pointer to its Chunk, so that the
+ * allocator finds a block's chunk by masking its address. */
+#define HDR 64
 
 static const uint32_t classes[] = {
 	16, 32, 48, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 384, 448, 512,
@@ -27,6 +30,7 @@ enum { NClasses = sizeof classes / sizeof classes[0], MaxSmall = 32768 };
 
 typedef struct Chunk {
 	char *base;
+	char *data;    /* the first block: after the header in a small-object chunk */
 	size_t size;   /* CHUNK, or a large object's size */
 	int cls;       /* size class, or -1 for a large object */
 	uint32_t bsize, nblocks, used;
@@ -48,7 +52,8 @@ static uint8_t classof[MaxSmall / 16 + 1];
 
 static size_t allocated, threshold = 16 * CHUNK, live;
 bool gc_pending;
-static int64_t stress, stresscount;
+int64_t stress;
+static int64_t stresscount;
 static bool debug;
 static int64_t ncollections;
 
@@ -121,10 +126,13 @@ static Chunk *newchunk(size_t size, int cls, uint32_t bsize) {
 	}
 	Chunk *c = xcalloc(1, sizeof *c);
 	c->base = p;
+	c->data = cls < 0 ? c->base : c->base + HDR;
+	if (cls >= 0)
+		*(Chunk **)c->base = c;
 	c->size = size;
 	c->cls = cls;
 	c->bsize = bsize;
-	c->nblocks = cls < 0 ? 1 : (uint32_t)(size / bsize);
+	c->nblocks = cls < 0 ? 1 : (uint32_t)((size - HDR) / bsize);
 	size_t words = (c->nblocks + 63) / 64;
 	c->mark = xcalloc(words, 8);
 	c->alloc = xcalloc(words, 8);
@@ -137,7 +145,13 @@ static Chunk *newchunk(size_t size, int cls, uint32_t bsize) {
 #define SET(a, i) ((a)[(i) >> 6] |= (uint64_t)1 << ((i) & 63))
 #define CLR(a, i) ((a)[(i) >> 6] &= ~((uint64_t)1 << ((i) & 63)))
 
-void *gcnew(size_t n, int type) {
+static void *alloc(size_t n, int type, bool zero);
+
+void *gcnew(size_t n, int type) { return alloc(n, type, true); }
+void *gcraw(size_t n) { return alloc(n, T_RAW, false); }
+void *gcalloc(size_t n, int type, bool zero) { return alloc(n, type, zero); }
+
+static void *alloc(size_t n, int type, bool zero) {
 	if (n == 0)
 		n = 1;
 	if (n > MaxSmall) {
@@ -157,17 +171,18 @@ void *gcnew(size_t n, int type) {
 	Chunk *c;
 	if (p) {
 		freelist[cls] = *(void **)p;
-		c = lookup(p);
+		c = *(Chunk **)((uintptr_t)p & ~(uintptr_t)(CHUNK - 1));
 	} else {
 		c = current[cls];
 		if (!c || c->used == c->nblocks)
 			c = current[cls] = newchunk(CHUNK, cls, classes[cls]);
-		p = c->base + (size_t)c->used++ * c->bsize;
+		p = c->data + (size_t)c->used++ * c->bsize;
 	}
-	uint32_t i = (uint32_t)((size_t)(p - c->base) / c->bsize);
+	uint32_t i = (uint32_t)((size_t)(p - c->data) / c->bsize);
 	SET(c->alloc, i);
 	c->type[i] = (uint8_t)type;
-	memset(p, 0, c->bsize);
+	if (zero)
+		memset(p, 0, c->bsize);
 	allocated += c->bsize;
 	if (allocated > threshold || (stress && ++stresscount >= stress))
 		gc_pending = true;
@@ -193,7 +208,9 @@ bool markptr(const void *p) {
 	Chunk *c = lookup(p);
 	if (!c)
 		return false;
-	size_t off = (size_t)((const char *)p - c->base), i, size;
+	if ((const char *)p < c->data)
+		return false;
+	size_t off = (size_t)((const char *)p - c->data), i, size;
 	if (c->cls < 0) {
 		if (off >= c->size)
 			return false;
@@ -213,7 +230,7 @@ bool markptr(const void *p) {
 		return true;
 	if (nstack == capstack)
 		stack = realloc(stack, (capstack = capstack ? 2 * capstack : 1024) * sizeof *stack);
-	stack[nstack++] = (Work){c->base + i * (c->cls < 0 ? 0 : c->bsize), c->type[i], size};
+	stack[nstack++] = (Work){c->data + i * (c->cls < 0 ? 0 : c->bsize), c->type[i], size};
 	return true;
 }
 
@@ -295,6 +312,8 @@ static void trace(Work w) {
 	}
 	case T_FRAME: {
 		Frame *f = (Frame *)w.p;
+		if (!f->proc) /* returned, poisoned under GCONVMSTRESS: a stale reference */
+			break;
 		markptr(f->caller);
 		markvalues(f->slots, (size_t)(f->proc->nlocals + f->proc->ntemps));
 		break;
@@ -351,7 +370,7 @@ static void sweep(void) {
 			continue;
 		}
 		for (uint32_t i = 0; i < c->used; i++) {
-			char *p = c->base + (size_t)i * c->bsize;
+			char *p = c->data + (size_t)i * c->bsize;
 			if (BIT(c->alloc, i) && BIT(c->mark, i)) {
 				live += c->bsize;
 				continue;
@@ -384,8 +403,11 @@ static void sweep(void) {
 			current[chunks[ci]->cls] = chunks[ci];
 }
 
+void frames_forget(void);
+
 void gc_collect(void) {
 	size_t before = allocated;
+	frames_forget(); /* recycled frames are garbage: let the sweep have them */
 	/* The roots. */
 	Program *p = vm.prog;
 	markvalues(vm.globals, (size_t)p->nglobals);

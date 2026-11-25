@@ -23,7 +23,7 @@ static Chars charsin(String s) {
 	Chars c = {s.s, NULL, s.n};
 	if (onebyte(s))
 		return c;
-	c.offs = gcnew((size_t)(s.n + 1) * sizeof(int64_t), T_RAW);
+	c.offs = gcraw((size_t)(s.n + 1) * sizeof(int64_t));
 	int64_t k = 0;
 	for (int64_t i = 0; i < s.n; i += width(s, i))
 		c.offs[k++] = i;
@@ -52,7 +52,8 @@ static void padargs(Value *a, int n, String *s1, int64_t *w, String *s2) {
 		*w = mustint(a[1]);
 	if (*w < 0)
 		runerrv(205, intval(*w));
-	*s2 = textc(" ");
+	static const String blank = {" ", 1, TextUnit, 1};
+	*s2 = blank;
 	if (!ISNULL(ARG(2))) {
 		String s = muststr(a[2]);
 		if (s.n > 0)
@@ -60,13 +61,47 @@ static void padargs(Value *a, int n, String *s1, int64_t *w, String *s2) {
 	}
 }
 
-static void padchar(Buf *b, Chars c, int64_t i) {
-	bufadd(b, c.s + coff(c, i), (size_t)(coff(c, i + 1) - coff(c, i)));
+static void padchar(SB *b, Chars c, int64_t i) {
+	sbadd(b, c.s + coff(c, i), (size_t)(coff(c, i + 1) - coff(c, i)));
 }
 
-static String result(Buf *b, String s1, String s2) {
+/* pad lays out a result of w characters, as iconx's left, right and
+ * center do: s1 (l characters) at position start, and in the other
+ * positions characters of the pad s2, counted in copies of s2 from the
+ * left end before position h and from the right end after it. */
+static String pad(String s1, int64_t l, String s2, int64_t w, int64_t start, int64_t h) {
 	String ss[2] = {s1, s2};
-	return bufstring(b, joinunit(ss, 2));
+	int unit = joinunit(ss, 2);
+	int8_t ascii = isascii_(&s1) && isascii_(&s2) ? 1 : -1;
+	if (onebyte(s1) && onebyte(s2)) {
+		/* Every character a byte: the result is w bytes, written directly. */
+		int64_t m = s2.n;
+		char *r = gcraw((size_t)w);
+		for (int64_t p = 0; p < w; p++) {
+			if (p == start && l > 0) {
+				memcpy(r + p, s1.s, (size_t)l);
+				p += l - 1;
+			} else if (p < h)
+				r[p] = s2.s[p % m];
+			else
+				r[p] = s2.s[m - 1 - (w - 1 - p) % m];
+		}
+		return mkstrf(r, w, unit, ascii);
+	}
+	Chars pd = charsin(s2);
+	int64_t m = pd.n;
+	SB r = {0};
+	sbgrow(&r, (size_t)(s1.n + (w - l) * (s2.n / m + 1)));
+	for (int64_t p = 0; p < w; p++) {
+		if (p == start && l > 0) {
+			sbadd(&r, s1.s, (size_t)s1.n);
+			p += l - 1;
+		} else if (p < h)
+			padchar(&r, pd, p % m);
+		else
+			padchar(&r, pd, m - 1 - (w - 1 - p) % m);
+	}
+	return mkstrf(r.b, (int64_t)r.n, unit, ascii);
 }
 
 FN(f_left) {
@@ -80,13 +115,7 @@ FN(f_left) {
 		*out = strval(mkstr(s1.s, coff(c1, w), s1.unit));
 		return true;
 	}
-	Chars pd = charsin(s2);
-	int64_t m = pd.n;
-	Buf r = {0};
-	bufadd(&r, s1.s, (size_t)s1.n);
-	for (int64_t p = l; p < w; p++)
-		padchar(&r, pd, m - 1 - (w - 1 - p) % m);
-	*out = strval(result(&r, s1, s2));
+	*out = strval(pad(s1, l, s2, w, 0, 0));
 	return true;
 }
 
@@ -102,13 +131,7 @@ FN(f_right) {
 		*out = strval(mkstr(s1.s + o, s1.n - o, s1.unit));
 		return true;
 	}
-	Chars pd = charsin(s2);
-	int64_t m = pd.n;
-	Buf r = {0};
-	for (int64_t p = 0; p < w - l; p++)
-		padchar(&r, pd, p % m);
-	bufadd(&r, s1.s, (size_t)s1.n);
-	*out = strval(result(&r, s1, s2));
+	*out = strval(pad(s1, l, s2, w, w - l, w));
 	return true;
 }
 
@@ -125,22 +148,10 @@ FN(f_center) {
 		*out = strval(mkstr(s1.s + o, coff(c1, i + w) - o, s1.unit));
 		return true;
 	}
-	Chars pd = charsin(s2);
-	int64_t m = pd.n;
-	Buf r = {0};
 	int64_t h = w / 2, start = h - l / 2;
 	if (w % 2 == 0 && l % 2 == 1)
 		start--;
-	for (int64_t p = 0; p < w; p++) {
-		if (p == start && l > 0) {
-			bufadd(&r, s1.s, (size_t)s1.n);
-			p += l - 1;
-		} else if (p < h)
-			padchar(&r, pd, p % m);
-		else
-			padchar(&r, pd, m - 1 - (w - 1 - p) % m);
-	}
-	*out = strval(result(&r, s1, s2));
+	*out = strval(pad(s1, l, s2, w, start, h));
 	return true;
 }
 
@@ -150,17 +161,17 @@ FN(f_repl) {
 	int64_t k = mustint(ARG(1));
 	if (k < 0 || (s.n > 0 && k > ((int64_t)1 << 31) / s.n))
 		runerrv(205, intval(k));
-	Buf r = {0};
+	SB r = {0};
 	for (int64_t i = 0; i < k; i++)
-		bufadd(&r, s.s, (size_t)s.n);
-	*out = strval(bufstring(&r, s.unit));
+		sbadd(&r, s.s, (size_t)s.n);
+	*out = strval(sbstring(&r, s.unit));
 	return true;
 }
 
 FN(f_reverse) {
 	(void)b;
 	String s = muststr(ARG(0));
-	char *r = gcnew((size_t)s.n + 1, T_RAW);
+	char *r = gcraw((size_t)s.n + 1);
 	if (onebyte(s)) {
 		for (int64_t i = 0; i < s.n; i++)
 			r[i] = s.s[s.n - 1 - i];
@@ -256,18 +267,23 @@ FN(f_map) {
 		t = newmaptab(s2, s3);
 		vm.maptab = t;
 	}
-	Buf r = {0};
+	String ss[2] = {s1, s3};
 	if (t->bytes && onebyte(s1)) {
+		char *r = gcraw((size_t)s1.n + 1);
 		for (int64_t i = 0; i < s1.n; i++)
-			bufputc(&r, t->tab[(uint8_t)s1.s[i]]);
-	} else {
+			r[i] = (char)t->tab[(uint8_t)s1.s[i]];
+		*out = strval(mkstrf(r, s1.n, joinunit(ss, 2), 0));
+		return true;
+	}
+	SB r = {0};
+	{
 		for (int64_t i = 0; i < s1.n;) {
 			int w = width(s1, i);
 			const char *c = s1.s + i;
 			if (t->bytes && w == 1)
-				bufputc(&r, t->tab[(uint8_t)c[0]]);
+				sbputc(&r, t->tab[(uint8_t)c[0]]);
 			else if (t->bytes)
-				bufadd(&r, c, (size_t)w);
+				sbadd(&r, c, (size_t)w);
 			else {
 				/* the last occurrence in s2 takes precedence */
 				int64_t found = -1;
@@ -281,13 +297,12 @@ FN(f_map) {
 				if (found >= 0)
 					padchar(&r, t->c3, found);
 				else
-					bufadd(&r, c, (size_t)w);
+					sbadd(&r, c, (size_t)w);
 			}
 			i += w;
 		}
 	}
-	String ss[2] = {s1, s3};
-	*out = strval(bufstring(&r, joinunit(ss, 2)));
+	*out = strval(sbstring(&r, joinunit(ss, 2)));
 	return true;
 }
 
@@ -332,7 +347,7 @@ static String tabs(Value *a, int n, bool entab) {
 		t.stops[t.nstops++] = i;
 	}
 	t.last = 1, t.interval = 8;
-	Buf b = {0};
+	SB b = {0};
 	int64_t col = 1;
 	for (int64_t k = 0; k < s.n;) {
 		int w = width(s, k);
@@ -340,26 +355,26 @@ static String tabs(Value *a, int n, bool entab) {
 		k += w;
 		char ch = w == 1 ? c[0] : 0;
 		if (ch == '\b') {
-			bufputc(&b, ch);
+			sbputc(&b, ch);
 			col--;
 			tabreset(&t);
 		} else if (ch == '\n' || ch == '\r') {
-			bufputc(&b, ch);
+			sbputc(&b, ch);
 			col = 1;
 			tabreset(&t);
 		} else if (ch == '\t' && !entab) {
 			int64_t target = tabafter(&t, col);
 			for (; col < target; col++)
-				bufputc(&b, ' ');
+				sbputc(&b, ' ');
 		} else if (ch == '\t') {
-			bufputc(&b, ch);
+			sbputc(&b, ch);
 			col = tabafter(&t, col);
 		} else if (ch == ' ' && entab) {
 			int64_t target = col + 1;
 			while (k < s.n && s.s[k] == ' ')
 				target++, k++;
 			if (target - col <= 1) {
-				bufputc(&b, ' ');
+				sbputc(&b, ' ');
 				col = target;
 				continue;
 			}
@@ -367,26 +382,26 @@ static String tabs(Value *a, int n, bool entab) {
 			if (nt == col + 1) {
 				int64_t nt1 = tabafter(&t, nt);
 				if (nt1 > target) {
-					bufputc(&b, ' ');
+					sbputc(&b, ' ');
 					col++;
 					nt = nt1;
 				}
 			}
 			while (nt <= target) {
-				bufputc(&b, '\t');
+				sbputc(&b, '\t');
 				col = nt;
 				nt = tabafter(&t, nt);
 			}
 			for (; col < target; col++)
-				bufputc(&b, ' ');
+				sbputc(&b, ' ');
 			col = target;
 		} else {
-			bufadd(&b, c, (size_t)w);
+			sbadd(&b, c, (size_t)w);
 			if (printable(c, w, s.unit))
 				col++;
 		}
 	}
-	return bufstring(&b, s.unit);
+	return sbstring(&b, s.unit);
 }
 
 FN(f_detab) { (void)b; *out = strval(tabs(a, n, false)); return true; }

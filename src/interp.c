@@ -134,13 +134,51 @@ static _Noreturn void report(void) {
 
 /* ---- Frames ---- */
 
+/* Frames that return or fail without ever having suspended are recycled
+ * at once (docs/design.md, "Frames"): nothing else can refer to them.
+ * Free frames are kept by their number of slots, linked through caller;
+ * a collection forgets them (the collector then frees them). */
+enum { MaxRecycled = 64 };
+extern int64_t stress; /* gc.c: GCONVMSTRESS */
+static Frame *recycled[MaxRecycled];
+
+void frames_forget(void) { memset(recycled, 0, sizeof recycled); }
+
+/* recycle frees frame f, which has returned or failed, producing v,
+ * unless something may still refer to it: it has suspended, or v is a
+ * substring of one of its locals. */
+static void recycle(Frame *f, Value v) {
+	int slots = f->proc->nlocals + f->proc->ntemps;
+	if (f->suspended || slots >= MaxRecycled)
+		return;
+	if (VKIND(v) == KSubstr) {
+		Value r = ((Substr *)v.w.p)->v;
+		if (VKIND(r) == KRef && (Value *)r.w.p >= f->slots && (Value *)r.w.p < f->slots + slots)
+			return;
+	}
+	if (stress) {
+		/* Testing: poison it instead, so that any later use shows. */
+		memset(f->slots, 0xA5, (size_t)slots * sizeof(Value));
+		f->proc = NULL;
+		return;
+	}
+	f->caller = recycled[slots];
+	recycled[slots] = f;
+}
+
 static Frame *newframe(Proc *p, Value *args, int nargs) {
 	int slots = p->nlocals + p->ntemps;
-	Frame *f = gcnew(sizeof *f + (size_t)slots * sizeof(Value), T_FRAME);
+	Frame *f;
+	if (slots < MaxRecycled && recycled[slots]) {
+		f = recycled[slots];
+		recycled[slots] = f->caller;
+	} else
+		f = gcalloc(sizeof *f + (size_t)slots * sizeof(Value), T_FRAME, false);
 	f->proc = p;
 	f->locals = f->slots;
 	f->temps = f->slots + p->nlocals;
 	f->pc = 0;
+	f->suspended = 0;
 	f->caller = NULL;
 	for (int i = 0; i < p->nlocals; i++)
 		f->locals[i] = NULLV;
@@ -486,34 +524,68 @@ static char *fromstr(Frame *f) {
 
 /* ---- The loop ---- */
 
+/* Dispatch: computed goto where the compiler has it (GCC, Clang), each
+ * handler jumping straight to the next; else a switch. NEXT is the safe
+ * point: a collection runs there, when one is due. */
+#if defined(__GNUC__) && !defined(GCONVM_SWITCH)
+#define CASE(op) L_##op:
+#define DEFAULT L_bad: __attribute__((unused));
+#define NEXT                                         \
+	do {                                         \
+		if (gc_pending) {                    \
+			vm.cur = f;                  \
+			gc_collect();                \
+		}                                    \
+		in = &f->proc->code[f->pc];          \
+		goto *labels[in->op];                \
+	} while (0)
+#else
+#define CASE(op) case op:
+#define DEFAULT default:
+#define NEXT continue
+#endif
+
 static void loop(Frame *f) {
 	vm.cur = f;
+	Instr *in;
+#if defined(__GNUC__) && !defined(GCONVM_SWITCH)
+	static void *const labels[NumOps] = {
+		&&L_OpGoto, &&L_OpIGoto, &&L_OpSetLabel, &&L_OpMove, &&L_OpMoveVar,
+		&&L_OpAssign, &&L_OpOper, &&L_OpCall, &&L_OpResume, &&L_OpReturn,
+		&&L_OpFail, &&L_OpSuspend, &&L_OpOnce, &&L_OpIsNull, &&L_OpCreate,
+		&&L_OpActivate, &&L_OpCoRet, &&L_OpCoFail, &&L_OpScanEnter, &&L_OpScanSwap,
+	};
+	NEXT;
+	{
+		{
+#else
 	for (;;) {
-		if (gc_pending) { /* the safe point: no C code holds heap pointers */
+		if (gc_pending) {
 			vm.cur = f;
 			gc_collect();
 		}
-		Instr *in = &f->proc->code[f->pc];
+		in = &f->proc->code[f->pc];
 		switch (in->op) {
-		case OpGoto:
+#endif
+		CASE(OpGoto)
 			f->pc = in->l1;
-			break;
-		case OpIGoto:
+			NEXT;
+		CASE(OpIGoto)
 			f->pc = (int)f->temps[in->x.index].w.i;
-			break;
-		case OpSetLabel:
+			NEXT;
+		CASE(OpSetLabel)
 			f->temps[in->dst.index] = intval(in->l1);
 			f->pc++;
-			break;
-		case OpMove:
+			NEXT;
+		CASE(OpMove)
 			f->temps[in->dst.index] = deref(get(f, in->x));
 			f->pc++;
-			break;
-		case OpMoveVar:
+			NEXT;
+		CASE(OpMoveVar)
 			f->temps[in->dst.index] = ref(f, in->x);
 			f->pc++;
-			break;
-		case OpAssign: {
+			NEXT;
+		CASE(OpAssign) {
 			Builtin *ab = in->fnp;
 			if (ab && (!strcmp(ab->name, ":=:") || !strcmp(ab->name, "<->"))) {
 				if (!isvarop(f, in->dst))
@@ -530,42 +602,42 @@ static void loop(Frame *f) {
 					int64_t k = d->n;
 					if (!assignop(f, in->dst, deref(get(f, in->x)))) {
 						f->pc = in->l2;
-						break;
+						NEXT;
 					}
 					if (o->pos > d->pos)
 						o->pos += d->n - k;
 					f->pc = in->l1;
-					break;
+					NEXT;
 				}
 			}
 			if (assignop(f, in->dst, deref(get(f, in->x))))
 				f->pc = in->l1;
 			else
 				f->pc = in->l2;
-			break;
+			NEXT;
 		}
-		case OpScanEnter:
+		CASE(OpScanEnter)
 			f->temps[in->dst.index] = scanenter(deref(get(f, in->x)));
 			f->pc++;
-			break;
-		case OpScanSwap:
+			NEXT;
+		CASE(OpScanSwap)
 			scanswap(&f->temps[in->x.index]);
 			f->pc++;
-			break;
-		case OpIsNull:
+			NEXT;
+		CASE(OpIsNull)
 			f->pc = VKIND(deref(get(f, in->x))) == KNull ? in->l1 : in->l2;
-			break;
-		case OpOnce:
+			NEXT;
+		CASE(OpOnce)
 			if (VKIND(vm.globals[in->x.index]) == KNull) {
 				vm.globals[in->x.index] = intval(1);
 				f->pc++;
 			} else
 				f->pc = in->l1;
-			break;
-		case OpOper: {
+			NEXT;
+		CASE(OpOper) {
 			Builtin *b = in->fnp;
 			if (b->intop != IntNone && operint(f, in, b))
-				break;
+				NEXT;
 			Value *args = scratchargs(f, in->args, in->nargs, 0);
 			if (b->reffirst)
 				args[0] = ref(f, in->args[0]);
@@ -575,9 +647,9 @@ static void loop(Frame *f) {
 				f->pc = in->l1;
 			} else
 				f->pc = in->l2;
-			break;
+			NEXT;
 		}
-		case OpCall: {
+		CASE(OpCall) {
 			Value fv = deref(get(f, in->x));
 			int n = in->nargs;
 			/* The arguments are in the scratch buffer, which has room
@@ -638,13 +710,13 @@ static void loop(Frame *f) {
 					} else
 						f->pc = in->l2;
 				}
-				break;
+				NEXT;
 			}
 			case KRecordType:
 				f->temps[in->h] = NONE;
 				f->temps[in->dst.index] = ptrval(KRecord, construct(fv.w.p, args, n));
 				f->pc = in->l1;
-				break;
+				NEXT;
 			case KInt: {
 				f->temps[in->h] = NONE;
 				int64_t i = fv.w.i;
@@ -656,14 +728,14 @@ static void loop(Frame *f) {
 					f->pc = in->l1;
 				} else
 					f->pc = in->l2;
-				break;
+				NEXT;
 			}
 			default:
 				runerrv(106, fv);
 			}
-			break;
+			NEXT;
 		}
-		case OpResume: {
+		CASE(OpResume) {
 			Value hv = f->temps[in->h];
 			switch (VKIND(hv)) {
 			case KNone:
@@ -677,6 +749,7 @@ static void loop(Frame *f) {
 					bufstr(&b, h->proc->name);
 					bufputs(&b, " resumed");
 					traceat(f, f->pc, b.b, b.n);
+				free(b.b);
 				}
 				vm.level++;
 				h->caller = f;
@@ -686,13 +759,13 @@ static void loop(Frame *f) {
 			}
 			case KGen:
 				next(f, in, hv);
-				break;
+				NEXT;
 			default:
 				abort();
 			}
-			break;
+			NEXT;
 		}
-		case OpReturn: {
+		CASE(OpReturn) {
 			Value v = retderef(f, ref(f, in->x));
 			vm.level--;
 			pop(f);
@@ -702,12 +775,13 @@ static void loop(Frame *f) {
 				bufputs(&b, " returned ");
 				outimage(&b, v, 0);
 				traceat(f, f->pc, b.b, b.n);
+				free(b.b);
 			}
 			Frame *c = f->caller;
 			if (!c) {
 				if (vm.co != vm.main) {
 					f = cofail();
-					break;
+					NEXT;
 				}
 				return;
 			}
@@ -715,11 +789,12 @@ static void loop(Frame *f) {
 			c->temps[ci->dst.index] = v;
 			c->temps[ci->h] = NONE;
 			c->pc = ci->l1;
+			recycle(f, v);
 			f = c;
 			vm.cur = f;
-			break;
+			NEXT;
 		}
-		case OpFail: {
+		CASE(OpFail) {
 			vm.level--;
 			pop(f);
 			if (tracing()) {
@@ -727,23 +802,25 @@ static void loop(Frame *f) {
 				bufstr(&b, f->proc->name);
 				bufputs(&b, " failed");
 				traceat(f, f->pc, b.b, b.n);
+				free(b.b);
 			}
 			Frame *c = f->caller;
 			if (!c) {
 				if (vm.co != vm.main) {
 					f = cofail();
-					break;
+					NEXT;
 				}
 				return;
 			}
 			Instr *ci = &c->proc->code[c->pc];
 			c->temps[ci->h] = NONE;
 			c->pc = ci->l2;
+			recycle(f, NONE);
 			f = c;
 			vm.cur = f;
-			break;
+			NEXT;
 		}
-		case OpSuspend: {
+		CASE(OpSuspend) {
 			Value v = retderef(f, ref(f, in->x));
 			vm.level--;
 			pop(f);
@@ -753,13 +830,15 @@ static void loop(Frame *f) {
 				bufputs(&b, " suspended ");
 				outimage(&b, v, 0);
 				traceat(f, f->pc, b.b, b.n);
+				free(b.b);
 			}
 			f->pc = in->l1;
+			f->suspended = 1;
 			Frame *c = f->caller;
 			if (!c) {
 				if (vm.co != vm.main) {
 					f = cofail();
-					break;
+					NEXT;
 				}
 				return;
 			}
@@ -770,29 +849,29 @@ static void loop(Frame *f) {
 			f->caller = NULL;
 			f = c;
 			vm.cur = f;
-			break;
+			NEXT;
 		}
-		case OpCreate: {
+		CASE(OpCreate) {
 			Value *init = gcnew((size_t)(f->proc->nlocals + 1) * sizeof(Value), T_VALUES);
 			memcpy(init, f->locals, (size_t)f->proc->nlocals * sizeof(Value));
 			Coexp *c = newcoexp(f->proc, in->l1, init);
 			c->from = fromstr(f);
 			f->temps[in->dst.index] = ptrval(KCoexp, c);
 			f->pc++;
-			break;
+			NEXT;
 		}
-		case OpActivate: {
+		CASE(OpActivate) {
 			Value v = in->nargs > 0 ? deref(get(f, in->args[0])) : NULLV;
 			f = activate(f, in, deref(get(f, in->x)), v);
-			break;
+			NEXT;
 		}
-		case OpCoRet:
+		CASE(OpCoRet)
 			f = coret(f, deref(get(f, in->x)), in->l1);
-			break;
-		case OpCoFail:
+			NEXT;
+		CASE(OpCoFail)
 			f = cofail();
-			break;
-		default:
+			NEXT;
+		DEFAULT
 			abort();
 		}
 	}

@@ -186,7 +186,7 @@ bool readline_(File *f, String *out) {
 	IOBuf *r = reader(f);
 	if (f->isdir)
 		return nextentry(f, -1, out);
-	Buf b = {0};
+	SB b = {0};
 	bool any = false;
 	for (;;) {
 		int c = rgetc(r);
@@ -203,9 +203,9 @@ bool readline_(File *f, String *out) {
 				r->pos++;
 			break;
 		}
-		bufputc(&b, c);
+		sbputc(&b, c);
 	}
-	*out = bufstring(&b, f->unit);
+	*out = sbstring(&b, f->unit);
 	return true;
 }
 
@@ -213,13 +213,13 @@ static bool readchars(File *f, int64_t k, String *out) {
 	IOBuf *r = reader(f);
 	if (f->isdir)
 		return nextentry(f, k, out);
-	Buf b = {0};
+	SB b = {0};
 	for (int64_t i = 0; i < k; i++) {
 		if (f->unit == BytesUnit) {
 			int c = rgetc(r);
 			if (c < 0)
 				break;
-			bufputc(&b, c);
+			sbputc(&b, c);
 			continue;
 		}
 		size_t avail = rfill(r, 4);
@@ -227,12 +227,12 @@ static bool readchars(File *f, int64_t k, String *out) {
 			break;
 		int w;
 		utf8decode((const uint8_t *)r->b + r->pos, avail < 4 ? avail : 4, &w);
-		bufadd(&b, r->b + r->pos, (size_t)w);
+		sbadd(&b, r->b + r->pos, (size_t)w);
 		r->pos += (size_t)w;
 	}
 	if (b.n == 0)
 		return false;
-	*out = bufstring(&b, f->unit);
+	*out = sbstring(&b, f->unit);
 	return true;
 }
 

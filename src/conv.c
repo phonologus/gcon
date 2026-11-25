@@ -22,10 +22,14 @@ String mkstr(const char *s, int64_t n, int unit) {
 	return (String){s, n, (uint8_t)unit, asciiflag(s, n)};
 }
 
+String mkstrf(const char *s, int64_t n, int unit, int8_t ascii) {
+	return (String){s, n, (uint8_t)unit, ascii};
+}
+
 String textc(const char *s) { return mkstr(s, (int64_t)strlen(s), TextUnit); }
 
 String strcopy(const char *s, int64_t n, int unit) {
-	char *p = gcnew((size_t)n, T_RAW);
+	char *p = gcraw((size_t)n);
 	memcpy(p, s, (size_t)n);
 	return mkstr(p, n, unit);
 }
@@ -69,7 +73,7 @@ String concat(String a, String b) {
 		return a;
 	if (a.n == 0 && b.unit == u)
 		return b;
-	char *p = gcnew((size_t)(a.n + b.n), T_RAW);
+	char *p = gcraw((size_t)(a.n + b.n));
 	memcpy(p, a.s, (size_t)a.n);
 	memcpy(p + a.n, b.s, (size_t)b.n);
 	return (String){p, a.n + b.n, (uint8_t)u, (int8_t)(aa && ba ? 1 : -1)};
@@ -615,4 +619,23 @@ String bufstring(Buf *b, int unit) {
 	free(b->b);
 	*b = (Buf){0};
 	return s;
+}
+
+void sbgrow_(SB *s, size_t k) {
+	size_t cap = s->cap * 2;
+	if (cap < s->n + k)
+		cap = s->n + k;
+	if (cap < 32)
+		cap = 32;
+	char *b = gcraw(cap);
+	if (s->n)
+		memcpy(b, s->b, s->n);
+	s->b = b;
+	s->cap = cap;
+}
+
+String sbstring(SB *s, int unit) {
+	if (s->n == 0)
+		return mkstr("", 0, unit);
+	return mkstr(s->b, (int64_t)s->n, unit);
 }

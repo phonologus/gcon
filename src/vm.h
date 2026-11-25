@@ -12,6 +12,7 @@
 
 #include <setjmp.h>
 #include <stdio.h>
+#include <string.h>
 
 /* ---- Strings ---- */
 
@@ -27,8 +28,31 @@ typedef struct String {
 enum { TextUnit = 0, BytesUnit = 1 };
 
 String mkstr(const char *s, int64_t n, int unit);
+String mkstrf(const char *s, int64_t n, int unit, int8_t ascii); /* ASCII flag known */
 String textc(const char *s); /* a C string as text */
 String strcopy(const char *s, int64_t n, int unit);
+
+/* SB builds a string in the heap: its buffer becomes the string, uncopied.
+ * Safe because the collector runs only between instructions. */
+typedef struct SB {
+	char *b;
+	size_t n, cap;
+} SB;
+void sbgrow_(SB *s, size_t k);
+static inline void sbgrow(SB *s, size_t k) {
+	if (s->cap - s->n < k)
+		sbgrow_(s, k);
+}
+static inline void sbputc(SB *s, int c) {
+	sbgrow(s, 1);
+	s->b[s->n++] = (char)c;
+}
+static inline void sbadd(SB *s, const void *p, size_t k) {
+	sbgrow(s, k);
+	memcpy(s->b + s->n, p, k);
+	s->n += k;
+}
+String sbstring(SB *s, int unit);
 bool isascii_(String *s);
 int64_t runes(String s);
 String slice(String s, int64_t i, int64_t j); /* 1-based, i <= j */
@@ -151,6 +175,8 @@ enum {
 };
 
 void *gcnew(size_t n, int type);
+void *gcraw(size_t n); /* T_RAW, not zeroed: for bytes about to be written */
+void *gcalloc(size_t n, int type, bool zero); /* not zeroed: the caller initialises it all */
 bool markptr(const void *p);
 void markvalue(Value v);
 void gcroot(void **p);
@@ -208,6 +234,7 @@ struct Frame {
 	Value *locals;
 	Value *temps;
 	int pc;
+	int suspended; /* it has suspended: its caller may hold it, so it is never recycled */
 	Frame *caller;
 	Value slots[];
 };
