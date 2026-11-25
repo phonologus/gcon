@@ -714,7 +714,7 @@ func (p *pcomp) keyword(e *syntax.Keyword, fail, succ label) (label, label, vm.O
 	case "uset":
 		return succ, fail, p.c.constant("&uset", vm.CsetUniv)
 	case "current", "source", "main", "subject", "pos", "input", "output", "errout",
-		"error", "errornumber", "errortext", "errorvalue", "line", "file":
+		"error", "errornumber", "errortext", "errorvalue", "line", "file", "random":
 		s := p.newLabel()
 		p.place(s)
 		t := p.temp()
@@ -760,6 +760,8 @@ func (p *pcomp) unary(e *syntax.Unary, fail, succ label) (label, label, vm.Opera
 		return p.activate(nil, e.X, fail, succ)
 	case op == "^":
 		return p.oper(vm.Ops["u^"], []syntax.Expr{e.X}, fail, succ)
+	case op == "?":
+		return p.oper(vm.Ops["u?"], []syntax.Expr{e.X}, fail, succ)
 	case op == ".":
 		a := p.newLabel()
 		st, r, v := p.expr(e.X, fail, a)
@@ -813,6 +815,35 @@ func (p *pcomp) binary(e *syntax.Binary, fail, succ label) (label, label, vm.Ope
 		p.place(b)
 		p.emit(vm.Instr{Op: vm.OpAssign, Dst: vs[1], X: t, L1: int32(succ), L2: int32(r)})
 		return st, r, vs[0]
+	case op == "<-":
+		// x <- y assigns y to x; resumed, it restores x's old value and
+		// fails (iconx's rasgn).
+		a, rr := p.newLabel(), p.newLabel()
+		st, r, vs := p.seq([]syntax.Expr{e.X, e.Y}, fail, a)
+		p.place(a)
+		old := p.temp()
+		p.emit(vm.Instr{Op: vm.OpMove, Dst: old, X: vs[0]})
+		p.emit(vm.Instr{Op: vm.OpAssign, Dst: vs[0], X: vs[1], L1: int32(succ), L2: int32(r)})
+		p.place(rr)
+		p.emit(vm.Instr{Op: vm.OpAssign, Dst: vs[0], X: old, L1: int32(r), L2: int32(r)})
+		return st, rr, vs[0]
+	case op == "<->":
+		// x <-> y exchanges x and y; resumed, it restores both and fails
+		// (iconx's rswap).
+		a, b, rr, c := p.newLabel(), p.newLabel(), p.newLabel(), p.newLabel()
+		st, r, vs := p.seq([]syntax.Expr{e.X, e.Y}, fail, a)
+		p.place(a)
+		ox, oy := p.temp(), p.temp()
+		p.emit(vm.Instr{Op: vm.OpMove, Dst: ox, X: vs[0]})
+		p.emit(vm.Instr{Op: vm.OpMove, Dst: oy, X: vs[1]})
+		p.emit(vm.Instr{Op: vm.OpAssign, Dst: vs[0], X: oy, L1: int32(b), L2: int32(r)})
+		p.place(b)
+		p.emit(vm.Instr{Op: vm.OpAssign, Dst: vs[1], X: ox, L1: int32(succ), L2: int32(r)})
+		p.place(rr)
+		p.emit(vm.Instr{Op: vm.OpAssign, Dst: vs[0], X: ox, L1: int32(c), L2: int32(c)})
+		p.place(c)
+		p.emit(vm.Instr{Op: vm.OpAssign, Dst: vs[1], X: oy, L1: int32(r), L2: int32(r)})
+		return st, rr, vs[0]
 	case op == "?":
 		return p.scan(e.X, e.Y, false, fail, succ)
 	case op == "?:=":

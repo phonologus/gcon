@@ -621,8 +621,9 @@ conformance test with this reason.
   to and `Program.Invocable` marks those reachable from main or named
   in an `invocable` declaration; `invocable all` keeps them all. As in
   icont, the only identifier `invocable` accepts is `all`. The
-  assignment operators (`:=`, `<-`, `:=:`, `<->`) and `?` cannot yet be
-  invoked by name.
+  assignment operators invoked by name (`":="(x, y)`, `"<-"`, `":=:"`,
+  `"<->"`) receive their arguments as variables, as iconx's operators
+  with undereferenced arguments do (`Builtin.NoDeref`).
 - `&line` is the line of the keyword; `&file` is the source path as
   given to gcon, as iconx's is the path given to icont. iconx looks the
   line up from its instruction pointer after the keyword instruction,
@@ -662,6 +663,19 @@ conformance test with this reason.
   not yet include "keyboard functions". `lgint`, `overflow`, `arith`,
   `radix` and `over` pass; `large` matches except for its `&trace`
   output. `testdata/bigint.icn` checks the edge cases against iconx.
+- `?x` and `&random` (`internal/vm/random.go`) reproduce iconx's
+  generator (`oref.r`, `RandVal`): `&random` starts at 0 and steps as
+  `(1103515245 * &random + 453816694) mod 2^31`, scaled by iconx's
+  `RanScale`, so a program that seeds `&random` gets iconx's results for
+  integers (large ones by `bigrand`'s digit-by-digit method), strings,
+  csets, lists and records. Elements of lists, records and tables are
+  produced as variables (`?L := x`). Tables and sets choose by position
+  in insertion order where iconx uses its hash order, so `?T` and `?S`
+  differ from iconx even with the same seed. A random character of a
+  string is a value, as `s[i]` is (see "Deliberate simplifications").
+- Reversible assignment: `x <- y` and `x <-> y` save the old values
+  before assigning; resumed, they restore them and fail (iconx's `rasgn`
+  and `rswap`). The compiler emits them inline, as it does `:=:`.
 - Operators that produce at most one result are `OpOper` instructions
   calling a Go function; generators (`to`, `!`, built-in generators)
   and procedure calls use `OpCall` and `OpResume` with a handle in a
@@ -674,6 +688,8 @@ conformance test with this reason.
 - Run-time errors print iconx's header lines but no traceback.
 - Run-time error messages show offending records as `record point_1(2)`;
   iconx shows their fields, `record point_1(0,0)` (with the traceback).
+- `display()` checks its arguments as iconx does (errors 101 and 105)
+  but does not list variables yet: valid arguments raise error 121.
 - Not yet implemented: programmer-defined control operations, many
   keywords and built-in functions, the preprocessor, `link`.
 

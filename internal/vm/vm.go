@@ -58,6 +58,8 @@ type VM struct {
 	errVal     Value
 	haveErrVal bool
 
+	random Int // &random (random.go)
+
 	// Deadline, if set, stops the program with status DeadlineStatus
 	// once passed (checked every few thousand instructions). For tests.
 	Deadline time.Time
@@ -336,6 +338,11 @@ func (vm *VM) loop(f *Frame) {
 			case *Proc, *Builtin, *RecordType, Int:
 			default:
 				fv = vm.callable(fv, len(args))
+				if b, ok := fv.(*Builtin); ok && b.NoDeref {
+					for i, o := range in.Args {
+						args[i] = vm.ref(f, o)
+					}
+				}
 			}
 			switch p := fv.(type) {
 			case *Proc:

@@ -227,24 +227,20 @@ func init() {
 	}{{"++", '+'}, {"**", '*'}, {"--", '-'}} {
 		c := op.c
 		Ops[op.name] = &Builtin{Name: op.name, Fn: func(vm *VM, a []Value) (Value, bool) {
-			// Two sets, or else two csets (error 120 for a set and a cset).
+			// Two sets, or else both are converted to csets, x first
+			// (oset.r): error 120 names the first that fails, so a set
+			// and a cset is an error in the set if it comes first.
 			s1, set1 := a[0].(*Set)
 			s2, set2 := a[1].(*Set)
 			if set1 && set2 {
 				return vm.setOp(c, s1, s2), true
 			}
-			if set1 || set2 {
-				if set1 {
-					Runerr(120, a[1])
-				}
+			x, ok := CvCset(a[0])
+			if !ok {
 				Runerr(120, a[0])
 			}
-			x, ok1 := CvCset(a[0])
-			y, ok2 := CvCset(a[1])
-			if !ok1 || !ok2 {
-				if !ok1 {
-					Runerr(120, a[0])
-				}
+			y, ok := CvCset(a[1])
+			if !ok {
 				Runerr(120, a[1])
 			}
 			return CsetOp(c, x, y), true

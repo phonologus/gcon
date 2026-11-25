@@ -315,7 +315,7 @@ func section(vm *VM, a []Value) (Value, bool) {
 	} else {
 		var ok bool
 		if s, ok = CvStr(a[0]); !ok {
-			Runerr(114, a[0])
+			Runerr(110, a[0])
 		}
 		n = s.Len()
 	}

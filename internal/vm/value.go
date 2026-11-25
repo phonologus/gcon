@@ -134,6 +134,9 @@ type Builtin struct {
 	Name string
 	Fn   func(vm *VM, args []Value) (Value, bool)
 	Gen  func(vm *VM, args []Value) Generator
+	// NoDeref: the arguments are passed as variables (the assignment
+	// operators, invoked by name).
+	NoDeref bool
 }
 
 // Generator is a suspended built-in generator: Next produces its next

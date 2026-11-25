@@ -126,3 +126,21 @@ func init() {
 		return &stringsGen{Features}
 	}}
 }
+
+func init() {
+	// display(i, f) checks its arguments as iconx does (fmisc.r), so
+	// programs see the same errors, but the listing of variables itself
+	// is not implemented yet: valid arguments raise error 121.
+	fn("display", func(vm *VM, a []Value) (Value, bool) {
+		if _, null := arg(a, 0).(Null); !null {
+			MustInt(a[0])
+		}
+		switch f := arg(a, 1).(type) {
+		case Null, *File:
+		default:
+			Runerr(105, f)
+		}
+		Runerr(121)
+		return nil, false
+	})
+}

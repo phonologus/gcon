@@ -72,8 +72,8 @@ procedure main()
    t[2 ^ 100] := "same big"
    t[(2 ^ 100) / 2 ^ 40] := "fits"
    t[2 ^ 60] := "small"
-   every k := key(t) do
-      write("   t[", image(k), "] = ", t[k])
+   every p := !sort(t) do   # sorted: table order is unspecified
+      write("   t[", image(p[1]), "] = ", p[2])
    s := set([b, 2 ^ 100, -b, 3])
    write("   *s = ", *s)
    L := sort([b, -b, 3, 2.5, "x", 2 ^ 64, -(2 ^ 64), 2 ^ 63 - 1])

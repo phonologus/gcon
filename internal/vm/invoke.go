@@ -23,15 +23,31 @@ var opsByName = map[string][4]string{
 	"||": {"", "", "||", ""}, "|||": {"", "", "|||", ""},
 	"++": {"", "", "++", ""}, "--": {"", "", "--", ""},
 	"**": {"", "", "**", ""},
-	"~":  {"", "u~", "", ""}, "!": {"", "u!", "", ""},
+	"~":  {"", "u~", "", ""}, "!": {"", "u!", "", ""}, "?": {"", "u?", "", ""},
 	"\\": {"", `u\`, "", ""}, ".": {"", "u.", "", ""},
 	"[]": {"", "", "[]", ""}, "[:]": {"", "", "", "[:]"},
+	":=": {"", "", "n:=", ""}, ":=:": {"", "", "n:=:", ""},
+	"<-": {"", "", "n<-", ""}, "<->": {"", "", "n<->", ""},
 	"...": {"", "", "", "to"},
 }
 
 // Operators that exist only for string invocation: the compiler
-// translates /x, \x and .x inline.
+// translates /x, \x, .x and the assignments inline.
 func init() {
+	Ops["n:="] = &Builtin{Name: ":=", NoDeref: true, Fn: func(vm *VM, a []Value) (Value, bool) {
+		return a[0], setVar(a[0], Deref(a[1]))
+	}}
+	Ops["n:=:"] = &Builtin{Name: ":=:", NoDeref: true, Fn: func(vm *VM, a []Value) (Value, bool) {
+		x, y := Deref(a[0]), Deref(a[1])
+		return a[0], setVar(a[0], y) && setVar(a[1], x)
+	}}
+	Ops["n<-"] = &Builtin{Name: "<-", NoDeref: true, Gen: func(vm *VM, a []Value) Generator {
+		return &revGen{vars: a[:1], olds: []Value{Deref(a[0])}, news: []Value{Deref(a[1])}}
+	}}
+	Ops["n<->"] = &Builtin{Name: "<->", NoDeref: true, Gen: func(vm *VM, a []Value) Generator {
+		x, y := Deref(a[0]), Deref(a[1])
+		return &revGen{vars: a[:2], olds: []Value{x, y}, news: []Value{y, x}}
+	}}
 	Ops["u/"] = &Builtin{Name: "/", Fn: func(vm *VM, a []Value) (Value, bool) {
 		_, isNull := a[0].(Null)
 		return a[0], isNull
@@ -92,4 +108,42 @@ func (vm *VM) strproc(name string, nargs int) Value {
 		return f
 	}
 	return nil
+}
+
+// setVar assigns v to the variable ref, reporting whether the
+// assignment succeeded; ref must be a variable (error 111).
+func setVar(ref, v Value) bool {
+	switch x := ref.(type) {
+	case *Value:
+		*x = v
+		return true
+	case Var:
+		return x.Set(v)
+	}
+	Runerr(111, ref)
+	return false
+}
+
+// revGen is a reversible assignment invoked by name: it assigns news to
+// vars and produces the first variable; resumed, it restores olds and
+// fails.
+type revGen struct {
+	vars, olds, news []Value
+	done             bool
+}
+
+func (g *revGen) Next(vm *VM) (Value, bool) {
+	if g.done {
+		for i, v := range g.vars {
+			setVar(v, g.olds[i])
+		}
+		return nil, false
+	}
+	g.done = true
+	for i, v := range g.vars {
+		if !setVar(v, g.news[i]) {
+			return nil, false
+		}
+	}
+	return g.vars[0], true
 }

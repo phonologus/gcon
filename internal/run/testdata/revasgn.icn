@@ -1,0 +1,38 @@
+# Reversible assignment: x <- y and x <-> y undo themselves when
+# resumed, so goal-directed search can try values and back out.
+global g
+
+procedure main()
+   local x, y, L, i, t
+   x := 1
+   every x <- 2 | 3 do writes(" ", x)
+   write(" -> ", x)
+   (x <- 5) & &fail
+   write(x)
+   write(((x <- 7) & x > 10) | "failed, x = " || x)
+   write(((x <- 20) & x > 10) | "failed")
+   write(x)
+   x := "a"; y := "b"
+   every x <-> y do writes(" ", x, y)
+   write(" -> ", x, y)
+   write(((x <-> y) & x == "c") | "no swap: " || x || y)
+   L := [1, 2, 3]
+   every L[2] <- 10 | 20 do writes(" ", L[2])
+   write(" -> ", L[2])
+   L[1] <-> L[3]
+   write(L[1], L[2], L[3])
+   t := table(0)
+   every t["k"] <- 4 | 5 do writes(" ", t["k"])
+   write(" -> ", t["k"])
+   g := 1
+   every (g <- (2 to 4)) & g % 2 = 0 do writes(" g=", g)
+   write(" -> ", g)
+   # queens-style search: place three items so that no two are equal
+   every (x <- 1 to 3) & (y <- 1 to 3) & x ~= y do
+      writes(" ", x, y)
+   write(" -> ", x, " ", y)
+   write("<-"(x, 9) | "by name")
+   write(x)
+   &error := 1
+   write((1 <- 2) | "1 <- 2: error " || &errornumber)
+end
