@@ -10,6 +10,11 @@ gofmt -l .
 
 | Path | Purpose |
 |---|---|
+| `cmd/gcon` | the `gcon` command: `gcon run file.icn [args]` |
+| `internal/run` | translate and run a program; end-to-end and conformance tests |
+| `internal/compile` | syntax tree to VM code (Proebsting's translation) |
+| `internal/vm` | values, instructions, the interpreter loop, operators and built-ins |
+| `internal/lit` | decoding of string, cset and numeric literals |
 | `internal/token` | token kinds and semicolon-insertion flags (from icont's `lextab.h`) |
 | `internal/lexer` | lossless lexer: trivia, positions, inserted semicolons |
 | `internal/syntax` | error-tolerant parser producing a lossless syntax tree (icont's `grammar.h`) |
@@ -19,6 +24,7 @@ gofmt -l .
 | `internal/oracle` | runs icont's own front end for tests (via `tools/icontok`) |
 | `tools/icontok` | C driver exposing icont's token stream and parse trees |
 | `tools/mkbuiltin` | generator for `internal/builtin/catalog_gen.go` |
+| `tools/iconx` | builds the reference icont and iconx; generates expected test output |
 | `experiments/` | measurements behind design decisions; not part of gcon |
 
 The front end (`token` through `oracle`, and both tools) was forked from
@@ -65,4 +71,29 @@ preprocessor's predefined symbols):
 
 ```sh
 go generate ./internal/builtin
+```
+
+## Testing the VM against iconx
+
+Expected output always comes from the reference implementation, never
+from gcon or from hand. `internal/run/testdata/*.icn` are gcon's own
+test programs; for each, `FILE.std` is iconx's standard output and
+`FILE.exit` its exit status if nonzero (`FILE.dat` is standard input
+and `FILE.args` the arguments, if present). After adding or changing a
+program, regenerate its expectation:
+
+```sh
+tools/iconx/expect.sh internal/run/testdata/NAME.icn
+```
+
+`tools/iconx/build.sh` builds icont and iconx in a scratch copy of the
+reference tree (default `$TMPDIR/iconx-build`); `expect.sh` calls it.
+
+`TestConformance` runs the reference suite (`icon/tests/general`) as its
+`Test-icon` script does. `internal/run/testdata/conformance.txt` lists the
+tests gcon passes; the test fails if a listed test fails or an unlisted
+one passes. After making more tests pass:
+
+```sh
+go test ./internal/run -run Conformance -args -update
 ```

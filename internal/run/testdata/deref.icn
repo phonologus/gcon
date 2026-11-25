@@ -1,0 +1,41 @@
+# Variables and dereferencing.
+global g
+
+procedure main()
+   local x, y, z
+   x := 1
+   write(x, x := 2)
+   write(x + (x := 5))
+   write((x := 1) + (x := 2))
+   x := 1; y := 2
+   (x | y) := 0
+   write(x, " ", y)
+   every (x | y) := 7
+   write(x, " ", y)
+   x := &null
+   /x := "defaulted"
+   write(x)
+   /x := "not again"
+   write(x)
+   \x := "changed"
+   write(x)
+   write(image(\&null) | "\\&null fails")
+   write(image(/&null))
+   x := 1; y := 2
+   x :=: y
+   write(x, " ", y)
+   g := "global"
+   setg()
+   write(g)
+   z := if 1 then x else y
+   z := 99
+   write(x, " ", z)
+   (if 1 then x else y) := 42
+   write(x)
+   write(image(x := y := 3), " ", x, " ", y)
+   write(.x)
+end
+
+procedure setg()
+   g ||:= "!"
+end

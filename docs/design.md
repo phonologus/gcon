@@ -307,8 +307,8 @@ renders identically). 52 of the 99 reference tests call `image`.
   with ranges: code-point ranges first, then lone-byte ranges, with runs
   of 4 or more consecutive members written `x..y`, shorter runs listed,
   and a `.` at either end of a range written `\.`. For example,
-  `image(~&ascii)` is `'\u0080..\U0010ffff\x80..\xff'`, and `image(~'a')`
-  is `` '\x00..`b..\U0010ffff\x80..\xff' ``. Because they contain
+  `image(~&ascii)` is `'\u0080..\U10ffff\x80..\xff'`, and `image(~'a')`
+  is `` '\x00..`b..\U10ffff\x80..\xff' ``. Because they contain
   non-ASCII code points, these literals read back as text with lone bytes:
   exact, and short.
 - **One inexact case, accepted.** A text value whose only non-ASCII
@@ -336,13 +336,49 @@ cset rules above:
   unchanged, both as in 9.5. **Differs:** `&letters ++ ~&ucase` is the
   full text universe (1,112,192 characters), not 256.
 - `scan.icn`: `image(~&cset)` is `''` as in 9.5. **Differs:**
-  `image(~&ascii)` is `'\u0080..\U0010ffff\x80..\xff'`, not the 128
+  `image(~&ascii)` is `'\u0080..\U10ffff\x80..\xff'`, not the 128
   bytes `\x80`–`\xff`.
 
 Both differences are complements of ASCII csets, which is where the new
 meaning is intended. They are kept deliberately and will be listed in
 the conformance test with this reason.
 
+
+## Implementation status
+
+### Translation and VM
+
+- The compiler (`internal/compile`) emits VM instructions directly from
+  the syntax tree using Proebsting's translation, with no separate IR:
+  each expression is compiled given its failure and success labels and
+  returns its start and resume labels and its result operand. Labels may
+  be aliases of other labels, resolved (with jump threading) when a
+  procedure is finished. Code is never entered by falling into it.
+- Operands are temporaries, locals, globals or constants. Locals and
+  globals are read when the instruction using them runs, which gives
+  Icon's late dereferencing (`write(x, x := 2)` writes `22`) at no cost.
+  Expressions that produce variables (alternation, `if`, list elements)
+  carry references: `*Value` for locals and globals, and `Var` values
+  such as list elements.
+- Operators that produce at most one result are `OpOper` instructions
+  calling a Go function; generators (`to`, `!`, built-in generators)
+  and procedure calls use `OpCall` and `OpResume` with a handle in a
+  temporary, which holds a suspended frame or a Go `Generator`.
+
+### Deliberate simplifications (to be removed)
+
+- `break e` produces only e's first result; Icon resumes e when the loop
+  is resumed.
+- Procedures return values, never variables.
+- String subscripts are values, not assignable variables.
+- Integers are 64-bit; overflow is run-time error 203 until large
+  integers exist.
+- Run-time errors print iconx's header lines but no traceback.
+- Non-ASCII text is indexed by scanning from the start; the sparse index
+  and scanning cursor of "Fast positions" are still to come.
+- Not yet implemented: csets, reals, records, sets, tables, string
+  scanning, co-expressions, files and input, most keywords and built-in
+  functions, the preprocessor, `link`.
 
 ## Verification
 
@@ -357,11 +393,10 @@ the conformance test with this reason.
 
 1. **Front end.** Done: forked from icontools 9cf9615, with its oracle
    tests passing.
-2. **Vertical slice.** Integers, strings, locals and globals, procedures,
-   `every`, `to`, `|`, `&`, `if`, `while`, `suspend`, `!` on strings and
-   lists, `write`. Translation to IR, lowering to bytecode, and the VM loop.
-   The string value carries its unit and ASCII flag from the start
-   ("Strings and Unicode").
+2. **Vertical slice.** Done (see "Implementation status"): integers,
+   strings, lists, locals, globals and statics, procedures and generators,
+   the control structures, `write` and a few other built-ins. The string
+   value carries its unit and ASCII flag from the start.
 3. **Co-expressions** in the slice: `create`, `@`, `^`, `&source`,
    `&current`. Confirm the switch cost from the real VM loop.
 4. Grow the value types and built-ins, driven by the conformance suite.

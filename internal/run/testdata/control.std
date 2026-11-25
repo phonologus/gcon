@@ -1,0 +1,40 @@
+then
+else
+yes
+1
+2
+3
+1 2 3 4 
+1 2 3 4 
+1 3 5 7 
+&null
+broke
+1 2 4 5 
+10 100 20 200 30 300 
+1 4 7 10 
+10 6 2 
+empty
+3
+a
+b
+c
+
+3 
+found 15
+7
+1: one
+2: two or three
+3: two or three
+4: four
+5: other
+after failed case
+3
+1 2 3 
+3
+3 4 3 4 
+&null
+&null
+&null
+30
+7
+done

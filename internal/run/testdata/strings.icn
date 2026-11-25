@@ -1,0 +1,37 @@
+# Strings: concatenation, subscripts, sections, comparison, image.
+procedure main()
+   local s, c
+   s := "hello"
+   write(s || ", " || "world")
+   write(*s, " ", *"", " ", *123)
+   write(s[1], s[2], s[-1], " ", s[2:4], " ", s[4:2], " ", s[2+:2], " ", s[-2-:2])
+   write(s[0:-1], "|", s[1:0], "|", s[3:3], "|")
+   write(image(s[6]) | "s[6] fails")
+   write(image(s[0]) | "s[0] fails")
+   write(image(s[7:8]) | "s[7:8] fails")
+   every writes(!s, " ")
+   write()
+   every writes(!12345, " ")
+   write()
+   write("abc" == "abc", " ", image("abc" ~== "abc") | "equal")
+   write("abc" << "abd", " ", "b" >> "a", " ", "a" <<= "a", " ", "b" >>= "a")
+   write(image("abc" << "abc") | "not less")
+   write(1 || 2, " ", 10 || "x")
+   write(image("tab\there"), " ", image("nl\n"), " ", image("q\"q"), " ", image("b\\s"))
+   write(image("\b\v\f\r\e\d\x01\x1f\x7f\x80\xff"))
+   write(image("\101\102\x41\x4a\^a\^z"))
+   write(image("\8\9"))
+   write(image("\q\%"))
+   write(image("ab_
+                cd"))
+   write(image(""))
+   write(image(s), " ", type(s))
+   write(image(string(42)), " ", image(integer("  42 ")), " ", image(integer("x")) | "not an integer")
+   s := ""
+   every s ||:= !"abc" || "-"
+   write(s)
+   c := 0
+   every !"aaaa" do c +:= 1
+   write(c)
+   write("abc" === "abc", " ", image("abc" ~=== "abd"))
+end

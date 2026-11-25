@@ -1,0 +1,25 @@
+hello, world
+5 0 3
+heo el el el el
+o|hello||
+s[6] fails
+s[0] fails
+s[7:8] fails
+h e l l o 
+1 2 3 4 5 
+abc equal
+abd a a a
+not less
+12 10x
+"tab\there" "nl\n" "q\"q" "b\\s"
+"\b\v\f\r\e\d\x01\x1f\d\x80\xff"
+"ABAJ\x01\x1a"
+"\b\t"
+"q%"
+"abcd"
+""
+"hello" string
+"42" 42 not an integer
+a-b-c-
+4
+abc "abd"

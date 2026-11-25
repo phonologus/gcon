@@ -1,0 +1,105 @@
+# Procedures, generators and the procedure protocol.
+procedure main(args)
+   local i, L
+   write(*args)
+   write(fact(15))
+   write(fib(20))
+   every writes(gen(3), " ")
+   write()
+   every writes(evens(10), " ")
+   write()
+   write(gen(3))
+   write(image(nothing()))
+   write(image(none()) | "none failed")
+   write(defaults())
+   write(defaults(1))
+   write(defaults(1, 2, 3))
+   L := variadic(1, 2, 3, 4)
+   write(*L, " ", L[1], " ", L[-1])
+   write(*variadic(1))
+   every write(counter())
+   every writes(nest(), " ")
+   write()
+   write(2("a", "b", "c"))
+   write((-1)("a", "b", "c"))
+   write(image(4("a", "b")) | "integer invocation failed")
+   f := fact
+   write(f(5))
+   write(image(fact), " ", type(fact), " ", image(write))
+   every writes(limited(), " ")
+   write()
+   every writes(sdo(), " ")
+   write()
+   write(deep(10000))
+end
+
+procedure fact(n)
+   if n <= 1 then return 1
+   return n * fact(n - 1)
+end
+
+procedure fib(n)
+   local a, b
+   a := 0; b := 1
+   every 1 to n do a :=: b & b +:= a
+   return a
+end
+
+procedure gen(n)
+   suspend 1 to n
+   suspend "done"
+end
+
+procedure evens(n)
+   local i
+   every i := 1 to n do
+      if i % 2 = 0 then suspend i
+end
+
+procedure nothing()
+   return
+end
+
+procedure none()
+   fail
+end
+
+procedure defaults(a, b)
+   return image(a) || " " || image(b)
+end
+
+procedure variadic(a, rest[])
+   return rest
+end
+
+procedure counter()
+   static n
+   initial n := 10
+   n +:= 1
+   suspend n
+   suspend n * 2
+end
+
+procedure nest()
+   suspend gen(2) || gen(2)
+end
+
+procedure limited()
+   local i
+   every i := 1 to 5 do {
+      suspend i
+      if i = 3 then fail
+      }
+end
+
+procedure sdo()
+   local n
+   n := 0
+   suspend (1 to 3) do n +:= 1
+   suspend n
+end
+
+procedure deep(n)
+   if n = 0 then return "deep"
+   return deep(n - 1)
+end

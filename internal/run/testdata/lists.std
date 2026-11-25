@@ -1,0 +1,19 @@
+list_2(3) 3 list
+list_1(1) 3 3 two
+L[4] fails
+L[0] fails
+"one" "two" 3 
+0 0 0 
+x x x 3
+-1 -2 0 1 2 3 
+-1 -2 3 3
+0 1 2 
+0 1 2 0
+get fails on empty list
+list_6(2) 2 3
+2 3 4 6 
+list_10(0) list_11(10)
+3 2
+x
+1 2 3 
+3 &null
