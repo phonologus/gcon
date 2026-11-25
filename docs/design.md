@@ -251,8 +251,10 @@ unit, characters in text.)
   (East Asian wide characters, combining marks), which stays out of scope.
 - **`len`** is gcon's built-in for the character count. The corpus uses
   `len` 135 times, always declared (or as a record field), so the
-  built-in changes no program. Note that Go's `len` of a string counts
-  bytes, which here is `*s`.
+  built-in changes no program. It is a deliberate false friend: Go's
+  `len` of a string counts bytes, which here is `*s`. The name was kept
+  for its shape, on the understanding that it is documented clearly; it
+  is no more of a pitfall than Icon's 1-based positions.
 
 ### Csets
 
