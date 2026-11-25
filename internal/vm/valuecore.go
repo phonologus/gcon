@@ -46,8 +46,8 @@ const (
 
 	// Internal: what the VM keeps in temporaries.
 	KFrame   // *Frame: a suspended procedure call
-	KGen     // *genBox: a built-in generator
-	KScanEnv // *scanEnv
+	KGen     // a built-in generator (gen.go)
+	KScanEnv // a saved scanning environment: the subject (*String) in p, &pos in n
 	KPoison  // a released argument (GCONDEBUG=poisonargs)
 )
 
@@ -153,13 +153,13 @@ func V(x any) Value {
 	case *Frame:
 		return Value{k: KFrame, p: unsafe.Pointer(x)}
 	case *scanEnv:
-		return Value{k: KScanEnv, p: unsafe.Pointer(x)}
+		return savedScan(x.subject, x.pos)
 	case poisoned:
 		return Value{k: KPoison}
 	case Var:
 		return Value{k: KVar, p: unsafe.Pointer(&varBox{x})}
 	case Generator:
-		return Value{k: KGen, p: unsafe.Pointer(&genBox{x})}
+		return genVal(x)
 	}
 	panic(fmt.Sprintf("vm: V of %T", x))
 }
@@ -213,9 +213,9 @@ func (v Value) Any() any {
 	case KFrame:
 		return (*Frame)(v.p)
 	case KGen:
-		return (*genBox)(v.p).g
+		return v.gen()
 	case KScanEnv:
-		return (*scanEnv)(v.p)
+		return &scanEnv{(*String)(v.p), int(v.n)}
 	case KPoison:
 		return poisoned{}
 	}
@@ -283,8 +283,6 @@ func RecordTypeVal(t *RecordType) Value { return Value{k: KRecordType, p: unsafe
 func CoexpVal(c *Coexp) Value           { return Value{k: KCoexp, p: unsafe.Pointer(c)} }
 func FileVal(f *File) Value             { return Value{k: KFile, p: unsafe.Pointer(f)} }
 func frameVal(f *Frame) Value           { return Value{k: KFrame, p: unsafe.Pointer(f)} }
-func genVal(g Generator) Value          { return Value{k: KGen, p: unsafe.Pointer(&genBox{g})} }
-func scanEnvVal(e *scanEnv) Value       { return Value{k: KScanEnv, p: unsafe.Pointer(e)} }
 func listElemVal(l *List, i int) Value {
 	return Value{k: KListElem, n: uint64(i), p: unsafe.Pointer(l)}
 }
@@ -300,8 +298,6 @@ func (v Value) RecordType() *RecordType { return (*RecordType)(v.p) }
 func (v Value) Coexp() *Coexp           { return (*Coexp)(v.p) }
 func (v Value) File() *File             { return (*File)(v.p) }
 func (v Value) frame() *Frame           { return (*Frame)(v.p) }
-func (v Value) gen() Generator          { return (*genBox)(v.p).g }
-func (v Value) scanEnv() *scanEnv       { return (*scanEnv)(v.p) }
 func (v Value) ref() *Value             { return (*Value)(v.p) }
 func (v Value) substr() *SubstrVar      { return (*SubstrVar)(v.p) }
 
@@ -477,10 +473,9 @@ func (v Value) AsSubstr() (*SubstrVar, bool) {
 
 func (v Value) AsScanEnv() (*scanEnv, bool) {
 	if v.k != KScanEnv {
-		var zero *scanEnv
-		return zero, false
+		return nil, false
 	}
-	return (*scanEnv)(v.p), true
+	return &scanEnv{(*String)(v.p), int(v.n)}, true
 }
 
 func (v Value) AsListElem() (ListElem, bool) {

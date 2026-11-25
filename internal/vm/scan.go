@@ -3,6 +3,7 @@ package vm
 import (
 	"strings"
 	"unicode/utf8"
+	"unsafe"
 )
 
 // String scanning. &subject and &pos are global, as in iconx: switching
@@ -23,20 +24,28 @@ type scanEnv struct {
 
 // scanEnter saves the current environment in a new scanEnv and starts
 // scanning v.
-func (vm *VM) scanEnter(v Value) *scanEnv {
+//
+// A saved environment is held in the Value itself (KScanEnv: the subject
+// in p, the position in n), so entering a scan allocates nothing.
+func (vm *VM) scanEnter(v Value) Value {
 	s, ok := CvStr(v)
 	if !ok {
 		Runerr(103, v)
 	}
-	e := &scanEnv{vm.subject, vm.pos}
+	e := savedScan(vm.subject, vm.pos)
 	vm.subject, vm.pos = s, 1
 	return e
 }
 
-// scanSwap exchanges the current environment with e.
-func (vm *VM) scanSwap(e *scanEnv) {
-	e.subject, vm.subject = vm.subject, e.subject
-	e.pos, vm.pos = vm.pos, e.pos
+func savedScan(s *String, pos int) Value {
+	return Value{k: KScanEnv, n: uint64(pos), p: unsafe.Pointer(s)}
+}
+
+// scanSwap exchanges the current environment with the one saved in *e.
+func (vm *VM) scanSwap(e *Value) {
+	s, pos := (*String)(e.p), int(e.n)
+	*e = savedScan(vm.subject, vm.pos)
+	vm.subject, vm.pos = s, pos
 }
 
 // subjectVar is the variable &subject.

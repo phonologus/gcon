@@ -27,7 +27,7 @@ func newSubstr(v Value, pos, n int) *SubstrVar {
 // variable holding a string (not merely convertible to one): only then
 // do subscripts produce substring variables.
 func strVar(x Value) bool {
-	switch sv30 := x; sv30.Kind() {
+	switch x.Kind() {
 	case KRef, KListElem, KField, KSubstr, KVar:
 		_, ok := Deref(x).AsString()
 		return ok

@@ -158,9 +158,9 @@ func (vm *VM) writeArgs(f *File, a []Value, nl bool) Value {
 	var buf []byte
 	for n, v := range a {
 		last = v
-		switch sv161 := v; sv161.Kind() {
+		switch v.Kind() {
 		case KFile:
-			x := sv161.File()
+			x := v.File()
 			if nl && n > 0 {
 				buf = append(buf, '\n')
 				vm.emit(f, buf, true)
@@ -171,7 +171,7 @@ func (vm *VM) writeArgs(f *File, a []Value, nl bool) Value {
 			f = x
 		case KNull:
 		default:
-			x := sv161.Any()
+			x := v.Any()
 			s, ok := CvStr(V(x))
 			if !ok {
 				vm.writer(f)

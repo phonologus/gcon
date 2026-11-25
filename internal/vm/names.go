@@ -71,7 +71,7 @@ func init() {
 	// default); i = 0 finds only built-in functions.
 	fn("proc", func(vm *VM, a []Value) (Value, bool) {
 		x := arg(a, 0)
-		switch sv74 := x; sv74.Kind() {
+		switch x.Kind() {
 		case KProc, KBuiltin, KRecordType:
 			return x, true
 		}
@@ -98,18 +98,18 @@ func init() {
 	// args(p): the number of parameters of procedure p, negative if it
 	// takes a variable number (-n for n parameters, the last a list).
 	fn("args", func(vm *VM, a []Value) (Value, bool) {
-		switch sv101 := arg(a, 0); sv101.Kind() {
+		switch val := arg(a, 0); val.Kind() {
 		case KProc:
-			p := sv101.Proc()
+			p := val.Proc()
 			if p.Variadic {
 				return IntVal(Int(-p.NParams)), true
 			}
 			return IntVal(Int(p.NParams)), true
 		case KRecordType:
-			p := sv101.RecordType()
+			p := val.RecordType()
 			return IntVal(Int(len(p.Fields))), true
 		case KBuiltin:
-			p := sv101.Builtin()
+			p := val.Builtin()
 			if isFunction(p) {
 				return IntVal(Int(funcArity[p.Name])), true
 			}
@@ -133,7 +133,7 @@ func init() {
 	// name(v): the name of variable v.
 	Functions["name"] = &Builtin{Name: "name", RefFirst: true, Fn: func(vm *VM, a []Value) (Value, bool) {
 		v := arg(a, 0)
-		switch sv133 := v; sv133.Kind() {
+		switch v.Kind() {
 		case KRef, KListElem, KField, KSubstr, KVar:
 		default:
 			Runerr(111, v)
@@ -324,13 +324,13 @@ func init() {
 			n = MustInt(a[0])
 		}
 		f := vm.errfile
-		switch sv324 := arg(a, 1); sv324.Kind() {
+		switch val := arg(a, 1); val.Kind() {
 		case KNull:
 		case KFile:
-			x := sv324.File()
+			x := val.File()
 			f = x
 		default:
-			x := sv324.Any()
+			x := val.Any()
 			Runerr(105, V(x))
 		}
 		if f.w == nil || f.closed {

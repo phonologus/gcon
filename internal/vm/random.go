@@ -57,33 +57,33 @@ func random(vm *VM, a []Value) (Value, bool) {
 		// The character's position: randomChar chose it by index.
 		return substrVal(newSubstr(a[0], vm.lastCharPos, c.Str().Len())), true
 	}
-	switch sv60 := Deref(a[0]); sv60.Kind() {
+	switch val := Deref(a[0]); val.Kind() {
 	case KString:
-		x := sv60.Str()
+		x := val.Str()
 		return vm.randomChar(x)
 	case KCset:
-		x := sv60.Cset()
+		x := val.Cset()
 		return vm.randomChar(x.String())
 	case KList:
-		x := sv60.List()
+		x := val.List()
 		if len(x.Elems) == 0 {
 			return Value{}, false
 		}
 		return listElemVal(x, vm.randIndex(len(x.Elems))), true
 	case KRecord:
-		x := sv60.Record()
+		x := val.Record()
 		if len(x.Fields) == 0 {
 			return Value{}, false
 		}
 		return fieldVal(x, vm.randIndex(len(x.Fields))), true
 	case KTable:
-		x := sv60.Table()
+		x := val.Table()
 		if k, ok := vm.randomEntry(&x.m); ok {
 			return varVal(TableElem{x, k}), true
 		}
 		return Value{}, false
 	case KSet:
-		x := sv60.Set()
+		x := val.Set()
 		return vm.randomEntry(&x.m)
 	}
 	n, ok := CvInteger(Deref(a[0]))

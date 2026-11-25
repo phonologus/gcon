@@ -181,7 +181,7 @@ func (e ListElem) Set(v Value) bool {
 
 // TypeName returns the Icon type name of a (dereferenced) value.
 func TypeName(v Value) string {
-	switch sv184 := v; sv184.Kind() {
+	switch v.Kind() {
 	case KNull:
 		return "null"
 	case KInt, KBig:
@@ -199,7 +199,7 @@ func TypeName(v Value) string {
 	case KReal:
 		return "real"
 	case KRecord:
-		x := sv184.Record()
+		x := v.Record()
 		return x.T.Name
 	case KRecordType:
 		return "procedure"

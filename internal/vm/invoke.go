@@ -90,9 +90,9 @@ func (vm *VM) strproc(name string, nargs int) Value {
 	}
 	for i, g := range vm.prog.GlobalNames {
 		if g == name && (vm.prog.Invocable == nil || vm.prog.Invocable[i]) {
-			switch sv93 := vm.globals[i]; sv93.Kind() {
+			switch val := vm.globals[i]; val.Kind() {
 			case KProc, KBuiltin, KRecordType:
-				p := sv93.Any()
+				p := val.Any()
 				return V(p)
 			}
 			return Value{}
@@ -114,13 +114,13 @@ func (vm *VM) strproc(name string, nargs int) Value {
 // setVar assigns v to the variable ref, reporting whether the
 // assignment succeeded; ref must be a variable (error 111).
 func setVar(ref, v Value) bool {
-	switch sv116 := ref; sv116.Kind() {
+	switch ref.Kind() {
 	case KRef:
-		x := sv116.ref()
+		x := ref.ref()
 		*x = v
 		return true
 	case KListElem, KField, KSubstr, KVar:
-		x, _ := asVar(sv116)
+		x, _ := asVar(ref)
 		return x.Set(v)
 	}
 	Runerr(111, ref)
@@ -158,12 +158,12 @@ var ApplyOp = &Builtin{Name: "!"}
 
 // applyArgs returns the arguments that p ! x passes.
 func applyArgs(x Value) []Value {
-	switch sv158 := x; sv158.Kind() {
+	switch x.Kind() {
 	case KList:
-		l := sv158.List()
+		l := x.List()
 		return append([]Value(nil), l.Elems...)
 	case KRecord:
-		l := sv158.Record()
+		l := x.Record()
 		return append([]Value(nil), l.Fields...)
 	}
 	Runerr(126, x)

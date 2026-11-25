@@ -104,18 +104,18 @@ func Encode(p *Program, info map[string]string) ([]byte, error) {
 		}
 	}
 	collect := func(v Value) {
-		switch sv107 := v; sv107.Kind() {
+		switch val := v; val.Kind() {
 		case KBuiltin:
-			v := sv107.Builtin()
+			v := val.Builtin()
 			addBuiltin(v)
 		case KRecordType:
-			v := sv107.RecordType()
+			v := val.RecordType()
 			if _, ok := e.records[v]; !ok {
 				e.records[v] = len(records)
 				records = append(records, v)
 			}
 		case KProc:
-			v := sv107.Proc()
+			v := val.Proc()
 			if _, ok := e.procs[v]; !ok {
 				e.procs[v] = len(procs)
 				procs = append(procs, v)
@@ -330,15 +330,15 @@ func (e *encoder) proc(p *Proc) error {
 }
 
 func (e *encoder) value(v Value) error {
-	switch sv330 := v; sv330.Kind() {
+	switch val := v; val.Kind() {
 	case KNull:
 		e.byte(valNull)
 	case KInt:
-		v := sv330.Int()
+		v := val.Int()
 		e.byte(valInt)
 		e.int(int64(v))
 	case KBig:
-		v := sv330.Big()
+		v := val.Big()
 		e.byte(valBig)
 		if v.v.Sign() < 0 {
 			e.byte(1)
@@ -347,16 +347,16 @@ func (e *encoder) value(v Value) error {
 		}
 		e.bytes(v.v.Bytes())
 	case KReal:
-		v := sv330.Real()
+		v := val.Real()
 		e.byte(valReal)
 		e.u64(math.Float64bits(float64(v)))
 	case KString:
-		v := sv330.Str()
+		v := val.Str()
 		e.byte(valString)
 		e.byte(byte(v.unit))
 		e.str(v.s)
 	case KCset:
-		v := sv330.Cset()
+		v := val.Cset()
 		e.byte(valCset)
 		for _, w := range v.bits {
 			e.u64(w)
@@ -367,19 +367,19 @@ func (e *encoder) value(v Value) error {
 			e.uint(uint64(r.hi))
 		}
 	case KBuiltin:
-		v := sv330.Builtin()
+		v := val.Builtin()
 		e.byte(valBuiltin)
 		e.uint(uint64(e.builtins[v]))
 	case KProc:
-		v := sv330.Proc()
+		v := val.Proc()
 		e.byte(valProc)
 		e.uint(uint64(e.procs[v]))
 	case KRecordType:
-		v := sv330.RecordType()
+		v := val.RecordType()
 		e.byte(valRecord)
 		e.uint(uint64(e.records[v]))
 	default:
-		v := sv330.Any()
+		v := val.Any()
 		return fmt.Errorf("vm: cannot encode a constant of type %T", v)
 	}
 	return nil

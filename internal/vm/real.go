@@ -129,15 +129,15 @@ func isDigit(c byte) bool { return '0' <= c && c <= '9' }
 
 // CvNum converts v to a number (Int or Real), if it can.
 func CvNum(v Value) (Value, bool) {
-	switch sv132 := v; sv132.Kind() {
+	switch v.Kind() {
 	case KInt, KReal, KBig:
-		x := sv132.Any()
+		x := v.Any()
 		return V(x), true
 	case KString:
-		x := sv132.Str()
+		x := v.Str()
 		return strToNum(x.s)
 	case KCset:
-		x := sv132.Cset()
+		x := v.Cset()
 		return strToNum(x.String().s)
 	}
 	return Value{}, false
@@ -158,12 +158,12 @@ func CvReal(v Value) (float64, bool) {
 // toFloat converts number n to a real. A large integer too large for a
 // real raises error 102, as in iconx where the conversion fails.
 func toFloat(n Value) float64 {
-	switch sv158 := n; sv158.Kind() {
+	switch n.Kind() {
 	case KInt:
-		x := sv158.Int()
+		x := n.Int()
 		return float64(x)
 	case KBig:
-		x := sv158.Big()
+		x := n.Big()
 		f, ok := bigToReal(x.v)
 		if !ok {
 			Runerr(102, BigVal(x))
@@ -337,15 +337,15 @@ func init() {
 		return RealVal(Real(math.Log(x) / math.Log(b))), true
 	})
 	fn("abs", func(vm *VM, a []Value) (Value, bool) {
-		switch sv335 := MustNum(arg(a, 0)); sv335.Kind() {
+		switch val := MustNum(arg(a, 0)); val.Kind() {
 		case KInt, KBig:
-			n := sv335.Any()
+			n := val.Any()
 			if cmpInteger(V(n), IntVal(Int(0))) < 0 {
 				return neg(V(n)), true
 			}
 			return V(n), true
 		case KReal:
-			n := sv335.Real()
+			n := val.Real()
 			return RealVal(Real(math.Abs(float64(n)))), true
 		}
 		return Value{}, false

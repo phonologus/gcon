@@ -139,36 +139,36 @@ func InstrText(in *Instr) string {
 // constImage returns the listing of a constant or a global's initial
 // value.
 func constImage(v Value) string {
-	switch sv142 := v; sv142.Kind() {
+	switch v.Kind() {
 	case KNull:
 		return "&null"
 	case KInt:
-		x := sv142.Int()
+		x := v.Int()
 		return itoa(x)
 	case KBig:
-		x := sv142.Big()
+		x := v.Big()
 		return bigImage(x.v)
 	case KReal:
-		x := sv142.Real()
+		x := v.Real()
 		return rtos(float64(x))
 	case KString:
-		x := sv142.Str()
+		x := v.Str()
 		s := quote(x, '"')
 		if x.unit == BytesUnit {
 			s = "bytes " + s
 		}
 		return s
 	case KCset:
-		x := sv142.Cset()
+		x := v.Cset()
 		return imageCset(x)
 	case KProc:
-		x := sv142.Proc()
+		x := v.Proc()
 		return "procedure " + x.Name
 	case KRecordType:
-		x := sv142.RecordType()
+		x := v.RecordType()
 		return "record " + x.Name + "(" + strings.Join(x.Fields, ", ") + ")"
 	case KBuiltin:
-		x := sv142.Builtin()
+		x := v.Builtin()
 		if r, ok := RefOf(x); ok {
 			return r.String()
 		}

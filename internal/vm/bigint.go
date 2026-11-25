@@ -27,7 +27,7 @@ func mkInteger(b *big.Int) Value {
 
 // isInteger reports whether v is an integer, small or large.
 func isInteger(v Value) bool {
-	switch sv30 := v; sv30.Kind() {
+	switch v.Kind() {
 	case KInt, KBig:
 		return true
 	}

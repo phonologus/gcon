@@ -325,6 +325,15 @@ func (vm *VM) operInt(f *Frame, in *Instr) bool {
 	return true
 }
 
+// argsRoom is args with room for extra more arguments.
+func (vm *VM) argsRoom(f *Frame, ops []Operand, extra int) []Value {
+	a := make([]Value, len(ops), len(ops)+extra)
+	for i, o := range ops {
+		a[i] = Deref(vm.get(f, o))
+	}
+	return a
+}
+
 // scratchArgs returns the dereferenced values of ops in the VM's scratch
 // buffer, for a call that does not keep its argument slice (a function
 // that is not a generator, a procedure, which copies its arguments, a
@@ -448,10 +457,10 @@ func (vm *VM) loop(f *Frame) {
 				f.pc = int(in.L2)
 			}
 		case OpScanEnter:
-			f.temps[in.Dst.Index] = scanEnvVal(vm.scanEnter(Deref(vm.get(f, in.X))))
+			f.temps[in.Dst.Index] = vm.scanEnter(Deref(vm.get(f, in.X)))
 			f.pc++
 		case OpScanSwap:
-			vm.scanSwap(f.temps[in.X.Index].scanEnv())
+			vm.scanSwap(&f.temps[in.X.Index])
 			f.pc++
 		case OpIsNull:
 			if Deref(vm.get(f, in.X)).k == KNull {
@@ -488,7 +497,8 @@ func (vm *VM) loop(f *Frame) {
 			// from p ! x; a generator, which keeps them, gets a copy.
 			var args, scratch []Value
 			if fv.k == KBuiltin && fv.Builtin().Gen != nil {
-				args = vm.args(f, in.Args)
+				// Room for adjustArgs to pad them without reallocating.
+				args = vm.argsRoom(f, in.Args, 4)
 			} else {
 				args = vm.scratchArgs(f, in.Args)
 				scratch = args
@@ -678,7 +688,7 @@ func (vm *VM) loop(f *Frame) {
 // next produces the next result of the generator held by h (KGen) for
 // the OpCall or OpResume in.
 func (vm *VM) next(f *Frame, in *Instr, h Value) {
-	if v, ok := h.gen().Next(vm); ok {
+	if v, ok := genNext(h, vm); ok {
 		f.temps[in.H] = h
 		f.temps[in.Dst.Index] = v
 		f.pc = int(in.L1)

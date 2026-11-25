@@ -46,9 +46,9 @@ func (vm *VM) OutImage(v Value, noimage int) string {
 	case *Value, Var:
 		return "(variable = " + vm.OutImage(Deref(v), noimage) + ")"
 	}
-	switch sv49 := v; sv49.Kind() {
+	switch v.Kind() {
 	case KString:
-		x := sv49.Str()
+		x := v.Str()
 		if x.Runes() <= stringLimit {
 			return quote(x, '"')
 		}
@@ -59,7 +59,7 @@ func (vm *VM) OutImage(v Value, noimage int) string {
 		q := quote(x.Slice(1, i), '"')
 		return q[:len(q)-1] + `..."`
 	case KCset:
-		x := sv49.Cset()
+		x := v.Cset()
 		if csetName(x) != "" || x.Size() <= stringLimit {
 			return imageCset(x)
 		}
@@ -75,7 +75,7 @@ func (vm *VM) OutImage(v Value, noimage int) string {
 		q := quote(Text(b.String()), '\'')
 		return q[:len(q)-1] + `...'`
 	case KList:
-		x := sv49.List()
+		x := v.List()
 		n := len(x.Elems)
 		if noimage > 0 && n > 0 {
 			return "list_" + strconv.Itoa(x.serial) + "(" + strconv.Itoa(n) + ")"
@@ -97,7 +97,7 @@ func (vm *VM) OutImage(v Value, noimage int) string {
 		b.WriteByte(']')
 		return b.String()
 	case KRecord:
-		x := sv49.Record()
+		x := v.Record()
 		s := "record " + x.T.Name + "_" + strconv.Itoa(x.serial)
 		switch {
 		case len(x.Fields) == 0:
@@ -339,9 +339,9 @@ func (vm *VM) offending(f *Frame, pc int) string {
 		if in.Fn == ApplyOp {
 			return val(in.X) + " ! " + val(in.Args[0])
 		}
-		switch sv338 := Deref(vm.get(f, in.X)); sv338.Kind() {
+		switch sval := Deref(vm.get(f, in.X)); sval.Kind() {
 		case KBuiltin:
-			fv := sv338.Builtin()
+			fv := sval.Builtin()
 			if Functions[fv.Name] == fv {
 				// The arguments as the function receives them: padded
 				// with &null to its arity, or cut to it, as iconx
@@ -364,21 +364,21 @@ func (vm *VM) offending(f *Frame, pc int) string {
 			}
 			return operator(fv, in.Args)
 		case KProc:
-			fv := sv338.Proc()
+			fv := sval.Proc()
 			return fv.Name + "(" + args(in.Args) + ")"
 		default:
-			fv := sv338.Any()
+			fv := sval.Any()
 			// Invoked by name: shown by the name it resolved to, if any.
 			if s, ok := CvStr(V(fv)); ok {
-				switch sv366 := vm.strproc(s.s, len(in.Args)); sv366.Kind() {
+				switch pv := vm.strproc(s.s, len(in.Args)); pv.Kind() {
 				case KBuiltin:
-					p := sv366.Builtin()
+					p := pv.Builtin()
 					return p.Name + "(" + args(in.Args) + ")"
 				case KProc:
-					p := sv366.Proc()
+					p := pv.Proc()
 					return p.Name + "(" + args(in.Args) + ")"
 				case KRecordType:
-					p := sv366.RecordType()
+					p := pv.RecordType()
 					return p.Name + "(" + args(in.Args) + ")"
 				}
 			}

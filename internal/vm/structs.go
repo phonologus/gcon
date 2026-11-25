@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unsafe"
 )
 
 // Tables and sets. Keys and members are compared as === compares them:
@@ -24,35 +25,35 @@ type hkey struct {
 	i int64
 	f float64
 	s string
-	p any
+	p unsafe.Pointer // a structure, by identity
 }
 
 func keyOf(v Value) hkey {
-	switch sv31 := v; sv31.Kind() {
+	switch v.Kind() {
 	case KNull:
 		return hkey{t: 0}
 	case KInt:
-		x := sv31.Int()
+		x := v.Int()
 		return hkey{t: 1, i: int64(x)}
 	case KBig:
-		x := sv31.Big()
+		x := v.Big()
 		return hkey{t: 1, s: x.v.String()} // never equal to an Int's key
 	case KReal:
-		x := sv31.Real()
+		x := v.Real()
 		f := float64(x)
 		if f == 0 {
 			f = 0 // -0.0 === 0.0
 		}
 		return hkey{t: 2, f: f}
 	case KString:
-		x := sv31.Str()
+		x := v.Str()
 		k := hkey{t: 3, s: x.s}
 		if !x.IsASCII() {
 			k.i = int64(x.unit)
 		}
 		return k
 	case KCset:
-		x := sv31.Cset()
+		x := v.Cset()
 		var b strings.Builder
 		for _, w := range x.bits {
 			b.Write(binary.LittleEndian.AppendUint64(nil, w))
@@ -63,7 +64,7 @@ func keyOf(v Value) hkey {
 		}
 		return hkey{t: 4, s: b.String()}
 	}
-	return hkey{t: 5, p: v}
+	return hkey{t: 5 + uint8(v.k), p: v.p}
 }
 
 // omap is an insertion-ordered map from Icon values.
@@ -72,6 +73,9 @@ type omap struct {
 	keys  []Value
 	vals  []Value
 	dead  int // deleted entries (nil keys) not yet compacted
+	// shared: a traversal holds a slice of keys, so existing slots must
+	// not be rewritten (only blanked) until the arrays are replaced.
+	shared bool
 }
 
 func newOmap() omap { return omap{index: map[hkey]int{}} }
@@ -103,6 +107,11 @@ func (m *omap) del(k Value) {
 		return
 	}
 	delete(m.index, h)
+	if i == len(m.keys)-1 && !m.shared {
+		// The last entry (often the one just inserted): drop it.
+		m.keys, m.vals = m.keys[:i], m.vals[:i]
+		return
+	}
 	m.keys[i], m.vals[i] = Value{}, Value{}
 	m.dead++
 	if m.dead > 16 && m.dead > len(m.keys)/2 {
@@ -112,16 +121,34 @@ func (m *omap) del(k Value) {
 
 // compact removes deleted entries. Generators in progress are not
 // affected: they iterate over a snapshot of the keys.
+// compact removes the deleted entries: in place, unless a traversal
+// shares the arrays, when it makes new ones.
 func (m *omap) compact() {
-	keys, vals := make([]Value, 0, m.len()), make([]Value, 0, m.len())
+	if m.shared {
+		keys, vals := make([]Value, 0, m.len()), make([]Value, 0, m.len())
+		for i, k := range m.keys {
+			if !k.IsNone() {
+				m.index[keyOf(k)] = len(keys)
+				keys = append(keys, k)
+				vals = append(vals, m.vals[i])
+			}
+		}
+		m.keys, m.vals, m.dead, m.shared = keys, vals, 0, false
+		return
+	}
+	n := 0
 	for i, k := range m.keys {
 		if !k.IsNone() {
-			m.index[keyOf(k)] = len(keys)
-			keys = append(keys, k)
-			vals = append(vals, m.vals[i])
+			if n != i {
+				m.index[keyOf(k)] = n
+				m.keys[n], m.vals[n] = k, m.vals[i]
+			}
+			n++
 		}
 	}
-	m.keys, m.vals, m.dead = keys, vals, 0
+	clear(m.keys[n:])
+	clear(m.vals[n:])
+	m.keys, m.vals, m.dead = m.keys[:n], m.vals[:n], 0
 }
 
 func (m *omap) copy() omap {
@@ -189,6 +216,7 @@ func (g *omapGen) Next(vm *VM) (Value, bool) {
 	if !g.started {
 		g.started = true
 		g.keys = g.m.keys[:len(g.m.keys):len(g.m.keys)]
+		g.m.shared = true
 		if len(g.keys) > 0 {
 			g.start = rand.IntN(len(g.keys))
 		}
@@ -248,7 +276,7 @@ func (vm *VM) setOp(op byte, a, b *Set) *Set {
 // order is the collating class of a value, as iconx's order()
 // (src/runtime/rcomp.r).
 func order(v Value) int {
-	switch sv246 := v; sv246.Kind() {
+	switch v.Kind() {
 	case KNull:
 		return 0
 	case KInt, KBig:
@@ -278,15 +306,15 @@ func order(v Value) int {
 }
 
 func procName(v Value) string {
-	switch sv276 := v; sv276.Kind() {
+	switch v.Kind() {
 	case KProc:
-		p := sv276.Proc()
+		p := v.Proc()
 		return p.Name
 	case KBuiltin:
-		p := sv276.Builtin()
+		p := v.Builtin()
 		return p.Name
 	case KRecordType:
-		p := sv276.RecordType()
+		p := v.RecordType()
 		return p.Name
 	}
 	return ""
@@ -310,12 +338,12 @@ func anycmp(x, y Value) int {
 	if ox != oy {
 		return cmpInt(ox, oy)
 	}
-	switch sv305 := x; sv305.Kind() {
+	switch x.Kind() {
 	case KInt, KBig:
-		a := sv305.Any()
+		a := x.Any()
 		return cmpInteger(V(a), y)
 	case KReal:
-		a := sv305.Real()
+		a := x.Real()
 		b := y.Real()
 		switch {
 		case a < b:
@@ -325,29 +353,29 @@ func anycmp(x, y Value) int {
 		}
 		return 0
 	case KString:
-		a := sv305.Str()
+		a := x.Str()
 		return strings.Compare(a.s, y.Str().s)
 	case KCset:
-		a := sv305.Cset()
+		a := x.Cset()
 		// As the strings the csets convert to compare.
 		return strings.Compare(a.String().s, y.Cset().String().s)
 	case KFile:
-		a := sv305.File()
+		a := x.File()
 		return strings.Compare(a.name, y.File().name)
 	case KCoexp:
-		a := sv305.Coexp()
+		a := x.Coexp()
 		return cmpInt(a.serial, y.Coexp().serial)
 	case KList:
-		a := sv305.List()
+		a := x.List()
 		return cmpInt(a.serial, y.List().serial)
 	case KSet:
-		a := sv305.Set()
+		a := x.Set()
 		return cmpInt(a.serial, y.Set().serial)
 	case KTable:
-		a := sv305.Table()
+		a := x.Table()
 		return cmpInt(a.serial, y.Table().serial)
 	case KRecord:
-		a := sv305.Record()
+		a := x.Record()
 		b := y.Record()
 		if c := strings.Compare(a.T.Name, b.T.Name); c != 0 {
 			return c
@@ -373,14 +401,14 @@ func cmp64(a, b int64) int {
 // nth returns the nth field of a record or element of a list, as iconx's
 // nth does for sortf.
 func nth(v Value, n Int) (Value, bool) {
-	switch sv358 := v; sv358.Kind() {
+	switch v.Kind() {
 	case KRecord:
-		x := sv358.Record()
+		x := v.Record()
 		if i, ok := cvpos(n, len(x.Fields)); ok && i <= len(x.Fields) {
 			return x.Fields[i-1], true
 		}
 	case KList:
-		x := sv358.List()
+		x := v.List()
 		if i, ok := cvpos(n, len(x.Elems)); ok && i <= len(x.Elems) {
 			return x.Elems[i-1], true
 		}
@@ -419,15 +447,15 @@ func sortValues(vs []Value, cmp func(x, y Value) int) {
 
 // elements returns the values of a list, set or record, for sort.
 func elements(v Value) ([]Value, bool) {
-	switch sv402 := v; sv402.Kind() {
+	switch v.Kind() {
 	case KList:
-		x := sv402.List()
+		x := v.List()
 		return append([]Value(nil), x.Elems...), true
 	case KSet:
-		x := sv402.Set()
+		x := v.Set()
 		return x.m.members(), true
 	case KRecord:
-		x := sv402.Record()
+		x := v.Record()
 		return append([]Value(nil), x.Fields...), true
 	}
 	return nil, false
@@ -454,27 +482,27 @@ func init() {
 	fn("table", func(vm *VM, a []Value) (Value, bool) { return TableVal(vm.newTable(arg(a, 0))), true })
 	fn("set", func(vm *VM, a []Value) (Value, bool) {
 		s := vm.newSet()
-		switch sv434 := arg(a, 0); sv434.Kind() {
+		switch val := arg(a, 0); val.Kind() {
 		case KNull:
 		case KList:
-			l := sv434.List()
+			l := val.List()
 			for _, x := range l.Elems {
 				s.m.put(x, NullValue)
 			}
 		default:
-			l := sv434.Any()
+			l := val.Any()
 			Runerr(108, V(l))
 		}
 		return SetVal(s), true
 	})
 	fn("insert", func(vm *VM, a []Value) (Value, bool) {
-		switch sv446 := arg(a, 0); sv446.Kind() {
+		switch sval := arg(a, 0); sval.Kind() {
 		case KSet:
-			x := sv446.Set()
+			x := sval.Set()
 			x.m.put(arg(a, 1), NullValue)
 			return SetVal(x), true
 		case KTable:
-			x := sv446.Table()
+			x := sval.Table()
 			x.m.put(arg(a, 1), arg(a, 2))
 			return TableVal(x), true
 		}
@@ -482,13 +510,13 @@ func init() {
 		return Value{}, false
 	})
 	fn("delete", func(vm *VM, a []Value) (Value, bool) {
-		switch sv458 := arg(a, 0); sv458.Kind() {
+		switch val := arg(a, 0); val.Kind() {
 		case KSet:
-			x := sv458.Set()
+			x := val.Set()
 			x.m.del(arg(a, 1))
 			return SetVal(x), true
 		case KTable:
-			x := sv458.Table()
+			x := val.Table()
 			x.m.del(arg(a, 1))
 			return TableVal(x), true
 		}
@@ -496,13 +524,13 @@ func init() {
 		return Value{}, false
 	})
 	fn("member", func(vm *VM, a []Value) (Value, bool) {
-		switch sv470 := arg(a, 0); sv470.Kind() {
+		switch val := arg(a, 0); val.Kind() {
 		case KSet:
-			x := sv470.Set()
+			x := val.Set()
 			_, ok := x.m.get(arg(a, 1))
 			return arg(a, 1), ok
 		case KTable:
-			x := sv470.Table()
+			x := val.Table()
 			_, ok := x.m.get(arg(a, 1))
 			return arg(a, 1), ok
 		}
@@ -576,42 +604,42 @@ func init() {
 		return ListVal(vm.NewList(vs)), true
 	})
 	fn("copy", func(vm *VM, a []Value) (Value, bool) {
-		switch sv548 := arg(a, 0); sv548.Kind() {
+		switch val := arg(a, 0); val.Kind() {
 		case KList:
-			x := sv548.List()
+			x := val.List()
 			return ListVal(vm.NewList(append([]Value(nil), x.Elems...))), true
 		case KTable:
-			x := sv548.Table()
+			x := val.Table()
 			t := vm.newTable(x.dflt)
 			t.m = x.m.copy()
 			return TableVal(t), true
 		case KSet:
-			x := sv548.Set()
+			x := val.Set()
 			s := vm.newSet()
 			s.m = x.m.copy()
 			return SetVal(s), true
 		case KRecord:
-			x := sv548.Record()
+			x := val.Record()
 			return RecordVal(x.T.construct(x.Fields)), true
 		}
 		return arg(a, 0), true
 	})
 	fn("serial", func(vm *VM, a []Value) (Value, bool) {
-		switch sv565 := arg(a, 0); sv565.Kind() {
+		switch val := arg(a, 0); val.Kind() {
 		case KList:
-			x := sv565.List()
+			x := val.List()
 			return IntVal(Int(x.serial)), true
 		case KSet:
-			x := sv565.Set()
+			x := val.Set()
 			return IntVal(Int(x.serial)), true
 		case KTable:
-			x := sv565.Table()
+			x := val.Table()
 			return IntVal(Int(x.serial)), true
 		case KRecord:
-			x := sv565.Record()
+			x := val.Record()
 			return IntVal(Int(x.serial)), true
 		case KCoexp:
-			x := sv565.Coexp()
+			x := val.Coexp()
 			return IntVal(Int(x.serial)), true
 		}
 		return Value{}, false
