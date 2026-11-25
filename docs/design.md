@@ -446,10 +446,21 @@ conformance test with this reason.
   files are flushed when the program ends, as C's `exit` does.
 - Tables and sets (`internal/vm/structs.go`) are insertion-ordered maps
   keyed by `===`: numbers, strings and csets by value (a string's unit
-  counts only if it is non-ASCII), structures by identity. **They
-  iterate in insertion order**, where iconx iterates in the order of its
-  hash table; Icon does not define the order, and no reference test
-  depends on it (none fails only by the order of its lines). `sort`
+  counts only if it is non-ASCII), structures by identity.
+- **Decision: iteration order is randomised, as in Go.** Each traversal
+  (`!T`, `key(T)`, `!S`) starts at a random entry and goes round in
+  insertion order, as Go's map iteration starts at a random point. Icon
+  leaves the order unspecified (iconx's is the order of its hash table),
+  and randomising it keeps programs from coming to depend on one; a
+  program that prints a table unsorted gives different output from run
+  to run. The randomness is not `&random`'s, so `?x` sequences are not
+  disturbed. A traversal works on a snapshot of the keys: it produces
+  each key present throughout once, skips keys deleted meanwhile, and
+  may not produce keys added meanwhile. Set operations and `sort` use
+  insertion order, so their results are deterministic. No reference
+  test depends on iteration order; the suite passes with randomisation
+  on. (The alternatives were insertion order, and reproducing iconx's
+  hash order exactly.) `sort`
   follows iconx's `anycmp` order (null, integer, real, string, cset,
   file, co-expression, procedure, list, set, table, record; structures
   by serial number, records by type name then serial) and `sortf` its

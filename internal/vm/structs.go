@@ -2,6 +2,7 @@ package vm
 
 import (
 	"encoding/binary"
+	"math/rand/v2"
 	"sort"
 	"strconv"
 	"strings"
@@ -11,9 +12,11 @@ import (
 // numbers, strings and csets by value; structures, procedures, files and
 // co-expressions by identity.
 //
-// Iteration (!T, key(T), !S, and the elements of new sets) is in
-// insertion order, where iconx's is the order of its hash table; see
-// docs/design.md.
+// Iteration (!T, key(T), !S) starts at a random entry and goes round in
+// insertion order, as Go randomises map iteration, so that programs do
+// not come to depend on an order Icon leaves unspecified (iconx's is the
+// order of its hash table); see docs/design.md. Set operations and sort
+// use insertion order, so their results are deterministic.
 
 // hkey is a map key with === semantics.
 type hkey struct {
@@ -100,8 +103,8 @@ func (m *omap) del(k Value) {
 	}
 }
 
-// compact removes deleted entries. Generators in progress keep working,
-// since they hold the slices they started with.
+// compact removes deleted entries. Generators in progress are not
+// affected: they iterate over a snapshot of the keys.
 func (m *omap) compact() {
 	keys, vals := make([]Value, 0, m.len()), make([]Value, 0, m.len())
 	for i, k := range m.keys {
@@ -163,31 +166,45 @@ func (e TableElem) Get() Value {
 
 func (e TableElem) Set(v Value) bool { e.T.m.put(e.K, v); return true }
 
-// omapGen generates the live entries of an omap, as made by f.
+// omapGen generates the entries of an omap, each as made by f from its
+// key. It works on a snapshot of the keys taken when it starts, from a
+// random one round to the one before it, skipping keys deleted since; as
+// with Go's maps, a key added meanwhile may not be produced.
 type omapGen struct {
-	m *omap
-	i int
-	f func(i int) Value
+	m        *omap
+	keys     []Value // the snapshot, taken on the first call
+	i, start int
+	started  bool
+	f        func(k Value) Value
 }
 
 func (g *omapGen) Next(vm *VM) (Value, bool) {
-	keys := g.m.keys
-	for g.i < len(keys) {
-		i := g.i
+	if !g.started {
+		g.started = true
+		g.keys = g.m.keys[:len(g.m.keys):len(g.m.keys)]
+		if len(g.keys) > 0 {
+			g.start = rand.IntN(len(g.keys))
+		}
+	}
+	for g.i < len(g.keys) {
+		k := g.keys[(g.start+g.i)%len(g.keys)]
 		g.i++
-		if keys[i] != nil {
-			return g.f(i), true
+		if k == nil {
+			continue
+		}
+		if _, ok := g.m.index[keyOf(k)]; ok {
+			return g.f(k), true
 		}
 	}
 	return nil, false
 }
 
 func tableVals(t *Table) Generator {
-	return &omapGen{m: &t.m, f: func(i int) Value { return TableElem{t, t.m.keys[i]} }}
+	return &omapGen{m: &t.m, f: func(k Value) Value { return TableElem{t, k} }}
 }
 
 func setElems(s *Set) Generator {
-	return &omapGen{m: &s.m, f: func(i int) Value { return s.m.keys[i] }}
+	return &omapGen{m: &s.m, f: func(k Value) Value { return k }}
 }
 
 // members returns the live keys of m, in order.
@@ -464,7 +481,7 @@ func init() {
 		if !ok {
 			Runerr(124, arg(a, 0))
 		}
-		return &omapGen{m: &t.m, f: func(i int) Value { return t.m.keys[i] }}
+		return &omapGen{m: &t.m, f: func(k Value) Value { return k }}
 	})
 	fn("sort", func(vm *VM, a []Value) (Value, bool) {
 		if t, ok := arg(a, 0).(*Table); ok {
