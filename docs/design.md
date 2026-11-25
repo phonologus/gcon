@@ -61,6 +61,67 @@ dependencies under one roof:
   The new files in icon-sdl are MIT, by Sean Jensen, so they can be
   brought into gcon as they are.
 
+**Proposal (2026-11-25, Sean): a separate display server, X11 / Plan 9
+style.** gconx and the graphics run as separate processes talking a
+protocol. gconx owns everything Icon's graphics model demands of the
+language: the event queue as an Icon list (`Pending()`), `Event()`
+blocking and polling, `&x`, `&y`, `&interval` and the other keywords,
+`WDelay`, window and context values. The server owns the display: it
+creates windows, keeps the canvases, draws, and feeds raw events back.
+The server can be written in anything and run on its own. Assessment
+(Claude), in favour, with conditions:
+
+- **What it buys.** gcon itself stays pure Go: no cgo, no C++ toolchain,
+  no build tag, cross-compilation intact, and the open questions above
+  mostly disappear. The macOS main-thread rule becomes the server's
+  problem alone, with no `LockOSThread` in gconx. A server crash cannot
+  take the interpreter's state with it. Precedent is close:
+  plan9port's `devdraw` is exactly this, a helper process that libdraw
+  (and Go's `9fans.net/go/draw`) drives over a pipe, adopted partly to
+  get Cocoa's main thread out of the client.
+- **Canvases live in the server (X11 / Plan 9 `/dev/draw`), not in the
+  client (Wayland).** A client-side canvas would make `Pixel`,
+  `CopyArea` and `drawop=reverse` local, but needs a rasteriser in
+  gconx: Blend2D through cgo again, or a pure-Go one built from scratch.
+  Server-side canvases let the server be icon-sdl's canvas and platform
+  layers almost unchanged, wrapped in a small C `main` that reads
+  requests; it keeps the vendored, pinned deps and its own build.
+- **Latency is the cost, and the protocol must be shaped for it.** Icon
+  draws in many small synchronous calls. Drawing requests are
+  fire-and-forget into a buffer, flushed when gconx blocks (`Event`,
+  `WDelay`, `delay`), flushes (`WFlush`, `WSync`), needs a reply, or
+  exits. Round trips are kept to calls that need an answer: `Pixel` (one
+  request per rectangle), opening a window or font, geometry queries.
+  A local socket round trip is some tens of microseconds, comparable to
+  the ~35 µs icon-sdl already pays per main-thread request.
+- **Answer locally where the semantics allow.** Colour names (Icon's
+  colour grammar is fixed) and attribute bookkeeping can be done in Go;
+  font metrics and glyph advances can come back once when a font is
+  opened, so `TextWidth` and `WAttrib("ascent")` need no round trip.
+  `ReadImage`/`WriteImage` can use Go's `image/gif` and `image/png`,
+  sending pixels rather than file names, so the server never touches
+  the program's files.
+- **Errors.** X11's asynchronous errors are the trap to avoid. Anything
+  that can fail in Icon terms (bad colour, font not found, window open
+  failing) is either decided in gconx or is a request with a reply.
+  Pipelined drawing requests should not fail; a server error on one is a
+  protocol error that ends the program.
+- **Shape.** Server-side objects by id: windows (canvases) and graphics
+  contexts, so `Clone` and `Couple` map onto X11's drawable / GC split.
+  A version handshake first. gconx starts the server lazily on the first
+  `open(..., "g")`, as a child on a socketpair, found next to the gcon
+  binary or by an environment variable (which could also name a socket
+  to connect to, giving remote display for free).
+- **Testing gains.** A headless server in Go (drawing into `image.RGBA`,
+  or just recording requests) gives golden tests for the graphics
+  functions with no display; protocol transcripts are diffable.
+- **Costs.** A protocol to design, document and version; two programs to
+  distribute and to find at run time; bulk pixel traffic for images
+  (shared memory is a later optimisation if it ever matters).
+
+If adopted, this replaces the cgo plan above: "reuse icon-sdl's backend"
+then means "icon-sdl's backend becomes the display server".
+
 ## Prior art
 
 ### iconx 9.5
