@@ -2,6 +2,7 @@ package vm
 
 import (
 	"math"
+	"math/big"
 	"strconv"
 	"strings"
 	"unicode"
@@ -63,10 +64,14 @@ func strToNum(s string) (Value, bool) {
 		if err != nil || n.IsReal {
 			return nil, false
 		}
-		if neg {
-			return Int(-n.Int), true
+		v := n.Big
+		if v == nil {
+			v = big.NewInt(n.Int)
 		}
-		return Int(n.Int), true
+		if neg {
+			v = new(big.Int).Neg(v)
+		}
+		return mkInteger(v), true
 	}
 	// digits [. digits] [e [sign] digits], with a digit before or after
 	// the point.
@@ -104,11 +109,14 @@ func strToNum(s string) (Value, bool) {
 		s = "-" + s
 	}
 	if !real {
-		v, err := strconv.ParseInt(s, 10, 64)
-		if err != nil {
+		if v, err := strconv.ParseInt(s, 10, 64); err == nil {
+			return Int(v), true
+		}
+		b, ok := new(big.Int).SetString(s, 10)
+		if !ok {
 			return nil, false
 		}
-		return Int(v), true
+		return mkInteger(b), true
 	}
 	f, err := strconv.ParseFloat(s, 64)
 	if err != nil || math.IsInf(f, 0) {
@@ -122,7 +130,7 @@ func isDigit(c byte) bool { return '0' <= c && c <= '9' }
 // CvNum converts v to a number (Int or Real), if it can.
 func CvNum(v Value) (Value, bool) {
 	switch x := v.(type) {
-	case Int, Real:
+	case Int, Real, *Big:
 		return x, true
 	case *String:
 		return strToNum(x.s)
@@ -138,19 +146,30 @@ func CvReal(v Value) (float64, bool) {
 	if !ok {
 		return 0, false
 	}
+	if b, isBig := n.(*Big); isBig {
+		return bigToReal(b.v)
+	}
 	return toFloat(n), true
 }
 
+// toFloat converts number n to a real. A large integer too large for a
+// real raises error 102, as in iconx where the conversion fails.
 func toFloat(n Value) float64 {
-	if i, ok := n.(Int); ok {
-		return float64(i)
+	switch x := n.(type) {
+	case Int:
+		return float64(x)
+	case *Big:
+		f, ok := bigToReal(x.v)
+		if !ok {
+			Runerr(102, x)
+		}
+		return f
 	}
 	return float64(n.(Real))
 }
 
-// realToInt truncates f to an integer, if it is in range.
-//
-// TODO: large integers.
+// realToInt truncates f to a word-sized integer, if it is in range
+// (realToInteger allows large ones).
 func realToInt(f float64) (Int, bool) {
 	if math.IsNaN(f) || f >= 1<<63 || f < -(1<<63) {
 		return 0, false
@@ -178,13 +197,11 @@ func MustReal(v Value) float64 {
 
 // arith makes a binary arithmetic operator: integer arithmetic when both
 // operands are integers, else real.
-func arith(name string, fi func(x, y Int) Int, fr func(x, y float64) float64) *Builtin {
+func arith(name string, fi func(x, y Int) (Int, bool), fb func(x, y *big.Int) *big.Int, fr func(x, y float64) float64) *Builtin {
 	return &Builtin{Name: name, Fn: func(vm *VM, a []Value) (Value, bool) {
 		x, y := MustNum(a[0]), MustNum(a[1])
-		if xi, ok := x.(Int); ok {
-			if yi, ok := y.(Int); ok {
-				return fi(xi, yi), true
-			}
+		if isInteger(x) && isInteger(y) {
+			return intArith(x, y, fi, fb), true
 		}
 		return realResult(fr(toFloat(x), toFloat(y))), true
 	}}
@@ -210,11 +227,14 @@ func rmod(x, y float64) float64 {
 // base (else error 206).
 func power(vm *VM, a []Value) (Value, bool) {
 	x, y := MustNum(a[0]), MustNum(a[1])
-	if yi, ok := y.(Int); ok {
-		if xi, ok := x.(Int); ok {
-			return pow(xi, yi), true
+	if isInteger(y) {
+		if isInteger(x) {
+			return intPow(x, y), true
 		}
-		return ripow(float64(x.(Real)), int64(yi)), true
+		if yi, ok := y.(Int); ok {
+			return ripow(float64(x.(Real)), int64(yi)), true
+		}
+		return realPowBig(float64(x.(Real)), y.(*Big).v), true
 	}
 	fx, fy := toFloat(x), toFloat(y)
 	if fx == 0 && fy < 0 {
@@ -253,16 +273,8 @@ func ripow(r float64, n int64) Real {
 func numCompare(name string, ok func(c int) bool) *Builtin {
 	return &Builtin{Name: name, Fn: func(vm *VM, a []Value) (Value, bool) {
 		x, y := MustNum(a[0]), MustNum(a[1])
-		if xi, isInt := x.(Int); isInt {
-			if yi, isInt := y.(Int); isInt {
-				c := 0
-				if xi < yi {
-					c = -1
-				} else if xi > yi {
-					c = 1
-				}
-				return yi, ok(c)
-			}
+		if isInteger(x) && isInteger(y) {
+			return y, ok(cmpInteger(x, y))
 		}
 		fx, fy := toFloat(x), toFloat(y)
 		c := 0
@@ -321,9 +333,9 @@ func init() {
 	})
 	fn("abs", func(vm *VM, a []Value) (Value, bool) {
 		switch n := MustNum(arg(a, 0)).(type) {
-		case Int:
-			if n < 0 {
-				return sub(0, n), true
+		case Int, *Big:
+			if cmpInteger(n, Int(0)) < 0 {
+				return neg(n), true
 			}
 			return n, true
 		case Real:

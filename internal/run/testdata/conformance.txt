@@ -1,5 +1,6 @@
 # Reference tests (icon/tests/general) that gcon passes.
 # Maintained by: go test ./internal/run -run Conformance -update
+arith
 augment
 btrees
 case
@@ -18,6 +19,7 @@ iobig
 kross
 left
 lexcmp
+lgint
 map
 mathfunc
 meander
@@ -25,7 +27,10 @@ mffsol
 mindfa
 numeric
 others
+over
+overflow
 primes
+radix
 recogn
 right
 roman

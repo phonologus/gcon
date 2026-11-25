@@ -16,8 +16,8 @@ type Null struct{}
 // NullValue is &null.
 var NullValue Value = Null{}
 
-// Int is an Icon integer. Large integers are not yet supported:
-// arithmetic that overflows is run-time error 203.
+// Int is an Icon integer that fits in 64 bits; larger ones are *Big
+// (bigint.go).
 type Int int64
 
 // Unit is the character unit of a string: text (UTF-8, read as runes in
@@ -185,7 +185,7 @@ func TypeName(v Value) string {
 	switch x := v.(type) {
 	case Null:
 		return "null"
-	case Int:
+	case Int, *Big:
 		return "integer"
 	case *String:
 		return "string"

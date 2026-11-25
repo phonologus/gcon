@@ -1,0 +1,89 @@
+# Large integers: the boundary of 64-bit integers, mixed and
+# conversion cases, image()'s integer(~10^n) threshold, and large
+# integers as table keys, set members and sort keys.
+
+procedure main()
+   local min, max, b, t, s, L, i
+   &error := -1
+   max := 9223372036854775807
+   min := -max - 1
+   show("max + 1", max + 1)
+   show("min - 1", min - 1)
+   show("-min", -min)
+   show("abs(min)", abs(min))
+   show("min / -1", min / -1)
+   show("min % -1", min % -1)
+   show("min * -1", min * -1)
+   show("max * max", max * max)
+   show("(max + 1) - 1", (max + 1) - 1)
+   show("type(max + 1)", type(max + 1))
+   show("icom(max)", icom(max))
+   show("icom(-max - 2)", icom(-max - 2))
+   b := 2 ^ 100
+   show("b", b)
+   show("-b / 7", -b / 7)
+   show("-b % 7", -b % 7)
+   show("b % -7", b % -7)
+   show("b / b", b / b)
+   show("b / 0", b / 0 | "error " || &errornumber)
+   show("b % 0", b % 0 | "error " || &errornumber)
+   show("b + 0.5", b + 0.5)
+   show("b < 1e40", b < 1e40)
+   show("b > 1e40", b > 1e40 | "fail")
+   show("b = 2.0 ^ 100", b = 2.0 ^ 100)
+   show("2.0 ^ b", 2.0 ^ b | "error " || &errornumber)
+   show("0.5 ^ -b", 0.5 ^ -b | "error " || &errornumber)
+   show("1.0 ^ b", 1.0 ^ b)
+   show("0 ^ 0", 0 ^ 0 | "error " || &errornumber)
+   show("0 ^ -b", 0 ^ -b | "error " || &errornumber)
+   show("1 ^ b", 1 ^ b)
+   show("-1 ^ b", (-1) ^ b)
+   show("-1 ^ (b + 1)", (-1) ^ (b + 1))
+   show("2 ^ -1", 2 ^ -1)
+   show("b ^ -2", b ^ -2)
+   show("b ^ 0", b ^ 0)
+   show("integer(1e30)", integer(1e30))
+   show("integer(-1e19)", integer(-1e19))
+   show("integer(\" 123456789012345678901234 \")", integer(" 123456789012345678901234 "))
+   show("integer(\"-36rZZZZZZZZZZZZZZZ\")", integer("-36rZZZZZZZZZZZZZZZ"))
+   show("\"99999999999999999999\" + 1", "99999999999999999999" + 1)
+   show("real(b)", real(b))
+   show("real(10 ^ 400)", real(10 ^ 400) | "fail")
+   show("10 ^ 400 + 1.0", 10 ^ 400 + 1.0 | "error " || &errornumber)
+   show("10 ^ 29", 10 ^ 29)
+   show("10 ^ 29 - 1", 10 ^ 29 - 1)
+   show("10 ^ 30 - 1", 10 ^ 30 - 1)
+   show("-(10 ^ 30)", -(10 ^ 30))
+   show("2 ^ 96", 2 ^ 96)
+   show("2 ^ 99", 2 ^ 99)
+   show("ishift(b, -90)", ishift(b, -90))
+   show("ishift(-b - 1, -99)", ishift(-b - 1, -99))
+   show("ishift(-3, 70)", ishift(-3, 70))
+   show("ishift(1, b)", ishift(1, b) | "error " || &errornumber)
+   show("iand(-b, b - 1)", iand(-b, b - 1))
+   show("ior(-b, 255)", ior(-b, 255))
+   show("ixor(b, -1)", ixor(b, -1))
+   show("1 to b", (1 to b) | "error " || &errornumber)
+   show("[1,2][b]", [1, 2][b] | "error " || &errornumber)
+   show("b === 2 ^ 100", b === 2 ^ 100)
+   show("b === real(b)", b === real(b) | "fail")
+   t := table()
+   t[b] := "big"
+   t[2 ^ 100] := "same big"
+   t[(2 ^ 100) / 2 ^ 40] := "fits"
+   t[2 ^ 60] := "small"
+   every k := key(t) do
+      write("   t[", image(k), "] = ", t[k])
+   s := set([b, 2 ^ 100, -b, 3])
+   write("   *s = ", *s)
+   L := sort([b, -b, 3, 2.5, "x", 2 ^ 64, -(2 ^ 64), 2 ^ 63 - 1])
+   every writes(" ", image(!L))
+   write()
+   every i := 60 to 70 do
+      writes(" ", 2 ^ i % 1000)
+   write()
+end
+
+procedure show(label, v)
+   write(label, " = ", image(v))
+end

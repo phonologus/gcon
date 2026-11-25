@@ -631,6 +631,37 @@ conformance test with this reason.
   reports the next entry's line: in `f(&line,` / `&line)` spread over
   lines 8 and 9, iconx gives 9 and 8. That depends on icont's code order
   and is not reproduced; on one line the two agree.
+- **Large integers** (`internal/vm/bigint.go`), as iconx's `rlrgint.r`.
+  An integer is an `Int` (int64) when it fits and a `*Big` (wrapping
+  `math/big.Int`) otherwise. Results are always normalised, so a `Big`
+  never holds a value that fits an `Int`: `===`, table keys and set
+  membership compare `Big`s by value and never confuse the two types.
+  Arithmetic on `Int`s keeps its fast path and redoes an operation in
+  `math/big` only when it overflows (no measurable cost on an integer
+  loop). Literals, numeric strings (decimal and radix) and
+  `integer(r)` of a real beyond int64 make large integers; contexts that
+  need a word-sized integer (positions, `to`, `seq`, list subscripts,
+  `repl` counts: iconx's `cnv:C_integer`) give error 101, as iconx does.
+  `seq` and `s[i+:j]` still raise 203 on overflow, as in iconx.
+  Matching iconx in detail:
+  - `/` truncates and `%` takes the sign of the dividend (C's rules);
+  - conversion to real follows `bigtoreal`, summing base 2^32 digits from
+    the top so that rounding agrees; a value too large for a real makes
+    `real()` fail and is error 102 in mixed arithmetic;
+  - `image()` shows `integer(~10^n)` when iconx's estimate of the number
+    of digits (from its base 2^32 digits) is 30 or more;
+  - `x ^ y` with y <= 0: `0 ^ y` is error 204 (including `0 ^ 0`), `1`
+    and `-1` give 1 or -1, anything else 0; a large exponent with any
+    other base is error 307, where iconx runs out of memory; a real to a
+    large power is computed as `bigpowri` does, without an overflow
+    check, so `2.0 ^ (2 ^ 100)` is `inf.0`;
+  - `iand`, `ior`, `ixor`, `icom` and `ishift` act on two's complement
+    values of unbounded width (`ishift(i, j)` is `i * 2^j` rounded down),
+    which is what iconx's results are for large and small values alike.
+  `&features` lists the features gcon has, with iconx's names; it does
+  not yet include "keyboard functions". `lgint`, `overflow`, `arith`,
+  `radix` and `over` pass; `large` matches except for its `&trace`
+  output. `testdata/bigint.icn` checks the edge cases against iconx.
 - Operators that produce at most one result are `OpOper` instructions
   calling a Go function; generators (`to`, `!`, built-in generators)
   and procedure calls use `OpCall` and `OpResume` with a handle in a
@@ -640,13 +671,9 @@ conformance test with this reason.
 
 - Procedures return values, never variables.
 - String subscripts are values, not assignable variables.
-- Integers are 64-bit; overflow is run-time error 203 until large
-  integers exist.
 - Run-time errors print iconx's header lines but no traceback.
 - Run-time error messages show offending records as `record point_1(2)`;
   iconx shows their fields, `record point_1(0,0)` (with the traceback).
-- Integers beyond 64 bits: `integer(1e30)` and strings of more than 19
-  digits are not numbers yet, where 9.5 makes large integers.
 - Not yet implemented: programmer-defined control operations, many
   keywords and built-in functions, the preprocessor, `link`.
 

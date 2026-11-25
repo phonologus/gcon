@@ -33,6 +33,8 @@ func keyOf(v Value) hkey {
 		return hkey{t: 0}
 	case Int:
 		return hkey{t: 1, i: int64(x)}
+	case *Big:
+		return hkey{t: 1, s: x.v.String()} // never equal to an Int's key
 	case Real:
 		f := float64(x)
 		if f == 0 {
@@ -244,7 +246,7 @@ func order(v Value) int {
 	switch v.(type) {
 	case Null:
 		return 0
-	case Int:
+	case Int, *Big:
 		return 1
 	case Real:
 		return 2
@@ -301,8 +303,8 @@ func anycmp(x, y Value) int {
 		return cmpInt(ox, oy)
 	}
 	switch a := x.(type) {
-	case Int:
-		return cmp64(int64(a), int64(y.(Int)))
+	case Int, *Big:
+		return cmpInteger(a, y)
 	case Real:
 		b := y.(Real)
 		switch {

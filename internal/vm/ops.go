@@ -1,7 +1,6 @@
 package vm
 
 import (
-	"math/bits"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -52,22 +51,27 @@ var errorText = map[int]string{
 	214: "input/output error",
 	215: "attempt to refresh &main",
 	216: "external function not found",
+	307: "inadequate space in block region",
 	500: "program malfunction",
 }
 
 // ---------------------------------------------------------------------
 // Conversions
 
-// CvInt converts v to an integer, if it can.
+// CvInt converts v to a word-sized integer (iconx's cnv:C_integer), if
+// it can; a large integer cannot be. CvInteger allows large ones.
 func CvInt(v Value) (Int, bool) {
 	n, ok := CvNum(v)
 	if !ok {
 		return 0, false
 	}
-	if r, isReal := n.(Real); isReal {
-		return realToInt(float64(r))
+	switch x := n.(type) {
+	case Real:
+		return realToInt(float64(x))
+	case Int:
+		return x, true
 	}
-	return n.(Int), true
+	return 0, false // a large integer is out of range
 }
 
 // CvStr converts v to a string, if it can.
@@ -77,6 +81,8 @@ func CvStr(v Value) (*String, bool) {
 		return x, true
 	case Int:
 		return &String{s: itoa(x), ascii: 1}, true
+	case *Big:
+		return &String{s: x.v.String(), ascii: 1}, true
 	case Real:
 		return &String{s: rtos(float64(x)), ascii: 1}, true
 	case *Cset:
@@ -117,89 +123,22 @@ func cvpos(p Int, n int) (int, bool) {
 // ---------------------------------------------------------------------
 // Operators
 
-func overflow() Int { Runerr(203); return 0 }
-
+// add and sub are word-sized additions where iconx raises error 203 on
+// overflow rather than making a large integer (seq, s[i+:j]).
 func add(x, y Int) Int {
-	s := x + y
-	if (s > x) != (y > 0) {
-		return overflow()
+	s, ok := addInt(x, y)
+	if !ok {
+		Runerr(203)
 	}
 	return s
 }
 
 func sub(x, y Int) Int {
-	d := x - y
-	if (d < x) != (y > 0) {
-		return overflow()
+	d, ok := subInt(x, y)
+	if !ok {
+		Runerr(203)
 	}
 	return d
-}
-
-func mul(x, y Int) Int {
-	if x == 0 || y == 0 {
-		return 0
-	}
-	hi, lo := bits.Mul64(uint64(abs(x)), uint64(abs(y)))
-	if hi != 0 || lo > 1<<63-1 {
-		if hi == 0 && lo == 1<<63 && (x < 0) != (y < 0) {
-			return -1 << 63
-		}
-		return overflow()
-	}
-	r := Int(lo)
-	if (x < 0) != (y < 0) {
-		r = -r
-	}
-	return r
-}
-
-func abs(x Int) Int {
-	if x < 0 {
-		return -x
-	}
-	return x
-}
-
-func div(x, y Int) Int {
-	if y == 0 {
-		Runerr(201)
-	}
-	if x == -1<<63 && y == -1 {
-		return overflow()
-	}
-	return x / y
-}
-
-func mod(x, y Int) Int {
-	if y == 0 {
-		Runerr(202)
-	}
-	if y == -1 {
-		return 0
-	}
-	return x % y
-}
-
-func pow(x, y Int) Int {
-	if y < 0 {
-		switch {
-		case x == 0:
-			Runerr(204)
-		case x == 1:
-			return 1
-		case x == -1:
-			if y%2 == 0 {
-				return 1
-			}
-			return -1
-		}
-		return 0
-	}
-	r := Int(1)
-	for ; y > 0; y-- {
-		r = mul(r, x)
-	}
-	return r
 }
 
 func strCompare(name string, ok func(c int) bool) *Builtin {
@@ -218,6 +157,9 @@ func Identical(x, y Value) bool {
 	case Int:
 		b, ok := y.(Int)
 		return ok && a == b
+	case *Big:
+		b, ok := y.(*Big)
+		return ok && a.v.Cmp(b.v) == 0
 	case Real:
 		b, ok := y.(Real)
 		return ok && a == b
@@ -234,11 +176,11 @@ func Identical(x, y Value) bool {
 // Ops holds the operator implementations, by operator spelling; unary
 // operators are prefixed with "u".
 var Ops = map[string]*Builtin{
-	"+": arith("+", add, func(x, y float64) float64 { return x + y }),
-	"-": arith("-", sub, func(x, y float64) float64 { return x - y }),
-	"*": arith("*", mul, func(x, y float64) float64 { return x * y }),
-	"/": arith("/", div, rdiv),
-	"%": arith("%", mod, rmod),
+	"+": arith("+", addInt, addBig, func(x, y float64) float64 { return x + y }),
+	"-": arith("-", subInt, subBig, func(x, y float64) float64 { return x - y }),
+	"*": arith("*", mulInt, mulBig, func(x, y float64) float64 { return x * y }),
+	"/": arith("/", divInt, divBig, rdiv),
+	"%": arith("%", modInt, modBig, rmod),
 	"^": {Name: "^", Fn: power},
 
 	"<":  numCompare("<", func(c int) bool { return c < 0 }),
@@ -282,7 +224,7 @@ var Ops = map[string]*Builtin{
 		if r, ok := MustNum(a[0]).(Real); ok {
 			return -r, true
 		}
-		return sub(0, MustNum(a[0]).(Int)), true
+		return neg(MustNum(a[0])), true
 	}},
 	"u+": {Name: "+", Fn: func(vm *VM, a []Value) (Value, bool) {
 		return MustNum(a[0]), true
@@ -484,6 +426,8 @@ func (vm *VM) Image(v Value) string {
 		return "&null"
 	case Int:
 		return itoa(x)
+	case *Big:
+		return bigImage(x.v)
 	case *String:
 		return quote(x, '"')
 	case *List:

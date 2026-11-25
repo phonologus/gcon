@@ -7,6 +7,7 @@ package lit
 
 import (
 	"fmt"
+	"math/big"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -291,15 +292,14 @@ func lastChar(s string, u Unit) (rune, bool, bool) {
 	return r, false, true
 }
 
-// Number is a decoded numeric literal.
+// Number is a decoded numeric literal. An integer beyond int64 is in
+// Big (and Int is 0).
 type Number struct {
 	Int    int64
+	Big    *big.Int
 	Real   float64
 	IsReal bool
 }
-
-// ErrRange reports an integer literal too large for gcon's integers.
-var ErrRange = fmt.Errorf("integer literal out of range")
 
 // ParseNumber decodes an integer literal (decimal, or radix NrDIGITS) or
 // a real literal.
@@ -309,14 +309,7 @@ func ParseNumber(tok string) (Number, error) {
 		if err != nil || base < 2 || base > 36 {
 			return Number{}, fmt.Errorf("invalid radix in %s", tok)
 		}
-		v, err := strconv.ParseInt(tok[i+1:], base, 64)
-		if err != nil {
-			if ne, ok := err.(*strconv.NumError); ok && ne.Err == strconv.ErrRange {
-				return Number{}, ErrRange
-			}
-			return Number{}, fmt.Errorf("invalid digits in %s", tok)
-		}
-		return Number{Int: v}, nil
+		return parseInt(tok, tok[i+1:], base)
 	}
 	if strings.ContainsAny(tok, ".eE") {
 		f, err := strconv.ParseFloat(tok, 64)
@@ -325,12 +318,26 @@ func ParseNumber(tok string) (Number, error) {
 		}
 		return Number{Real: f, IsReal: true}, nil
 	}
-	v, err := strconv.ParseInt(tok, 10, 64)
-	if err != nil {
-		if ne, ok := err.(*strconv.NumError); ok && ne.Err == strconv.ErrRange {
-			return Number{}, ErrRange
+	return parseInt(tok, tok, 10)
+}
+
+// parseInt decodes the digits of the integer literal tok in base.
+func parseInt(tok, digits string, base int) (Number, error) {
+	for i := 0; i < len(digits); i++ {
+		c := digits[i] | 0x20 // lower case
+		if !('0' <= c && c <= '9' || 'a' <= c && c <= 'z') {
+			return Number{}, fmt.Errorf("invalid digits in %s", tok)
 		}
-		return Number{}, fmt.Errorf("invalid integer literal %s", tok)
 	}
-	return Number{Int: v}, nil
+	if v, err := strconv.ParseInt(digits, base, 64); err == nil {
+		return Number{Int: v}, nil
+	}
+	b, ok := new(big.Int).SetString(digits, base)
+	if !ok {
+		return Number{}, fmt.Errorf("invalid digits in %s", tok)
+	}
+	if b.IsInt64() {
+		return Number{Int: b.Int64()}, nil
+	}
+	return Number{Big: b}, nil
 }

@@ -1,5 +1,7 @@
 package vm
 
+import "runtime"
+
 // Error conversion (&error), following iconx's err_msg (errmsg.r).
 //
 // While &error is nonzero, a run-time error does not stop the program:
@@ -94,5 +96,33 @@ func init() {
 	}}
 	Ops["&file"] = &Builtin{Name: "&file", Fn: func(vm *VM, a []Value) (Value, bool) {
 		return Text(vm.cur.proc.File), true
+	}}
+}
+
+// Features lists what &features generates: the strings iconx uses for
+// the features gcon has, in iconx's order (src/h/features.h).
+var Features = func() []string {
+	f := []string{"UNIX"}
+	if runtime.GOOS == "windows" {
+		f[0] = "MS Windows"
+	}
+	return append(f, "ASCII", "co-expressions", "environment variables",
+		"large integers", "pipes", "system function")
+}()
+
+type stringsGen struct{ s []string }
+
+func (g *stringsGen) Next(vm *VM) (Value, bool) {
+	if len(g.s) == 0 {
+		return nil, false
+	}
+	v := Text(g.s[0])
+	g.s = g.s[1:]
+	return v, true
+}
+
+func init() {
+	Ops["&features"] = &Builtin{Name: "&features", Gen: func(vm *VM, a []Value) Generator {
+		return &stringsGen{Features}
 	}}
 }

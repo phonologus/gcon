@@ -47,8 +47,7 @@ func init() {
 		return s, ok
 	})
 	fn("integer", func(vm *VM, a []Value) (Value, bool) {
-		i, ok := CvInt(arg(a, 0))
-		return i, ok
+		return CvInteger(arg(a, 0))
 	})
 	fn("list", func(vm *VM, a []Value) (Value, bool) {
 		n := 0

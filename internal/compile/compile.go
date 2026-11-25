@@ -667,10 +667,10 @@ func (p *pcomp) literal(e *syntax.Literal) vm.Operand {
 		return p.c.constant(fmt.Sprintf("c%d%q%v", unit, segs, ranges), vm.NewCsetLiteral(segs, rs, unit))
 	case token.INTLIT:
 		n, err := lit.ParseNumber(t.Text)
-		if err == lit.ErrRange {
-			p.errorf(e, "large integers are not yet supported")
-		} else if err != nil {
+		if err != nil {
 			p.errorf(e, "%v", err)
+		} else if n.Big != nil {
+			return p.c.constant("I"+n.Big.String(), vm.NewInteger(n.Big))
 		} else {
 			return p.c.constant(fmt.Sprintf("i%d", n.Int), vm.Int(n.Int))
 		}
@@ -720,6 +720,9 @@ func (p *pcomp) keyword(e *syntax.Keyword, fail, succ label) (label, label, vm.O
 		t := p.temp()
 		p.emit(vm.Instr{Op: vm.OpOper, Fn: vm.Ops["&"+e.Name.Text], Dst: t, L1: int32(succ), L2: int32(fail)})
 		return s, fail, t
+	}
+	if e.Name.Text == "features" {
+		return p.genOp(vm.Ops["&features"], nil, fail, succ)
 	}
 	p.errorf(e, "&%s is not yet supported", e.Name.Text)
 	return fail, fail, p.null()
