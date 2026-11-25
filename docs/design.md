@@ -174,9 +174,19 @@ Go's handling of UTF-8 throughout. All encoding and decoding goes through
   then it is bytes, so such files behave as in 9.5. Escapes follow Go:
   `\x` gives a byte, and `\u` (4 hex digits) or `\U` (up to 6) gives a code
   point. A surrogate or a value above 0x10FFFF is a compile-time error.
-  In 9.5 `\u` is not an escape: icont reads `"é"` as the five
+  In 9.5 `\u` is not an escape: icont reads `"\u00e9"` as the five
   characters `u00e9`. No file in `icon/tests` or `icon/ipl` uses `\u` or
   `\U` in a literal, so the incompatibility is accepted.
+- **Prefixed literals pin the unit.** `u"..."` is always text and
+  `b"..."` is always bytes, whatever they contain. In `u"..."`, `\xNN` is a
+  lone byte inside text, so every text string has a literal. In
+  `b"..."`, `\u` and `\U` give the bytes of the code point's UTF-8
+  encoding, as Go's string literals do. The same prefixes apply to cset
+  literals, which also gain ranges (see "Csets"). The lexer reads `u` or `b`
+  immediately followed by a quote as one token. In 9.5 an identifier
+  directly before a literal is a syntax error, so no valid 9.5 program
+  changes meaning. In the corpus it happens only in `tpp.icn`, which is
+  only ever preprocessed (`icont -E`), and never with `u` or `b`.
 - **Comparison is plain byte comparison.** For valid UTF-8, byte order is
   code-point order, so `<<`, `==` and `sort` need no decoding.
 - **Code points to characters.** `char(i)` keeps its 9.5 meaning for
@@ -236,9 +246,20 @@ random sets; it becomes a fuzz test of the real cset type.) Hence:
   UTF-8 source file). Going back to text then gives two lone bytes, not
   `é`. That loss cannot be avoided: a set of bytes has no order in which
   to remember that they formed a sequence.
-- **Literals** follow the string rule: a cset literal is text unless it
-  contains a byte escape `\x80`–`\xff` or source bytes that are not valid
-  UTF-8, in which case it is bytes.
+- **Literals** follow the string rule: an unprefixed cset literal is text
+  unless it contains a byte escape `\x80`–`\xff` or source bytes that are
+  not valid UTF-8, in which case it is bytes. In an unprefixed literal
+  `-` is an ordinary member, exactly as in 9.5.
+- **Range literals.** Prefixed cset literals, `u'...'` (text) and
+  `b'...'` (bytes), accept ranges: `u'a-zA-Z_'`, `u'\u0370-\u03ff'`,
+  `b'\x00-\x1f'`. `x-y` is inclusive. `-` is a member when it comes first
+  or last, or when it is written `\-`. In `u'...'` both ends must be code
+  points (a range spanning the surrogates skips them) or both must be lone
+  bytes (`\x80`–`\xff`). In `b'...'` both ends are bytes. A mixed or
+  descending range is a compile-time error. Ranges cannot go in
+  unprefixed literals: 22 of the 1,653 cset literals in the reference
+  tree's 1,203 `.icn` files have `-` between two characters, e.g. `'+-0123456789'`, which
+  as a range would include everything from `+` to `0`.
 - **Set operations** (`++`, `**`, `--`) choose the result's unit as
   strings do (non-ASCII text, else non-ASCII bytes, else neutral). The
   other operand is first relabelled.
@@ -277,27 +298,20 @@ renders identically). 52 of the 99 reference tests call `image`.
   9.5 does. So the image shows the unit: `"é"` is text, while
   `"\xc3\xa9"` is the same bytes as a bytes string. Both images are
   literals that rebuild the value with its unit.
-- A text string that holds lone invalid bytes images with `\xNN`
-  escapes, and as a literal that would be bytes, so its image does not
-  carry its unit. This is accepted.
+- A text string that holds lone invalid bytes images as `u"..."`, so its
+  image keeps its unit. No 9.5 value needs a prefix.
 - Csets use single quotes and escape `'` rather than `"`, as 9.5 does.
-- **Large csets are elided. This is a placeholder, not a decision.** A
-  cset with more than 1,024 members images as its first 16 members,
-  `...`, and its last 8, inside the quotes, e.g. `image(~'a')` is
-  `'\x00\x01...\U0010fffe\U0010ffff'` (shortened here). The elision is
-  unambiguous because a cset has no duplicate members, so `...` can never
-  be three `.` members. The limit is above 256, so every 9.5 cset (and
-  `image(&cset)` in the reference tests) images in full.
-
-  **Warning: this may come back to bite us.** It breaks the contract
-  implicit in `image()`, that the result is a complete and faithful
-  rendering of the value (for strings and csets, a literal that rebuilds
-  it). That is a bad smell. Programs and tools that compare images, or
-  that use `image()` for serialisation or debugging output, would get
-  wrong answers silently. The ellipsis is possibly no better than a
-  placeholder until a better solution is found, for example a range
-  syntax for cset literals that `image()` could then use. Revisit it
-  before anything depends on it.
+- **`image()` is always a literal that rebuilds the value and its
+  unit.** A cset images unprefixed, listing every member as 9.5 does,
+  whenever that literal rebuilds it and it has at most 256 members. That
+  covers every bytes cset, every neutral cset, and so every 9.5 cset. A
+  text cset that is larger, or holds lone bytes, images as `u'...'` with
+  ranges. Code-point ranges come first, then lone-byte ranges. Runs of 4
+  or more consecutive members are written `x-y`, shorter runs are listed,
+  and a member `-` is written `\-`. For example, `image(~&ascii)` is
+  `u'\u0080-\U0010ffff\x80-\xff'`, and `image(~'a')` is
+  `` u'\x00-`b-\U0010ffff\x80-\xff' ``. The images of even the largest
+  csets are short, and exact.
 
 ### Compatibility cost and open points
 
@@ -316,7 +330,8 @@ cset rules above:
   unchanged, both as in 9.5. **Differs:** `&letters ++ ~&ucase` is the
   full text universe (1,112,192 characters), not 256.
 - `scan.icn`: `image(~&cset)` is `''` as in 9.5. **Differs:**
-  `image(~&ascii)` is every non-ASCII code point, not `\x80`–`\xff`.
+  `image(~&ascii)` is `u'\u0080-\U0010ffff\x80-\xff'`, not the 128
+  bytes `\x80`–`\xff`.
 
 Both differences are complements of ASCII csets, which is where the new
 meaning is intended. They are kept deliberately and will be listed in
