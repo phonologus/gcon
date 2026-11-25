@@ -15,7 +15,7 @@ gcon is meant to become a standalone Icon toolchain in the Go mould:
 gathers the tools under subcommands (run, build, fmt, the language
 server, ...). Over time it takes in what now lives in separate projects:
 the formatter and language server (icontools), the tree-sitter grammar
-and editor extensions, and a graphics back-end, possibly based on Fyne.
+and editor extensions, and a graphics back-end (see "Graphics" below).
 
 icontools and icon-sdl remain standalone, for the wider Icon community,
 built around the reference implementation. gcon does not depend on them.
@@ -24,10 +24,42 @@ built-in catalogue, and the icont oracle) at icontools 9cf9615, and the
 two evolve independently. Syntax facts are in [syntax.md](syntax.md).
 
 Dependencies: the core (front end, translator, VM, and tools that work on
-source) uses only the standard library. A graphics back-end such as Fyne
-is a large dependency that brings in cgo, so it will need a boundary
-(a separate module or a build tag) that keeps the core installable
-without it. That is to be decided when graphics work starts.
+source) uses only the standard library.
+
+### Graphics (to do: note for when the work starts)
+
+**Decision (2026-11-25): reuse icon-sdl's backend, not a Go toolkit such
+as Fyne.** Any graphics needs cgo, so rather than bring in another
+toolkit, gcon should plumb in the work already done in `icon-sdl` (branch
+`sdl-graphics`, design in `icon-sdl/sdl/design.md`), keeping all the
+dependencies under one roof:
+
+- **Canvas layer** (`src/sdl/canvas.c`): each window is an RGBA image at
+  the display's backing scale, drawn with Blend2D, holding the graphics
+  context (colours, line style, drawop, fonts, clipping, patterns) and
+  the pixel-level operations Icon defines (`drawop=reverse` as XOR,
+  `CopyArea`, `Pixel`, images). Behaviour has been compared against the
+  X11 backend, which is the reference.
+- **Platform layer** (`src/sdl/plat.c`): SDL3 windows, presentation,
+  events, cursors; font discovery by CoreText (macOS) and fontconfig
+  (Linux).
+- **Dependencies** are vendored source tarballs pinned by SHA-256
+  (`deps/deps.lock`: SDL3, Blend2D, AsmJit), and builds never use the
+  network. gcon should keep that discipline.
+- **Threads.** icon-sdl had to run the interpreter on a second thread so
+  that SDL could own the process's main thread (a macOS requirement),
+  because iconx's co-expressions are threads. gcon's are not, so this is
+  simpler: lock the main goroutine to the main OS thread
+  (`runtime.LockOSThread` in an `init`) for SDL, and run the VM in
+  another goroutine, with requests passed to the main thread as icon-sdl
+  does.
+- **Open questions:** how the C libraries are built for cgo (a script
+  producing static libraries from the vendored sources, or cgo compiling
+  sources directly; Blend2D is C++); and the boundary that keeps the core
+  installable without graphics (a build tag, or a separate module), so
+  `go install` of gcon without graphics still needs no C toolchain.
+  The new files in icon-sdl are MIT, by Sean Jensen, so they can be
+  brought into gcon as they are.
 
 ## Prior art
 
