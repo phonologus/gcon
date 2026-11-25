@@ -31,6 +31,7 @@ func TestConformance(t *testing.T) {
 	}
 	conformanceList := filepath.Join(wd, "testdata", "conformance.txt")
 	root := corpus.Require(t)
+	gconRoot := repoRoot(t) // before changing directory
 	// The tests run in a copy of their directory, as Test-icon runs them
 	// in theirs: some read and write files there, and the reference tree
 	// is never modified.
@@ -67,10 +68,10 @@ func TestConformance(t *testing.T) {
 			stdin = bytes.NewReader(b)
 		}
 		var out bytes.Buffer
-		// link finds the Icon Program Library's procedures, from source,
-		// where iconx's tests find them built in icon/lib.
-		lib := []string{filepath.Join(root, "ipl", "procs")}
-		File(name+".icn", Config{Stdin: stdin, Stdout: &out, Stderr: &out, Timeout: 5 * time.Second, LibPath: lib})
+		// link finds the Icon Program Library in the repository's root
+		// (lib/ipl), as iconx's tests find it built in icon/lib.
+		File(name+".icn", Config{Stdin: stdin, Stdout: &out, Stderr: &out, Timeout: 5 * time.Second,
+			LibPath: []string{}, IncludePath: []string{}, Root: gconRoot})
 		ok := out.String() == string(want)
 		switch {
 		case ok:

@@ -3,6 +3,7 @@
 //	gcon run file [args...]        run Icon source, or a built program
 //	gcon build [-o out] file.icn   build a program: an executable file
 //	gcon dis file                  list the VM code of source or a built program
+//	gcon env                       print gcon's root and library search paths
 //	gcon version                   print gcon's version
 package main
 
@@ -13,6 +14,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/phonologus/gcon/internal/root"
 	"github.com/phonologus/gcon/internal/run"
 	"github.com/phonologus/gcon/internal/vm"
 )
@@ -22,6 +24,7 @@ func usage() {
 	gcon run file [args...]
 	gcon build [-o out] file.icn
 	gcon dis file
+	gcon env
 	gcon version
 `)
 	os.Exit(2)
@@ -37,11 +40,15 @@ func main() {
 		if len(args) < 1 {
 			usage()
 		}
-		os.Exit(run.File(args[0], run.Config{Args: args[1:], Stdin: os.Stdin, Stdout: os.Stdout, Stderr: os.Stderr}))
+		cfg := config()
+		cfg.Args, cfg.Stdin, cfg.Stdout, cfg.Stderr = args[1:], os.Stdin, os.Stdout, os.Stderr
+		os.Exit(run.File(args[0], cfg))
 	case "build":
 		os.Exit(build(args))
 	case "dis":
 		os.Exit(dis(args))
+	case "env":
+		env()
 	case "version":
 		fmt.Println("gcon", run.Version())
 	default:
@@ -71,10 +78,8 @@ func build(args []string) int {
 	if err != nil {
 		self = "gcon"
 	}
-	if errs := run.BuildFile(src, *out, self, run.Config{}); len(errs) > 0 {
-		for _, e := range errs {
-			fmt.Fprintln(os.Stderr, e)
-		}
+	if errs := run.BuildFile(src, *out, self, config()); len(errs) > 0 {
+		report(errs)
 		return 1
 	}
 	return 0
@@ -89,11 +94,9 @@ func dis(args []string) int {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
-	prog, info, errs := run.Load(args[0], data, run.Config{})
+	prog, info, errs := run.Load(args[0], data, config())
 	if len(errs) > 0 {
-		for _, e := range errs {
-			fmt.Fprintln(os.Stderr, e)
-		}
+		report(errs)
 		return 1
 	}
 	if err := vm.Disasm(os.Stdout, prog, info); err != nil {
@@ -101,4 +104,28 @@ func dis(args []string) int {
 		return 1
 	}
 	return 0
+}
+
+// gconRoot is gcon's root, found once.
+var gconRoot = root.Find()
+
+// config returns the configuration for translating: the library search
+// paths of the environment, then the root's library.
+func config() run.Config { return run.Config{Root: gconRoot.Dir} }
+
+// report writes translation errors.
+func report(errs []error) { run.Report(os.Stderr, errs, config()) }
+
+// env prints gcon's root and search paths, as go env prints Go's, in a
+// form sh can read.
+func env() {
+	cfg := config()
+	q := func(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'" }
+	fmt.Printf("GCONROOT=%s\n", q(gconRoot.Dir))
+	fmt.Printf("GCONROOTFROM=%s\n", q(string(gconRoot.Source)))
+	fmt.Printf("IPATH=%s\n", q(os.Getenv("IPATH")))
+	fmt.Printf("LPATH=%s\n", q(os.Getenv("LPATH")))
+	fmt.Printf("GCONLINKPATH=%s\n", q(strings.Join(cfg.LinkSearch(), ":")))
+	fmt.Printf("GCONINCLUDEPATH=%s\n", q(strings.Join(cfg.IncludeSearch(), ":")))
+	fmt.Printf("GCONVERSION=%s\n", q(run.Version()))
 }

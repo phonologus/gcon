@@ -97,14 +97,13 @@ func TestRoundTrip(t *testing.T) {
 }
 
 // TestRoundTripCorpus encodes and decodes every program of the reference
-// tree that gcon translates, linking the IPL from source.
+// tree that gcon translates, linking the IPL from the repository's root.
 func TestRoundTripCorpus(t *testing.T) {
 	if testing.Short() {
 		t.Skip("short")
 	}
-	root := corpus.Require(t)
-	lib := []string{filepath.Join(root, "ipl", "procs"), filepath.Join(root, "ipl", "gprocs")}
-	incl := []string{filepath.Join(root, "ipl", "incl"), filepath.Join(root, "ipl", "gincl")}
+	cfg := Config{LibPath: []string{}, IncludePath: []string{}, Root: repoRoot(t)}
+	lib, incl := cfg.libPath(), cfg.includePath()
 	n := 0
 	for _, f := range corpus.IconFiles(t) {
 		src, err := os.ReadFile(f)

@@ -1,0 +1,15 @@
+The Icon Program Library (IPL): its procedure libraries (procs, gprocs)
+and include files (incl, gincl), copied unmodified from the reference
+implementation, github.com/gtownsend/icon, by tools/ipl/update.sh.
+UPSTREAM records the commit and each file's SHA-256.
+
+gcon searches these directories after IPATH (for link) and LPATH (for
+$include). To change a file, copy it to a directory on IPATH or LPATH
+rather than editing it here.
+
+These files are in the public domain, as the reference implementation's
+README says of its material: "You may use and copy this material freely.
+This privilege extends to modifications, although any modified version of
+this system given to a third party should clearly identify your
+modifications as well as the original source." gprocs/cardbits.icn,
+which carries a different licence, is not included.

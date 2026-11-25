@@ -10,12 +10,19 @@ functions, two differ by design in Unicode csets, and one depends on
 iconx's memory regions and on set order, which gcon randomises). See [docs/design.md](docs/design.md) and
 [docs/development.md](docs/development.md).
 
-`link` uses Icon source: `link foo` finds `foo.icn` in the current
-directory, then in the directories of `IPATH`. To use the Icon Program
-Library, point `IPATH` at its source, for example
-`IPATH=/path/to/icon/ipl/procs`, and `LPATH` at its include files
-(`ipl/incl`) for `$include`. Nothing is written beside your
-sources: there are no `.u1`/`.u2` files.
+Build gcon into the repository, which is then a gcon root, as a Go
+checkout is a GOROOT:
+
+    go build -o bin/gcon ./cmd/gcon
+
+and put its `bin` on your `PATH`. The root holds the Icon Program
+Library as source, in `lib/ipl`. `link foo` finds `foo.icn` in the
+current directory, then in the directories of `IPATH`, then in the
+library; `$include` searches the current directory, `LPATH`, then the
+library's include files. `go install
+github.com/phonologus/gcon/cmd/gcon@latest` also works: gcon then finds
+the library in the module cache. `gcon env` shows where it looks.
+Nothing is written beside your sources: there are no `.u1`/`.u2` files.
 
 `gcon build file.icn` writes `file`, an executable that runs the built
 program with the installed gcon, as icont's output runs with iconx; it

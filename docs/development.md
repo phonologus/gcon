@@ -6,11 +6,16 @@ go vet ./...
 gofmt -l .
 ```
 
+`go build -o bin/gcon ./cmd/gcon` builds gcon into the repository, which
+is a gcon root (`lib/ipl`), so that gcon finds the library (`gcon env`).
+`tools/ipl/update.sh` refreshes `lib/ipl` from the reference clone.
+
 ## Layout
 
 | Path | Purpose |
 |---|---|
 | `cmd/gcon` | the `gcon` command: `run`, `build`, `dis`, `version` |
+| `internal/root` | finds gcon's root (GCONROOT) and its library directories |
 | `internal/run` | translate, build and run a program; end-to-end, round-trip and conformance tests |
 | `internal/compile` | syntax tree to VM code (Proebsting's translation) |
 | `internal/vm` | values, instructions, the interpreter loop, operators and built-ins |
@@ -24,6 +29,8 @@ gofmt -l .
 | `internal/oracle` | runs icont's own front end for tests (via `tools/icontok`) |
 | `tools/icontok` | C driver exposing icont's token stream and parse trees |
 | `tools/mkbuiltin` | generator for `internal/builtin/catalog_gen.go` |
+| `tools/ipl` | copies the IPL into `lib/ipl`, recording `lib/ipl/UPSTREAM` |
+| `lib/ipl` | the Icon Program Library's source (public domain), searched after `IPATH`/`LPATH` |
 | `tools/iconx` | builds the reference icont and iconx; generates expected test output |
 | `experiments/` | measurements behind design decisions; not part of gcon |
 

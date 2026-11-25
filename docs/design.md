@@ -521,8 +521,8 @@ their contents, one file per unit with its global section first; that
 is an optimisation for later, not a format to design now. icont's rules
 carry over: inconsistent redeclarations across files are errors, and
 procedures nothing reaches and nothing declares invocable are dropped.
-The Icon Program Library is used from its source (`ipl/procs`), which
-gcon finds on `IPATH`.
+The Icon Program Library is used from its source, which gcon finds in
+its root after `IPATH` (see "Decision: a gcon root, as GOROOT").
 
 Implemented in `run.TranslateLinked`: files are read breadth first from
 the main file, each once (by absolute path), so cycles are harmless. A
@@ -659,6 +659,76 @@ icode is 717 KB) and runs to its usage message in 5 to 10 ms, against
 does (`-o` names it), executable where readable. `gcon dis file` lists
 constants, globals and each procedure's instructions, with builtins by
 reference (`[op u-]`) and every field shown.
+
+### Decision (2026-11-25): a gcon root, as GOROOT
+
+The IPL ships with gcon as source files in a root directory, as Go's
+standard library ships in GOROOT, not embedded in the binary: its
+sources stay there to read, learn from and copy, and the language
+server can link to them. This is icont's arrangement made explicit:
+icont always appends `<bin>/../lib` to `IPATH` and `LPATH`
+(`tunix.c`, `libpath`), where Icon's installation puts the translated
+library.
+
+```
+$GCONROOT/
+  bin/gcon
+  libexec/gcon-graphics     the display server, when there is one
+  lib/ipl/procs, gprocs     the IPL's procedures (link)
+  lib/ipl/incl, gincl       its include files ($include)
+  lib/ipl/UPSTREAM          the upstream commit and each file's SHA-256
+```
+
+`lib/ipl` keeps the IPL's own directory names, and leaves room for a
+library of gcon's own beside it.
+
+**Search.** `link` searches the current directory, then `IPATH`, then
+`lib/ipl/procs` and `lib/ipl/gprocs`; `$include` searches the current
+directory, then `LPATH`, then `lib/ipl/incl` and `lib/ipl/gincl`. To
+change a library file, copy it to a directory on `IPATH` (or `LPATH`),
+where it comes first. A built program is a snapshot, so the root
+matters only when building, never when running.
+
+**Finding the root** (`internal/root`), as Go finds GOROOT:
+
+1. `$GCONROOT`, used as it is.
+2. The directory above the executable, after following symbolic links,
+   if it holds `lib/ipl/procs`: an unpacked release, a symbolic link
+   such as `/usr/local/bin/gcon`, or a repository checkout, which is
+   itself a root once gcon is built into it (`go build -o bin/gcon
+   ./cmd/gcon`), as Go's source tree builds `bin/go`.
+3. A default set at link time, for packagers who put the binary and
+   the library apart: `-ldflags "-X
+   github.com/phonologus/gcon/internal/root.defaultRoot=DIR"`.
+4. The module cache, for `go install
+   github.com/phonologus/gcon/cmd/gcon@VERSION`: the go command has
+   downloaded the whole module, `lib` included, to
+   `$GOMODCACHE/github.com/phonologus/gcon@VERSION` (the cache found as
+   the go command finds it: `GOMODCACHE`, else `GOPATH`'s first
+   directory plus `/pkg/mod`, else `$HOME/go/pkg/mod`; upper-case letters
+   escaped as `!` and lower case). It is read-only but readable, and
+   matches the binary's version exactly. Only a released version is
+   looked for there, not a development build, and `go clean -modcache`
+   removes it.
+
+`gcon env` prints the root, how it was found, `IPATH`, `LPATH`, the
+resulting search paths and the version, in a form sh can read. A
+failed `link` with no root found adds a line pointing to it.
+
+**Distribution** is then a tarball of the root
+(`gcon-VERSION-OS-ARCH.tar.gz`), unpacked anywhere with its `bin` on
+`PATH`, as Go's is; `go install` serves without graphics.
+
+**The library's copy.** `tools/ipl/update.sh` copies `procs`, `gprocs`,
+`incl` and `gincl` from the local clone of the reference
+implementation (never the network) and writes `UPSTREAM`; a test
+checks that the files are exactly those it lists. Only public-domain
+files are copied. `gprocs/cardbits.icn` (card bitmaps under an
+X11-style licence from Sun Microsystems and others) is left out, so
+`drawcard`, which links it, cannot be linked, nor can the three
+`gprogs` card games that use it (`concen`, `spider`, `gxplor`): the only
+programs of the reference tree that translate from its own `ipl` and
+not from gcon's root.
 
 ## The preprocessor
 
@@ -1043,3 +1113,9 @@ a procedure, `$line`, the predefined symbols and digraphs against iconx.
 4. Grow the value types and built-ins, driven by the conformance suite.
 5. `gcon build` producing an icont-style script. Done (see "The built
    program's format"), with `gcon dis`.
+6. The IPL in a gcon root, found as Go finds GOROOT. Done (see
+   "Decision: a gcon root, as GOROOT"), with `gcon env`.
+7. A differential test of IPL programs against iconx.
+8. `&allocated`, `&storage`, `&regions` and `&collections` from Go's
+   memory statistics; record that `loadfunc` is not supported.
+9. A distribution section, with packaging when graphics arrives.

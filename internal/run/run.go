@@ -12,6 +12,7 @@ import (
 	"github.com/phonologus/gcon/internal/compile"
 	"github.com/phonologus/gcon/internal/ipp"
 	"github.com/phonologus/gcon/internal/lit"
+	"github.com/phonologus/gcon/internal/root"
 	"github.com/phonologus/gcon/internal/sema"
 	"github.com/phonologus/gcon/internal/syntax"
 	"github.com/phonologus/gcon/internal/token"
@@ -30,6 +31,9 @@ type Config struct {
 	// IncludePath lists the directories $include searches after the
 	// current directory; nil means those of LPATH.
 	IncludePath []string
+	// Root is gcon's root directory (root.Find), whose library is
+	// searched last; "" for none.
+	Root string
 }
 
 // envPath splits the directories of a search-path variable, which may be
@@ -62,20 +66,47 @@ func Predefined() map[string]string {
 // EnvLibPath returns the directories of IPATH.
 func EnvLibPath() []string { return envPath("IPATH") }
 
-// libPath returns the directories link searches.
+// libPath returns the directories link searches after the current
+// directory: LibPath (or IPATH), then the root's library, as icont
+// searches IPATH and then its own lib directory.
 func (cfg Config) libPath() []string {
-	if cfg.LibPath != nil {
-		return cfg.LibPath
+	p := cfg.LibPath
+	if p == nil {
+		p = EnvLibPath()
 	}
-	return EnvLibPath()
+	return append(append([]string(nil), p...), root.Root{Dir: cfg.Root}.LinkPath()...)
 }
 
-// includePath returns the directories $include searches.
+// includePath returns the directories $include searches after the
+// current directory: IncludePath (or LPATH), then the root's include
+// files.
 func (cfg Config) includePath() []string {
-	if cfg.IncludePath != nil {
-		return cfg.IncludePath
+	p := cfg.IncludePath
+	if p == nil {
+		p = EnvIncludePath()
 	}
-	return envPath("LPATH")
+	return append(append([]string(nil), p...), root.Root{Dir: cfg.Root}.IncludePath()...)
+}
+
+// EnvIncludePath returns the directories of LPATH.
+func EnvIncludePath() []string { return envPath("LPATH") }
+
+// LinkSearch and IncludeSearch return the directories link and $include
+// search, the current directory first, for gcon env.
+func (cfg Config) LinkSearch() []string    { return append([]string{"."}, cfg.libPath()...) }
+func (cfg Config) IncludeSearch() []string { return append([]string{"."}, cfg.includePath()...) }
+
+// Report writes translation errors to w, adding a hint when a file
+// could not be linked and there is no root whose library was searched.
+func Report(w io.Writer, errs []error, cfg Config) {
+	unresolved := false
+	for _, e := range errs {
+		fmt.Fprintln(w, e)
+		unresolved = unresolved || strings.Contains(e.Error(), "cannot resolve reference to file")
+	}
+	if unresolved && cfg.Root == "" {
+		fmt.Fprintln(w, "gcon: no GCONROOT found, so the Icon Program Library is not searched; see gcon env")
+	}
 }
 
 // File runs the program at path, returning the exit status: a built
@@ -90,9 +121,7 @@ func File(path string, cfg Config) int {
 	}
 	prog, info, errs := Load(path, data, cfg)
 	if len(errs) > 0 {
-		for _, e := range errs {
-			fmt.Fprintln(cfg.Stderr, e)
-		}
+		Report(cfg.Stderr, errs, cfg)
 		return 1
 	}
 	stdin := cfg.Stdin
