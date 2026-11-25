@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"sort"
 	"strings"
 	"unicode/utf8"
 )
@@ -26,6 +27,11 @@ type File struct {
 	unit    Unit
 	closed  bool
 	errout  bool // &errout: written unbuffered, after flushing &output
+	// A directory opened for reading, as iconx's ReadDirectory: read and
+	// !f produce its entries (with "." and ".."), reads(f, n) an entry
+	// cut to n bytes; seek and where fail.
+	isDir bool
+	dir   []string // entries not yet read
 }
 
 func (f *File) image() string {
@@ -76,6 +82,9 @@ func (vm *VM) writer(f *File) *bufio.Writer {
 // where only "\n" ends it and a "\r" is kept.
 func (vm *VM) readLine(f *File) (*String, bool) {
 	r := vm.reader(f)
+	if f.isDir {
+		return f.nextEntry(-1)
+	}
 	var b []byte
 	for {
 		c, err := r.ReadByte()
@@ -103,6 +112,9 @@ func (vm *VM) readLine(f *File) (*String, bool) {
 // character is a UTF-8 sequence or an invalid byte, and is never split.
 func (vm *VM) readChars(f *File, n int) (*String, bool) {
 	r := vm.reader(f)
+	if f.isDir {
+		return f.nextEntry(n)
+	}
 	var b strings.Builder
 	for k := 0; k < n; k++ {
 		if f.unit == BytesUnit {
@@ -266,6 +278,18 @@ func (vm *VM) openFile(name, mode string) (*File, bool) {
 		return nil, false
 	}
 	f.os = osf
+	if st, err := osf.Stat(); err == nil && st.IsDir() {
+		names, err := osf.Readdirnames(-1)
+		osf.Close()
+		if err != nil {
+			return nil, false
+		}
+		sort.Strings(names)
+		f.os, f.isDir = nil, true
+		f.dir = append([]string{".", ".."}, names...)
+		f.r = bufio.NewReader(strings.NewReader("")) // readable
+		return f, true
+	}
 	if read {
 		f.r = bufio.NewReader(osf)
 	}
@@ -422,4 +446,18 @@ func init() {
 		cmd.Stdin, cmd.Stdout, cmd.Stderr = vm.stdin, vm.stdout, vm.stderr
 		return Int(waitStatus(cmd.Run())), true
 	})
+}
+
+// nextEntry returns the next entry of a directory, cut to n bytes if n
+// is not negative, or fails at the end.
+func (f *File) nextEntry(n int) (*String, bool) {
+	if len(f.dir) == 0 {
+		return nil, false
+	}
+	e := f.dir[0]
+	f.dir = f.dir[1:]
+	if n >= 0 && len(e) > n {
+		e = e[:n]
+	}
+	return NewString(e, f.unit), true
 }

@@ -659,8 +659,7 @@ conformance test with this reason.
   - `iand`, `ior`, `ixor`, `icom` and `ishift` act on two's complement
     values of unbounded width (`ishift(i, j)` is `i * 2^j` rounded down),
     which is what iconx's results are for large and small values alike.
-  `&features` lists the features gcon has, with iconx's names; it does
-  not yet include "keyboard functions". `lgint`, `overflow`, `arith`,
+  `&features` lists the features gcon has, with iconx's names. `lgint`, `overflow`, `arith`,
   `radix` and `over` pass; `large` matches except for its `&trace`
   output. `testdata/bigint.icn` checks the edge cases against iconx.
 - `?x` and `&random` (`internal/vm/random.go`) reproduce iconx's
@@ -743,6 +742,37 @@ conformance test with this reason.
   `~(=(=x))`.
 - `x @:= c` is `x := x @ c`, and `x &:= y` is `x := y` with x evaluated
   first; the other augmented assignments are `x := x op y` as before.
+- **Procedures as values** (`internal/vm/names.go`): `proc(s, i)` finds
+  what string invocation would (`i` operands, default 1; `i = 0` only
+  built-in functions); `args(p)` is iconx's `nparam`, taken for built-in
+  functions from iconx's own reports (a variadic function with n fixed
+  parameters gives -(n+1)); `function()` generates gcon's built-in
+  function names. A call of a built-in written in the program has its
+  arguments fitted to the parameters as iconx's `invoke` does (padded
+  with `&null`, extras dropped), so `"~==="()` or `image()` work.
+- **Variables by name**: `name(v)` as iconx's `get_name` (identifiers,
+  keywords, `L[i]` with a literal "L", `rec.field`, `T[key]`,
+  `x[i:j]`); `variable(s)` as `getvar` (keywords, then the running
+  procedure's parameters, locals and statics, then globals the linker
+  kept). Procedures record their local names (`Proc.LocalNames`), in
+  iconx's order: parameters, locals as declared, implicit locals by
+  first use, then statics (`Proc.Statics`). `display(i, f)` lists the
+  current co-expression, the identifiers of the `i` innermost
+  activations, and the kept globals, sorted, as `xdisp`.
+- `open` of a directory for reading reads its entries (with "." and
+  "..", sorted): `read` and `!f` an entry, `reads(f, n)` an entry cut to
+  n bytes; `seek` and `where` fail, as iconx's `ReadDirectory`.
+  `x[]` is `x[&null]`, as icont compiles an empty subscript list.
+- The keyboard functions `getch`, `getche` and `kbhit` (`kbd*.go`) put a
+  terminal on standard input into non-canonical mode while they run, as
+  iconx's `rsys.r` does, using the standard library's `ioctl` on macOS
+  and Linux; they read through `&input`'s buffer, so `kbhit` leaves what
+  it sees for the next read. Off a terminal they read standard input
+  as it comes (`kbhit` succeeds there at end of file, as `select` does).
+  `collect` checks its arguments and does nothing (memory is Go's);
+  `chdir` and `delay` are as iconx's.
+- Not provided: `loadfunc` (dynamic loading of C functions; error 121),
+  and `fattrib`, which iconx's Unix builds leave out.
 - Operators that produce at most one result are `OpOper` instructions
   calling a Go function; generators (`to`, `!`, built-in generators)
   and procedure calls use `OpCall` and `OpResume` with a handle in a
@@ -750,8 +780,6 @@ conformance test with this reason.
 
 ### Deliberate simplifications (to be removed)
 
-- `display()` checks its arguments as iconx does (errors 101 and 105)
-  but does not list variables yet: valid arguments raise error 121.
 - Not yet implemented: programmer-defined control operations, many
   keywords and built-in functions, the preprocessor, `link`.
 

@@ -1,5 +1,6 @@
 # Reference tests (icon/tests/general) that gcon passes.
 # Maintained by: go test ./internal/run -run Conformance -update
+args
 arith
 augment
 btrees
@@ -16,9 +17,11 @@ diffwrds
 endetab
 errkwds
 errors
+evalx
 every
 fncs
 fncs1
+gc1
 gener
 genqueen
 image
@@ -30,11 +33,13 @@ left
 level
 lexcmp
 lgint
+lists
 map
 mathfunc
 meander
 mffsol
 mindfa
+nargs
 numeric
 others
 over
@@ -46,6 +51,7 @@ proto
 queens
 radix
 random
+recent
 recogn
 record
 right
@@ -58,8 +64,11 @@ sorting
 statics
 string
 string1
+struct
 substring
 table
+tracer
 transmit
 trim
+var
 wordcnt

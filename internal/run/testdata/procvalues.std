@@ -1,0 +1,55 @@
+function write function + function -
+procedure q record constructor pt procedure main
+proc("+", 3) fails
+proc("q", 0) fails function write
+proc([]) fails
+7 6
+1 2 -2 -1 -2 2 2 2 1
+L L[2] pt.y T["k"] s[2:4] gv st &pos &subject av
+changed 1 variable("nope") fails
+0
+function() has repl
+&null 7
+ . .. one two
+ . .. on tw
+seek fails where fails
+co-expression_1(1)
+
+q local identifiers:
+   a = 1
+   b = "two"
+   x = list_9 = [1,"two"]
+   z = &null
+
+global identifiers:
+   args = function args
+   close = function close
+   collect = function collect
+   delay = function delay
+   display = function display
+   function = function function
+   gv = 1
+   image = function image
+   main = procedure main
+   name = function name
+   open = function open
+   proc = function proc
+   pt = record constructor pt
+   push = function push
+   put = function put
+   q = procedure q
+   read = function read
+   reads = function reads
+   repl = function repl
+   seek = function seek
+   sort = function sort
+   system = function system
+   table = function table
+   v = procedure v
+   variable = function variable
+   where = function where
+   write = function write
+   writes = function writes
+args(3): error 106
+name(3): error 111
+display(-1): error 205

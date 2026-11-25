@@ -1,0 +1,47 @@
+co-expression_1(1)
+
+q local identifiers:
+   a = 1
+   b = "two"
+   x = list_9 = [1,"two"]
+   z = &null
+main local identifiers:
+   av = list_1 = []
+   L = list_4 = [1,2,3]
+   T = table_1(0)
+   s = "changed"
+   R = record pt_1(1,2)
+   f = file(dd)
+   d = list_7 = [".","..","on","tw"]
+   e = "writes"
+   st = &null
+
+global identifiers:
+   args = function args
+   close = function close
+   collect = function collect
+   delay = function delay
+   display = function display
+   function = function function
+   gv = 1
+   image = function image
+   main = procedure main
+   name = function name
+   open = function open
+   proc = function proc
+   pt = record constructor pt
+   push = function push
+   put = function put
+   q = procedure q
+   read = function read
+   reads = function reads
+   repl = function repl
+   seek = function seek
+   sort = function sort
+   system = function system
+   table = function table
+   v = procedure v
+   variable = function variable
+   where = function where
+   write = function write
+   writes = function writes

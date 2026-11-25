@@ -123,8 +123,14 @@ type Proc struct {
 	NParams  int
 	Variadic bool // the last parameter receives a list of the remaining arguments
 	NLocals  int  // including parameters
-	NTemps   int
-	Code     []Instr
+	// LocalNames are the names of the parameters and locals, by index
+	// (for name() and variable()).
+	LocalNames []string
+	// Statics are the global slots of the procedure's statics, in
+	// declaration order.
+	Statics []int
+	NTemps  int
+	Code    []Instr
 }
 
 // Builtin is a built-in function or operator implementation. Exactly one

@@ -1,0 +1,65 @@
+#STDERR
+# proc, args, name, variable, function, display, collect, delay,
+# directories opened for reading, and x[] as x[&null].
+global gv
+record pt(x, y)
+invocable "q"
+
+procedure main(av)
+   local L, T, s, R, f, d, e
+   static st
+   write(image(proc("write")), " ", image(proc("+", 2)), " ", image(proc("-", 1)))
+   write(image(proc("q")), " ", image(proc("pt")), " ", image(proc(main)))
+   write(image(proc("+", 3)) | "proc(\"+\", 3) fails")
+   write(image(proc("q", 0)) | "proc(\"q\", 0) fails", " ", image(proc("write", 0)))
+   write(image(proc([])) | "proc([]) fails")
+   write(proc("+", 2)(3, 4), " ", proc("[]", 2)([5, 6], 2))
+   write(args(main), " ", args(q), " ", args(v), " ", args(write), " ", args(push),
+      " ", args(repl), " ", args(pt), " ", args(proc("+", 2)), " ", args(proc("-", 1)))
+   L := [1, 2, 3]
+   T := table()
+   R := pt(1, 2)
+   s := "abcdef"
+   gv := 1
+   write(name(L), " ", name(L[2]), " ", name(R.y), " ", name(T["k"]), " ", name(s[2:4]),
+      " ", name(gv), " ", name(st), " ", name(&pos), " ", name(&subject), " ", name(av))
+   variable("s") := "changed"
+   write(s, " ", variable("gv"), " ", image(variable("nope")) | "variable(\"nope\") fails")
+   variable("&pos") := 1
+   write(image(variable("&random")))
+   every e := function() do if e == "repl" then write("function() has repl")
+   collect()
+   delay(1)
+   write(image(T[]), " ", image(table(7)[]))
+   system("rm -rf dd; mkdir dd; touch dd/one dd/two")
+   f := open("dd")
+   d := []
+   while put(d, read(f))
+   every writes(" ", !sort(d))
+   write()
+   close(f)
+   f := open("dd")
+   d := []
+   while put(d, reads(f, 2))
+   every writes(" ", !sort(d))
+   write()
+   write(image(seek(f, 1)) | "seek fails", " ", image(where(f)) | "where fails")
+   close(f)
+   system("rm -rf dd")
+   q(1, "two")
+   &error := -1
+   write(args(3) | "args(3): error " || &errornumber)
+   write(name(3) | "name(3): error " || &errornumber)
+   write(display(-1) | "display(-1): error " || &errornumber)
+end
+
+procedure q(a, b)
+   local x
+   static z
+   x := [a, b]
+   display()
+   display(1, &output)
+end
+
+procedure v(a, b[])
+end

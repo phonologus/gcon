@@ -412,6 +412,11 @@ func (vm *VM) loop(f *Frame) {
 				if p.RefFirst && len(args) > 0 && in.Fn != ApplyOp {
 					args[0] = vm.ref(f, in.Args[0])
 				}
+				if in.X.Kind != ConstOp {
+					// A call written in the program (the compiler's own
+					// operator calls have constant callees).
+					args = adjustArgs(p, args)
+				}
 				if p.Gen != nil {
 					g := p.Gen(vm, args)
 					vm.next(f, in, g)

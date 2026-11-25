@@ -107,7 +107,7 @@ var Features = func() []string {
 		f[0] = "MS Windows"
 	}
 	return append(f, "ASCII", "co-expressions", "environment variables",
-		"large integers", "pipes", "system function")
+		"keyboard functions", "large integers", "pipes", "system function")
 }()
 
 type stringsGen struct{ s []string }
@@ -125,22 +125,4 @@ func init() {
 	Ops["&features"] = &Builtin{Name: "&features", Gen: func(vm *VM, a []Value) Generator {
 		return &stringsGen{Features}
 	}}
-}
-
-func init() {
-	// display(i, f) checks its arguments as iconx does (fmisc.r), so
-	// programs see the same errors, but the listing of variables itself
-	// is not implemented yet: valid arguments raise error 121.
-	fn("display", func(vm *VM, a []Value) (Value, bool) {
-		if _, null := arg(a, 0).(Null); !null {
-			MustInt(a[0])
-		}
-		switch f := arg(a, 1).(type) {
-		case Null, *File:
-		default:
-			Runerr(105, f)
-		}
-		Runerr(121)
-		return nil, false
-	})
 }

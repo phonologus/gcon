@@ -1,0 +1,7 @@
+# getch, getche and kbhit with standard input not a terminal: they read it
+# as it comes, and kbhit succeeds while input remains (and at its end).
+procedure main()
+ write(image(kbhit()) | "no key")
+ write(image(getch()), image(getche()), image(getch()) | "end")
+ write(read())
+end

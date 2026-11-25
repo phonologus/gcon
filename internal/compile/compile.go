@@ -252,12 +252,21 @@ func (c *compiler) proc(d *syntax.ProcDecl, info *sema.Info) *vm.Proc {
 		}
 	}
 	proc.NParams = len(p.locals)
+	// Locals and statics in the order of their declarations (for an
+	// implicit local, its first use), the order in which iconx's
+	// display() lists them.
 	syms := info.Locals[d]
 	names := make([]string, 0, len(syms))
 	for n := range syms {
 		names = append(names, n)
 	}
-	sort.Strings(names)
+	sort.Slice(names, func(i, j int) bool {
+		a, b := syms[names[i]], syms[names[j]]
+		if a.Decl != nil && b.Decl != nil && a.Decl.Offset != b.Decl.Offset {
+			return a.Decl.Offset < b.Decl.Offset
+		}
+		return names[i] < names[j]
+	})
 	for _, n := range names {
 		s := syms[n]
 		if _, ok := p.locals[s]; ok {
@@ -265,12 +274,16 @@ func (c *compiler) proc(d *syntax.ProcDecl, info *sema.Info) *vm.Proc {
 		}
 		switch s.Kind {
 		case sema.Static:
-			c.global(proc.Name+" "+n, vm.NullValue)
+			proc.Statics = append(proc.Statics, c.global(proc.Name+" "+n, vm.NullValue))
 		case sema.Local, sema.Implicit:
 			p.locals[s] = len(p.locals)
 		}
 	}
 	proc.NLocals = len(p.locals)
+	proc.LocalNames = make([]string, proc.NLocals)
+	for s, i := range p.locals {
+		proc.LocalNames[i] = s.Name
+	}
 
 	p.pfail = p.newLabel()
 	entry := p.newLabel()
@@ -483,8 +496,14 @@ func (p *pcomp) expr(e syntax.Expr, fail, succ label) (start, resume label, v vm
 	case *syntax.ListLit:
 		return p.oper(vm.Ops["[...]"], e.List.Elems, fail, succ)
 	case *syntax.Index:
+		// x[i, j] is x[i][j]; x[] is x[&null], as in icont, whose empty
+		// subscript list is one empty expression.
+		subs := e.List.Elems
+		if len(subs) == 0 {
+			subs = []syntax.Expr{nil}
+		}
 		a := p.newLabel()
-		st, r, vs := p.seq(append([]syntax.Expr{e.X}, e.List.Elems...), fail, a)
+		st, r, vs := p.seq(append([]syntax.Expr{e.X}, subs...), fail, a)
 		p.place(a)
 		x := vs[0]
 		for _, i := range vs[1:] {
