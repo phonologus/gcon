@@ -22,6 +22,7 @@ type Cset struct {
 	ranges []runeRange // sorted, disjoint, not adjacent; >= 0x80; no surrogates
 	n      int         // member count, -1 if not yet known
 	bytes  *[4]uint64  // cache: the bits of the cset read as bytes
+	str    *String     // cache: the cset as a string (String)
 }
 
 type runeRange struct{ lo, hi rune }
@@ -345,6 +346,9 @@ func (c *Cset) Members() iter.Seq[string] {
 // text if c has a code point (its byte members are then lone bytes), else
 // bytes: the unit a literal with those members would have.
 func (c *Cset) String() *String {
+	if c.str != nil {
+		return c.str // a cset does not change once made
+	}
 	var b strings.Builder
 	for m := range c.Members() {
 		b.WriteString(m)
@@ -353,7 +357,8 @@ func (c *Cset) String() *String {
 	if len(c.ranges) > 0 {
 		u = TextUnit
 	}
-	return NewString(b.String(), u)
+	c.str = NewString(b.String(), u)
+	return c.str
 }
 
 // equalCsets reports whether a and b have the same members.

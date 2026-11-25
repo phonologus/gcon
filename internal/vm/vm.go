@@ -33,7 +33,8 @@ type Frame struct {
 // VM executes a compiled program.
 type VM struct {
 	prog       *Program
-	stackLimit int // evaluation stack capacity in descriptors (see push)
+	stackLimit int       // evaluation stack capacity in descriptors (see push)
+	mapTab     *mapTable // map's last translation table
 	globals    []Value
 	cur        *Frame        // the running frame
 	co         *Coexp        // the running co-expression

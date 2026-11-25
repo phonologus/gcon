@@ -279,10 +279,7 @@ func adjustArgs(b *Builtin, args []Value) []Value {
 			return args
 		}
 		if ar < 0 {
-			for len(args) < -ar-1 {
-				args = append(args, NullValue)
-			}
-			return args
+			return withNulls(args, -ar-1)
 		}
 		n = ar
 	case b.NoDeref:
@@ -293,10 +290,24 @@ func adjustArgs(b *Builtin, args []Value) []Value {
 	if n < 0 {
 		return args
 	}
+	return withNulls(args, n)[:n]
+}
+
+// withNulls returns args with at least n elements, the added ones
+// &null, in one allocation.
+func withNulls(args []Value, n int) []Value {
+	if len(args) >= n {
+		return args
+	}
+	if cap(args) < n {
+		a := make([]Value, len(args), n)
+		copy(a, args)
+		args = a
+	}
 	for len(args) < n {
 		args = append(args, NullValue)
 	}
-	return args[:n]
+	return args
 }
 
 func init() {

@@ -1173,10 +1173,25 @@ a procedure, `$line`, the predefined symbols and digraphs against iconx.
   - most operations take three to five times as long (geometric mean
     3.5): the cost of each instruction, in which boxing integers into
     `Value` (`any`) is a likely part;
-  - some string functions take ten to seventy times as long (`map`,
-    `reverse`, `detab`, `entab`, `left`, `right`, `center`, `trim`;
-    scanning functions about seven), which points to each function
-    rather than the VM (iconx's `map` caches its last table).
+  - some string functions took ten to seventy times as long (`map`,
+    `reverse`, `detab`, `entab`, `left`, `right`, `center`, `trim`).
+    The cause was not UTF-8 but how they handled characters: each
+    split its strings into a `[]string` of one-character strings and
+    joined the result, and `map` built a Go map from its arguments on
+    every call. They now work on bytes when every character is one
+    (bytes strings, and ASCII text, which a string records), use byte
+    offsets otherwise, build results directly, and `map` keeps its last
+    table as iconx does (a VM's `mapTab`); a cset caches its string
+    form, which `map(s, &lcase, &ucase)` needs on every call. The
+    functions alone are two to 27 times faster
+    (`internal/vm/strfuncs_test.go`), and in `micro.icn` they are now
+    2.4 to 7 times iconx's time, the same band as other operations; the
+    geometric mean over all operations went from 3.51 to 2.88.
+  - What remains is the cost of each instruction. `go test ./internal/run
+    -bench VM` times single operations in a loop through the VM; its
+    profile shows `VM.args` allocating an argument slice for every
+    operator and function call, integers boxed into `Value`
+    (`convT64`), and the garbage collector's work that these cause.
 
 ## Plan
 
