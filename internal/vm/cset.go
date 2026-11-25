@@ -24,6 +24,7 @@ type Cset struct {
 	bytes  *[4]uint64  // cache: the bits of the cset read as bytes
 	str    String      // cache: the cset as a string (String)
 	strOK  bool        // str is set
+	compl  *Cset       // cache: the complement (a cset does not change once made)
 }
 
 type runeRange struct{ lo, hi rune }
@@ -150,10 +151,15 @@ func CsetOp(op byte, a, b *Cset) *Cset {
 
 // Complement returns ~c: every character of the universe not in c.
 func Complement(c *Cset) *Cset {
+	if c.compl != nil {
+		return c.compl
+	}
 	r := &Cset{n: -1, ranges: complementRanges(c.ranges)}
 	for i := range r.bits {
 		r.bits[i] = ^c.bits[i]
 	}
+	r.compl = c // the complement's complement
+	c.compl = r
 	return r
 }
 
