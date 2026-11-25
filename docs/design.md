@@ -487,6 +487,43 @@ string and elements. In the four reference tests that use characters
 These three lines are kept deliberately and will be listed in the
 conformance test with this reason.
 
+## Linking
+
+### Why icont has .u1 and .u2
+
+icont translates each file on its own into two ucode files: `.u2` holds
+the file's global facts (declared globals, procedure and record names,
+`link` and `invocable` declarations), `.u1` its code. Translating a
+file alone, icont cannot tell whether an undeclared identifier is a
+global or a local, so `.u1` leaves such names unresolved. The linker
+(`link.c`) therefore works in phases: read every `.u2`, following `link`
+declarations transitively, to build the global table; optionally scan
+the `.u1` files to drop procedures nothing reaches (`scanrefs`); then
+read the `.u1` files, resolve the names, and generate code. Keeping the
+global facts in their own small file let phase one avoid reading code
+and let each `.u1` be read as a forward-only stream, which mattered on
+the machines Icon was written for. The phases need two sections, not
+two files: a single file with its global section first serves as well
+(Unicon has a single `.u`, as we understand it).
+
+### Decision (2026-11-25): link from source, no build files
+
+gcon has no ucode (its bytecode is its own) and translates quickly, so
+`link` works on source: `link foo` finds `foo.icn`, searching the
+current directory and then the directories of `IPATH` (separated by
+spaces or colons), as icont's `pathfind` searches for `foo.u1`; `link
+"path"` names a file. Linked files are found transitively, each once,
+and the whole program is resolved and compiled together, which is
+icont's phases one and three done in memory. Nothing is written beside
+the sources. If translating large libraries ever becomes slow, compiled
+units can be cached in a per-user cache directory keyed by a hash of
+their contents, one file per unit with its global section first; that
+is an optimisation for later, not a format to design now. icont's rules
+carry over: inconsistent redeclarations across files are errors, and
+procedures nothing reaches and nothing declares invocable are dropped.
+The Icon Program Library is used from its source (`ipl/procs`), which
+gcon finds on `IPATH`.
+
 ## Implementation status
 
 ### Translation and VM
