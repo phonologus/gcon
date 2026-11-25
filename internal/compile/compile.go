@@ -17,6 +17,7 @@ package compile
 
 import (
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 
@@ -40,8 +41,9 @@ func (e *Error) Error() string { return fmt.Sprintf("File %s; Line %d # %s", e.F
 // compiler holds program-wide state.
 type compiler struct {
 	prog    *vm.Program
-	globals map[string]int // global slots by name
-	consts  map[string]int // constant pool indices, by a key for the value
+	globals map[string]int         // global slots by name
+	consts  map[string]int         // constant pool indices, by a key for the value
+	fields  map[string]*vm.Builtin // field reference operators, by name
 	errs    []error
 }
 
@@ -51,6 +53,7 @@ func Compile(p *sema.Program, infos []*sema.Info) (*vm.Program, []error) {
 		prog:    &vm.Program{Main: -1},
 		globals: map[string]int{},
 		consts:  map[string]int{},
+		fields:  map[string]*vm.Builtin{},
 	}
 	// Globals, procedures and records, in name order.
 	names := make([]string, 0, len(p.Globals))
@@ -74,8 +77,16 @@ func Compile(p *sema.Program, infos []*sema.Info) (*vm.Program, []error) {
 				procs = append(procs, procInfo{d, info})
 			case *syntax.GlobalDecl:
 			case *syntax.RecordDecl:
-				line, _ := lines.Position(d.Record.Offset)
-				c.errorf(info.File.Path, line, "records are not yet supported")
+				if d.Name == nil {
+					continue
+				}
+				var fields []string
+				for _, t := range d.Fields.Elems {
+					if t != nil {
+						fields = append(fields, t.Text)
+					}
+				}
+				c.prog.Globals[c.global(d.Name.Text, vm.NullValue)] = vm.NewRecordType(d.Name.Text, fields)
 			case *syntax.LinkDecl:
 				line, _ := lines.Position(d.Link.Offset)
 				c.errorf(info.File.Path, line, "link is not yet supported")
@@ -457,7 +468,12 @@ func (p *pcomp) expr(e syntax.Expr, fail, succ label) (start, resume label, v vm
 	case *syntax.PDCO:
 		p.errorf(e, "programmer-defined control operations are not yet supported")
 	case *syntax.Field:
-		p.errorf(e, "records are not yet supported")
+		f := p.c.fields[e.Name.Text]
+		if f == nil {
+			f = vm.FieldOp(e.Name.Text)
+			p.c.fields[e.Name.Text] = f
+		}
+		return p.oper(f, []syntax.Expr{e.X}, fail, succ)
 	default:
 		p.errorf(e, "invalid expression")
 	}
@@ -590,7 +606,12 @@ func (p *pcomp) literal(e *syntax.Literal) vm.Operand {
 			return p.c.constant(fmt.Sprintf("i%d", n.Int), vm.Int(n.Int))
 		}
 	case token.REALLIT:
-		p.errorf(e, "reals are not yet supported")
+		n, err := lit.ParseNumber(t.Text)
+		if err != nil {
+			p.errorf(e, "%v", err)
+		} else {
+			return p.c.constant(fmt.Sprintf("r%v", n.Real), vm.Real(n.Real))
+		}
 	default:
 		p.errorf(e, "invalid literal")
 	}
@@ -603,6 +624,12 @@ func (p *pcomp) keyword(e *syntax.Keyword, fail, succ label) (label, label, vm.O
 		return succ, fail, p.null()
 	case "fail":
 		return fail, fail, p.null()
+	case "pi":
+		return succ, fail, p.c.constant("&pi", vm.Real(math.Pi))
+	case "e":
+		return succ, fail, p.c.constant("&e", vm.Real(math.E))
+	case "phi":
+		return succ, fail, p.c.constant("&phi", vm.Real(math.Phi))
 	case "cset":
 		return succ, fail, p.c.constant("&cset", vm.CsetAll)
 	case "ascii":

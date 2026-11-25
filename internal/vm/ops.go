@@ -4,10 +4,7 @@ import (
 	"math/bits"
 	"strconv"
 	"strings"
-	"unicode"
 	"unicode/utf8"
-
-	"github.com/phonologus/gcon/internal/lit"
 )
 
 // errorText is iconx's table of run-time error messages
@@ -61,39 +58,16 @@ var errorText = map[int]string{
 // ---------------------------------------------------------------------
 // Conversions
 
-// strToInt converts a string to an integer as Icon does: surrounding
-// white space, an optional sign, and decimal or radix digits.
-//
-// TODO: reals, and large integers.
-func strToInt(s string) (Int, bool) {
-	s = strings.TrimFunc(s, func(r rune) bool { return r < utf8.RuneSelf && unicode.IsSpace(r) })
-	neg := false
-	if s != "" && (s[0] == '+' || s[0] == '-') {
-		neg = s[0] == '-'
-		s = s[1:]
-	}
-	if s == "" || s[0] < '0' || s[0] > '9' {
-		return 0, false
-	}
-	n, err := lit.ParseNumber(s)
-	if err != nil || n.IsReal {
-		return 0, false
-	}
-	if neg {
-		return Int(-n.Int), true
-	}
-	return Int(n.Int), true
-}
-
 // CvInt converts v to an integer, if it can.
 func CvInt(v Value) (Int, bool) {
-	switch x := v.(type) {
-	case Int:
-		return x, true
-	case *String:
-		return strToInt(x.s)
+	n, ok := CvNum(v)
+	if !ok {
+		return 0, false
 	}
-	return 0, false
+	if r, isReal := n.(Real); isReal {
+		return realToInt(float64(r))
+	}
+	return n.(Int), true
 }
 
 // CvStr converts v to a string, if it can.
@@ -103,6 +77,8 @@ func CvStr(v Value) (*String, bool) {
 		return x, true
 	case Int:
 		return &String{s: itoa(x), n: -1, ascii: 1}, true
+	case Real:
+		return &String{s: rtos(float64(x)), n: -1, ascii: 1}, true
 	case *Cset:
 		return x.String(), true
 	}
@@ -114,15 +90,6 @@ func MustInt(v Value) Int {
 	i, ok := CvInt(v)
 	if !ok {
 		Runerr(101, v)
-	}
-	return i
-}
-
-// MustNum converts v to a number or raises error 102.
-func MustNum(v Value) Int {
-	i, ok := CvInt(v)
-	if !ok {
-		Runerr(102, v)
 	}
 	return i
 }
@@ -149,12 +116,6 @@ func cvpos(p Int, n int) (int, bool) {
 
 // ---------------------------------------------------------------------
 // Operators
-
-func arith(name string, f func(x, y Int) Int) *Builtin {
-	return &Builtin{Name: name, Fn: func(vm *VM, a []Value) (Value, bool) {
-		return f(MustNum(a[0]), MustNum(a[1])), true
-	}}
-}
 
 func overflow() Int { Runerr(203); return 0 }
 
@@ -241,13 +202,6 @@ func pow(x, y Int) Int {
 	return r
 }
 
-func numCompare(name string, ok func(x, y Int) bool) *Builtin {
-	return &Builtin{Name: name, Fn: func(vm *VM, a []Value) (Value, bool) {
-		x, y := MustNum(a[0]), MustNum(a[1])
-		return y, ok(x, y)
-	}}
-}
-
 func strCompare(name string, ok func(c int) bool) *Builtin {
 	return &Builtin{Name: name, Fn: func(vm *VM, a []Value) (Value, bool) {
 		x, y := MustStr(a[0]), MustStr(a[1])
@@ -264,6 +218,9 @@ func Identical(x, y Value) bool {
 	case Int:
 		b, ok := y.(Int)
 		return ok && a == b
+	case Real:
+		b, ok := y.(Real)
+		return ok && a == b
 	case *String:
 		b, ok := y.(*String)
 		return ok && a.s == b.s && (a.unit == b.unit || a.IsASCII())
@@ -277,19 +234,19 @@ func Identical(x, y Value) bool {
 // Ops holds the operator implementations, by operator spelling; unary
 // operators are prefixed with "u".
 var Ops = map[string]*Builtin{
-	"+": arith("+", add),
-	"-": arith("-", sub),
-	"*": arith("*", mul),
-	"/": arith("/", div),
-	"%": arith("%", mod),
-	"^": arith("^", pow),
+	"+": arith("+", add, func(x, y float64) float64 { return x + y }),
+	"-": arith("-", sub, func(x, y float64) float64 { return x - y }),
+	"*": arith("*", mul, func(x, y float64) float64 { return x * y }),
+	"/": arith("/", div, rdiv),
+	"%": arith("%", mod, rmod),
+	"^": {Name: "^", Fn: power},
 
-	"<":  numCompare("<", func(x, y Int) bool { return x < y }),
-	"<=": numCompare("<=", func(x, y Int) bool { return x <= y }),
-	">":  numCompare(">", func(x, y Int) bool { return x > y }),
-	">=": numCompare(">=", func(x, y Int) bool { return x >= y }),
-	"=":  numCompare("=", func(x, y Int) bool { return x == y }),
-	"~=": numCompare("~=", func(x, y Int) bool { return x != y }),
+	"<":  numCompare("<", func(c int) bool { return c < 0 }),
+	"<=": numCompare("<=", func(c int) bool { return c <= 0 }),
+	">":  numCompare(">", func(c int) bool { return c > 0 }),
+	">=": numCompare(">=", func(c int) bool { return c >= 0 }),
+	"=":  numCompare("=", func(c int) bool { return c == 0 }),
+	"~=": numCompare("~=", func(c int) bool { return c != 0 }),
 
 	"==":  strCompare("==", func(c int) bool { return c == 0 }),
 	"~==": strCompare("~==", func(c int) bool { return c != 0 }),
@@ -322,7 +279,10 @@ var Ops = map[string]*Builtin{
 	}},
 
 	"u-": {Name: "-", Fn: func(vm *VM, a []Value) (Value, bool) {
-		return sub(0, MustNum(a[0])), true
+		if r, ok := MustNum(a[0]).(Real); ok {
+			return -r, true
+		}
+		return sub(0, MustNum(a[0]).(Int)), true
 	}},
 	"u+": {Name: "+", Fn: func(vm *VM, a []Value) (Value, bool) {
 		return MustNum(a[0]), true
@@ -335,6 +295,8 @@ var Ops = map[string]*Builtin{
 			return Int(x.results), true
 		case *Cset:
 			return Int(x.Size()), true
+		case *Record:
+			return Int(len(x.Fields)), true
 		}
 		if s, ok := CvStr(a[0]); ok {
 			return Int(s.Len()), true
@@ -362,6 +324,8 @@ var Ops = map[string]*Builtin{
 
 func index(vm *VM, a []Value) (Value, bool) {
 	switch x := a[0].(type) {
+	case *Record:
+		return recordIndex(x, a[1])
 	case *List:
 		i := MustInt(a[1])
 		n := Int(len(x.Elems))
@@ -414,9 +378,10 @@ func section(vm *VM, a []Value) (Value, bool) {
 
 // toBy generates i to j by k.
 func toBy(vm *VM, a []Value) Generator {
-	g := &toGen{i: MustNum(a[0]), j: MustNum(a[1]), by: 1}
+	// As in iconx, the operands are integers; reals are truncated.
+	g := &toGen{i: MustInt(a[0]), j: MustInt(a[1]), by: 1}
 	if len(a) > 2 {
-		g.by = MustNum(a[2])
+		g.by = MustInt(a[2])
 	}
 	if g.by == 0 {
 		Runerr(211, g.by)
@@ -449,6 +414,8 @@ func bang(vm *VM, a []Value) Generator {
 	switch x := a[0].(type) {
 	case *List:
 		return &listGen{l: x}
+	case *Record:
+		return &recordGen{r: x}
 	}
 	s, ok := CvStr(a[0])
 	if !ok {
@@ -505,6 +472,12 @@ func (vm *VM) Image(v Value) string {
 		return "co-expression_" + strconv.Itoa(x.serial) + "(" + strconv.Itoa(x.results) + ")"
 	case *Cset:
 		return imageCset(x)
+	case Real:
+		return rtos(float64(x))
+	case *Record:
+		return x.image()
+	case *RecordType:
+		return "record constructor " + x.Name
 	}
 	return "?"
 }

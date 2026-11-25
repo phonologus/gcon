@@ -207,7 +207,7 @@ func Deref(v Value) Value {
 
 // TypeName returns the Icon type name of a (dereferenced) value.
 func TypeName(v Value) string {
-	switch v.(type) {
+	switch x := v.(type) {
 	case Null:
 		return "null"
 	case Int:
@@ -222,6 +222,12 @@ func TypeName(v Value) string {
 		return "co-expression"
 	case *Cset:
 		return "cset"
+	case Real:
+		return "real"
+	case *Record:
+		return x.T.Name
+	case *RecordType:
+		return "procedure"
 	}
 	return "unknown"
 }

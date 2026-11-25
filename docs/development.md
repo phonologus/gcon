@@ -89,6 +89,12 @@ tools/iconx/expect.sh internal/run/testdata/NAME.icn
 `tools/iconx/build.sh` builds icont and iconx in a scratch copy of the
 reference tree (default `$TMPDIR/iconx-build`); `expect.sh` calls it.
 
+A known difference in the oracle itself: iconx formats reals with C's
+`printf("%.10g")`, and macOS's C library keeps trailing zeros when a
+value is an exact tie in exponent form (`1e10+5` prints as
+`1.000000000e+10`, where the C standard, glibc and Go give `1e+10`).
+gcon follows the standard, so test programs avoid such values.
+
 `TestConformance` runs the reference suite (`icon/tests/general`) as its
 `Test-icon` script does. `internal/run/testdata/conformance.txt` lists the
 tests gcon passes; the test fails if a listed test fails or an unlisted

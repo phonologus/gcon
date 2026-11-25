@@ -272,6 +272,10 @@ func (vm *VM) run(f *Frame) {
 						f.pc = int(in.L2)
 					}
 				}
+			case *RecordType:
+				f.temps[in.H] = nil
+				f.temps[in.Dst.Index] = p.construct(args)
+				f.pc = int(in.L1)
 			case Int:
 				// Integer invocation i(e1, ..., en) produces ei.
 				f.temps[in.H] = nil

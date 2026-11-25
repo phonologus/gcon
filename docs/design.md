@@ -385,6 +385,17 @@ conformance test with this reason.
 - Csets (`internal/vm/cset.go`) are a 256-bit set of ASCII and bytes plus
   sorted code-point ranges. Cset literals
   with `..` ranges are decoded by `lit.Cset`.
+- Reals format as iconx's `rtos` does: C's `%.10g`, with `.0` added when
+  there is no decimal point or exponent, and `inf.0` for infinities. Go's
+  `strconv.FormatFloat(x, 'g', 10, 64)` is `%.10g` exactly. Arithmetic,
+  conversions and `^` follow iconx's `oarith.r` (`ripow` is reproduced
+  step for step, so results agree to the last bit); `to` truncates real
+  operands to integers, as iconx does. Errors 204, 205 and 206 are raised
+  where iconx raises them.
+- Records: a declaration's global holds a `RecordType`, whose call makes a
+  `Record`. Field references are looked up by name when they run, so
+  `x.f` works on any record type with a field `f`; `r[i]` and `r["f"]`
+  subscript by position or field name.
 - gcon's extra built-ins (`runes`, `bytes`, `uchar`, `utf8valid`) and
   the keyword `&uset` are in the catalogue marked `Gcon`. Like any
   built-in, they are hidden by a declaration of the same name but not by
@@ -409,8 +420,12 @@ conformance test with this reason.
   looked up in that string), so scanning is cheap; the sparse index of
   "Fast positions", for random access far from the cursor, is still to
   come.
-- Not yet implemented: reals, records, sets, tables, programmer-defined
-  control operations, files and input, most keywords and built-in
+- Run-time error messages show offending records as `record point_1(2)`;
+  iconx shows their fields, `record point_1(0,0)` (with the traceback).
+- Integers beyond 64 bits: `integer(1e30)` and strings of more than 19
+  digits are not numbers yet, where 9.5 makes large integers.
+- Not yet implemented: sets, tables, programmer-defined control
+  operations, files and input, most keywords and built-in
   functions, the preprocessor, `link`.
 
 ## Verification
