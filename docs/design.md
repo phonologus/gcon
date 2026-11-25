@@ -134,3 +134,32 @@ listings are compared. Over `tests/values.icn` and `icn/bbox.icn`,
 21,597 variants give identical output, messages and exit status, with
 gcon-vm built with the address and undefined-behaviour sanitizers; the
 messages cover every check in the decoder and most in the validator.
+
+## Planned (2026-11-25): `loadfunc`, revisit when the VM runs
+
+gcon does not provide `loadfunc` (error 121) because gcon is pure Go,
+without cgo. gcon-vm is C and can `dlopen`, so it can bring `loadfunc`
+back. Take this up once the interpreter runs and the builtins are in.
+
+- **Interface: source compatibility with 9.5's `icall.h`**
+  (`icon/ipl/cfuncs`), not binary compatibility. A C function is
+  `int f(int argc, descriptor *argv)`, returning 0 (success, result in
+  `argv[0]`), -1 (failure) or an error number. gcon-vm ships its own
+  `icall.h` and provides the callbacks its macros use (`cnv_int`,
+  `cnv_real`, `cnv_str`, `cnv_c_str`, `getdbl`, `alcstr`, `alcreal`,
+  `alcfile`). A shim converts arguments to iconx-style descriptors and
+  converts the result back, so existing `cfuncs` code recompiles
+  unchanged. Libraries built for iconx are not loaded: they depend on
+  iconx's block layouts, and matching those would tie gcon-vm's value
+  representation to iconx's.
+- **To decide then:** the unit of a string a C function returns (bytes,
+  or by content as a literal's); whether the shim copies strings (so C
+  code holding pointers cannot be hurt by the collector, a hazard iconx
+  ignores); external values (`T_External`, with their function lists)
+  as a new kind.
+- **The two VMs differ** until gcon-vm replaces the Go VM: under the Go
+  VM `loadfunc` stays error 121. No format change is needed: `loadfunc`
+  is already one of gcon's function names.
+- **Gains:** the IPL programs that need C functions (`htget`,
+  `weblinks`) can run, and native bindings can be added without growing
+  the VM.
