@@ -44,7 +44,7 @@ func (k valueVar) Set(v Value) bool { *k.p = v; return true }
 // prognameVar is &progname: assignments are converted to strings.
 type prognameVar struct{ vm *VM }
 
-func (k prognameVar) Get() Value { return V(k.vm.progname) }
+func (k prognameVar) Get() Value { return StrVal(k.vm.progname) }
 func (k prognameVar) Set(v Value) bool {
 	k.vm.progname = MustStr(v)
 	return true
@@ -54,7 +54,7 @@ func (k prognameVar) Set(v Value) bool {
 // identifiers are listed on &errout ("Termination dump").
 type dumpVar struct{ vm *VM }
 
-func (k dumpVar) Get() Value { return V(k.vm.dump) }
+func (k dumpVar) Get() Value { return IntVal(k.vm.dump) }
 func (k dumpVar) Set(v Value) bool {
 	k.vm.dump = MustInt(v)
 	return true
@@ -93,8 +93,8 @@ func init() {
 			return f(vm), true
 		}}
 	}
-	kw("clock", func(vm *VM) Value { return V(Text(time.Now().Format("15:04:05"))) })
-	kw("date", func(vm *VM) Value { return V(Text(time.Now().Format("2006/01/02"))) })
+	kw("clock", func(vm *VM) Value { return StrVal(Text(time.Now().Format("15:04:05"))) })
+	kw("date", func(vm *VM) Value { return StrVal(Text(time.Now().Format("2006/01/02"))) })
 	kw("dateline", func(vm *VM) Value {
 		// As iconx's: "Monday, March 8, 2026  3:04 pm", the hour 1..12.
 		t := time.Now()
@@ -107,20 +107,20 @@ func init() {
 		} else if h < 1 {
 			h += 12
 		}
-		return V(Text(fmt.Sprintf("%s, %s %d, %d  %d:%02d %s", t.Weekday(), t.Month(),
+		return StrVal(Text(fmt.Sprintf("%s, %s %d, %d  %d:%02d %s", t.Weekday(), t.Month(),
 			t.Day(), t.Year(), h, t.Minute(), merid)))
 	})
-	kw("time", func(vm *VM) Value { return V(Int(cpuMillis())) })
+	kw("time", func(vm *VM) Value { return IntVal(Int(cpuMillis())) })
 	kw("host", func(vm *VM) Value {
 		h, _ := os.Hostname()
-		return V(Text(h))
+		return StrVal(Text(h))
 	})
-	kw("version", func(vm *VM) Value { return V(Text(Version)) })
-	kw("progname", func(vm *VM) Value { return V(prognameVar{vm}) })
-	kw("dump", func(vm *VM) Value { return V(dumpVar{vm}) })
-	kw("eventcode", func(vm *VM) Value { return V(valueVar{&vm.eventcode}) })
-	kw("eventsource", func(vm *VM) Value { return V(valueVar{&vm.eventsource}) })
-	kw("eventvalue", func(vm *VM) Value { return V(valueVar{&vm.eventvalue}) })
+	kw("version", func(vm *VM) Value { return StrVal(Text(Version)) })
+	kw("progname", func(vm *VM) Value { return varVal(prognameVar{vm}) })
+	kw("dump", func(vm *VM) Value { return varVal(dumpVar{vm}) })
+	kw("eventcode", func(vm *VM) Value { return varVal(valueVar{&vm.eventcode}) })
+	kw("eventsource", func(vm *VM) Value { return varVal(valueVar{&vm.eventsource}) })
+	kw("eventvalue", func(vm *VM) Value { return varVal(valueVar{&vm.eventvalue}) })
 	Ops["&collections"] = &Builtin{Name: "&collections", Gen: func(vm *VM, a []Value) Generator {
 		return &intsGen{append([]Int(nil), vm.collections[:]...)}
 	}}
@@ -140,5 +140,5 @@ func (g *intsGen) Next(vm *VM) (Value, bool) {
 	}
 	v := g.v[0]
 	g.v = g.v[1:]
-	return V(v), true
+	return IntVal(v), true
 }

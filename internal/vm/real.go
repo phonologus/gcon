@@ -110,7 +110,7 @@ func strToNum(s string) (Value, bool) {
 	}
 	if !real {
 		if v, err := strconv.ParseInt(s, 10, 64); err == nil {
-			return V(Int(v)), true
+			return IntVal(Int(v)), true
 		}
 		b, ok := new(big.Int).SetString(s, 10)
 		if !ok {
@@ -122,19 +122,22 @@ func strToNum(s string) (Value, bool) {
 	if err != nil || math.IsInf(f, 0) {
 		return Value{}, false
 	}
-	return V(Real(f)), true
+	return RealVal(Real(f)), true
 }
 
 func isDigit(c byte) bool { return '0' <= c && c <= '9' }
 
 // CvNum converts v to a number (Int or Real), if it can.
 func CvNum(v Value) (Value, bool) {
-	switch x := v.Any().(type) {
-	case Int, Real, *Big:
+	switch sv132 := v; sv132.Kind() {
+	case KInt, KReal, KBig:
+		x := sv132.Any()
 		return V(x), true
-	case *String:
+	case KString:
+		x := sv132.Str()
 		return strToNum(x.s)
-	case *Cset:
+	case KCset:
+		x := sv132.Cset()
 		return strToNum(x.String().s)
 	}
 	return Value{}, false
@@ -146,7 +149,7 @@ func CvReal(v Value) (float64, bool) {
 	if !ok {
 		return 0, false
 	}
-	if b, isBig := n.Any().(*Big); isBig {
+	if b, isBig := n.AsBig(); isBig {
 		return bigToReal(b.v)
 	}
 	return toFloat(n), true
@@ -155,17 +158,19 @@ func CvReal(v Value) (float64, bool) {
 // toFloat converts number n to a real. A large integer too large for a
 // real raises error 102, as in iconx where the conversion fails.
 func toFloat(n Value) float64 {
-	switch x := n.Any().(type) {
-	case Int:
+	switch sv158 := n; sv158.Kind() {
+	case KInt:
+		x := sv158.Int()
 		return float64(x)
-	case *Big:
+	case KBig:
+		x := sv158.Big()
 		f, ok := bigToReal(x.v)
 		if !ok {
-			Runerr(102, V(x))
+			Runerr(102, BigVal(x))
 		}
 		return f
 	}
-	return float64(n.Any().(Real))
+	return float64(n.Real())
 }
 
 // realToInt truncates f to a word-sized integer, if it is in range
@@ -203,7 +208,7 @@ func arith(name string, fi func(x, y Int) (Int, bool), fb func(x, y *big.Int) *b
 		if isInteger(x) && isInteger(y) {
 			return intArith(x, y, fi, fb), true
 		}
-		return V(realResult(fr(toFloat(x), toFloat(y)))), true
+		return RealVal(realResult(fr(toFloat(x), toFloat(y)))), true
 	}}
 }
 
@@ -231,10 +236,10 @@ func power(vm *VM, a []Value) (Value, bool) {
 		if isInteger(x) {
 			return intPow(x, y), true
 		}
-		if yi, ok := y.Any().(Int); ok {
-			return V(ripow(float64(x.Any().(Real)), int64(yi))), true
+		if yi, ok := y.AsInt(); ok {
+			return RealVal(ripow(float64(x.Real()), int64(yi))), true
 		}
-		return V(realPowBig(float64(x.Any().(Real)), y.Any().(*Big).v)), true
+		return RealVal(realPowBig(float64(x.Real()), y.Big().v)), true
 	}
 	fx, fy := toFloat(x), toFloat(y)
 	if fx == 0 && fy < 0 {
@@ -243,7 +248,7 @@ func power(vm *VM, a []Value) (Value, bool) {
 	if fx < 0 {
 		Runerr(206)
 	}
-	return V(realResult(math.Pow(fx, fy))), true
+	return RealVal(realResult(math.Pow(fx, fy))), true
 }
 
 // ripow raises a real to an integral power, step for step as iconx's
@@ -283,7 +288,7 @@ func numCompare(name string, ok func(c int) bool) *Builtin {
 		} else if fx > fy {
 			c = 1
 		}
-		return V(Real(fy)), ok(c)
+		return RealVal(Real(fy)), ok(c)
 	}}
 }
 
@@ -295,7 +300,7 @@ func mathFn(name string, f func(float64) float64, bad func(float64) bool) {
 		if bad != nil && bad(x) {
 			Runerr(205, a[0])
 		}
-		return V(Real(f(x))), true
+		return RealVal(Real(f(x))), true
 	})
 }
 
@@ -312,40 +317,42 @@ func init() {
 	mathFn("rtod", func(x float64) float64 { return x * 180 / math.Pi }, nil)
 	fn("atan", func(vm *VM, a []Value) (Value, bool) {
 		y := MustReal(arg(a, 0))
-		if _, null := arg(a, 1).Any().(Null); null {
-			return V(Real(math.Atan(y))), true
+		if _, null := arg(a, 1).AsNull(); null {
+			return RealVal(Real(math.Atan(y))), true
 		}
-		return V(Real(math.Atan2(y, MustReal(a[1])))), true
+		return RealVal(Real(math.Atan2(y, MustReal(a[1])))), true
 	})
 	fn("log", func(vm *VM, a []Value) (Value, bool) {
 		x := MustReal(arg(a, 0))
 		if x <= 0 {
 			Runerr(205, a[0])
 		}
-		if _, null := arg(a, 1).Any().(Null); null {
-			return V(Real(math.Log(x))), true
+		if _, null := arg(a, 1).AsNull(); null {
+			return RealVal(Real(math.Log(x))), true
 		}
 		b := MustReal(a[1])
 		if b <= 1 {
 			Runerr(205, a[1])
 		}
-		return V(Real(math.Log(x) / math.Log(b))), true
+		return RealVal(Real(math.Log(x) / math.Log(b))), true
 	})
 	fn("abs", func(vm *VM, a []Value) (Value, bool) {
-		switch n := MustNum(arg(a, 0)).Any().(type) {
-		case Int, *Big:
-			if cmpInteger(V(n), V(Int(0))) < 0 {
+		switch sv335 := MustNum(arg(a, 0)); sv335.Kind() {
+		case KInt, KBig:
+			n := sv335.Any()
+			if cmpInteger(V(n), IntVal(Int(0))) < 0 {
 				return neg(V(n)), true
 			}
 			return V(n), true
-		case Real:
-			return V(Real(math.Abs(float64(n)))), true
+		case KReal:
+			n := sv335.Real()
+			return RealVal(Real(math.Abs(float64(n)))), true
 		}
 		return Value{}, false
 	})
 	fn("real", func(vm *VM, a []Value) (Value, bool) {
 		f, ok := CvReal(arg(a, 0))
-		return V(Real(f)), ok
+		return RealVal(Real(f)), ok
 	})
 	fn("numeric", func(vm *VM, a []Value) (Value, bool) {
 		return CvNum(arg(a, 0))

@@ -20,15 +20,15 @@ type Big struct{ v *big.Int }
 // b must not be modified afterwards.
 func mkInteger(b *big.Int) Value {
 	if b.IsInt64() {
-		return V(Int(b.Int64()))
+		return IntVal(Int(b.Int64()))
 	}
-	return V(&Big{b})
+	return BigVal(&Big{b})
 }
 
 // isInteger reports whether v is an integer, small or large.
 func isInteger(v Value) bool {
-	switch v.Any().(type) {
-	case Int, *Big:
+	switch sv30 := v; sv30.Kind() {
+	case KInt, KBig:
 		return true
 	}
 	return false
@@ -37,10 +37,10 @@ func isInteger(v Value) bool {
 // bigOf returns integer v (an Int or *Big) as a big.Int, which the
 // caller must not modify.
 func bigOf(v Value) *big.Int {
-	if b, ok := v.Any().(*Big); ok {
+	if b, ok := v.AsBig(); ok {
 		return b.v
 	}
-	return big.NewInt(int64(v.Any().(Int)))
+	return big.NewInt(int64(v.Int()))
 }
 
 // bigToReal converts b to a real as iconx's bigtoreal does, digit by
@@ -69,7 +69,7 @@ func bigToReal(b *big.Int) (float64, bool) {
 // cnv:integer does; it fails for infinities and NaN.
 func realToInteger(f float64) (Value, bool) {
 	if i, ok := realToInt(f); ok {
-		return V(i), true
+		return IntVal(i), true
 	}
 	if math.IsInf(f, 0) || math.IsNaN(f) {
 		return Value{}, false
@@ -85,7 +85,7 @@ func CvInteger(v Value) (Value, bool) {
 	if !ok {
 		return Value{}, false
 	}
-	if r, isReal := n.Any().(Real); isReal {
+	if r, isReal := n.AsReal(); isReal {
 		return realToInteger(float64(r))
 	}
 	return n, true
@@ -184,8 +184,8 @@ func modBig(x, y *big.Int) *big.Int {
 
 // intArith applies an integer operation to integers x and y.
 func intArith(x, y Value, fi func(x, y Int) (Int, bool), fb func(x, y *big.Int) *big.Int) Value {
-	if xi, ok := x.Any().(Int); ok {
-		if yi, ok := y.Any().(Int); ok {
+	if xi, ok := x.AsInt(); ok {
+		if yi, ok := y.AsInt(); ok {
 			if r, ok := fi(xi, yi); ok {
 				return mkInt(r)
 			}
@@ -196,13 +196,13 @@ func intArith(x, y Value, fi func(x, y Int) (Int, bool), fb func(x, y *big.Int) 
 
 // neg returns -x for integer x.
 func neg(x Value) Value {
-	return intArith(V(Int(0)), x, subInt, subBig)
+	return intArith(IntVal(Int(0)), x, subInt, subBig)
 }
 
 // cmpInteger compares integers x and y.
 func cmpInteger(x, y Value) int {
-	if xi, ok := x.Any().(Int); ok {
-		if yi, ok := y.Any().(Int); ok {
+	if xi, ok := x.AsInt(); ok {
+		if yi, ok := y.AsInt(); ok {
 			return cmp64(int64(xi), int64(yi))
 		}
 	}
@@ -214,30 +214,30 @@ func cmpInteger(x, y Value) int {
 // 1 ^ y is 1, -1 ^ y is 1 or -1, and anything else is 0.
 func intPow(x, y Value) Value {
 	yb := bigOf(y)
-	one := func(x Value, n int) bool { xi, ok := x.Any().(Int); return ok && xi == Int(n) }
+	one := func(x Value, n int) bool { xi, ok := x.AsInt(); return ok && xi == Int(n) }
 	switch {
 	case one(x, 0) && yb.Sign() <= 0:
 		Runerr(204)
 	case yb.Sign() == 0, one(x, 1):
-		return V(Int(1))
+		return IntVal(Int(1))
 	case one(x, -1):
 		if yb.Bit(0) == 0 {
-			return V(Int(1))
+			return IntVal(Int(1))
 		}
-		return V(Int(-1))
+		return IntVal(Int(-1))
 	case yb.Sign() < 0:
-		return V(Int(0))
+		return IntVal(Int(0))
 	case one(x, 0):
-		return V(Int(0))
+		return IntVal(Int(0))
 	}
-	if _, small := y.Any().(Int); !small {
+	if _, small := y.AsInt(); !small {
 		// Any other base to a large power exhausts memory, as in iconx
 		// (error 307).
 		Runerr(307)
 	}
-	if xi, ok := x.Any().(Int); ok {
-		if r, ok := powInt(xi, int64(y.Any().(Int))); ok {
-			return V(r)
+	if xi, ok := x.AsInt(); ok {
+		if r, ok := powInt(xi, int64(y.Int())); ok {
+			return IntVal(r)
 		}
 	}
 	return mkInteger(new(big.Int).Exp(bigOf(x), yb, nil))
@@ -295,9 +295,9 @@ func init() {
 	bitwise := func(name string, fi func(x, y Int) Int, fb func(z, x, y *big.Int) *big.Int) {
 		fn(name, func(vm *VM, a []Value) (Value, bool) {
 			x, y := MustInteger(arg(a, 0)), MustInteger(arg(a, 1))
-			if xi, ok := x.Any().(Int); ok {
-				if yi, ok := y.Any().(Int); ok {
-					return V(fi(xi, yi)), true
+			if xi, ok := x.AsInt(); ok {
+				if yi, ok := y.AsInt(); ok {
+					return IntVal(fi(xi, yi)), true
 				}
 			}
 			return mkInteger(fb(new(big.Int), bigOf(x), bigOf(y))), true
@@ -308,8 +308,8 @@ func init() {
 	bitwise("ixor", func(x, y Int) Int { return x ^ y }, (*big.Int).Xor)
 	fn("icom", func(vm *VM, a []Value) (Value, bool) {
 		x := MustInteger(arg(a, 0))
-		if xi, ok := x.Any().(Int); ok {
-			return V(^xi), true
+		if xi, ok := x.AsInt(); ok {
+			return IntVal(^xi), true
 		}
 		return mkInteger(new(big.Int).Not(bigOf(x))), true
 	})
@@ -317,18 +317,18 @@ func init() {
 	// right are lost, and a negative i shifts in ones.
 	fn("ishift", func(vm *VM, a []Value) (Value, bool) {
 		x, y := MustInteger(arg(a, 0)), MustInteger(arg(a, 1))
-		j, small := y.Any().(Int)
+		j, small := y.AsInt()
 		if !small {
 			Runerr(101, y)
 		}
-		if xi, ok := x.Any().(Int); ok && j <= 0 {
+		if xi, ok := x.AsInt(); ok && j <= 0 {
 			if j <= -64 {
 				if xi < 0 {
-					return V(Int(-1)), true
+					return IntVal(Int(-1)), true
 				}
-				return V(Int(0)), true
+				return IntVal(Int(0)), true
 			}
-			return V(xi >> uint(-j)), true
+			return IntVal(xi >> uint(-j)), true
 		}
 		if j >= 0 {
 			if j > 1<<32 {

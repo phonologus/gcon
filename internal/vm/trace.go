@@ -46,8 +46,9 @@ func (vm *VM) OutImage(v Value, noimage int) string {
 	case *Value, Var:
 		return "(variable = " + vm.OutImage(Deref(v), noimage) + ")"
 	}
-	switch x := v.Any().(type) {
-	case *String:
+	switch sv49 := v; sv49.Kind() {
+	case KString:
+		x := sv49.Str()
 		if x.Runes() <= stringLimit {
 			return quote(x, '"')
 		}
@@ -57,7 +58,8 @@ func (vm *VM) OutImage(v Value, noimage int) string {
 		}
 		q := quote(x.Slice(1, i), '"')
 		return q[:len(q)-1] + `..."`
-	case *Cset:
+	case KCset:
+		x := sv49.Cset()
 		if csetName(x) != "" || x.Size() <= stringLimit {
 			return imageCset(x)
 		}
@@ -72,7 +74,8 @@ func (vm *VM) OutImage(v Value, noimage int) string {
 		}
 		q := quote(Text(b.String()), '\'')
 		return q[:len(q)-1] + `...'`
-	case *List:
+	case KList:
+		x := sv49.List()
 		n := len(x.Elems)
 		if noimage > 0 && n > 0 {
 			return "list_" + strconv.Itoa(x.serial) + "(" + strconv.Itoa(n) + ")"
@@ -93,7 +96,8 @@ func (vm *VM) OutImage(v Value, noimage int) string {
 		}
 		b.WriteByte(']')
 		return b.String()
-	case *Record:
+	case KRecord:
+		x := sv49.Record()
 		s := "record " + x.T.Name + "_" + strconv.Itoa(x.serial)
 		switch {
 		case len(x.Fields) == 0:
@@ -182,7 +186,7 @@ func (vm *VM) traceCo(f *Frame, pc int, kind string, v Value, next *Coexp) {
 // traceVar is the variable &trace.
 type traceVar struct{ vm *VM }
 
-func (k traceVar) Get() Value { return V(k.vm.trace) }
+func (k traceVar) Get() Value { return IntVal(k.vm.trace) }
 func (k traceVar) Set(v Value) bool {
 	k.vm.trace = MustInt(v)
 	return true
@@ -190,10 +194,10 @@ func (k traceVar) Set(v Value) bool {
 
 func init() {
 	Ops["&trace"] = &Builtin{Name: "&trace", Fn: func(vm *VM, a []Value) (Value, bool) {
-		return V(traceVar{vm}), true
+		return varVal(traceVar{vm}), true
 	}}
 	Ops["&level"] = &Builtin{Name: "&level", Fn: func(vm *VM, a []Value) (Value, bool) {
-		return V(Int(vm.level)), true
+		return IntVal(Int(vm.level)), true
 	}}
 }
 
@@ -252,12 +256,12 @@ func (vm *VM) offending(f *Frame, pc int) string {
 		case "||", "==", "~==", "<<", "<<=", ">>", ">>=":
 			var cs *String
 			cs, ok = CvStr(x)
-			c = V(cs)
+			c = StrVal(cs)
 		case "++", "--", "**":
-			if _, isSet := x.Any().(*Set); !isSet {
+			if _, isSet := x.AsSetObj(); !isSet {
 				var cc *Cset
 				cc, ok = CvCset(x)
-				c = V(cc)
+				c = CsetVal(cc)
 			}
 		}
 		if !ok {
@@ -335,8 +339,9 @@ func (vm *VM) offending(f *Frame, pc int) string {
 		if in.Fn == ApplyOp {
 			return val(in.X) + " ! " + val(in.Args[0])
 		}
-		switch fv := Deref(vm.get(f, in.X)).Any().(type) {
-		case *Builtin:
+		switch sv338 := Deref(vm.get(f, in.X)); sv338.Kind() {
+		case KBuiltin:
+			fv := sv338.Builtin()
 			if Functions[fv.Name] == fv {
 				// The arguments as the function receives them: padded
 				// with &null to its arity, or cut to it, as iconx
@@ -358,17 +363,22 @@ func (vm *VM) offending(f *Frame, pc int) string {
 				return fv.Name + "(" + args(in.Args) + ")"
 			}
 			return operator(fv, in.Args)
-		case *Proc:
+		case KProc:
+			fv := sv338.Proc()
 			return fv.Name + "(" + args(in.Args) + ")"
 		default:
+			fv := sv338.Any()
 			// Invoked by name: shown by the name it resolved to, if any.
 			if s, ok := CvStr(V(fv)); ok {
-				switch p := vm.strproc(s.s, len(in.Args)).Any().(type) {
-				case *Builtin:
+				switch sv366 := vm.strproc(s.s, len(in.Args)); sv366.Kind() {
+				case KBuiltin:
+					p := sv366.Builtin()
 					return p.Name + "(" + args(in.Args) + ")"
-				case *Proc:
+				case KProc:
+					p := sv366.Proc()
 					return p.Name + "(" + args(in.Args) + ")"
-				case *RecordType:
+				case KRecordType:
+					p := sv366.RecordType()
 					return p.Name + "(" + args(in.Args) + ")"
 				}
 			}

@@ -50,7 +50,7 @@ func Disasm(w io.Writer, p *Program, info Info) error {
 
 	seen := map[*Proc]bool{}
 	for _, v := range p.Globals {
-		if pr, ok := v.Any().(*Proc); ok && !seen[pr] {
+		if pr, ok := v.AsProc(); ok && !seen[pr] {
 			seen[pr] = true
 			disasmProc(b, pr)
 		}
@@ -139,28 +139,36 @@ func InstrText(in *Instr) string {
 // constImage returns the listing of a constant or a global's initial
 // value.
 func constImage(v Value) string {
-	switch x := v.Any().(type) {
-	case Null:
+	switch sv142 := v; sv142.Kind() {
+	case KNull:
 		return "&null"
-	case Int:
+	case KInt:
+		x := sv142.Int()
 		return itoa(x)
-	case *Big:
+	case KBig:
+		x := sv142.Big()
 		return bigImage(x.v)
-	case Real:
+	case KReal:
+		x := sv142.Real()
 		return rtos(float64(x))
-	case *String:
+	case KString:
+		x := sv142.Str()
 		s := quote(x, '"')
 		if x.unit == BytesUnit {
 			s = "bytes " + s
 		}
 		return s
-	case *Cset:
+	case KCset:
+		x := sv142.Cset()
 		return imageCset(x)
-	case *Proc:
+	case KProc:
+		x := sv142.Proc()
 		return "procedure " + x.Name
-	case *RecordType:
+	case KRecordType:
+		x := sv142.RecordType()
 		return "record " + x.Name + "(" + strings.Join(x.Fields, ", ") + ")"
-	case *Builtin:
+	case KBuiltin:
+		x := sv142.Builtin()
 		if r, ok := RefOf(x); ok {
 			return r.String()
 		}

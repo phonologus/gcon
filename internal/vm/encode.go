@@ -104,15 +104,18 @@ func Encode(p *Program, info map[string]string) ([]byte, error) {
 		}
 	}
 	collect := func(v Value) {
-		switch v := v.Any().(type) {
-		case *Builtin:
+		switch sv107 := v; sv107.Kind() {
+		case KBuiltin:
+			v := sv107.Builtin()
 			addBuiltin(v)
-		case *RecordType:
+		case KRecordType:
+			v := sv107.RecordType()
 			if _, ok := e.records[v]; !ok {
 				e.records[v] = len(records)
 				records = append(records, v)
 			}
-		case *Proc:
+		case KProc:
+			v := sv107.Proc()
 			if _, ok := e.procs[v]; !ok {
 				e.procs[v] = len(procs)
 				procs = append(procs, v)
@@ -327,13 +330,15 @@ func (e *encoder) proc(p *Proc) error {
 }
 
 func (e *encoder) value(v Value) error {
-	switch v := v.Any().(type) {
-	case Null:
+	switch sv330 := v; sv330.Kind() {
+	case KNull:
 		e.byte(valNull)
-	case Int:
+	case KInt:
+		v := sv330.Int()
 		e.byte(valInt)
 		e.int(int64(v))
-	case *Big:
+	case KBig:
+		v := sv330.Big()
 		e.byte(valBig)
 		if v.v.Sign() < 0 {
 			e.byte(1)
@@ -341,14 +346,17 @@ func (e *encoder) value(v Value) error {
 			e.byte(0)
 		}
 		e.bytes(v.v.Bytes())
-	case Real:
+	case KReal:
+		v := sv330.Real()
 		e.byte(valReal)
 		e.u64(math.Float64bits(float64(v)))
-	case *String:
+	case KString:
+		v := sv330.Str()
 		e.byte(valString)
 		e.byte(byte(v.unit))
 		e.str(v.s)
-	case *Cset:
+	case KCset:
+		v := sv330.Cset()
 		e.byte(valCset)
 		for _, w := range v.bits {
 			e.u64(w)
@@ -358,16 +366,20 @@ func (e *encoder) value(v Value) error {
 			e.uint(uint64(r.lo))
 			e.uint(uint64(r.hi))
 		}
-	case *Builtin:
+	case KBuiltin:
+		v := sv330.Builtin()
 		e.byte(valBuiltin)
 		e.uint(uint64(e.builtins[v]))
-	case *Proc:
+	case KProc:
+		v := sv330.Proc()
 		e.byte(valProc)
 		e.uint(uint64(e.procs[v]))
-	case *RecordType:
+	case KRecordType:
+		v := sv330.RecordType()
 		e.byte(valRecord)
 		e.uint(uint64(e.records[v]))
 	default:
+		v := sv330.Any()
 		return fmt.Errorf("vm: cannot encode a constant of type %T", v)
 	}
 	return nil
@@ -744,7 +756,7 @@ func (d *decoder) value() Value {
 	case valNull:
 		return NullValue
 	case valInt:
-		return V(Int(d.int()))
+		return IntVal(Int(d.int()))
 	case valBig:
 		neg := d.byte()
 		x := new(big.Int).SetBytes(d.take(d.small()))
@@ -755,13 +767,13 @@ func (d *decoder) value() Value {
 		}
 		return NewInteger(x)
 	case valReal:
-		return V(Real(math.Float64frombits(d.u64())))
+		return RealVal(Real(math.Float64frombits(d.u64())))
 	case valString:
 		u := Unit(d.byte())
 		if u != TextUnit && u != BytesUnit {
 			d.fail("bad string unit %d", u)
 		}
-		return V(NewString(d.str(), u))
+		return StrVal(NewString(d.str(), u))
 	case valCset:
 		c := &Cset{n: -1}
 		for i := range c.bits {
@@ -774,26 +786,26 @@ func (d *decoder) value() Value {
 				lo, hi := d.uint(), d.uint()
 				if lo > hi || hi > 0x10FFFF || rune(lo) <= prev {
 					d.fail("bad cset range")
-					return V(c)
+					return CsetVal(c)
 				}
 				c.ranges[i] = runeRange{rune(lo), rune(hi)}
 				prev = rune(hi)
 			}
 		}
-		return V(c)
+		return CsetVal(c)
 	case valBuiltin:
 		if i := d.small(); i < len(d.builtins) {
-			return V(d.builtins[i])
+			return BuiltinVal(d.builtins[i])
 		}
 		d.fail("builtin out of range")
 	case valProc:
 		if i := d.small(); i < len(d.procs) {
-			return V(d.procs[i])
+			return ProcVal(d.procs[i])
 		}
 		d.fail("procedure out of range")
 	case valRecord:
 		if i := d.small(); i < len(d.records) {
-			return V(d.records[i])
+			return RecordTypeVal(d.records[i])
 		}
 		d.fail("record type out of range")
 	default:
@@ -814,7 +826,7 @@ func Validate(p *Program) error {
 		if p.Main < 0 || p.Main >= ng {
 			return fmt.Errorf("main %d out of range", p.Main)
 		}
-		if _, ok := p.Globals[p.Main].Any().(*Proc); !ok {
+		if _, ok := p.Globals[p.Main].AsProc(); !ok {
 			return errors.New("main is not a procedure")
 		}
 	}
@@ -823,7 +835,7 @@ func Validate(p *Program) error {
 	}
 	seen := map[*Proc]bool{}
 	for _, v := range p.Globals {
-		pr, ok := v.Any().(*Proc)
+		pr, ok := v.AsProc()
 		if !ok || seen[pr] {
 			continue
 		}

@@ -32,14 +32,14 @@ func (vm *VM) randomChar(s *String) (Value, bool) {
 	k := vm.randIndex(n)
 	if n == s.Len() {
 		vm.lastCharPos = k + 1
-		return V(s.Slice(k+1, k+2)), true
+		return StrVal(s.Slice(k+1, k+2)), true
 	}
 	i := 1
 	for ; k > 0; k-- {
 		i += s.width(i - 1)
 	}
 	vm.lastCharPos = i
-	return V(s.Slice(i, i+s.width(i-1))), true
+	return StrVal(s.Slice(i, i+s.width(i-1))), true
 }
 
 // random is ?x. Elements of lists, records and tables are produced as
@@ -49,52 +49,58 @@ func (vm *VM) randomChar(s *String) (Value, bool) {
 // substring variable, so ?s := "x" replaces it.
 func random(vm *VM, a []Value) (Value, bool) {
 	if strVar(a[0]) {
-		s := Deref(a[0]).Any().(*String)
+		s := Deref(a[0]).Str()
 		c, ok := vm.randomChar(s)
 		if !ok {
 			return Value{}, false
 		}
 		// The character's position: randomChar chose it by index.
-		return V(newSubstr(a[0], vm.lastCharPos, c.Any().(*String).Len())), true
+		return substrVal(newSubstr(a[0], vm.lastCharPos, c.Str().Len())), true
 	}
-	switch x := Deref(a[0]).Any().(type) {
-	case *String:
+	switch sv60 := Deref(a[0]); sv60.Kind() {
+	case KString:
+		x := sv60.Str()
 		return vm.randomChar(x)
-	case *Cset:
+	case KCset:
+		x := sv60.Cset()
 		return vm.randomChar(x.String())
-	case *List:
+	case KList:
+		x := sv60.List()
 		if len(x.Elems) == 0 {
 			return Value{}, false
 		}
-		return V(ListElem{x, vm.randIndex(len(x.Elems))}), true
-	case *Record:
+		return listElemVal(x, vm.randIndex(len(x.Elems))), true
+	case KRecord:
+		x := sv60.Record()
 		if len(x.Fields) == 0 {
 			return Value{}, false
 		}
-		return V(FieldVar{x, vm.randIndex(len(x.Fields))}), true
-	case *Table:
+		return fieldVal(x, vm.randIndex(len(x.Fields))), true
+	case KTable:
+		x := sv60.Table()
 		if k, ok := vm.randomEntry(&x.m); ok {
-			return V(TableElem{x, k}), true
+			return varVal(TableElem{x, k}), true
 		}
 		return Value{}, false
-	case *Set:
+	case KSet:
+		x := sv60.Set()
 		return vm.randomEntry(&x.m)
 	}
 	n, ok := CvInteger(Deref(a[0]))
 	if !ok {
 		Runerr(113, Deref(a[0]))
 	}
-	if b, isBig := n.Any().(*Big); isBig {
+	if b, isBig := n.AsBig(); isBig {
 		return vm.bigRand(b.v), true
 	}
-	v := n.Any().(Int)
+	v := n.Int()
 	switch {
 	case v < 0:
 		Runerr(205, Deref(a[0]))
 	case v == 0:
-		return V(Real(vm.randVal())), true
+		return RealVal(Real(vm.randVal())), true
 	}
-	return V(Int(int64(vm.randVal()*float64(v))) + 1), true
+	return IntVal(Int(int64(vm.randVal()*float64(v))) + 1), true
 }
 
 // randomEntry returns the key of a random live entry of m.
@@ -140,7 +146,7 @@ func (vm *VM) bigRand(b *big.Int) Value {
 // randomVar is the variable &random.
 type randomVar struct{ vm *VM }
 
-func (k randomVar) Get() Value { return V(k.vm.random) }
+func (k randomVar) Get() Value { return IntVal(k.vm.random) }
 func (k randomVar) Set(v Value) bool {
 	k.vm.random = MustInt(v)
 	return true
@@ -149,6 +155,6 @@ func (k randomVar) Set(v Value) bool {
 func init() {
 	Ops["u?"] = &Builtin{Name: "?", Fn: random, RefFirst: true}
 	Ops["&random"] = &Builtin{Name: "&random", Fn: func(vm *VM, a []Value) (Value, bool) {
-		return V(randomVar{vm}), true
+		return varVal(randomVar{vm}), true
 	}}
 }

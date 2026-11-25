@@ -181,32 +181,33 @@ func (e ListElem) Set(v Value) bool {
 
 // TypeName returns the Icon type name of a (dereferenced) value.
 func TypeName(v Value) string {
-	switch x := v.Any().(type) {
-	case Null:
+	switch sv184 := v; sv184.Kind() {
+	case KNull:
 		return "null"
-	case Int, *Big:
+	case KInt, KBig:
 		return "integer"
-	case *String:
+	case KString:
 		return "string"
-	case *List:
+	case KList:
 		return "list"
-	case *Proc, *Builtin:
+	case KProc, KBuiltin:
 		return "procedure"
-	case *Coexp:
+	case KCoexp:
 		return "co-expression"
-	case *Cset:
+	case KCset:
 		return "cset"
-	case Real:
+	case KReal:
 		return "real"
-	case *Record:
+	case KRecord:
+		x := sv184.Record()
 		return x.T.Name
-	case *RecordType:
+	case KRecordType:
 		return "procedure"
-	case *File:
+	case KFile:
 		return "file"
-	case *Table:
+	case KTable:
 		return "table"
-	case *Set:
+	case KSet:
 		return "set"
 	}
 	return "unknown"

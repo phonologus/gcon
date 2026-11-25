@@ -71,8 +71,8 @@ func init() {
 	// default); i = 0 finds only built-in functions.
 	fn("proc", func(vm *VM, a []Value) (Value, bool) {
 		x := arg(a, 0)
-		switch x.Any().(type) {
-		case *Proc, *Builtin, *RecordType:
+		switch sv74 := x; sv74.Kind() {
+		case KProc, KBuiltin, KRecordType:
 			return x, true
 		}
 		s, ok := CvStr(x)
@@ -80,15 +80,15 @@ func init() {
 			return Value{}, false
 		}
 		i := Int(1)
-		if _, null := arg(a, 1).Any().(Null); !null {
+		if _, null := arg(a, 1).AsNull(); !null {
 			i = MustInt(a[1])
 		}
 		if i < 0 || i > 3 {
-			Runerr(205, V(i))
+			Runerr(205, IntVal(i))
 		}
 		if i == 0 {
 			if f := Functions[s.s]; f != nil && s.s != "" && isLetter(s.s[0]) {
-				return V(f), true
+				return BuiltinVal(f), true
 			}
 			return Value{}, false
 		}
@@ -98,22 +98,25 @@ func init() {
 	// args(p): the number of parameters of procedure p, negative if it
 	// takes a variable number (-n for n parameters, the last a list).
 	fn("args", func(vm *VM, a []Value) (Value, bool) {
-		switch p := arg(a, 0).Any().(type) {
-		case *Proc:
+		switch sv101 := arg(a, 0); sv101.Kind() {
+		case KProc:
+			p := sv101.Proc()
 			if p.Variadic {
-				return V(Int(-p.NParams)), true
+				return IntVal(Int(-p.NParams)), true
 			}
-			return V(Int(p.NParams)), true
-		case *RecordType:
-			return V(Int(len(p.Fields))), true
-		case *Builtin:
+			return IntVal(Int(p.NParams)), true
+		case KRecordType:
+			p := sv101.RecordType()
+			return IntVal(Int(len(p.Fields))), true
+		case KBuiltin:
+			p := sv101.Builtin()
 			if isFunction(p) {
-				return V(Int(funcArity[p.Name])), true
+				return IntVal(Int(funcArity[p.Name])), true
 			}
 			if p.NoDeref {
-				return V(Int(2)), true
+				return IntVal(Int(2)), true
 			}
-			return V(Int(opArity(p))), true
+			return IntVal(Int(opArity(p))), true
 		}
 		Runerr(106, arg(a, 0))
 		return Value{}, false
@@ -130,12 +133,12 @@ func init() {
 	// name(v): the name of variable v.
 	Functions["name"] = &Builtin{Name: "name", RefFirst: true, Fn: func(vm *VM, a []Value) (Value, bool) {
 		v := arg(a, 0)
-		switch v.Any().(type) {
-		case *Value, Var:
+		switch sv133 := v; sv133.Kind() {
+		case KRef, KListElem, KField, KSubstr, KVar:
 		default:
 			Runerr(111, v)
 		}
-		return V(Text(vm.varName(v))), true
+		return StrVal(Text(vm.varName(v))), true
 	}}
 	// variable(s): the variable named s: a keyword, a parameter, local
 	// or static of the running procedure, or a global.
@@ -149,14 +152,14 @@ func init() {
 	// string, block) in that region's count.
 	fn("collect", func(vm *VM, a []Value) (Value, bool) {
 		var region Int
-		if _, null := arg(a, 0).Any().(Null); !null {
+		if _, null := arg(a, 0).AsNull(); !null {
 			region = MustInt(a[0])
 		}
-		if _, null := arg(a, 1).Any().(Null); !null && MustInt(a[1]) < 0 {
+		if _, null := arg(a, 1).AsNull(); !null && MustInt(a[1]) < 0 {
 			Runerr(205, a[1])
 		}
 		if region < 0 || region > 3 {
-			Runerr(205, V(region))
+			Runerr(205, IntVal(region))
 		}
 		vm.collections[0]++
 		if region > 0 {
@@ -233,15 +236,15 @@ func (vm *VM) varName(v Value) string {
 func (vm *VM) lookupVar(s string) (Value, bool) {
 	switch s {
 	case "&error":
-		return V(errorVar{vm}), true
+		return varVal(errorVar{vm}), true
 	case "&pos":
-		return V(posVar{vm}), true
+		return varVal(posVar{vm}), true
 	case "&random":
-		return V(randomVar{vm}), true
+		return varVal(randomVar{vm}), true
 	case "&subject":
-		return V(subjectVar{vm}), true
+		return varVal(subjectVar{vm}), true
 	case "&trace":
-		return V(traceVar{vm}), true
+		return varVal(traceVar{vm}), true
 	}
 	if strings.HasPrefix(s, "&") {
 		return Value{}, false
@@ -249,18 +252,18 @@ func (vm *VM) lookupVar(s string) (Value, bool) {
 	if f := vm.cur; f != nil {
 		for i, n := range f.proc.LocalNames {
 			if n == s {
-				return V(&f.locals[i]), true
+				return RefVal(&f.locals[i]), true
 			}
 		}
 		for i, n := range vm.prog.GlobalNames {
 			if n == f.proc.Name+" "+s {
-				return V(&vm.globals[i]), true
+				return RefVal(&vm.globals[i]), true
 			}
 		}
 	}
 	for i, n := range vm.prog.GlobalNames {
 		if n == s && (vm.prog.Invocable == nil || vm.prog.Invocable[i]) {
-			return V(&vm.globals[i]), true
+			return RefVal(&vm.globals[i]), true
 		}
 	}
 	return Value{}, false
@@ -317,22 +320,24 @@ func init() {
 	// iconx's display and xdisp.
 	fn("display", func(vm *VM, a []Value) (Value, bool) {
 		n := Int(vm.level)
-		if _, null := arg(a, 0).Any().(Null); !null {
+		if _, null := arg(a, 0).AsNull(); !null {
 			n = MustInt(a[0])
 		}
 		f := vm.errfile
-		switch x := arg(a, 1).Any().(type) {
-		case Null:
-		case *File:
+		switch sv324 := arg(a, 1); sv324.Kind() {
+		case KNull:
+		case KFile:
+			x := sv324.File()
 			f = x
 		default:
+			x := sv324.Any()
 			Runerr(105, V(x))
 		}
 		if f.w == nil || f.closed {
-			Runerr(213, V(f))
+			Runerr(213, FileVal(f))
 		}
 		if n < 0 {
-			Runerr(205, V(n))
+			Runerr(205, IntVal(n))
 		}
 		if n > Int(vm.level) {
 			n = Int(vm.level)

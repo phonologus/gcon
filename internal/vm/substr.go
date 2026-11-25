@@ -17,7 +17,7 @@ type SubstrVar struct {
 // newSubstr returns the substring variable for bytes pos..pos+n-1 of the
 // string in variable v.
 func newSubstr(v Value, pos, n int) *SubstrVar {
-	if s, ok := v.Any().(*SubstrVar); ok {
+	if s, ok := v.AsSubstr(); ok {
 		return &SubstrVar{s.v, s.pos + pos - 1, n}
 	}
 	return &SubstrVar{v, pos, n}
@@ -27,9 +27,9 @@ func newSubstr(v Value, pos, n int) *SubstrVar {
 // variable holding a string (not merely convertible to one): only then
 // do subscripts produce substring variables.
 func strVar(x Value) bool {
-	switch x.Any().(type) {
-	case *Value, Var:
-		_, ok := Deref(x).Any().(*String)
+	switch sv30 := x; sv30.Kind() {
+	case KRef, KListElem, KField, KSubstr, KVar:
+		_, ok := Deref(x).AsString()
 		return ok
 	}
 	return false
@@ -38,7 +38,7 @@ func strVar(x Value) bool {
 // str returns the string the variable holds, which must still be a
 // string long enough to contain the substring (errors 103 and 205).
 func (s *SubstrVar) str() *String {
-	d, ok := Deref(s.v).Any().(*String)
+	d, ok := Deref(s.v).AsString()
 	if !ok {
 		Runerr(103, Deref(s.v))
 	}
@@ -50,7 +50,7 @@ func (s *SubstrVar) str() *String {
 
 func (s *SubstrVar) Get() Value {
 	d := s.str()
-	return V(d.Slice(s.pos, s.pos+s.n))
+	return StrVal(d.Slice(s.pos, s.pos+s.n))
 }
 
 // Set assigns x to the substring, as iconx's subs_asgn: the variable gets
@@ -63,7 +63,7 @@ func (s *SubstrVar) Set(x Value) bool {
 	}
 	d := s.str()
 	r := Concat(Concat(d.Slice(1, s.pos), src), d.Slice(s.pos+s.n, d.Len()+1))
-	if !setVar(s.v, V(r)) {
+	if !setVar(s.v, StrVal(r)) {
 		return false
 	}
 	s.n = src.Len()
@@ -85,8 +85,8 @@ func (s *SubstrVar) image(vm *VM, noimage int) string {
 	} else {
 		b += "[" + strconv.Itoa(s.pos) + "+:" + strconv.Itoa(s.n) + "]"
 	}
-	if d, ok := Deref(s.v).Any().(*String); ok && s.pos-1+s.n <= d.Len() {
-		b += " = " + vm.OutImage(V(d.Slice(s.pos, s.pos+s.n)), noimage)
+	if d, ok := Deref(s.v).AsString(); ok && s.pos-1+s.n <= d.Len() {
+		b += " = " + vm.OutImage(StrVal(d.Slice(s.pos, s.pos+s.n)), noimage)
 	}
 	return b
 }
@@ -100,7 +100,7 @@ type strVarGen struct {
 }
 
 func (g *strVarGen) Next(vm *VM) (Value, bool) {
-	d, ok := Deref(g.v).Any().(*String)
+	d, ok := Deref(g.v).AsString()
 	if !ok {
 		Runerr(103, Deref(g.v))
 	}
@@ -109,5 +109,5 @@ func (g *strVarGen) Next(vm *VM) (Value, bool) {
 	}
 	w := d.width(g.off)
 	g.off += w
-	return V(newSubstr(g.v, g.off-w+1, w)), true
+	return substrVal(newSubstr(g.v, g.off-w+1, w)), true
 }

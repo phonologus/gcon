@@ -268,3 +268,243 @@ type refVar struct{ p *Value }
 
 func (r refVar) Get() Value       { return *r.p }
 func (r refVar) Set(v Value) bool { *r.p = v; return true }
+
+// Constructors and accessors for the other kinds. An accessor assumes v
+// is of its kind.
+
+func BigVal(b *Big) Value               { return Value{k: KBig, p: unsafe.Pointer(b)} }
+func CsetVal(c *Cset) Value             { return Value{k: KCset, p: unsafe.Pointer(c)} }
+func TableVal(t *Table) Value           { return Value{k: KTable, p: unsafe.Pointer(t)} }
+func SetVal(s *Set) Value               { return Value{k: KSet, p: unsafe.Pointer(s)} }
+func RecordVal(r *Record) Value         { return Value{k: KRecord, p: unsafe.Pointer(r)} }
+func ProcVal(p *Proc) Value             { return Value{k: KProc, p: unsafe.Pointer(p)} }
+func BuiltinVal(b *Builtin) Value       { return Value{k: KBuiltin, p: unsafe.Pointer(b)} }
+func RecordTypeVal(t *RecordType) Value { return Value{k: KRecordType, p: unsafe.Pointer(t)} }
+func CoexpVal(c *Coexp) Value           { return Value{k: KCoexp, p: unsafe.Pointer(c)} }
+func FileVal(f *File) Value             { return Value{k: KFile, p: unsafe.Pointer(f)} }
+func frameVal(f *Frame) Value           { return Value{k: KFrame, p: unsafe.Pointer(f)} }
+func genVal(g Generator) Value          { return Value{k: KGen, p: unsafe.Pointer(&genBox{g})} }
+func scanEnvVal(e *scanEnv) Value       { return Value{k: KScanEnv, p: unsafe.Pointer(e)} }
+func listElemVal(l *List, i int) Value {
+	return Value{k: KListElem, n: uint64(i), p: unsafe.Pointer(l)}
+}
+func fieldVal(r *Record, i int) Value   { return Value{k: KField, n: uint64(i), p: unsafe.Pointer(r)} }
+func (v Value) Big() *Big               { return (*Big)(v.p) }
+func (v Value) Cset() *Cset             { return (*Cset)(v.p) }
+func (v Value) Table() *Table           { return (*Table)(v.p) }
+func (v Value) Set() *Set               { return (*Set)(v.p) }
+func (v Value) Record() *Record         { return (*Record)(v.p) }
+func (v Value) Proc() *Proc             { return (*Proc)(v.p) }
+func (v Value) Builtin() *Builtin       { return (*Builtin)(v.p) }
+func (v Value) RecordType() *RecordType { return (*RecordType)(v.p) }
+func (v Value) Coexp() *Coexp           { return (*Coexp)(v.p) }
+func (v Value) File() *File             { return (*File)(v.p) }
+func (v Value) frame() *Frame           { return (*Frame)(v.p) }
+func (v Value) gen() Generator          { return (*genBox)(v.p).g }
+func (v Value) scanEnv() *scanEnv       { return (*scanEnv)(v.p) }
+func (v Value) ref() *Value             { return (*Value)(v.p) }
+func (v Value) substr() *SubstrVar      { return (*SubstrVar)(v.p) }
+
+// assignVar assigns x to the variable dst, reporting whether the
+// assignment succeeded and whether dst is a variable at all.
+func assignVar(dst, x Value) (ok, isVar bool) {
+	switch dst.k {
+	case KRef:
+		*(*Value)(dst.p) = x
+		return true, true
+	case KListElem:
+		if l := (*List)(dst.p); int(dst.n) < len(l.Elems) {
+			l.Elems[dst.n] = x
+		}
+		return true, true
+	case KField:
+		(*Record)(dst.p).Fields[dst.n] = x
+		return true, true
+	case KSubstr:
+		return (*SubstrVar)(dst.p).Set(x), true
+	case KVar:
+		return (*varBox)(dst.p).v.Set(x), true
+	}
+	return false, false
+}
+
+// As... report whether v is of a kind, returning its object; they take
+// the place of type assertions on the old interface Values.
+
+func (v Value) AsInt() (Int, bool) {
+	if v.k != KInt {
+		var zero Int
+		return zero, false
+	}
+	return Int(v.n), true
+}
+
+func (v Value) AsReal() (Real, bool) {
+	if v.k != KReal {
+		var zero Real
+		return zero, false
+	}
+	return v.Real(), true
+}
+
+func (v Value) AsNull() (Null, bool) {
+	if v.k != KNull {
+		var zero Null
+		return zero, false
+	}
+	return Null{}, true
+}
+
+func (v Value) AsString() (*String, bool) {
+	if v.k != KString {
+		var zero *String
+		return zero, false
+	}
+	return (*String)(v.p), true
+}
+
+func (v Value) AsBig() (*Big, bool) {
+	if v.k != KBig {
+		var zero *Big
+		return zero, false
+	}
+	return (*Big)(v.p), true
+}
+
+func (v Value) AsCset() (*Cset, bool) {
+	if v.k != KCset {
+		var zero *Cset
+		return zero, false
+	}
+	return (*Cset)(v.p), true
+}
+
+func (v Value) AsList() (*List, bool) {
+	if v.k != KList {
+		var zero *List
+		return zero, false
+	}
+	return (*List)(v.p), true
+}
+
+func (v Value) AsTable() (*Table, bool) {
+	if v.k != KTable {
+		var zero *Table
+		return zero, false
+	}
+	return (*Table)(v.p), true
+}
+
+func (v Value) AsSetObj() (*Set, bool) {
+	if v.k != KSet {
+		var zero *Set
+		return zero, false
+	}
+	return (*Set)(v.p), true
+}
+
+func (v Value) AsRecord() (*Record, bool) {
+	if v.k != KRecord {
+		var zero *Record
+		return zero, false
+	}
+	return (*Record)(v.p), true
+}
+
+func (v Value) AsProc() (*Proc, bool) {
+	if v.k != KProc {
+		var zero *Proc
+		return zero, false
+	}
+	return (*Proc)(v.p), true
+}
+
+func (v Value) AsBuiltin() (*Builtin, bool) {
+	if v.k != KBuiltin {
+		var zero *Builtin
+		return zero, false
+	}
+	return (*Builtin)(v.p), true
+}
+
+func (v Value) AsRecordType() (*RecordType, bool) {
+	if v.k != KRecordType {
+		var zero *RecordType
+		return zero, false
+	}
+	return (*RecordType)(v.p), true
+}
+
+func (v Value) AsCoexp() (*Coexp, bool) {
+	if v.k != KCoexp {
+		var zero *Coexp
+		return zero, false
+	}
+	return (*Coexp)(v.p), true
+}
+
+func (v Value) AsFile() (*File, bool) {
+	if v.k != KFile {
+		var zero *File
+		return zero, false
+	}
+	return (*File)(v.p), true
+}
+
+func (v Value) AsRef() (*Value, bool) {
+	if v.k != KRef {
+		var zero *Value
+		return zero, false
+	}
+	return (*Value)(v.p), true
+}
+
+func (v Value) AsFrame() (*Frame, bool) {
+	if v.k != KFrame {
+		var zero *Frame
+		return zero, false
+	}
+	return (*Frame)(v.p), true
+}
+
+func (v Value) AsSubstr() (*SubstrVar, bool) {
+	if v.k != KSubstr {
+		var zero *SubstrVar
+		return zero, false
+	}
+	return (*SubstrVar)(v.p), true
+}
+
+func (v Value) AsScanEnv() (*scanEnv, bool) {
+	if v.k != KScanEnv {
+		var zero *scanEnv
+		return zero, false
+	}
+	return (*scanEnv)(v.p), true
+}
+
+func (v Value) AsListElem() (ListElem, bool) {
+	if v.k != KListElem {
+		var zero ListElem
+		return zero, false
+	}
+	return ListElem{(*List)(v.p), int(v.n)}, true
+}
+
+func (v Value) AsFieldVar() (FieldVar, bool) {
+	if v.k != KField {
+		var zero FieldVar
+		return zero, false
+	}
+	return FieldVar{(*Record)(v.p), int(v.n)}, true
+}
+
+// listElem and fieldVar return a KListElem or KField Value's variable.
+func (v Value) listElem() ListElem { return ListElem{(*List)(v.p), int(v.n)} }
+func (v Value) fieldVar() FieldVar { return FieldVar{(*Record)(v.p), int(v.n)} }
+
+// substrVal returns the substring variable s as a Value.
+func substrVal(s *SubstrVar) Value { return Value{k: KSubstr, p: unsafe.Pointer(s)} }
+
+// varVal returns a variable of a kind the Value cannot hold directly.
+func varVal(v Var) Value { return Value{k: KVar, p: unsafe.Pointer(&varBox{v})} }

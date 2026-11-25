@@ -46,7 +46,7 @@ func (vm *VM) convert(e *RuntimeError) bool {
 // errorVar is the variable &error.
 type errorVar struct{ vm *VM }
 
-func (k errorVar) Get() Value { return V(k.vm.errorKw) }
+func (k errorVar) Get() Value { return IntVal(k.vm.errorKw) }
 func (k errorVar) Set(v Value) bool {
 	k.vm.errorKw = MustInt(v)
 	return true
@@ -54,19 +54,19 @@ func (k errorVar) Set(v Value) bool {
 
 func init() {
 	Ops["&error"] = &Builtin{Name: "&error", Fn: func(vm *VM, a []Value) (Value, bool) {
-		return V(errorVar{vm}), true
+		return varVal(errorVar{vm}), true
 	}}
 	Ops["&errornumber"] = &Builtin{Name: "&errornumber", Fn: func(vm *VM, a []Value) (Value, bool) {
 		if vm.errNum == 0 {
 			return Value{}, false
 		}
-		return V(Int(vm.errNum)), true
+		return IntVal(Int(vm.errNum)), true
 	}}
 	Ops["&errortext"] = &Builtin{Name: "&errortext", Fn: func(vm *VM, a []Value) (Value, bool) {
 		if vm.errNum == 0 {
 			return Value{}, false
 		}
-		return V(Text(errorText[vm.errNum])), true
+		return StrVal(Text(errorText[vm.errNum])), true
 	}}
 	Ops["&errorvalue"] = &Builtin{Name: "&errorvalue", Fn: func(vm *VM, a []Value) (Value, bool) {
 		if !vm.haveErrVal {
@@ -81,7 +81,7 @@ func init() {
 	fn("runerr", func(vm *VM, a []Value) (Value, bool) {
 		i := MustInt(arg(a, 0))
 		if i <= 0 {
-			Runerr(205, V(i))
+			Runerr(205, IntVal(i))
 		}
 		if len(a) > 1 {
 			Runerr(int(i), a[1])
@@ -95,10 +95,10 @@ func init() {
 func init() {
 	Ops["&line"] = &Builtin{Name: "&line", Fn: func(vm *VM, a []Value) (Value, bool) {
 		f := vm.cur
-		return V(Int(f.proc.Code[f.pc].Line)), true
+		return IntVal(Int(f.proc.Code[f.pc].Line)), true
 	}}
 	Ops["&file"] = &Builtin{Name: "&file", Fn: func(vm *VM, a []Value) (Value, bool) {
-		return V(Text(vm.cur.proc.FileAt(vm.cur.pc))), true
+		return StrVal(Text(vm.cur.proc.FileAt(vm.cur.pc))), true
 	}}
 }
 
@@ -124,7 +124,7 @@ func (g *stringsGen) Next(vm *VM) (Value, bool) {
 	}
 	v := Text(g.s[0])
 	g.s = g.s[1:]
-	return V(v), true
+	return StrVal(v), true
 }
 
 func init() {

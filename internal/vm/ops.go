@@ -78,10 +78,12 @@ func CvInt(v Value) (Int, bool) {
 	if !ok {
 		return 0, false
 	}
-	switch x := n.Any().(type) {
-	case Real:
+	switch sv81 := n; sv81.Kind() {
+	case KReal:
+		x := sv81.Real()
 		return realToInt(float64(x))
-	case Int:
+	case KInt:
+		x := sv81.Int()
 		return x, true
 	}
 	return 0, false // a large integer is out of range
@@ -89,16 +91,21 @@ func CvInt(v Value) (Int, bool) {
 
 // CvStr converts v to a string, if it can.
 func CvStr(v Value) (*String, bool) {
-	switch x := v.Any().(type) {
-	case *String:
+	switch sv92 := v; sv92.Kind() {
+	case KString:
+		x := sv92.Str()
 		return x, true
-	case Int:
+	case KInt:
+		x := sv92.Int()
 		return &String{s: itoa(x), ascii: 1}, true
-	case *Big:
+	case KBig:
+		x := sv92.Big()
 		return &String{s: x.v.String(), ascii: 1}, true
-	case Real:
+	case KReal:
+		x := sv92.Real()
 		return &String{s: rtos(float64(x)), ascii: 1}, true
-	case *Cset:
+	case KCset:
+		x := sv92.Cset()
 		return x.String(), true
 	}
 	return nil, false
@@ -149,30 +156,35 @@ func add(x, y Int) Int {
 func strCompare(name string, ok func(c int) bool) *Builtin {
 	return &Builtin{Name: name, Fn: func(vm *VM, a []Value) (Value, bool) {
 		x, y := MustStr(a[0]), MustStr(a[1])
-		return V(y), ok(strings.Compare(x.s, y.s))
+		return StrVal(y), ok(strings.Compare(x.s, y.s))
 	}}
 }
 
 // Identical reports whether x === y.
 func Identical(x, y Value) bool {
-	switch a := x.Any().(type) {
-	case Null:
-		_, ok := y.Any().(Null)
+	switch sv158 := x; sv158.Kind() {
+	case KNull:
+		_, ok := y.AsNull()
 		return ok
-	case Int:
-		b, ok := y.Any().(Int)
+	case KInt:
+		a := sv158.Int()
+		b, ok := y.AsInt()
 		return ok && a == b
-	case *Big:
-		b, ok := y.Any().(*Big)
+	case KBig:
+		a := sv158.Big()
+		b, ok := y.AsBig()
 		return ok && a.v.Cmp(b.v) == 0
-	case Real:
-		b, ok := y.Any().(Real)
+	case KReal:
+		a := sv158.Real()
+		b, ok := y.AsReal()
 		return ok && a == b
-	case *String:
-		b, ok := y.Any().(*String)
+	case KString:
+		a := sv158.Str()
+		b, ok := y.AsString()
 		return ok && a.s == b.s && (a.unit == b.unit || a.IsASCII())
-	case *Cset:
-		b, ok := y.Any().(*Cset)
+	case KCset:
+		a := sv158.Cset()
+		b, ok := y.AsCset()
 		return ok && equalCsets(a, b)
 	}
 	return x == y
@@ -210,11 +222,11 @@ var Ops = map[string]*Builtin{
 	}},
 
 	"||": {Name: "||", Fn: func(vm *VM, a []Value) (Value, bool) {
-		return V(Concat(MustStr(a[0]), MustStr(a[1]))), true
+		return StrVal(Concat(MustStr(a[0]), MustStr(a[1]))), true
 	}},
 	"|||": {Name: "|||", Fn: func(vm *VM, a []Value) (Value, bool) {
-		x, ok1 := a[0].Any().(*List)
-		y, ok2 := a[1].Any().(*List)
+		x, ok1 := a[0].AsList()
+		y, ok2 := a[1].AsList()
 		if !ok1 {
 			Runerr(108, a[0])
 		}
@@ -222,12 +234,12 @@ var Ops = map[string]*Builtin{
 			Runerr(108, a[1])
 		}
 		e := make([]Value, 0, len(x.Elems)+len(y.Elems))
-		return V(vm.NewList(append(append(e, x.Elems...), y.Elems...))), true
+		return ListVal(vm.NewList(append(append(e, x.Elems...), y.Elems...))), true
 	}},
 
 	"u-": {Name: "-", Fn: func(vm *VM, a []Value) (Value, bool) {
-		if r, ok := MustNum(a[0]).Any().(Real); ok {
-			return V(-r), true
+		if r, ok := MustNum(a[0]).AsReal(); ok {
+			return RealVal(-r), true
 		}
 		return neg(MustNum(a[0])), true
 	}},
@@ -235,22 +247,28 @@ var Ops = map[string]*Builtin{
 		return MustNum(a[0]), true
 	}},
 	"u*": {Name: "*", Fn: func(vm *VM, a []Value) (Value, bool) {
-		switch x := a[0].Any().(type) {
-		case *List:
-			return V(Int(len(x.Elems))), true
-		case *Coexp:
-			return V(Int(x.results)), true
-		case *Cset:
-			return V(Int(x.Size())), true
-		case *Record:
-			return V(Int(len(x.Fields))), true
-		case *Table:
-			return V(Int(x.m.len())), true
-		case *Set:
-			return V(Int(x.m.len())), true
+		switch sv238 := a[0]; sv238.Kind() {
+		case KList:
+			x := sv238.List()
+			return IntVal(Int(len(x.Elems))), true
+		case KCoexp:
+			x := sv238.Coexp()
+			return IntVal(Int(x.results)), true
+		case KCset:
+			x := sv238.Cset()
+			return IntVal(Int(x.Size())), true
+		case KRecord:
+			x := sv238.Record()
+			return IntVal(Int(len(x.Fields))), true
+		case KTable:
+			x := sv238.Table()
+			return IntVal(Int(x.m.len())), true
+		case KSet:
+			x := sv238.Set()
+			return IntVal(Int(x.m.len())), true
 		}
 		if s, ok := CvStr(a[0]); ok {
-			return V(Int(s.Len())), true
+			return IntVal(Int(s.Len())), true
 		}
 		Runerr(112, a[0])
 		return Value{}, false
@@ -260,7 +278,7 @@ var Ops = map[string]*Builtin{
 	"[]":  {Name: "[]", Fn: index, RefFirst: true},
 	"[:]": {Name: "[:]", Fn: section, RefFirst: true},
 	"[...]": {Name: "[...]", Fn: func(vm *VM, a []Value) (Value, bool) {
-		return V(vm.NewList(append([]Value(nil), a...))), true
+		return ListVal(vm.NewList(append([]Value(nil), a...))), true
 	}},
 	"to": {Name: "to", Gen: toBy},
 	// limit validates the limit of e \ n: an integer, at least 0; a limit
@@ -268,20 +286,23 @@ var Ops = map[string]*Builtin{
 	"limit": {Name: "limit", Fn: func(vm *VM, a []Value) (Value, bool) {
 		n := MustInt(a[0])
 		if n < 0 {
-			Runerr(205, V(n))
+			Runerr(205, IntVal(n))
 		}
-		return V(n), n > 0
+		return IntVal(n), n > 0
 	}},
 }
 
 func index(vm *VM, a []Value) (Value, bool) {
 	ref := a[0]
-	switch x := Deref(ref).Any().(type) {
-	case *Record:
+	switch sv279 := Deref(ref); sv279.Kind() {
+	case KRecord:
+		x := sv279.Record()
 		return recordIndex(x, a[1])
-	case *Table:
-		return V(TableElem{x, a[1]}), true
-	case *List:
+	case KTable:
+		x := sv279.Table()
+		return varVal(TableElem{x, a[1]}), true
+	case KList:
+		x := sv279.List()
 		i := MustInt(a[1])
 		n := Int(len(x.Elems))
 		if i <= 0 {
@@ -290,7 +311,7 @@ func index(vm *VM, a []Value) (Value, bool) {
 		if i < 1 || i > n {
 			return Value{}, false
 		}
-		return V(ListElem{x, int(i - 1)}), true
+		return listElemVal(x, int(i-1)), true
 	}
 	s, ok := CvStr(Deref(ref))
 	if !ok {
@@ -301,16 +322,16 @@ func index(vm *VM, a []Value) (Value, bool) {
 		return Value{}, false
 	}
 	if strVar(ref) {
-		return V(newSubstr(ref, i, 1)), true
+		return substrVal(newSubstr(ref, i, 1)), true
 	}
-	return V(s.Slice(i, i+1)), true
+	return StrVal(s.Slice(i, i+1)), true
 }
 
 func section(vm *VM, a []Value) (Value, bool) {
 	ref := a[0]
 	x := Deref(ref)
 	var n int
-	l, isList := x.Any().(*List)
+	l, isList := x.AsList()
 	var s *String
 	if isList {
 		n = len(l.Elems)
@@ -330,12 +351,12 @@ func section(vm *VM, a []Value) (Value, bool) {
 		i, j = j, i
 	}
 	if isList {
-		return V(vm.NewList(append([]Value(nil), l.Elems[i-1:j-1]...))), true
+		return ListVal(vm.NewList(append([]Value(nil), l.Elems[i-1:j-1]...))), true
 	}
 	if strVar(ref) {
-		return V(newSubstr(ref, i, j-i)), true
+		return substrVal(newSubstr(ref, i, j-i)), true
 	}
-	return V(s.Slice(i, j)), true
+	return StrVal(s.Slice(i, j)), true
 }
 
 // toBy generates i to j by k.
@@ -346,7 +367,7 @@ func toBy(vm *VM, a []Value) Generator {
 		g.by = MustInt(a[2])
 	}
 	if g.by == 0 {
-		Runerr(211, V(g.by))
+		Runerr(211, IntVal(g.by))
 	}
 	return g
 }
@@ -376,16 +397,21 @@ func bang(vm *VM, a []Value) Generator {
 	if strVar(a[0]) {
 		return &strVarGen{v: a[0]}
 	}
-	switch x := Deref(a[0]).Any().(type) {
-	case *List:
+	switch sv379 := Deref(a[0]); sv379.Kind() {
+	case KList:
+		x := sv379.List()
 		return &listGen{l: x}
-	case *Record:
+	case KRecord:
+		x := sv379.Record()
 		return &recordGen{r: x}
-	case *File:
+	case KFile:
+		x := sv379.File()
 		return lineGen{x}
-	case *Table:
+	case KTable:
+		x := sv379.Table()
 		return tableVals(x)
-	case *Set:
+	case KSet:
+		x := sv379.Set()
 		return setElems(x)
 	}
 	s, ok := CvStr(Deref(a[0]))
@@ -407,7 +433,7 @@ func (g *listGen) Next(vm *VM) (Value, bool) {
 		return Value{}, false
 	}
 	g.i++
-	return V(ListElem{g.l, g.i - 1}), true
+	return listElemVal(g.l, g.i-1), true
 }
 
 type strGen struct {
@@ -421,7 +447,7 @@ func (g *strGen) Next(vm *VM) (Value, bool) {
 	}
 	w := g.s.width(g.off)
 	g.off += w
-	return V(g.s.Slice(g.off-w+1, g.off+1)), true
+	return StrVal(g.s.Slice(g.off-w+1, g.off+1)), true
 }
 
 // ---------------------------------------------------------------------
@@ -429,36 +455,50 @@ func (g *strGen) Next(vm *VM) (Value, bool) {
 
 // Image returns the image of v, as image(v).
 func (vm *VM) Image(v Value) string {
-	switch x := Deref(v).Any().(type) {
-	case Null:
+	switch sv432 := Deref(v); sv432.Kind() {
+	case KNull:
 		return "&null"
-	case Int:
+	case KInt:
+		x := sv432.Int()
 		return itoa(x)
-	case *Big:
+	case KBig:
+		x := sv432.Big()
 		return bigImage(x.v)
-	case *String:
+	case KString:
+		x := sv432.Str()
 		return quote(x, '"')
-	case *List:
+	case KList:
+		x := sv432.List()
 		return "list_" + strconv.Itoa(x.serial) + "(" + strconv.Itoa(len(x.Elems)) + ")"
-	case *Proc:
+	case KProc:
+		x := sv432.Proc()
 		return "procedure " + x.Name
-	case *Builtin:
+	case KBuiltin:
+		x := sv432.Builtin()
 		return "function " + x.Name
-	case *Coexp:
+	case KCoexp:
+		x := sv432.Coexp()
 		return "co-expression_" + strconv.Itoa(x.serial) + "(" + strconv.Itoa(x.results) + ")"
-	case *Cset:
+	case KCset:
+		x := sv432.Cset()
 		return imageCset(x)
-	case Real:
+	case KReal:
+		x := sv432.Real()
 		return rtos(float64(x))
-	case *Record:
+	case KRecord:
+		x := sv432.Record()
 		return x.image()
-	case *RecordType:
+	case KRecordType:
+		x := sv432.RecordType()
 		return "record constructor " + x.Name
-	case *File:
+	case KFile:
+		x := sv432.File()
 		return x.image()
-	case *Table:
+	case KTable:
+		x := sv432.Table()
 		return x.image()
-	case *Set:
+	case KSet:
+		x := sv432.Set()
 		return x.image()
 	}
 	return "?"

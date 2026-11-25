@@ -2,34 +2,13 @@ package vm
 
 // Integers on the VM's fast paths.
 //
-// A Value is an interface, so storing an Int in one allocates unless Go
-// has the value preboxed (it has 0 to 255). Small integers are common,
-// so mkInt hands out boxes made once, at start-up, for a wider range;
-// they are made together so that they share cache lines (boxes made
-// lazily, scattered over the heap, measured slower than new ones for a
-// counter running through them). And the VM computes integer arithmetic
-// and comparison itself (fastInt), without calling the operator's
-// function, which converts its operands in general.
+// The VM computes integer arithmetic and comparison itself (fastInt),
+// without calling the operator's function, which converts its operands
+// in general.
 
-const (
-	minCachedInt = -256
-	maxCachedInt = 4095
-)
-
-var intBoxes = func() (b [maxCachedInt - minCachedInt + 1]Value) {
-	for i := range b {
-		b[i] = V(Int(i + minCachedInt))
-	}
-	return b
-}()
-
-// mkInt returns i as a Value, reusing a box for a small integer.
-func mkInt(i Int) Value {
-	if i < minCachedInt || i > maxCachedInt {
-		return V(i)
-	}
-	return intBoxes[i-minCachedInt]
-}
+// mkInt returns i as a Value. (While a Value was an interface, it handed
+// out preboxed small integers; now an Int is held in the Value.)
+func mkInt(i Int) Value { return IntVal(i) }
 
 // intOp is a binary operator the VM computes inline for Ints.
 type intOp uint8

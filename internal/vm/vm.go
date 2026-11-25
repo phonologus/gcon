@@ -192,7 +192,9 @@ func (vm *VM) Run(args []string) (status int) {
 	}()
 	var main *Proc
 	if vm.prog.Main >= 0 {
-		main, _ = vm.globals[vm.prog.Main].Any().(*Proc)
+		if g := vm.globals[vm.prog.Main]; g.k == KProc {
+			main = g.Proc()
+		}
 	}
 	if main == nil {
 		Runerr(117)
@@ -201,9 +203,9 @@ func (vm *VM) Run(args []string) (status int) {
 	if main.NParams > 0 {
 		l := vm.NewList(nil)
 		for _, a := range args {
-			l.Elems = append(l.Elems, V(Text(a)))
+			l.Elems = append(l.Elems, StrVal(Text(a)))
 		}
-		margs = []Value{V(l)}
+		margs = []Value{ListVal(l)}
 	}
 	vm.serials.coexps = 1
 	vm.main = &Coexp{serial: 1, proc: main, state: coRunning, results: 1}
@@ -235,7 +237,7 @@ func (vm *VM) newFrame(p *Proc, args []Value) *Frame {
 		if len(args) > n {
 			rest.Elems = append(rest.Elems, args[n:]...)
 		}
-		f.locals[n] = V(rest)
+		f.locals[n] = ListVal(rest)
 	}
 	for i := 0; i < n && i < len(args); i++ {
 		f.locals[i] = args[i]
@@ -262,9 +264,9 @@ func (vm *VM) get(f *Frame, o Operand) Value {
 func (vm *VM) ref(f *Frame, o Operand) Value {
 	switch o.Kind {
 	case LocalOp:
-		return V(&f.locals[o.Index])
+		return RefVal(&f.locals[o.Index])
 	case GlobalOp:
-		return V(&vm.globals[o.Index])
+		return RefVal(&vm.globals[o.Index])
 	}
 	return vm.get(f, o)
 }
@@ -280,12 +282,8 @@ func (vm *VM) assign(f *Frame, o Operand, v Value) bool {
 		vm.globals[o.Index] = v
 		return true
 	case TempOp:
-		switch x := f.temps[o.Index].Any().(type) {
-		case *Value:
-			*x = v
-			return true
-		case Var:
-			return x.Set(v)
+		if ok, isVar := assignVar(f.temps[o.Index], v); isVar {
+			return ok
 		}
 	}
 	Runerr(111, Deref(vm.get(f, o)))
@@ -310,14 +308,10 @@ func (vm *VM) args(f *Frame, ops []Operand) []Value {
 // out of loop so as not to burden the dispatch loop's code.
 func (vm *VM) operInt(f *Frame, in *Instr) bool {
 	xv, yv := Deref(vm.get(f, in.Args[0])), Deref(vm.get(f, in.Args[1]))
-	x, ok := xv.Any().(Int)
-	if !ok {
+	if xv.k != KInt || yv.k != KInt {
 		return false
 	}
-	y, ok := yv.Any().(Int)
-	if !ok {
-		return false
-	}
+	x, y := xv.Int(), yv.Int()
 	v, ok, done := fastInt(in.Fn.intOp, x, y, yv)
 	if !done {
 		return false
@@ -363,7 +357,7 @@ var poisonArgs = os.Getenv("GCONDEBUG") == "poisonargs"
 func (vm *VM) release(a []Value) {
 	if poisonArgs {
 		for i := range a {
-			a[i] = V(poisoned{})
+			a[i] = Value{k: KPoison}
 		}
 		return
 	}
@@ -408,9 +402,9 @@ func (vm *VM) loop(f *Frame) {
 		case OpGoto:
 			f.pc = int(in.L1)
 		case OpIGoto:
-			f.pc = int(f.temps[in.X.Index].Any().(Int))
+			f.pc = int(f.temps[in.X.Index].Int())
 		case OpSetLabel:
-			f.temps[in.Dst.Index] = V(Int(in.L1))
+			f.temps[in.Dst.Index] = IntVal(Int(in.L1))
 			f.pc++
 		case OpMove:
 			f.temps[in.Dst.Index] = Deref(vm.get(f, in.X))
@@ -433,9 +427,9 @@ func (vm *VM) loop(f *Frame) {
 				// if both are substrings of one string, the other one,
 				// when to the right, shifts by the change in length, as
 				// iconx's swap and rswap adjust it.
-				d, ok1 := vm.ref(f, in.Dst).Any().(*SubstrVar)
-				o, ok2 := vm.ref(f, in.Args[0]).Any().(*SubstrVar)
-				if ok1 && ok2 && d.v == o.v {
+				dv, ov := vm.ref(f, in.Dst), vm.ref(f, in.Args[0])
+				if dv.k == KSubstr && ov.k == KSubstr && dv.substr().v == ov.substr().v {
+					d, o := dv.substr(), ov.substr()
 					n := d.n
 					if !vm.assign(f, in.Dst, Deref(vm.get(f, in.X))) {
 						f.pc = int(in.L2)
@@ -454,20 +448,20 @@ func (vm *VM) loop(f *Frame) {
 				f.pc = int(in.L2)
 			}
 		case OpScanEnter:
-			f.temps[in.Dst.Index] = V(vm.scanEnter(Deref(vm.get(f, in.X))))
+			f.temps[in.Dst.Index] = scanEnvVal(vm.scanEnter(Deref(vm.get(f, in.X))))
 			f.pc++
 		case OpScanSwap:
-			vm.scanSwap(f.temps[in.X.Index].Any().(*scanEnv))
+			vm.scanSwap(f.temps[in.X.Index].scanEnv())
 			f.pc++
 		case OpIsNull:
-			if _, ok := Deref(vm.get(f, in.X)).Any().(Null); ok {
+			if Deref(vm.get(f, in.X)).k == KNull {
 				f.pc = int(in.L1)
 			} else {
 				f.pc = int(in.L2)
 			}
 		case OpOnce:
-			if _, ok := vm.globals[in.X.Index].Any().(Null); ok {
-				vm.globals[in.X.Index] = V(Int(1))
+			if vm.globals[in.X.Index].k == KNull {
+				vm.globals[in.X.Index] = IntVal(1)
 				f.pc++
 			} else {
 				f.pc = int(in.L1)
@@ -493,7 +487,7 @@ func (vm *VM) loop(f *Frame) {
 			// The arguments are in the scratch buffer unless they come
 			// from p ! x; a generator, which keeps them, gets a copy.
 			var args, scratch []Value
-			if b, ok := fv.Any().(*Builtin); ok && b.Gen != nil {
+			if fv.k == KBuiltin && fv.Builtin().Gen != nil {
 				args = vm.args(f, in.Args)
 			} else {
 				args = vm.scratchArgs(f, in.Args)
@@ -504,18 +498,19 @@ func (vm *VM) loop(f *Frame) {
 				vm.release(scratch)
 				scratch = nil
 			}
-			switch fv.Any().(type) {
-			case *Proc, *Builtin, *RecordType, Int:
+			switch fv.k {
+			case KProc, KBuiltin, KRecordType, KInt:
 			default:
 				fv = vm.callable(fv, len(args))
-				if b, ok := fv.Any().(*Builtin); ok && b.NoDeref {
+				if fv.k == KBuiltin && fv.Builtin().NoDeref {
 					for i, o := range in.Args {
 						args[i] = vm.ref(f, o)
 					}
 				}
 			}
-			switch p := fv.Any().(type) {
-			case *Proc:
+			switch fv.k {
+			case KProc:
+				p := fv.Proc()
 				vm.push(p)
 				nf := vm.newFrame(p, args)
 				vm.release(scratch)
@@ -529,7 +524,8 @@ func (vm *VM) loop(f *Frame) {
 				nf.caller = f
 				f = nf
 				vm.cur = f
-			case *Builtin:
+			case KBuiltin:
+				p := fv.Builtin()
 				if p.RefFirst && len(args) > 0 && in.Fn != ApplyOp {
 					args[0] = vm.ref(f, in.Args[0])
 				}
@@ -543,8 +539,7 @@ func (vm *VM) loop(f *Frame) {
 						args = append([]Value(nil), args...)
 						vm.release(scratch)
 					}
-					g := p.Gen(vm, args)
-					vm.next(f, in, g)
+					vm.next(f, in, genVal(p.Gen(vm, args)))
 				} else {
 					f.temps[in.H] = Value{}
 					v, ok := p.Fn(vm, args)
@@ -556,15 +551,15 @@ func (vm *VM) loop(f *Frame) {
 						f.pc = int(in.L2)
 					}
 				}
-			case *RecordType:
+			case KRecordType:
 				f.temps[in.H] = Value{}
-				f.temps[in.Dst.Index] = V(p.construct(args))
+				f.temps[in.Dst.Index] = RecordVal(fv.RecordType().construct(args))
 				vm.release(scratch)
 				f.pc = int(in.L1)
-			case Int:
+			case KInt:
 				// Integer invocation i(e1, ..., en) produces ei.
 				f.temps[in.H] = Value{}
-				if i := int(p); i >= 1 && i <= len(args) {
+				if i := int(fv.Int()); i >= 1 && i <= len(args) {
 					f.temps[in.Dst.Index] = args[i-1]
 					f.pc = int(in.L1)
 				} else if i < 0 && -i <= len(args) {
@@ -578,10 +573,11 @@ func (vm *VM) loop(f *Frame) {
 				Runerr(106, fv)
 			}
 		case OpResume:
-			switch h := f.temps[in.H].Any().(type) {
-			case nil:
+			switch hv := f.temps[in.H]; hv.k {
+			case KNone:
 				f.pc = int(in.L2)
-			case *Frame:
+			case KFrame:
+				h := hv.frame()
 				vm.push(h.proc)
 				if vm.tracing() {
 					vm.traceAt(f, f.pc, h.proc.Name+" resumed")
@@ -590,8 +586,8 @@ func (vm *VM) loop(f *Frame) {
 				h.caller = f
 				f = h
 				vm.cur = f
-			case Generator:
-				vm.next(f, in, h)
+			case KGen:
+				vm.next(f, in, hv)
 			default:
 				panic("vm: bad handle")
 			}
@@ -653,7 +649,7 @@ func (vm *VM) loop(f *Frame) {
 			}
 			ci := &c.proc.Code[c.pc]
 			c.temps[ci.Dst.Index] = v
-			c.temps[ci.H] = V(f)
+			c.temps[ci.H] = frameVal(f)
 			c.pc = int(ci.L1)
 			f.caller = nil
 			f = c
@@ -661,7 +657,7 @@ func (vm *VM) loop(f *Frame) {
 		case OpCreate:
 			c := vm.newCoexp(f.proc, int(in.L1), append([]Value(nil), f.locals...))
 			c.from = vm.calledFrom(f)
-			f.temps[in.Dst.Index] = V(c)
+			f.temps[in.Dst.Index] = CoexpVal(c)
 			f.pc++
 		case OpActivate:
 			v := NullValue
@@ -679,11 +675,11 @@ func (vm *VM) loop(f *Frame) {
 	}
 }
 
-// next produces the next result of generator g for the OpCall or
-// OpResume in.
-func (vm *VM) next(f *Frame, in *Instr, g Generator) {
-	if v, ok := g.Next(vm); ok {
-		f.temps[in.H] = V(g)
+// next produces the next result of the generator held by h (KGen) for
+// the OpCall or OpResume in.
+func (vm *VM) next(f *Frame, in *Instr, h Value) {
+	if v, ok := h.gen().Next(vm); ok {
+		f.temps[in.H] = h
 		f.temps[in.Dst.Index] = v
 		f.pc = int(in.L1)
 	} else {
@@ -745,7 +741,8 @@ func (vm *VM) report(e *RuntimeError) {
 // (globals, statics, elements of structures, keywords) are produced as
 // variables, so that f(x) := y assigns to what f returned.
 func (vm *VM) retDeref(f *Frame, v Value) Value {
-	if p, ok := v.Any().(*Value); ok {
+	if v.k == KRef {
+		p := v.ref()
 		for i := range f.locals {
 			if p == &f.locals[i] {
 				return *p
@@ -761,10 +758,7 @@ func (vm *VM) isVar(f *Frame, o Operand) bool {
 	case LocalOp, GlobalOp:
 		return true
 	case TempOp:
-		switch f.temps[o.Index].Any().(type) {
-		case *Value, Var:
-			return true
-		}
+		return f.temps[o.Index].IsVar()
 	}
 	return false
 }

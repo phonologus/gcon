@@ -49,11 +49,11 @@ func init() {
 		return &revGen{vars: a[:2], olds: []Value{x, y}, news: []Value{y, x}}
 	}}
 	Ops["u/"] = &Builtin{Name: "/", Fn: func(vm *VM, a []Value) (Value, bool) {
-		_, isNull := a[0].Any().(Null)
+		_, isNull := a[0].AsNull()
 		return a[0], isNull
 	}}
 	Ops[`u\`] = &Builtin{Name: `\`, Fn: func(vm *VM, a []Value) (Value, bool) {
-		_, isNull := a[0].Any().(Null)
+		_, isNull := a[0].AsNull()
 		return a[0], !isNull
 	}}
 	Ops["u."] = &Builtin{Name: ".", Fn: func(vm *VM, a []Value) (Value, bool) {
@@ -67,7 +67,7 @@ func init() {
 // error 106 if there is none.
 func (vm *VM) callable(v Value, nargs int) Value {
 	if i, ok := CvInt(v); ok {
-		return V(i)
+		return IntVal(i)
 	}
 	if s, ok := CvStr(v); ok {
 		if p := vm.strproc(s.s, nargs); !p.IsNone() {
@@ -90,8 +90,9 @@ func (vm *VM) strproc(name string, nargs int) Value {
 	}
 	for i, g := range vm.prog.GlobalNames {
 		if g == name && (vm.prog.Invocable == nil || vm.prog.Invocable[i]) {
-			switch p := vm.globals[i].Any().(type) {
-			case *Proc, *Builtin, *RecordType:
+			switch sv93 := vm.globals[i]; sv93.Kind() {
+			case KProc, KBuiltin, KRecordType:
+				p := sv93.Any()
 				return V(p)
 			}
 			return Value{}
@@ -102,10 +103,10 @@ func (vm *VM) strproc(name string, nargs int) Value {
 		if !ok || nargs > 3 || impl[nargs] == "" {
 			return Value{}
 		}
-		return V(Ops[impl[nargs]])
+		return BuiltinVal(Ops[impl[nargs]])
 	}
 	if f := Functions[name]; f != nil {
-		return V(f)
+		return BuiltinVal(f)
 	}
 	return Value{}
 }
@@ -113,11 +114,13 @@ func (vm *VM) strproc(name string, nargs int) Value {
 // setVar assigns v to the variable ref, reporting whether the
 // assignment succeeded; ref must be a variable (error 111).
 func setVar(ref, v Value) bool {
-	switch x := ref.Any().(type) {
-	case *Value:
+	switch sv116 := ref; sv116.Kind() {
+	case KRef:
+		x := sv116.ref()
 		*x = v
 		return true
-	case Var:
+	case KListElem, KField, KSubstr, KVar:
+		x, _ := asVar(sv116)
 		return x.Set(v)
 	}
 	Runerr(111, ref)
@@ -155,10 +158,12 @@ var ApplyOp = &Builtin{Name: "!"}
 
 // applyArgs returns the arguments that p ! x passes.
 func applyArgs(x Value) []Value {
-	switch l := x.Any().(type) {
-	case *List:
+	switch sv158 := x; sv158.Kind() {
+	case KList:
+		l := sv158.List()
 		return append([]Value(nil), l.Elems...)
-	case *Record:
+	case KRecord:
+		l := sv158.Record()
 		return append([]Value(nil), l.Fields...)
 	}
 	Runerr(126, x)

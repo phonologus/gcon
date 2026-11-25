@@ -48,9 +48,9 @@ func (vm *VM) getKey(echo bool) (Value, bool) {
 		return Value{}, false
 	}
 	if c < utf8.RuneSelf {
-		return V(Text(string(rune(c)))), true
+		return StrVal(Text(string(rune(c)))), true
 	}
-	return V(NewString(string([]byte{c}), BytesUnit)), true
+	return StrVal(NewString(string([]byte{c}), BytesUnit)), true
 }
 
 func init() {
