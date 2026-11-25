@@ -416,6 +416,8 @@ func bang(vm *VM, a []Value) Generator {
 		return &listGen{l: x}
 	case *Record:
 		return &recordGen{r: x}
+	case *File:
+		return lineGen{x}
 	}
 	s, ok := CvStr(a[0])
 	if !ok {
@@ -478,6 +480,8 @@ func (vm *VM) Image(v Value) string {
 		return x.image()
 	case *RecordType:
 		return "record constructor " + x.Name
+	case *File:
+		return x.image()
 	}
 	return "?"
 }

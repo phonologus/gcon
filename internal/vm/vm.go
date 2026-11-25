@@ -12,6 +12,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"sync"
 	"time"
 )
 
@@ -31,13 +32,20 @@ type Frame struct {
 type VM struct {
 	prog    *Program
 	globals []Value
-	cur     *Frame  // the running frame
-	co      *Coexp  // the running co-expression
-	main    *Coexp  // &main
-	subject *String // &subject
-	pos     int     // &pos
-	out     *bufio.Writer
-	errout  *bufio.Writer
+	cur     *Frame        // the running frame
+	co      *Coexp        // the running co-expression
+	main    *Coexp        // &main
+	subject *String       // &subject
+	pos     int           // &pos
+	out     *bufio.Writer // &output's writer
+	errout  *bufio.Writer // &errout's writer
+	input   *File         // &input
+	output  *File         // &output
+	errfile *File         // &errout
+	files   []*File       // files opened, to flush at exit
+	stdin   io.Reader     // the streams the VM was given, for child processes
+	stdout  io.Writer
+	stderr  io.Writer
 	serials map[string]int // last serial number issued, by type
 
 	// Deadline, if set, stops the program with status DeadlineStatus
@@ -49,11 +57,27 @@ type VM struct {
 // DeadlineStatus is the exit status of a program stopped by Deadline.
 const DeadlineStatus = -1
 
-// New returns a VM for prog writing to stdout and stderr.
-func New(prog *Program, stdout, stderr io.Writer) *VM {
+// lockedWriter serializes writes: child processes (pipes, system)
+// write to the VM's output streams from other goroutines, and standard
+// output and error may be the same writer.
+type lockedWriter struct {
+	mu *sync.Mutex
+	w  io.Writer
+}
+
+func (l lockedWriter) Write(p []byte) (int, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.w.Write(p)
+}
+
+// New returns a VM for prog with the given standard streams.
+func New(prog *Program, stdin io.Reader, stdout, stderr io.Writer) *VM {
+	mu := new(sync.Mutex)
+	stdout, stderr = lockedWriter{mu, stdout}, lockedWriter{mu, stderr}
 	g := make([]Value, len(prog.Globals))
 	copy(g, prog.Globals)
-	return &VM{
+	vm := &VM{
 		prog:    prog,
 		globals: g,
 		out:     bufio.NewWriter(stdout),
@@ -61,7 +85,14 @@ func New(prog *Program, stdout, stderr io.Writer) *VM {
 		serials: map[string]int{},
 		subject: Text(""),
 		pos:     1,
+		stdin:   stdin,
+		stdout:  stdout,
+		stderr:  stderr,
 	}
+	vm.input = &File{name: "&input", keyword: true, r: bufio.NewReader(stdin)}
+	vm.output = &File{name: "&output", keyword: true, w: vm.out}
+	vm.errfile = &File{name: "&errout", keyword: true, w: vm.errout, errout: true}
+	return vm
 }
 
 // exitSignal unwinds the VM for exit() and stop().
@@ -75,6 +106,14 @@ type deadlineSignal struct{}
 func (vm *VM) Run(args []string) (status int) {
 	defer vm.out.Flush()
 	defer vm.errout.Flush()
+	defer func() {
+		// As C's exit does for iconx, flush every open file.
+		for _, f := range vm.files {
+			if f.w != nil && !f.closed {
+				f.w.Flush()
+			}
+		}
+	}()
 	defer func() {
 		switch e := recover().(type) {
 		case nil:
@@ -386,12 +425,6 @@ func (vm *VM) next(f *Frame, in *Instr, g Generator) {
 
 // Exit ends the program with the given status.
 func (vm *VM) Exit(code int) { panic(exitSignal{code}) }
-
-// Out returns the standard output writer.
-func (vm *VM) Out() *bufio.Writer { return vm.out }
-
-// ErrOut returns the standard error writer.
-func (vm *VM) ErrOut() *bufio.Writer { return vm.errout }
 
 // NewList returns a new list with the next list serial number.
 func (vm *VM) NewList(elems []Value) *List {

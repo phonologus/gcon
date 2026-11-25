@@ -3,6 +3,7 @@ package run
 import (
 	"bytes"
 	"flag"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -24,14 +25,26 @@ var update = flag.Bool("update", false, "rewrite testdata/conformance.txt with t
 // added (go test -run Conformance -update rewrites the list), so the list
 // records progress exactly.
 func TestConformance(t *testing.T) {
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	conformanceList := filepath.Join(wd, "testdata", "conformance.txt")
 	root := corpus.Require(t)
-	dir := filepath.Join(root, "tests", "general")
+	// The tests run in a copy of their directory, as Test-icon runs them
+	// in theirs: some read and write files there, and the reference tree
+	// is never modified.
+	dir := t.TempDir()
+	if err := os.CopyFS(dir, os.DirFS(filepath.Join(root, "tests", "general"))); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(dir)
 	stds, err := filepath.Glob(filepath.Join(dir, "*.std"))
 	if err != nil || len(stds) == 0 {
 		t.Skip("no reference tests found")
 	}
 	listed := map[string]bool{}
-	if b, err := os.ReadFile("testdata/conformance.txt"); err == nil {
+	if b, err := os.ReadFile(conformanceList); err == nil {
 		for _, l := range strings.Split(string(b), "\n") {
 			if l = strings.TrimSpace(l); l != "" && !strings.HasPrefix(l, "#") {
 				listed[l] = true
@@ -49,10 +62,12 @@ func TestConformance(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		// TODO: Test-icon runs programs in their own directory, with
-		// standard input from FILE.dat; gcon has no input or files yet.
+		var stdin io.Reader
+		if b, err := os.ReadFile(filepath.Join(dir, name+".dat")); err == nil {
+			stdin = bytes.NewReader(b)
+		}
 		var out bytes.Buffer
-		File(src, Config{Stdout: &out, Stderr: &out, Timeout: 5 * time.Second})
+		File(name+".icn", Config{Stdin: stdin, Stdout: &out, Stderr: &out, Timeout: 5 * time.Second})
 		ok := out.String() == string(want)
 		switch {
 		case ok:
@@ -73,7 +88,7 @@ func TestConformance(t *testing.T) {
 		for _, n := range passed {
 			b.WriteString(n + "\n")
 		}
-		if err := os.WriteFile("testdata/conformance.txt", []byte(b.String()), 0o644); err != nil {
+		if err := os.WriteFile(conformanceList, []byte(b.String()), 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}

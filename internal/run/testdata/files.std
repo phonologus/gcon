@@ -1,0 +1,29 @@
+out1
+"first line"
+"second line"
+""
+"last line without newline"
+eof
+&input &output &errout file
+file(tmp.out) file
+to output
+"line one"
+"ab12.5"
+"x"
+"lin" "e" " one\nab12.5\nx\n" eof
+open fails
+4 lines
+line one 10
+"appended"
+
+
+ab
+&output|&null|"b"|&null
+pipe: piped
+pipe: two
+close pipe: 0
+into a pipe
+system: 768
+renamed old name gone
+removed remove fails
+no such variable

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/phonologus/gcon/internal/compile"
@@ -17,6 +18,7 @@ import (
 // Config says how to run a program.
 type Config struct {
 	Args           []string
+	Stdin          io.Reader // if nil, empty
 	Stdout, Stderr io.Writer
 	Timeout        time.Duration // if nonzero, stop the program after this long (for tests)
 }
@@ -37,7 +39,11 @@ func File(path string, cfg Config) int {
 		}
 		return 1
 	}
-	m := vm.New(prog, cfg.Stdout, cfg.Stderr)
+	stdin := cfg.Stdin
+	if stdin == nil {
+		stdin = strings.NewReader("")
+	}
+	m := vm.New(prog, stdin, cfg.Stdout, cfg.Stderr)
 	if cfg.Timeout > 0 {
 		m.Deadline = time.Now().Add(cfg.Timeout)
 	}

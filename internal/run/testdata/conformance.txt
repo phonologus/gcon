@@ -1,11 +1,24 @@
 # Reference tests (icon/tests/general) that gcon passes.
 # Maintained by: go test ./internal/run -run Conformance -update
 augment
+btrees
+case
+center
 ck
 cxprimes
+iobig
+kross
+left
+lexcmp
+map
 mathfunc
+meander
 numeric
 primes
+recogn
+right
+roman
 scan1
 scan2
 statics
+trim

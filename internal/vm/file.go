@@ -1,0 +1,363 @@
+package vm
+
+import (
+	"bufio"
+	"errors"
+	"io"
+	"os"
+	"os/exec"
+	"strings"
+	"unicode/utf8"
+)
+
+// File is an Icon file: an open file, a pipe, or a standard stream.
+//
+// Files are text unless opened with mode "u" (untranslated, in 9.5; for
+// gcon, bytes): what is read is not validated or rewritten, only given
+// the file's unit. See docs/design.md ("Strings and Unicode").
+type File struct {
+	name    string // the name opened, or the keyword for a standard file
+	keyword bool   // a standard file: its image is its name
+	r       *bufio.Reader
+	w       *bufio.Writer
+	os      *os.File  // for seek, where and close; nil for streams and pipes
+	cmd     *exec.Cmd // for pipes
+	closer  io.Closer // the pipe's end, for close
+	unit    Unit
+	closed  bool
+	errout  bool // &errout: written unbuffered, after flushing &output
+}
+
+func (f *File) image() string {
+	if f.keyword {
+		return f.name
+	}
+	return "file(" + f.name + ")"
+}
+
+func mustFile(v Value) *File {
+	f, ok := v.(*File)
+	if !ok {
+		Runerr(105, v)
+	}
+	return f
+}
+
+// fileArg returns a[i] as a file, defaulting to d.
+func fileArg(a []Value, i int, d *File) *File {
+	if _, null := arg(a, i).(Null); null {
+		return d
+	}
+	return mustFile(a[i])
+}
+
+func (vm *VM) reader(f *File) *bufio.Reader {
+	if f.r == nil || f.closed {
+		Runerr(212, f)
+	}
+	if f == vm.input {
+		vm.output.w.Flush() // let a prompt appear before input is read
+	}
+	return f.r
+}
+
+func (vm *VM) writer(f *File) *bufio.Writer {
+	if f.w == nil || f.closed {
+		Runerr(213, f)
+	}
+	if f.errout {
+		vm.output.w.Flush() // keep standard output and error in order
+	}
+	return f.w
+}
+
+// readLine reads a line, without its "\n" or "\r\n"; false at end of file.
+func (vm *VM) readLine(f *File) (*String, bool) {
+	r := vm.reader(f)
+	s, err := r.ReadString('\n')
+	if err != nil && s == "" {
+		return nil, false
+	}
+	s = strings.TrimSuffix(s, "\n")
+	s = strings.TrimSuffix(s, "\r")
+	return NewString(s, f.unit), true
+}
+
+// readChars reads up to n characters; false at end of file. In text, a
+// character is a UTF-8 sequence or an invalid byte, and is never split.
+func (vm *VM) readChars(f *File, n int) (*String, bool) {
+	r := vm.reader(f)
+	var b strings.Builder
+	for k := 0; k < n; k++ {
+		if f.unit == BytesUnit {
+			c, err := r.ReadByte()
+			if err != nil {
+				break
+			}
+			b.WriteByte(c)
+			continue
+		}
+		p, _ := r.Peek(utf8.UTFMax)
+		if len(p) == 0 {
+			break
+		}
+		_, w := utf8.DecodeRune(p)
+		r.Discard(w)
+		b.Write(p[:w])
+	}
+	if b.Len() == 0 {
+		return nil, false
+	}
+	return NewString(b.String(), f.unit), true
+}
+
+// writeArgs implements write (nl) and writes: strings go to the current
+// file, initially f; a file argument becomes the current file, and for
+// write, after the first argument, ends the line on the file before it.
+// It returns the last argument (&null if none).
+func (vm *VM) writeArgs(f *File, a []Value, nl bool) Value {
+	var last Value = NullValue
+	for n, v := range a {
+		last = v
+		switch x := v.(type) {
+		case *File:
+			if nl && n > 0 {
+				w := vm.writer(f)
+				w.WriteByte('\n')
+				w.Flush()
+			}
+			f = x
+		case Null:
+		default:
+			s, ok := CvStr(x)
+			if !ok {
+				Runerr(109, x)
+			}
+			vm.writer(f).WriteString(s.s)
+		}
+	}
+	w := vm.writer(f)
+	if nl {
+		w.WriteByte('\n')
+	}
+	if f.errout {
+		w.Flush()
+	}
+	return last
+}
+
+// openFile implements open(name, mode).
+func (vm *VM) openFile(name, mode string) (*File, bool) {
+	f := &File{name: name, unit: TextUnit}
+	has := func(c byte) bool { return strings.IndexByte(mode, c) >= 0 }
+	for i := 0; i < len(mode); i++ {
+		if !strings.ContainsRune("rwabctupRWABCTUP", rune(mode[i])) {
+			Runerr(209, Text(mode))
+		}
+	}
+	mode = strings.ToLower(mode)
+	if has('u') {
+		f.unit = BytesUnit
+	}
+	if has('p') {
+		vm.output.w.Flush()
+		cmd := exec.Command("/bin/sh", "-c", name)
+		vm.errout.Flush()
+		cmd.Stderr = vm.stderr
+		if has('w') {
+			in, err := cmd.StdinPipe()
+			if err != nil {
+				return nil, false
+			}
+			cmd.Stdout = vm.stdout
+			f.w, f.closer = bufio.NewWriter(in), in
+			vm.files = append(vm.files, f)
+		} else {
+			out, err := cmd.StdoutPipe()
+			if err != nil {
+				return nil, false
+			}
+			f.r = bufio.NewReader(out)
+		}
+		if cmd.Start() != nil {
+			return nil, false
+		}
+		f.cmd = cmd
+		return f, true
+	}
+	flag := os.O_RDONLY
+	read, write := true, false
+	switch {
+	case has('b'):
+		flag, write = os.O_RDWR, true
+		if has('c') {
+			flag |= os.O_CREATE | os.O_TRUNC
+		}
+	case has('a'):
+		flag, read, write = os.O_WRONLY|os.O_CREATE|os.O_APPEND, false, true
+	case has('w') || has('c'):
+		flag, read, write = os.O_WRONLY|os.O_CREATE|os.O_TRUNC, false, true
+	}
+	osf, err := os.OpenFile(name, flag, 0o666)
+	if err != nil {
+		return nil, false
+	}
+	if st, err := osf.Stat(); err == nil && st.IsDir() && write {
+		osf.Close()
+		return nil, false
+	}
+	f.os = osf
+	if read {
+		f.r = bufio.NewReader(osf)
+	}
+	if write {
+		f.w = bufio.NewWriter(osf)
+		vm.files = append(vm.files, f)
+	}
+	return f, true
+}
+
+// closeFile closes f, returning f, or for a pipe the command's exit
+// status.
+func (vm *VM) closeFile(f *File) Value {
+	if f.closed {
+		return f
+	}
+	if f.w != nil {
+		f.w.Flush()
+	}
+	if f.keyword {
+		return f
+	}
+	f.closed = true
+	if f.closer != nil {
+		f.closer.Close()
+	}
+	if f.cmd != nil {
+		return Int(waitStatus(f.cmd.Wait()))
+	}
+	if f.os != nil {
+		f.os.Close()
+	}
+	return f
+}
+
+// waitStatus returns the C wait status of a finished command, as iconx's
+// system() and close() of a pipe return it: the exit code times 256.
+func waitStatus(err error) int {
+	var ee *exec.ExitError
+	if errors.As(err, &ee) {
+		return ee.ExitCode() << 8
+	}
+	if err != nil {
+		return 127 << 8
+	}
+	return 0
+}
+
+// lineGen generates the lines of a file (!f).
+type lineGen struct{ f *File }
+
+func (g lineGen) Next(vm *VM) (Value, bool) { return vm.readLine(g.f) }
+
+func init() {
+	Ops["&input"] = &Builtin{Name: "&input", Fn: func(vm *VM, a []Value) (Value, bool) { return vm.input, true }}
+	Ops["&output"] = &Builtin{Name: "&output", Fn: func(vm *VM, a []Value) (Value, bool) { return vm.output, true }}
+	Ops["&errout"] = &Builtin{Name: "&errout", Fn: func(vm *VM, a []Value) (Value, bool) { return vm.errfile, true }}
+
+	fn("write", func(vm *VM, a []Value) (Value, bool) { return vm.writeArgs(vm.output, a, true), true })
+	fn("writes", func(vm *VM, a []Value) (Value, bool) { return vm.writeArgs(vm.output, a, false), true })
+	fn("stop", func(vm *VM, a []Value) (Value, bool) {
+		vm.writeArgs(vm.errfile, a, true)
+		vm.Exit(1)
+		return nil, false
+	})
+	fn("open", func(vm *VM, a []Value) (Value, bool) {
+		mode := "r"
+		if _, null := arg(a, 1).(Null); !null {
+			mode = MustStr(a[1]).s
+		}
+		return vm.openFile(MustStr(arg(a, 0)).s, mode)
+	})
+	fn("close", func(vm *VM, a []Value) (Value, bool) {
+		return vm.closeFile(mustFile(arg(a, 0))), true
+	})
+	fn("flush", func(vm *VM, a []Value) (Value, bool) {
+		f := mustFile(arg(a, 0))
+		if f.w != nil {
+			f.w.Flush()
+		}
+		return f, true
+	})
+	fn("read", func(vm *VM, a []Value) (Value, bool) {
+		return vm.readLine(fileArg(a, 0, vm.input))
+	})
+	fn("reads", func(vm *VM, a []Value) (Value, bool) {
+		f := fileArg(a, 0, vm.input)
+		n := 1
+		if _, null := arg(a, 1).(Null); !null {
+			n = int(MustInt(a[1]))
+		}
+		if n <= 0 {
+			Runerr(205, Int(n))
+		}
+		return vm.readChars(f, n)
+	})
+	fn("seek", func(vm *VM, a []Value) (Value, bool) {
+		f := mustFile(arg(a, 0))
+		i := MustInt(arg(a, 1))
+		if f.os == nil {
+			return nil, false
+		}
+		if f.w != nil {
+			f.w.Flush()
+		}
+		var err error
+		if i > 0 {
+			_, err = f.os.Seek(int64(i-1), io.SeekStart)
+		} else {
+			_, err = f.os.Seek(int64(i), io.SeekEnd)
+		}
+		if err != nil {
+			return nil, false
+		}
+		if f.r != nil {
+			f.r.Reset(f.os)
+		}
+		return f, true
+	})
+	fn("where", func(vm *VM, a []Value) (Value, bool) {
+		f := mustFile(arg(a, 0))
+		if f.os == nil {
+			return nil, false
+		}
+		if f.w != nil {
+			f.w.Flush()
+		}
+		off, err := f.os.Seek(0, io.SeekCurrent)
+		if err != nil {
+			return nil, false
+		}
+		if f.r != nil {
+			off -= int64(f.r.Buffered())
+		}
+		return Int(off + 1), true
+	})
+	fn("remove", func(vm *VM, a []Value) (Value, bool) {
+		return NullValue, os.Remove(MustStr(arg(a, 0)).s) == nil
+	})
+	fn("rename", func(vm *VM, a []Value) (Value, bool) {
+		return NullValue, os.Rename(MustStr(arg(a, 0)).s, MustStr(arg(a, 1)).s) == nil
+	})
+	fn("getenv", func(vm *VM, a []Value) (Value, bool) {
+		v, ok := os.LookupEnv(MustStr(arg(a, 0)).s)
+		return Text(v), ok
+	})
+	fn("system", func(vm *VM, a []Value) (Value, bool) {
+		vm.output.w.Flush()
+		vm.errfile.w.Flush()
+		cmd := exec.Command("/bin/sh", "-c", MustStr(arg(a, 0)).s)
+		cmd.Stdin, cmd.Stdout, cmd.Stderr = vm.stdin, vm.stdout, vm.stderr
+		return Int(waitStatus(cmd.Run())), true
+	})
+}

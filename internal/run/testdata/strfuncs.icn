@@ -1,0 +1,23 @@
+# String functions.
+procedure main()
+   local s, i
+   every i := 0 to 9 do
+      write("[", left("abc", i), "][", right("abc", i), "][", center("abc", i), "][",
+         left("abc", i, "123"), "][", right("abc", i, "123"), "][", center("abc", i, "123"), "]")
+   every i := 0 to 7 do
+      write("[", center("ab", i, "xy"), "][", center("abcd", i, "-="), "][", center("abcde", i), "]")
+   write("[", left("x", 5, ""), "][", right(42, 4, 0), "][", center(1.5, 7, "*"), "][", left("abc"), "]")
+   write(map("abcdef", "abc", "xyz"), " ", map("hello", "lo", "LO"), " ", map("aaa", "aa", "xy"))
+   write(map("Hello World"), " ", map("abc", "", ""), " ", map(12345, "135", "abc"))
+   write(map("2026-11-25", "abcd-ef-gh", "yyyy-mm-dd"), " ", map("ab", "ab", "ba"))
+   write("[", trim("  abc  "), "][", trim("abc...", '.'), "][", trim("xxx", 'x'), "][", trim("", ' '), "]")
+   write(repl("ab", 3), " [", repl("x", 0), "] [", repl("", 5), "] ", repl(7, 2))
+   write(reverse("hello"), " [", reverse(""), "] ", reverse(123))
+   s := "a\tbc\tdef\tg"
+   write(image(detab(s)), " ", image(detab(s, 4)), " ", image(detab(s, 3, 7)))
+   write(image(detab("x\ty\nab\tc")), " ", image(detab("\t\t", 5, 6)))
+   s := "a       b   c        d"
+   write(image(entab(s)), " ", image(entab(s, 4)), " ", image(entab(s, 3, 7)))
+   write(image(entab("ab  c")), " ", image(entab("        x", 9)), " ", image(entab(detab("p\tq\tr"))))
+   write(image(entab("a b")), " ", image(entab("x       \ty")))
+end

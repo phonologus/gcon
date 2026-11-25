@@ -228,6 +228,8 @@ func TypeName(v Value) string {
 		return x.T.Name
 	case *RecordType:
 		return "procedure"
+	case *File:
+		return "file"
 	}
 	return "unknown"
 }

@@ -1,0 +1,30 @@
+[][][][][][]
+[a][c][b][a][c][b]
+[ab][bc][bc][ab][bc][bc]
+[abc][abc][abc][abc][abc][abc]
+[abc ][ abc][abc ][abc3][1abc][abc3]
+[abc  ][  abc][ abc ][abc23][12abc][1abc3]
+[abc   ][   abc][ abc  ][abc123][123abc][1abc23]
+[abc    ][    abc][  abc  ][abc3123][1231abc][12abc23]
+[abc     ][     abc][  abc   ][abc23123][12312abc][12abc123]
+[abc      ][      abc][   abc   ][abc123123][123123abc][123abc123]
+[][][]
+[b][c][c]
+[ab][bc][cd]
+[aby][bcd][bcd]
+[xaby][abcd][bcde]
+[xabxy][abcd=][abcde]
+[xyabxy][-abcd=][abcde ]
+[xyabyxy][-abcd-=][ abcde ]
+[x    ][0042][**1.5**][a]
+xyzdef heLLO yyy
+hello world abc a2b4c
+2026-11-25 ba
+[  abc][abc][][]
+ababab [] [] 77
+olleh [] 321
+"a       bc      def     g" "a  bc def   g" "a bc  def g"
+"x       y\nab      c" "     "
+"a\tb   c\t     d" "a\t\t  b\tc\t\t\td" "a\t\t  b   c\t\t   d"
+"ab  c" "\tx" "p\tq\tr"
+"a b" "x\t\ty"

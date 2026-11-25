@@ -644,7 +644,7 @@ func (p *pcomp) keyword(e *syntax.Keyword, fail, succ label) (label, label, vm.O
 		return succ, fail, p.c.constant("&letters", vm.CsetLetters)
 	case "uset":
 		return succ, fail, p.c.constant("&uset", vm.CsetUniv)
-	case "current", "source", "main", "subject", "pos":
+	case "current", "source", "main", "subject", "pos", "input", "output", "errout":
 		s := p.newLabel()
 		p.place(s)
 		t := p.temp()

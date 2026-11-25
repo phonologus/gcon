@@ -60,14 +60,26 @@ func TestUnicode(t *testing.T) {
 			`2 '\xa9\xc3' '\xa9\xc3' 2`},
 		// Matching across units.
 		{"bytes subject", `write(upto('é', bytes("aé")), " ", image(upto(bytes('\xc3'), "aé")) | "no")`, "2 no"},
+		// String functions count characters of the string's unit.
+		{"padding", `write("[", left("é", 3), "][", right("日本", 3, "·"), "][", center("ü", 5, "-"), "][", left(bytes("é"), 3), "]")`,
+			"[é  ][·日本][--ü--][\xc3\xa9 ]"},
+		{"reverse map trim", `write(reverse("aé日"), " ", map("café", "é", "e"), " ", map("abc", "abc", "αβγ"), " ", trim("xyé··", '·'), " ", repl("é", 3))`,
+			"日éa cafe αβγ xyé ééé"},
+		{"detab text", `write(image(detab("é\tx")), " ", image(entab("é       x")))`, `"é       x" "é\tx"`},
+		// Reading: text never splits a sequence; mode "u" reads bytes.
+		{"reads units", `f := open("u.txt", "w"); writes(f, "é日"); close(f); ` +
+			`f := open("u.txt"); s := reads(f, 1); write(*s, " ", image(s), " ", image(reads(f, 5))); close(f); ` +
+			`f := open("u.txt", "u"); s := reads(f, 1); write(*s, " ", image(s), " ", image(read(f))); close(f)`,
+			"1 \"é\" \"日\"\n1 \"\\xc3\" \"\\xa9\\xe6\\x97\\xa5\""},
 		{"lone byte match", `s := runes("a\xffb"); write(upto('\xff', s), " ", image(upto('\uFFFD', s)) | "no")`,
 			"2 no"},
 	}
 	dir := t.TempDir()
+	t.Chdir(dir) // programs may create files
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			path := filepath.Join(dir, strings.ReplaceAll(tt.name, " ", "_")+".icn")
-			src := "procedure main()\n   local s, c\n   " + tt.body + "\nend\n"
+			src := "procedure main()\n   local s, c, f\n   " + tt.body + "\nend\n"
 			if err := os.WriteFile(path, []byte(src), 0o644); err != nil {
 				t.Fatal(err)
 			}

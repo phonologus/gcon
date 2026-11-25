@@ -199,9 +199,12 @@ Go's handling of UTF-8 throughout. All encoding and decoding goes through
   one-character text string for any code point; an invalid code point
   gives U+FFFD, as Go's `string(rune)` does. `ord` returns the code point,
   which is U+FFFD for an invalid byte.
-- **I/O.** Files are text by default; mode `"b"` reads bytes. Reading does
-  no validation or rewriting; it only sets the unit. In text mode
-  `reads(f, n)` reads n characters and never splits a sequence.
+- **I/O.** Files are text by default; mode `"u"` makes a file bytes.
+  (In 9.5, `"u"` means "untranslated", i.e. binary, and is ignored on
+  Unix; `"b"` already means "both", read and write, so it cannot mean
+  bytes.) Reading does no validation or rewriting; it only sets the
+  unit. In text mode `reads(f, n)` reads n characters and never splits
+  a sequence; `read` strips `"\n"` or `"\r\n"`, as iconx does.
 - **Csets** have no unit; their characters are ASCII, bytes and code
   points (see "Csets" below).
 - **Fast positions.** A scanning environment caches its cursor
@@ -392,6 +395,20 @@ conformance test with this reason.
   step for step, so results agree to the last bit); `to` truncates real
   operands to integers, as iconx does. Errors 204, 205 and 206 are raised
   where iconx raises them.
+- String functions (`internal/vm/strfuncs.go`) follow iconx's `fstr.r`
+  step for step (the order in which `left`, `right` and `center` lay
+  down copies of the pad, and `center`'s parity adjustment), working in
+  characters of the strings' units. `detab` and `entab` count a
+  printable code point as one column in text.
+- Files (`internal/vm/file.go`): `open` (modes `r w a b c u p`, pipes
+  through `/bin/sh`), `close` (a pipe's close returns its command's exit
+  status), `read`, `reads`, `write` and `writes` with file arguments,
+  `stop`, `flush`, `seek`, `where`, `remove`, `rename`, `getenv`,
+  `system`, `!f`, and `&input`, `&output`, `&errout`. As in iconx,
+  standard output is flushed before anything is written to `&errout`, so
+  the two stay in order when they go to one file; and `system` and a
+  pipe's `close` return C's wait status (exit code times 256). Open
+  files are flushed when the program ends, as C's `exit` does.
 - Records: a declaration's global holds a `RecordType`, whose call makes a
   `Record`. Field references are looked up by name when they run, so
   `x.f` works on any record type with a field `f`; `r[i]` and `r["f"]`
@@ -425,8 +442,8 @@ conformance test with this reason.
 - Integers beyond 64 bits: `integer(1e30)` and strings of more than 19
   digits are not numbers yet, where 9.5 makes large integers.
 - Not yet implemented: sets, tables, programmer-defined control
-  operations, files and input, most keywords and built-in
-  functions, the preprocessor, `link`.
+  operations, many keywords and built-in functions, the preprocessor,
+  `link`.
 
 ## Verification
 

@@ -95,8 +95,12 @@ value is an exact tie in exponent form (`1e10+5` prints as
 `1.000000000e+10`, where the C standard, glibc and Go give `1e+10`).
 gcon follows the standard, so test programs avoid such values.
 
+Each program runs in a temporary directory, so it may create files, with
+standard input from `FILE.dat`.
+
 `TestConformance` runs the reference suite (`icon/tests/general`) as its
-`Test-icon` script does. `internal/run/testdata/conformance.txt` lists the
+`Test-icon` script does, in a temporary copy of that directory, so the
+reference tree is never written to. `internal/run/testdata/conformance.txt` lists the
 tests gcon passes; the test fails if a listed test fails or an unlisted
 one passes. After making more tests pass:
 

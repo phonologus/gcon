@@ -27,53 +27,7 @@ func Unsupported(name string) *Builtin {
 	}}
 }
 
-// writeArgs writes the arguments of write or writes.
-func (vm *VM) writeArgs(a []Value) Value {
-	var last Value = Text("")
-	for _, v := range a {
-		switch x := v.(type) {
-		case Null:
-			last = Text("")
-			continue
-		case *String:
-			vm.out.WriteString(x.s)
-		default:
-			s, ok := CvStr(x)
-			if !ok {
-				Runerr(109, x)
-			}
-			vm.out.WriteString(s.s)
-		}
-		last = v
-	}
-	return last
-}
-
 func init() {
-	fn("write", func(vm *VM, a []Value) (Value, bool) {
-		v := vm.writeArgs(a)
-		vm.out.WriteByte('\n')
-		return v, true
-	})
-	fn("writes", func(vm *VM, a []Value) (Value, bool) {
-		return vm.writeArgs(a), true
-	})
-	fn("stop", func(vm *VM, a []Value) (Value, bool) {
-		vm.out.Flush()
-		for _, v := range a {
-			if _, ok := v.(Null); ok {
-				continue
-			}
-			s, ok := CvStr(v)
-			if !ok {
-				Runerr(109, v)
-			}
-			vm.errout.WriteString(s.s)
-		}
-		vm.errout.WriteByte('\n')
-		vm.Exit(1)
-		return nil, false
-	})
 	fn("exit", func(vm *VM, a []Value) (Value, bool) {
 		code := 0
 		if _, ok := arg(a, 0).(Null); !ok {

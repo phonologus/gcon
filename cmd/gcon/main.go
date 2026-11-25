@@ -19,5 +19,5 @@ func main() {
 	if len(os.Args) < 3 || os.Args[1] != "run" {
 		usage()
 	}
-	os.Exit(run.File(os.Args[2], run.Config{Args: os.Args[3:], Stdout: os.Stdout, Stderr: os.Stderr}))
+	os.Exit(run.File(os.Args[2], run.Config{Args: os.Args[3:], Stdin: os.Stdin, Stdout: os.Stdout, Stderr: os.Stderr}))
 }
