@@ -281,6 +281,15 @@ renders identically). 52 of the 99 reference tests call `image`.
   escapes, and as a literal that would be bytes, so its image does not
   carry its unit. This is accepted.
 - Csets use single quotes and escape `'` rather than `"`, as 9.5 does.
+- **Large csets are elided** (first approximation): a cset with more than
+  1,024 members images as its first 16 members, `...`, and its last 8,
+  inside the quotes, e.g. `image(~'a')` is
+  `'\x00\x01...\U0010fffe\U0010ffff'` (shortened here). The elision is
+  unambiguous because a cset has no duplicate members, so `...` can never
+  be three `.` members. The limit is above 256, so every 9.5 cset (and
+  `image(&cset)` in the reference tests) images in full. The image of an
+  elided cset is not a literal; nothing else uses it as one. The numbers
+  are provisional.
 
 ### Compatibility cost and open points
 
@@ -305,8 +314,6 @@ Both differences are complements of ASCII csets, which is where the new
 meaning is intended. They are kept deliberately and will be listed in
 the conformance test with this reason.
 
-Still open: how `image()` renders a very large text cset compactly
-(`image(~'a')` would otherwise be megabytes).
 
 ## Verification
 
