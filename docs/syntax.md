@@ -1,0 +1,174 @@
+# Icon syntax notes
+
+Facts about Icon's surface syntax and name resolution that the gcon front
+end depends on, with their source in the reference tree. Carried over
+from icontools (`docs/design.md` at 9cf9615); keep it up to date here.
+
+## Semicolon insertion
+
+`icon/src/common/yylex.h` (around line 167): if a newline separates two
+tokens, the first an *Ender* and the second a *Beginner*, the lexer returns
+a `;` between them. Flags are in `icon/src/common/lextab.h`
+(mirrored in `internal/token`, checked by `TestAgainstLextab`).
+
+Surprises:
+
+- Several binary-only operators are Beginners (`||`, `|||`, `**`, `++`,
+  `--`, `==`, `===`, `~=`, `~==`, `~===`), because the grammar lets
+  e.g. `||x` parse as `|(|x)`. So a line ending in an operand followed by a
+  line starting with `||` gets a semicolon. Continuation lines must
+  therefore end with the operator, not begin with it.
+- `:=`, `<`, `>`, `%`, `,` and the augmented assignments are neither Beginner
+  nor Ender, so a line may be broken safely after them.
+
+Consequences for the formatter:
+
+- Break a line only after a token that is not an Ender, or before a token
+  that is not a Beginner.
+- Join two lines only if no semicolon was inserted between them, or write
+  the `;` explicitly.
+- Self-check: re-lex the output and compare the token stream, including
+  inserted semicolons, with the input.
+
+## Preprocessor
+
+`$define`, `$undef`, `$include`, `$ifdef`, `$ifndef`, `$else`, `$endif`,
+`$line`, `$error` (`icon/src/common/ipp.c`). icont's parser sees only
+expanded text. Our tools keep directives in the tree and do not expand them,
+except where the LSP needs to resolve defined names.
+
+`$(`, `$)`, `$<`, `$>` are digraphs for `{`, `}`, `[`, `]`, not directives.
+
+## Comments
+
+`#` to end of line. icont discards them (`yylex.h` around line 88); we keep
+them as trivia.
+
+## Grammar
+
+`icon/src/h/grammar.h` (yacc). Error messages: `icon/src/h/parserr.h`.
+
+## Lexical details (from `yylex.h`, `getopr` in `lextab.h`, `ipp.c`)
+
+Confirmed against icont's own lexer on the whole corpus (see
+`TestOracle`).
+
+- **Operators** are matched greedily with no backtracking: `%:x` is an
+  error, not `%` `:` `x`.
+- **`.`** followed by a digit begins a real literal (`.5`); otherwise it is
+  the DOT operator. `3.foo` is `3.` then `foo`.
+- **Numbers**: `16rFF`, `2r101` (radix 2–36, digits case-insensitive);
+  `1e10`, `1.5E-3`. `10x` is `10` then `x`.
+- **Keywords** (`&subject`) are `&` followed by an identifier.
+- **String/cset literals**:
+  - A backslash takes the next character literally, *including a newline*,
+    which continues the literal onto the next line.
+  - `\^c` takes one more character, so `"\^""` is a complete literal.
+  - `_` as the last non-blank on a line continues the literal at the first
+    non-blank of the next line (blank lines are skipped too).
+  - Otherwise an unescaped newline ends the literal with "unclosed quote".
+  - A newline inside a continued literal does not count for semicolon
+    insertion.
+- **Invalid characters** are skipped by icont without resetting the
+  semicolon-insertion state; we emit ILLEGAL tokens with the same
+  behaviour. An implicit semicolon is placed immediately before the
+  Beginner that triggers it.
+- **Directives**: a line whose first non-blank is `$`, followed by a blank
+  or a non-punctuation character. So `$define` and `$ include` are
+  directives, but `$(` at the start of a line is a digraph.
+- **`#line n "file"`** comments make icont renumber lines. We always report
+  physical positions, which is what editors need.
+- **ipp predefines** the symbols in `src/h/features.h` (`_UNIX`, `_PIPES`,
+  `_V9`, ...) as `1`, so code using them is expanded even with no
+  `$define` in the file.
+
+## Lexer output model
+
+`lexer.Tokenize` returns every token with its *leading* trivia (Space,
+Newline, Comment, Directive); trailing trivia at end of file hangs on the
+EOF token. Implicit semicolons are zero-width SEMICOL tokens with
+`Implicit` set. Concatenating trivia and token text reproduces the input
+byte for byte. Offsets are bytes; `lexer.Lines` maps them to lines.
+
+Not yet handled: code inside inactive `$ifdef` branches is lexed like any
+other code, which can produce spurious errors. The formatter will need to
+treat such regions verbatim.
+
+## Parser
+
+`syntax.Parse` is a hand-written recursive-descent parser over the token
+stream, following `grammar.h`.
+
+- **Precedence**: one function level per grammar level, loosest first:
+  `&`; `?`; assignments and augmented assignments (right-assoc); `to ...
+  by` (left); `|` (right); comparisons; `|| |||`; `+ - ++ --`;
+  `* / % **`; `^` (right); `\ @ !` (binary); then prefix operators
+  (including `not`), then postfix forms (`x[...]`, `x(...)`, `x{...}`,
+  `x.f`).
+- **Control structures** (`if`, `while`, `every`, `return`, `suspend`,
+  `create`, `break`, ...) are at the tightest level but end in a full
+  expression, and yacc's shift preference makes them extend as far right
+  as possible: `x := if a then b else c + 1` puts `c + 1` in the else
+  branch.
+- **Unary forms of binary-only tokens** (`||x`, `--x`, `==x`, ...) parse as
+  unary operators. icont treats `|`, `||` and `|||` prefixes all as
+  repeated alternation.
+- **Statement separators**: a procedure body is `{ nexpr ; }`, so the last
+  expression before `end` needs `;` or a newline: `return 1 end` on one
+  line is an error. Case clauses are separated (not terminated) by `;`, so
+  `{ 1: a; }` is an error too.
+- **Empty lists**: `f()`, `f{}`, `[]`, `{}` have no elements in the tree;
+  `f(a,,b)` has a nil middle element.
+- **Not checked by the parser** (icont reports these from its symbol
+  table): redeclared identifiers, inconsistent redeclaration of globals,
+  unknown `&keywords`. These belong in a later semantic pass.
+
+### Verification
+
+`tools/icontok -t` replaces icont's code generator with a printer of the
+parse tree it builds for each procedure. The tests map our tree to the
+same form (`icontree_test.go`, mirroring the action macros in
+`icont/tgrammar.c`) and compare:
+
+- `TestOracle`: every corpus file. Both parsers accept or reject the same
+  files, and all 7750 procedures produce identical trees, including leaf
+  positions.
+- `TestMutations`: random token deletions, duplications and swaps applied
+  to corpus files (`MUTATIONS=n`, default 300). In a 30,000-mutant run,
+  icont and we agreed on validity and trees in every case.
+
+
+## Name resolution (`internal/sema`)
+
+Follows icont (`tsym.c`, `lsym.c`, `lglob.c`). Within a procedure an
+identifier is, in order: a parameter, local or static; a global (`global`,
+procedure or record, in any linked file); a built-in function (a global of
+the same name hides it); otherwise an implicit local, which `icont -u`
+reports as an "undeclared identifier". Field names in `x.f` may denote
+any record's field of that name.
+
+Diagnostics, as icont: `redeclared identifier` (a name declared twice in
+one procedure), `inconsistent redeclaration` (two procedures/records of
+the same name, at the later one; a `global` may share a name with a
+procedure or record), `invalid keyword`, and, as warnings, undeclared
+identifiers (suppressed when some linked file cannot be found).
+
+Preprocessor symbols (`$define`, through `$include`d files, and the
+predefined `_UNIX` etc.) take precedence over everything, as icont
+substitutes them before parsing; each is in force from its `$define` (or
+the `$include`) to a `$undef` or redefinition.
+
+One check icont does not make: assigning to a built-in function
+(`name := ...`) is reported as a warning, since it replaces that function
+throughout the program; usually it is a variable that happens to share
+the function's name. Assigning to procedures and record constructors is
+an Icon idiom (e.g. `InitProc := 1` to make a procedure a no-op, or
+swapping procedures with `:=:`) and is not reported.
+
+Unlike icont, undeclared identifiers are reported in every procedure: the
+icont linker first discards procedures unreachable from `main` or an
+`invocable` declaration, so it reports only reachable ones.
+
+Verified with `icont -s -u` on the 561 corpus files that stand alone (no
+`link`), comparing only reachable procedures, and ignoring graphics
+functions (the oracle's icont is built without graphics).

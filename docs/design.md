@@ -1,13 +1,33 @@
 # gcon design notes
 
 gcon runs Icon 9.5 programs on a virtual machine written in Go. It is one
-binary: it translates Icon source (via the icontools parser) to gcon's own
-bytecode and executes it. Like icontools, it uses only the Go standard
-library and supports Go 1.24 and later.
+binary: it translates Icon source to gcon's own bytecode and executes it.
+It supports Go 1.24 and later.
 
 Compatibility target: the *language* of Icon 9.5, checked against the
 reference implementation. Compatibility with icont's ucode/icode files
 is not a goal; gcon has its own bytecode.
+
+## Scope and direction
+
+gcon is meant to become a standalone Icon toolchain in the Go mould:
+`go install` puts one `gcon` command on the path, and that command
+gathers the tools under subcommands (run, build, fmt, the language
+server, ...). Over time it takes in what now lives in separate projects:
+the formatter and language server (icontools), the tree-sitter grammar
+and editor extensions, and a graphics back-end, possibly based on Fyne.
+
+icontools and icon-sdl remain standalone, for the wider Icon community,
+built around the reference implementation. gcon does not depend on them.
+It forked the icontools front end (lexer, parser, name resolution,
+built-in catalogue, and the icont oracle) at icontools 9cf9615, and the
+two evolve independently. Syntax facts are in [syntax.md](syntax.md).
+
+Dependencies: the core (front end, translator, VM, and tools that work on
+source) uses only the standard library. A graphics back-end such as Fyne
+is a large dependency that brings in cgo, so it will need a boundary
+(a separate module or a build tag) that keeps the core installable
+without it. That is to be decided when graphics work starts.
 
 ## Prior art
 
@@ -114,8 +134,8 @@ is the deliberate trade.
 
 ## Plan
 
-1. **Front end.** Share the icontools lexer, parser and name resolution
-   (see "Open questions").
+1. **Front end.** Done: forked from icontools 9cf9615, with its oracle
+   tests passing.
 2. **Vertical slice.** Integers, strings, locals and globals, procedures,
    `every`, `to`, `|`, `&`, `if`, `while`, `suspend`, `!` on strings and
    lists, `write`. Translation to IR, lowering to bytecode, and the VM loop.
@@ -124,9 +144,3 @@ is the deliberate trade.
 4. Grow the value types and built-ins, driven by the conformance suite.
 5. `gcon build` producing a self-contained executable (the gcon binary
    with the bytecode appended), the counterpart of icont's output.
-
-## Open questions
-
-- **How gcon imports the parser.** The icontools front end is in
-  `internal/` (`token`, `lexer`, `syntax`, plus `sema` and `builtin` for
-  name resolution), which a separate module cannot import.
