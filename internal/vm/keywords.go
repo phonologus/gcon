@@ -63,12 +63,16 @@ func (k dumpVar) Set(v Value) bool {
 // SetProgname sets &progname from the path of the program's source:
 // the name the program would have if built by icont and run from its
 // directory ("./kwds" for kwds.icn), as iconx's is its argv[0].
-func (vm *VM) SetProgname(path string) {
+func (vm *VM) SetProgname(path string) { vm.progname = Text(ProgName(path)) }
+
+// ProgName returns the &progname of the program whose source is path: the
+// name it would have if built by icont and run from its directory.
+func ProgName(path string) string {
 	name := strings.TrimSuffix(path, ".icn")
 	if !strings.Contains(name, "/") {
 		name = "./" + name
 	}
-	vm.progname = Text(name)
+	return name
 }
 
 // SetInvokedName sets &progname to name exactly: for a built program,

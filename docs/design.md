@@ -373,6 +373,35 @@ VM stays as the reference implementation, and as a second oracle in
 testing, until gcon-vm passes the tests; gcon-vm's `docs/design.md`
 has the plan.
 
+### Decision (2026-11-26): gcon run uses gcon-vm
+
+gcon-vm runs gcon's built programs with the same results as this VM
+(gcon's program tests, the reference tests, 260 IPL programs), at about
+half its time, and co-expressions at a hundredth of iconx's. So `gcon
+run` hands programs to it when it is installed (`internal/run`,
+`gconvm.go`):
+
+- **Which VM.** `$GCONVM` if set: a gcon-vm, or `go` for this VM; else
+  `libexec/gcon-vm` in the root, if executable; else this VM. `gcon env`
+  shows the choice (`GCONVM`, `GCONVMFROM`).
+- **A built program** is run as it is: gcon `exec`s gcon-vm on the file,
+  so gcon's process becomes gcon-vm's, and the exit status, signals and
+  standard streams are simply its own; `&progname` is the name the
+  program was invoked by, as before. The header of a built program
+  still runs `gcon run`, which keeps one place that finds the VM.
+- **Source** is translated as before, built to a temporary file deleted
+  at once (gcon-vm reads it as `/dev/fd/N`, inherited across the
+  `exec`, rewound first since opening `/dev/fd/N` shares the offset on
+  macOS), and run with `-progname` set to the name the program has from
+  source (`vm.ProgName`). Translation errors are reported by gcon as
+  before. Nothing is left on disk.
+- **Unix only.** gcon-vm is POSIX C; elsewhere gcon uses this VM.
+- **This VM stays**, in-process: the tests run it (it is the reference),
+  and `gcon run` falls back to it. `TestExecVM` runs every program test
+  from source through the hand-over itself, when `GCONVM` names a
+  gcon-vm (it is skipped otherwise): its test binary re-runs itself as
+  a child that calls `ExecVM`, since `exec` replaces the process.
+
 ## Strings and Unicode
 
 Icon 9.5 strings are bytes, and a cset is a set of 256 byte values.
@@ -817,6 +846,7 @@ library.
 $GCONROOT/
   bin/gcon
   libexec/gcon-graphics     the display server, when there is one
+  libexec/gcon-vm           the VM in C, when installed (gcon-vm's tools/install.sh)
   lib/ipl/procs, gprocs     the IPL's procedures (link)
   lib/ipl/incl, gincl       its include files ($include)
   lib/ipl/UPSTREAM          the upstream commit and each file's SHA-256

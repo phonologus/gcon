@@ -28,6 +28,12 @@ Nothing is written beside your sources: there are no `.u1`/`.u2` files.
 program with the installed gcon, as icont's output runs with iconx; it
 no longer needs the sources. `gcon dis` lists a program's VM code.
 
+Programs run fastest on [gcon-vm](https://github.com/phonologus/gcon-vm),
+gcon's VM in C: on Unix, `gcon run` (and so every built program) hands
+programs to it when it is installed in the root's `libexec`
+(`tools/install.sh` in gcon-vm does that), or named by `GCONVM`.
+Otherwise, or with `GCONVM=go`, gcon runs programs on its own VM, in Go.
+
 The front end (lexer, parser and name resolution) was forked from
 [icontools](https://github.com/phonologus/icontools).
 

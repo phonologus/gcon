@@ -5,6 +5,10 @@
 //	gcon dis file                  list the VM code of source or a built program
 //	gcon env                       print gcon's root and library search paths
 //	gcon version                   print gcon's version
+//
+// On Unix, run hands programs to gcon-vm, the VM in C, when it is
+// installed in the root's libexec or named by $GCONVM; GCONVM=go, or no
+// gcon-vm, runs them on gcon's own VM.
 package main
 
 import (
@@ -42,6 +46,9 @@ func main() {
 		}
 		cfg := config()
 		cfg.Args, cfg.Stdin, cfg.Stdout, cfg.Stderr = args[1:], os.Stdin, os.Stdout, os.Stderr
+		if vmPath, _ := run.FindVM(gconRoot.Dir); vmPath != "" {
+			os.Exit(run.ExecVM(vmPath, args[0], cfg)) // returns only on failure
+		}
 		os.Exit(run.File(args[0], cfg))
 	case "build":
 		os.Exit(build(args))
@@ -127,5 +134,8 @@ func env() {
 	fmt.Printf("LPATH=%s\n", q(os.Getenv("LPATH")))
 	fmt.Printf("GCONLINKPATH=%s\n", q(strings.Join(cfg.LinkSearch(), ":")))
 	fmt.Printf("GCONINCLUDEPATH=%s\n", q(strings.Join(cfg.IncludeSearch(), ":")))
+	vmPath, vmFrom := run.FindVM(gconRoot.Dir)
+	fmt.Printf("GCONVM=%s\n", q(vmPath))
+	fmt.Printf("GCONVMFROM=%s\n", q(vmFrom))
 	fmt.Printf("GCONVERSION=%s\n", q(run.Version()))
 }
