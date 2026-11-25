@@ -12,6 +12,8 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"os"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -59,6 +61,8 @@ type VM struct {
 	haveErrVal bool
 
 	random Int // &random (random.go)
+	trace  Int // &trace (trace.go)
+	level  int // &level
 
 	// Deadline, if set, stops the program with status DeadlineStatus
 	// once passed (checked every few thousand instructions). For tests.
@@ -166,7 +170,17 @@ func (vm *VM) Run(args []string) (status int) {
 	vm.main = &Coexp{serial: 1, proc: main, state: coRunning, results: 1}
 	vm.main.activator = vm.main
 	vm.co = vm.main
-	vm.run(vm.newFrame(main, margs))
+	// As iconx, &trace starts at the value of the environment variable
+	// TRACE, so the call of main can be traced.
+	if t, err := strconv.ParseInt(os.Getenv("TRACE"), 10, 64); err == nil {
+		vm.trace = Int(t)
+	}
+	mf := vm.newFrame(main, margs)
+	if vm.tracing() {
+		vm.traceCall(nil, 0, main, mf.locals[:main.NParams])
+	}
+	vm.level = 1
+	vm.run(mf)
 	return 0
 }
 
@@ -347,6 +361,13 @@ func (vm *VM) loop(f *Frame) {
 			switch p := fv.(type) {
 			case *Proc:
 				nf := vm.newFrame(p, args)
+				if vm.tracing() {
+					// The arguments as the procedure receives them, as
+					// iconx traces them: padded with &null, extras
+					// dropped or gathered into a list.
+					vm.traceCall(f, f.pc, p, nf.locals[:p.NParams])
+				}
+				vm.level++
 				nf.caller = f
 				f = nf
 				vm.cur = f
@@ -387,6 +408,10 @@ func (vm *VM) loop(f *Frame) {
 			case nil:
 				f.pc = int(in.L2)
 			case *Frame:
+				if vm.tracing() {
+					vm.traceAt(f, f.pc, h.proc.Name+" resumed")
+				}
+				vm.level++
 				h.caller = f
 				f = h
 				vm.cur = f
@@ -396,7 +421,11 @@ func (vm *VM) loop(f *Frame) {
 				panic("vm: bad handle")
 			}
 		case OpReturn:
-			v := Deref(vm.get(f, in.X))
+			v := vm.retDeref(f, vm.ref(f, in.X))
+			vm.level--
+			if vm.tracing() {
+				vm.traceAt(f, f.pc, f.proc.Name+" returned "+vm.OutImage(v, 0))
+			}
 			c := f.caller
 			if c == nil {
 				if vm.co != vm.main {
@@ -412,6 +441,10 @@ func (vm *VM) loop(f *Frame) {
 			f = c
 			vm.cur = f
 		case OpFail:
+			vm.level--
+			if vm.tracing() {
+				vm.traceAt(f, f.pc, f.proc.Name+" failed")
+			}
 			c := f.caller
 			if c == nil {
 				if vm.co != vm.main {
@@ -426,7 +459,11 @@ func (vm *VM) loop(f *Frame) {
 			f = c
 			vm.cur = f
 		case OpSuspend:
-			v := Deref(vm.get(f, in.X))
+			v := vm.retDeref(f, vm.ref(f, in.X))
+			vm.level--
+			if vm.tracing() {
+				vm.traceAt(f, f.pc, f.proc.Name+" suspended "+vm.OutImage(v, 0))
+			}
 			f.pc = int(in.L1)
 			c := f.caller
 			if c == nil {
@@ -513,6 +550,22 @@ func (vm *VM) report(e *RuntimeError) {
 	}
 	fmt.Fprintln(w, errorText[e.Num])
 	if e.HasValue {
-		fmt.Fprintf(w, "offending value: %s\n", vm.Image(e.Value))
+		fmt.Fprintf(w, "offending value: %s\n", vm.OutImage(e.Value, 0))
 	}
+}
+
+// retDeref prepares v, the operand of a return or suspend in frame f: as
+// iconx's retderef does, a variable in f itself (a local or parameter)
+// is dereferenced, since the frame is going away, but other variables
+// (globals, statics, elements of structures, keywords) are produced as
+// variables, so that f(x) := y assigns to what f returned.
+func (vm *VM) retDeref(f *Frame, v Value) Value {
+	if p, ok := v.(*Value); ok {
+		for i := range f.locals {
+			if p == &f.locals[i] {
+				return *p
+			}
+		}
+	}
+	return v
 }

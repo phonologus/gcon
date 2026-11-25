@@ -676,6 +676,30 @@ conformance test with this reason.
 - Reversible assignment: `x <- y` and `x <-> y` save the old values
   before assigning; resumed, they restore them and fail (iconx's `rasgn`
   and `rswap`). The compiler emits them inline, as it does `:=:`.
+- Procedures return and suspend variables, as iconx's `retderef`
+  decides: a variable in the procedure's own frame (a local or
+  parameter) is dereferenced, since the frame is going away; globals,
+  statics, structure elements and keywords are produced as variables,
+  so `f(x) := y` assigns through what `f` returned.
+- **Tracing** (`internal/vm/trace.go`), as iconx's `rdebug.r`. While
+  `&trace` is nonzero, each procedure call, return, suspension, failure
+  and resumption, and each co-expression activation, return and failure,
+  writes a line to `&errout` and decrements `&trace` (negative traces
+  indefinitely); `&trace` starts at the environment variable `TRACE`, so
+  main's call can be traced. Built-in functions are not traced. Lines
+  are `file: line  ` (the file's last 13 characters), then `| ` for each
+  `&level`; calls show the arguments as the procedure receives them
+  (padded, or gathered into a variadic list). `&level` counts procedure
+  calls: up on a call or resumption, down on a return, suspension or
+  failure, unchanged by co-expression switches. The lines match iconx's
+  because each leaving instruction carries the line of its keyword
+  (`return`, `suspend`, `fail`, or `end` for falling off the end) and a
+  call carries the line of its `(`. Values are shown by `OutImage`,
+  iconx's `outimage`, which run-time error messages use as well: strings
+  past 16 characters and csets past 16 members end in `...`, lists show
+  their elements (`list_1 = [1,2,3]`, at most 3 at each end), records
+  their fields, and inside them lists and records are shown by size;
+  variables appear as `(variable = ...)` or `&pos = ...`.
 - Operators that produce at most one result are `OpOper` instructions
   calling a Go function; generators (`to`, `!`, built-in generators)
   and procedure calls use `OpCall` and `OpResume` with a handle in a
@@ -683,11 +707,8 @@ conformance test with this reason.
 
 ### Deliberate simplifications (to be removed)
 
-- Procedures return values, never variables.
 - String subscripts are values, not assignable variables.
 - Run-time errors print iconx's header lines but no traceback.
-- Run-time error messages show offending records as `record point_1(2)`;
-  iconx shows their fields, `record point_1(0,0)` (with the traceback).
 - `display()` checks its arguments as iconx does (errors 101 and 105)
   but does not list variables yet: valid arguments raise error 121.
 - Not yet implemented: programmer-defined control operations, many
@@ -699,6 +720,11 @@ conformance test with this reason.
   conformance test runs each program and compares its output with the
   `.std` file. Programs that do not yet pass are listed explicitly, so
   progress shows up in the diff.
+- Program tests (`internal/run/testdata`): each `FILE.icn` has its
+  expected standard output and exit status recorded from iconx by
+  `tools/iconx/expect.sh`; a program with a line `#STDERR` also has its
+  standard error recorded (`FILE.err`) and compared, which is how trace
+  output is checked.
 - New syntax and semantics facts go here, with the C source or test that
   shows them.
 

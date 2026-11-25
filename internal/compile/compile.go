@@ -285,6 +285,7 @@ func (c *compiler) proc(d *syntax.ProcDecl, info *sema.Info) *vm.Proc {
 	}
 	p.stmts(d.Body.Elems, p.pfail)
 	p.place(p.pfail)
+	p.setLine(d.End) // falling off the end fails at "end", for &trace
 	p.emit(vm.Instr{Op: vm.OpFail})
 
 	proc.Code = p.link()
@@ -502,6 +503,7 @@ func (p *pcomp) expr(e syntax.Expr, fail, succ label) (start, resume label, v vm
 		a := p.newLabel()
 		st, r, vs := p.seq(append([]syntax.Expr{e.Fun}, e.Args.Elems...), fail, a)
 		p.place(a)
+		p.setLine(e.Lparen) // the call's line, for &trace
 		return st, p.call(vs[0], vs[1:], r, succ), p.lastTemp(2)
 	case *syntax.If:
 		return p.ifExpr(e, fail, succ)
@@ -714,7 +716,8 @@ func (p *pcomp) keyword(e *syntax.Keyword, fail, succ label) (label, label, vm.O
 	case "uset":
 		return succ, fail, p.c.constant("&uset", vm.CsetUniv)
 	case "current", "source", "main", "subject", "pos", "input", "output", "errout",
-		"error", "errornumber", "errortext", "errorvalue", "line", "file", "random":
+		"error", "errornumber", "errortext", "errorvalue", "line", "file", "random",
+		"trace", "level":
 		s := p.newLabel()
 		p.place(s)
 		t := p.temp()
@@ -996,6 +999,21 @@ func (p *pcomp) leave(target label, depth int) label {
 	return l
 }
 
+// failAt emits code that leaves the scans being compiled and fails the
+// procedure, with the line of t, and returns its label.
+func (p *pcomp) failAt(t *syntax.Token) label {
+	save := p.line
+	p.setLine(t)
+	l := p.newLabel()
+	p.place(l)
+	for i := len(p.scans) - 1; i >= 0; i-- {
+		p.emit(vm.Instr{Op: vm.OpScanSwap, X: p.scans[i]})
+	}
+	p.emit(vm.Instr{Op: vm.OpFail})
+	p.line = save
+	return l
+}
+
 // reenter emits code that re-enters the scans left by leave(_, 0), the
 // outermost first.
 func (p *pcomp) reenter() {
@@ -1017,16 +1035,20 @@ func (p *pcomp) ret(e *syntax.Return, fail, succ label) (label, label, vm.Operan
 	// Leaving the procedure from inside scans restores the caller's
 	// scanning environment first, as iconx does; values are then
 	// dereferenced, so "return &subject" returns the caller's subject.
+	//
+	// The instructions that leave carry the line of the keyword, which
+	// is where &trace reports them, as iconx does.
 	switch e.Keyword.Kind {
 	case token.FAIL:
-		return p.leave(p.pfail, 0), fail, p.null()
+		return p.failAt(e.Keyword), fail, p.null()
 	case token.RETURN:
 		a := p.newLabel()
-		st, _, v := p.expr(e.X, p.leave(p.pfail, 0), a)
+		st, _, v := p.expr(e.X, p.failAt(e.Keyword), a)
 		p.place(a)
 		for i := len(p.scans) - 1; i >= 0; i-- {
 			p.emit(vm.Instr{Op: vm.OpScanSwap, X: p.scans[i]})
 		}
+		p.setLine(e.Keyword)
 		p.emit(vm.Instr{Op: vm.OpReturn, X: v})
 		return st, fail, p.null()
 	case token.SUSPEND:
@@ -1042,6 +1064,7 @@ func (p *pcomp) ret(e *syntax.Return, fail, succ label) (label, label, vm.Operan
 			p.emit(vm.Instr{Op: vm.OpScanSwap, X: p.scans[i]})
 		}
 		back := p.newLabel()
+		p.setLine(e.Keyword)
 		p.emit(vm.Instr{Op: vm.OpSuspend, X: v, L1: int32(back)})
 		p.place(back)
 		p.reenter()

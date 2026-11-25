@@ -13,7 +13,10 @@ import (
 
 // TestPrograms runs each testdata/*.icn and compares its standard output
 // and exit status with those of the reference implementation, recorded
-// by tools/iconx/expect.sh in FILE.std and FILE.exit. FILE.dat, if
+// by tools/iconx/expect.sh in FILE.std and FILE.exit, and its standard
+// error with FILE.err if that exists (programs marked "#STDERR"). The
+// program runs as FILE.icn from its directory, as expect.sh runs it,
+// since its name appears in trace and error messages. FILE.dat, if
 // present, is standard input; FILE.args holds arguments. Each program
 // runs in a directory of its own, so that it may create files.
 func TestPrograms(t *testing.T) {
@@ -46,9 +49,22 @@ func TestPrograms(t *testing.T) {
 				stdin = bytes.NewReader(b)
 			}
 			var stdout, stderr bytes.Buffer
-			status := File(base+".icn", Config{Args: args, Stdin: stdin, Stdout: &stdout, Stderr: &stderr, Timeout: 10 * time.Second})
+			src, err := os.ReadFile(base + ".icn")
+			if err != nil {
+				t.Fatal(err)
+			}
+			name := filepath.Base(base) + ".icn"
+			if err := os.WriteFile(name, src, 0o644); err != nil {
+				t.Fatal(err)
+			}
+			status := File(name, Config{Args: args, Stdin: stdin, Stdout: &stdout, Stderr: &stderr, Timeout: 10 * time.Second})
 			if got := stdout.String(); got != string(want) {
 				t.Errorf("output differs\n--- got\n%s--- want\n%s--- stderr\n%s", got, want, stderr.String())
+			}
+			if wantErr, err := os.ReadFile(base + ".err"); err == nil {
+				if got := stderr.String(); got != string(wantErr) {
+					t.Errorf("standard error differs\n--- got\n%s--- want\n%s", got, wantErr)
+				}
 			}
 			if status != wantStatus {
 				t.Errorf("exit status %d, want %d; stderr:\n%s", status, wantStatus, stderr.String())

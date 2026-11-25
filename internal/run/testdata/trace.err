@@ -1,0 +1,32 @@
+trace.icn    :   11  | fact(3)
+trace.icn    :   30  | | fact(2)
+trace.icn    :   30  | | | fact(1)
+trace.icn    :   29  | | | fact returned 1
+trace.icn    :   30  | | fact returned 2
+trace.icn    :   30  | fact returned 6
+trace.icn    :   12  | gen(2)
+trace.icn    :   34  | gen suspended 1
+trace.icn    :   12  | gen resumed
+trace.icn    :   34  | gen suspended 2
+trace.icn    :   12  | gen resumed
+trace.icn    :   35  | gen failed
+trace.icn    :   13  | f(list_4 = ["a very long stri...",list_1(8),record pt_1(2),...,table_1(0),procedure main,function write])
+trace.icn    :   39  | f returned (variable = "a very long stri...")
+trace.icn    :   16  | f(list_9 = [list_8(4)])
+trace.icn    :   38  | f failed
+trace.icn    :   18  | main; co-expression_1 : &null @ co-expression_2
+trace.icn    :   17  | main; co-expression_2 returned 1 to co-expression_1
+trace.icn    :   20  | main; co-expression_1 : &null @ co-expression_3
+trace.icn    :   19  | g()
+trace.icn    :   43  | g returned 2
+trace.icn    :   19  | main; co-expression_3 returned 2 to co-expression_1
+trace.icn    :   21  | main; co-expression_1 : &null @ co-expression_3
+trace.icn    :   19  | main; co-expression_3 failed to co-expression_1
+trace.icn    :   22  | h()
+trace.icn    :   47  | h suspended 1
+trace.icn    :   22  | h resumed
+trace.icn    :   47  | h suspended 2
+trace.icn    :   22  | h resumed
+trace.icn    :   48  | h failed
+trace.icn    :   24  | fact(2)
+trace.icn    :   30  | | fact(1)

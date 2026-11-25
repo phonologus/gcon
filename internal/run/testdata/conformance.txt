@@ -21,7 +21,9 @@ image
 io
 iobig
 kross
+large
 left
+level
 lexcmp
 lgint
 map
@@ -49,5 +51,6 @@ sorting
 statics
 string1
 table
+transmit
 trim
 wordcnt

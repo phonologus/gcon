@@ -77,6 +77,9 @@ func (vm *VM) activate(f *Frame, in *Instr, target Value, v Value) *Frame {
 		f.pc = int(in.L2)
 		return f
 	}
+	if vm.tracing() {
+		vm.traceCo(f, f.pc, "activate", v, c)
+	}
 	cur := vm.co
 	cur.frame, cur.state = f, coWaiting
 	c.activator = cur
@@ -87,6 +90,9 @@ func (vm *VM) activate(f *Frame, in *Instr, target Value, v Value) *Frame {
 // to its activator; it resumes at resume.
 func (vm *VM) coret(f *Frame, v Value, resume int) *Frame {
 	c := vm.co
+	if vm.tracing() {
+		vm.traceCo(f, f.pc, "return", v, c.activator)
+	}
 	c.results++
 	f.pc = resume
 	c.frame, c.state = f, coResult
@@ -97,6 +103,9 @@ func (vm *VM) coret(f *Frame, v Value, resume int) *Frame {
 // activator's activation fails.
 func (vm *VM) cofail() *Frame {
 	c := vm.co
+	if vm.tracing() {
+		vm.traceCo(vm.cur, vm.cur.pc, "fail", nil, c.activator)
+	}
 	c.state = coDone
 	return vm.transfer(c.activator, nil, false)
 }

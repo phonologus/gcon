@@ -1,0 +1,69 @@
+# Procedures return variables: globals, statics and structure elements
+# come back as variables (so f() := x assigns to them); locals and
+# parameters are dereferenced, as iconx's retderef does.
+global g
+record r(a)
+
+procedure main()
+   local L, x, t, R
+   g := 1
+   glob() := 2
+   write("g = ", g)
+   L := [1, 2, 3]
+   elem(L, 2) := 20
+   write("L = ", L[1], " ", L[2], " ", L[3])
+   every elems(L) := 0
+   write("L = ", L[1], " ", L[2], " ", L[3])
+   t := table()
+   tab(t, "k") := "v"
+   write("t[k] = ", t["k"])
+   R := r(5)
+   fld(R) +:= 1
+   write("R.a = ", R.a)
+   stat() := 7
+   write("stat = ", stat())
+   x := loc()
+   write("loc = ", x)
+   &error := -1
+   write((loc() := 3) | "loc() := 3: error " || &errornumber)
+   write((param(4) := 3) | "param(4) := 3: error " || &errornumber)
+   writes("swap: ")
+   glob() :=: elem(L, 1)
+   write(g, " ", L[1])
+end
+
+procedure glob()
+   return g
+end
+
+procedure elem(L, i)
+   return L[i]
+end
+
+procedure elems(L)
+   suspend !L
+end
+
+procedure tab(t, k)
+   return t[k]
+end
+
+procedure fld(R)
+   return R.a
+end
+
+procedure stat()
+   static s
+   initial s := 0
+   return s
+end
+
+procedure loc()
+   local y
+   y := 9
+   return y
+end
+
+procedure param(p)
+   return p
+end

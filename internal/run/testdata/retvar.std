@@ -1,0 +1,10 @@
+g = 2
+L = 1 20 3
+L = 0 0 0
+t[k] = v
+R.a = 6
+stat = 7
+loc = 9
+loc() := 3: error 111
+param(4) := 3: error 111
+swap: 0 2
