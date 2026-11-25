@@ -18,7 +18,7 @@ import (
 // scanEnv is a saved scanning environment, held in a temporary by
 // OpScanEnter and exchanged with the current one by OpScanSwap.
 type scanEnv struct {
-	subject *String
+	subject String
 	pos     int
 }
 
@@ -37,13 +37,40 @@ func (vm *VM) scanEnter(v Value) Value {
 	return e
 }
 
-func savedScan(s *String, pos int) Value {
-	return Value{k: KScanEnv, n: uint64(pos), p: unsafe.Pointer(s)}
+// A saved environment packs the subject's length (32 bits), the position
+// (29 bits), the unit and the ASCII flag into n, with the subject's bytes
+// in p; a subject or position too long for that is saved in a scanEnv
+// (KScanEnvBox).
+const (
+	scanPosShift   = 32
+	scanUnitShift  = 61
+	scanASCIIShift = 62
+)
+
+func savedScan(s String, pos int) Value {
+	if len(s.s) >= 1<<32 || pos >= 1<<29 {
+		return Value{k: KScanEnvBox, p: unsafe.Pointer(&scanEnv{s, pos})}
+	}
+	return Value{k: KScanEnv,
+		n: uint64(len(s.s)) | uint64(pos)<<scanPosShift | uint64(s.unit)<<scanUnitShift | uint64(s.ascii+1)<<scanASCIIShift,
+		p: unsafe.Pointer(unsafe.StringData(s.s))}
+}
+
+// scanOf returns the subject and position saved in e.
+func scanOf(e Value) (String, int) {
+	if e.k == KScanEnvBox {
+		b := (*scanEnv)(e.p)
+		return b.subject, b.pos
+	}
+	s := String{s: unsafe.String((*byte)(e.p), int(e.n&(1<<32-1))),
+		unit:  Unit(e.n >> scanUnitShift & 1),
+		ascii: int8(e.n>>scanASCIIShift&3) - 1}
+	return s, int(e.n >> scanPosShift & (1<<29 - 1))
 }
 
 // scanSwap exchanges the current environment with the one saved in *e.
 func (vm *VM) scanSwap(e *Value) {
-	s, pos := (*String)(e.p), int(e.n)
+	s, pos := scanOf(*e)
 	*e = savedScan(vm.subject, vm.pos)
 	vm.subject, vm.pos = s, pos
 }
@@ -70,7 +97,7 @@ func (k posVar) Set(v Value) bool {
 }
 
 // width returns the width in bytes of the character at byte offset i.
-func (s *String) width(i int) int {
+func (s String) width(i int) int {
 	if s.unit == BytesUnit || s.s[i] < utf8.RuneSelf {
 		return 1
 	}
@@ -80,7 +107,7 @@ func (s *String) width(i int) int {
 
 // widthBefore returns the width in bytes of the character ending at byte
 // offset i.
-func (s *String) widthBefore(i int) int {
+func (s String) widthBefore(i int) int {
 	if s.unit == BytesUnit || s.s[i-1] < utf8.RuneSelf {
 		return 1
 	}
@@ -92,7 +119,7 @@ func (s *String) widthBefore(i int) int {
 // a[k+2] of a string analysis function as iconx's str_anal does: s
 // defaults to &subject, and then i to &pos, else to 1; j defaults to the
 // end. It fails if a position is out of range.
-func (vm *VM) scanArgs(a []Value, k int) (s *String, i, j int, ok bool) {
+func (vm *VM) scanArgs(a []Value, k int) (s String, i, j int, ok bool) {
 	sv, iv, jv := arg(a, k), arg(a, k+1), arg(a, k+2)
 	_, iNull := iv.AsNull()
 	if _, null := sv.AsNull(); null {
@@ -109,14 +136,14 @@ func (vm *VM) scanArgs(a []Value, k int) (s *String, i, j int, ok bool) {
 	n := s.Len()
 	if !iNull {
 		if i, ok = cvpos(MustInt(iv), n); !ok {
-			return nil, 0, 0, false
+			return String{}, 0, 0, false
 		}
 	}
 	if _, null := jv.AsNull(); null {
 		j = n + 1
 	} else {
 		if j, ok = cvpos(MustInt(jv), n); !ok {
-			return nil, 0, 0, false
+			return String{}, 0, 0, false
 		}
 		if i > j {
 			i, j = j, i
@@ -155,7 +182,7 @@ func csetArg(a []Value, i int, d *Cset) *Cset {
 
 // matchAt reports whether the character of s at byte offset off is in c,
 // and its width.
-func (c *Cset) matchAt(s *String, off int) (int, bool) {
+func (c *Cset) matchAt(s String, off int) (int, bool) {
 	if s.unit == BytesUnit {
 		return 1, c.MatchByte(s.s[off])
 	}
@@ -164,7 +191,7 @@ func (c *Cset) matchAt(s *String, off int) (int, bool) {
 
 // matches reports whether t's bytes occur in s at byte offset off,
 // ending at or before byte offset end.
-func matches(s *String, off, end int, t *String) bool {
+func matches(s String, off, end int, t String) bool {
 	n := len(t.s)
 	return off+n <= end && s.s[off:off+n] == t.s
 }

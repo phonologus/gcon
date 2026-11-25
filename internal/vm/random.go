@@ -24,7 +24,7 @@ func (vm *VM) randIndex(n int) int {
 
 // randomChar returns a random character of s, or fails if s is empty.
 // A character is one in s's unit, as !s produces.
-func (vm *VM) randomChar(s *String) (Value, bool) {
+func (vm *VM) randomChar(s String) (Value, bool) {
 	n := s.Runes()
 	if n == 0 {
 		return Value{}, false

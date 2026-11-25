@@ -274,26 +274,64 @@ func (vm *VM) lookupVar(s string) (Value, bool) {
 // ones are dropped; a function taking a variable number gets at least
 // its fixed parameters.
 func adjustArgs(b *Builtin, args []Value) []Value {
-	n := -1
+	adjustOnce.Do(precomputeAdjust)
+	if !b.adjSet {
+		// A builtin made on demand (a field operator, a stub): rare.
+		mode, n := adjustOf(b)
+		return adjustBy(mode, n, args)
+	}
+	return adjustBy(b.adjMode, int(b.adjN), args)
+}
+
+// How adjustArgs adjusts a builtin's arguments.
+const (
+	adjNone  = iota // leave them
+	adjMin          // pad to at least adjN
+	adjExact        // pad or cut to adjN
+)
+
+func adjustBy(mode uint8, n int, args []Value) []Value {
+	switch mode {
+	case adjMin:
+		return withNulls(args, n)
+	case adjExact:
+		return withNulls(args, n)[:n]
+	}
+	return args
+}
+
+// adjustOf works out how b's arguments are adjusted.
+func adjustOf(b *Builtin) (uint8, int) {
 	switch {
 	case isFunction(b):
 		ar, ok := funcArity[b.Name]
 		if !ok {
-			return args
+			return adjNone, 0
 		}
 		if ar < 0 {
-			return withNulls(args, -ar-1)
+			return adjMin, -ar - 1
 		}
-		n = ar
+		return adjExact, ar
 	case b.NoDeref:
-		n = 2
-	default:
-		n = opArity(b)
+		return adjExact, 2
 	}
-	if n < 0 {
-		return args
+	if n := opArity(b); n >= 0 {
+		return adjExact, n
 	}
-	return withNulls(args, n)[:n]
+	return adjNone, 0
+}
+
+var adjustOnce sync.Once
+
+// precomputeAdjust records in each builtin of the tables how its
+// arguments are adjusted, so that a call need not look it up by name.
+func precomputeAdjust() {
+	for _, t := range []map[string]*Builtin{Functions, Ops} {
+		for _, b := range t {
+			m, n := adjustOf(b)
+			b.adjMode, b.adjN, b.adjSet = m, int32(n), true
+		}
+	}
 }
 
 // withNulls returns args with at least n elements, the added ones

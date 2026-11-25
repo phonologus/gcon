@@ -37,7 +37,7 @@ func strVar(x Value) bool {
 
 // str returns the string the variable holds, which must still be a
 // string long enough to contain the substring (errors 103 and 205).
-func (s *SubstrVar) str() *String {
+func (s *SubstrVar) str() String {
 	d, ok := Deref(s.v).AsString()
 	if !ok {
 		Runerr(103, Deref(s.v))

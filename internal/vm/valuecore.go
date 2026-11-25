@@ -22,10 +22,10 @@ type Kind uint8
 const (
 	KNone Kind = iota // no value (the zero Value), distinct from &null
 	KNull
-	KInt  // n
-	KReal // n holds the bits
-	KBig  // *Big
-	KString
+	KInt    // n
+	KReal   // n holds the bits
+	KBig    // *Big
+	KString // p: the bytes; n: the length, unit and ASCII flag (strBits)
 	KCset
 	KList
 	KTable
@@ -45,10 +45,11 @@ const (
 	KVar      // *varBox: any other Var (keywords, table elements)
 
 	// Internal: what the VM keeps in temporaries.
-	KFrame   // *Frame: a suspended procedure call
-	KGen     // a built-in generator (gen.go)
-	KScanEnv // a saved scanning environment: the subject (*String) in p, &pos in n
-	KPoison  // a released argument (GCONDEBUG=poisonargs)
+	KFrame      // *Frame: a suspended procedure call
+	KGen        // a built-in generator (gen.go)
+	KScanEnv    // a saved scanning environment, packed (scan.go)
+	KScanEnvBox // *scanEnv: one too large to pack
+	KPoison     // a released argument (GCONDEBUG=poisonargs)
 )
 
 // NullValue is &null.
@@ -69,8 +70,20 @@ func IntVal(i Int) Value { return Value{k: KInt, n: uint64(i)} }
 // RealVal returns r as a Value.
 func RealVal(r Real) Value { return Value{k: KReal, n: math.Float64bits(float64(r))} }
 
+// A string Value's n holds its length in the low 56 bits, then its unit
+// (bit 56) and its ASCII flag plus one (bits 57 and 58).
+const (
+	strLenMask  = 1<<56 - 1
+	strUnitBit  = 56
+	strASCIIBit = 57
+)
+
 // StrVal returns s as a Value.
-func StrVal(s *String) Value { return Value{k: KString, p: unsafe.Pointer(s)} }
+func StrVal(s String) Value {
+	return Value{k: KString,
+		n: uint64(len(s.s)) | uint64(s.unit)<<strUnitBit | uint64(s.ascii+1)<<strASCIIBit,
+		p: unsafe.Pointer(unsafe.StringData(s.s))}
+}
 
 // ListVal returns l as a Value.
 func ListVal(l *List) Value { return Value{k: KList, p: unsafe.Pointer(l)} }
@@ -85,7 +98,11 @@ func (v Value) Int() Int { return Int(v.n) }
 func (v Value) Real() Real { return Real(math.Float64frombits(v.n)) }
 
 // Str returns v's string; v must be a string.
-func (v Value) Str() *String { return (*String)(v.p) }
+func (v Value) Str() String {
+	return String{s: unsafe.String((*byte)(v.p), int(v.n&strLenMask)),
+		unit:  Unit(v.n >> strUnitBit & 1),
+		ascii: int8(v.n>>strASCIIBit&3) - 1}
+}
 
 // List returns v's list; v must be a list.
 func (v Value) List() *List { return (*List)(v.p) }
@@ -94,7 +111,12 @@ func (v Value) List() *List { return (*List)(v.p) }
 func (v Value) IsInt() (Int, bool) { return Int(v.n), v.k == KInt }
 
 // IsStr reports whether v is a string, returning it.
-func (v Value) IsStr() (*String, bool) { return (*String)(v.p), v.k == KString }
+func (v Value) IsStr() (String, bool) {
+	if v.k != KString {
+		return String{}, false
+	}
+	return v.Str(), true
+}
 
 // varBox holds a variable of a kind the Value cannot hold directly.
 type varBox struct{ v Var }
@@ -120,7 +142,7 @@ func V(x any) Value {
 		return RealVal(x)
 	case *Big:
 		return Value{k: KBig, p: unsafe.Pointer(x)}
-	case *String:
+	case String:
 		return StrVal(x)
 	case *Cset:
 		return Value{k: KCset, p: unsafe.Pointer(x)}
@@ -179,7 +201,7 @@ func (v Value) Any() any {
 	case KBig:
 		return (*Big)(v.p)
 	case KString:
-		return (*String)(v.p)
+		return v.Str()
 	case KCset:
 		return (*Cset)(v.p)
 	case KList:
@@ -214,8 +236,9 @@ func (v Value) Any() any {
 		return (*Frame)(v.p)
 	case KGen:
 		return v.gen()
-	case KScanEnv:
-		return &scanEnv{(*String)(v.p), int(v.n)}
+	case KScanEnv, KScanEnvBox:
+		s, pos := scanOf(v)
+		return &scanEnv{s, pos}
 	case KPoison:
 		return poisoned{}
 	}
@@ -351,13 +374,7 @@ func (v Value) AsNull() (Null, bool) {
 	return Null{}, true
 }
 
-func (v Value) AsString() (*String, bool) {
-	if v.k != KString {
-		var zero *String
-		return zero, false
-	}
-	return (*String)(v.p), true
-}
+func (v Value) AsString() (String, bool) { return v.IsStr() }
 
 func (v Value) AsBig() (*Big, bool) {
 	if v.k != KBig {
@@ -472,10 +489,11 @@ func (v Value) AsSubstr() (*SubstrVar, bool) {
 }
 
 func (v Value) AsScanEnv() (*scanEnv, bool) {
-	if v.k != KScanEnv {
+	if v.k != KScanEnv && v.k != KScanEnvBox {
 		return nil, false
 	}
-	return &scanEnv{(*String)(v.p), int(v.n)}, true
+	s, pos := scanOf(v)
+	return &scanEnv{s, pos}, true
 }
 
 func (v Value) AsListElem() (ListElem, bool) {

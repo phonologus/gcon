@@ -22,7 +22,8 @@ type Cset struct {
 	ranges []runeRange // sorted, disjoint, not adjacent; >= 0x80; no surrogates
 	n      int         // member count, -1 if not yet known
 	bytes  *[4]uint64  // cache: the bits of the cset read as bytes
-	str    *String     // cache: the cset as a string (String)
+	str    String      // cache: the cset as a string (String)
+	strOK  bool        // str is set
 }
 
 type runeRange struct{ lo, hi rune }
@@ -229,7 +230,7 @@ func normalizeUnsorted(rs []runeRange) []runeRange {
 }
 
 // CsetOf returns the cset of the characters of s, read in s's unit.
-func CsetOf(s *String) *Cset {
+func CsetOf(s String) *Cset {
 	return csetFrom(s.s, s.unit)
 }
 
@@ -345,8 +346,8 @@ func (c *Cset) Members() iter.Seq[string] {
 // String returns c's canonical string: its members in order. It is
 // text if c has a code point (its byte members are then lone bytes), else
 // bytes: the unit a literal with those members would have.
-func (c *Cset) String() *String {
-	if c.str != nil {
+func (c *Cset) String() String {
+	if c.strOK {
 		return c.str // a cset does not change once made
 	}
 	var b strings.Builder
@@ -357,7 +358,7 @@ func (c *Cset) String() *String {
 	if len(c.ranges) > 0 {
 		u = TextUnit
 	}
-	c.str = NewString(b.String(), u)
+	c.str, c.strOK = NewString(b.String(), u), true
 	return c.str
 }
 

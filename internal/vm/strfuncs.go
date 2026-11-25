@@ -18,7 +18,7 @@ type chars struct {
 	offs []int // each character's byte offset, then len(s); nil if each is a byte
 }
 
-func charsIn(s *String) chars {
+func charsIn(s String) chars {
 	if oneByte(s) {
 		return chars{s: s.s}
 	}
@@ -30,7 +30,7 @@ func charsIn(s *String) chars {
 }
 
 // oneByte reports whether each character of s is one byte.
-func oneByte(s *String) bool { return s.unit == BytesUnit || s.IsASCII() }
+func oneByte(s String) bool { return s.unit == BytesUnit || s.IsASCII() }
 
 func (c chars) n() int {
 	if c.offs == nil {
@@ -66,7 +66,7 @@ func byteString(b []byte) string {
 
 // joinUnit returns the unit of a string made of characters from the
 // given strings, by the rule for concatenation.
-func joinUnit(ss ...*String) Unit {
+func joinUnit(ss ...String) Unit {
 	u := TextUnit
 	for _, s := range ss {
 		if !s.IsASCII() {
@@ -82,7 +82,7 @@ func joinUnit(ss ...*String) Unit {
 // padArgs converts the arguments of left, right and center: s1, the
 // width n (default 1, error 205 if negative), and the pad s2 (default
 // and empty: a blank).
-func padArgs(a []Value) (*String, int, *String) {
+func padArgs(a []Value) (String, int, String) {
 	s1 := MustStr(arg(a, 0))
 	n := 1
 	if _, null := arg(a, 1).AsNull(); !null {
@@ -138,13 +138,13 @@ func (pd padder) fromRight(b *strings.Builder, p, n int) {
 	pd.write(b, pd.m-1-(n-1-p)%pd.m)
 }
 
-func newPadder(s2 *String) padder {
+func newPadder(s2 String) padder {
 	c := charsIn(s2)
 	return padder{c, c.n()}
 }
 
 // grow sizes b for a result of s1 and n-l pad characters of s2.
-func grow(b *strings.Builder, s1, s2 *String, pad, m int) {
+func grow(b *strings.Builder, s1, s2 String, pad, m int) {
 	b.Grow(len(s1.s) + pad*((len(s2.s)+m-1)/m))
 }
 
@@ -295,7 +295,7 @@ type mapTable struct {
 	m      map[string]string // otherwise
 }
 
-func newMapTable(s2, s3 *String) *mapTable {
+func newMapTable(s2, s3 String) *mapTable {
 	c2, c3 := charsIn(s2), charsIn(s3)
 	if c2.n() != c3.n() {
 		Runerr(208)
@@ -320,7 +320,7 @@ func newMapTable(s2, s3 *String) *mapTable {
 }
 
 // apply returns the bytes of s mapped.
-func (t *mapTable) apply(s *String) string {
+func (t *mapTable) apply(s String) string {
 	if t.bytes != nil && oneByte(s) {
 		b := make([]byte, len(s.s))
 		for i := 0; i < len(s.s); i++ {
@@ -391,7 +391,7 @@ func printable(c string, u Unit) bool {
 }
 
 // tabs implements detab(s, i...) and, if entab, entab(s, i...).
-func tabs(a []Value, entab bool) *String {
+func tabs(a []Value, entab bool) String {
 	s := MustStr(arg(a, 0))
 	var stops []int
 	for k, v := range a[min(1, len(a)):] {

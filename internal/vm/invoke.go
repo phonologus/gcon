@@ -42,11 +42,11 @@ func init() {
 		return a[0], setVar(a[0], y) && setVar(a[1], x)
 	}}
 	Ops["n<-"] = &Builtin{Name: "<-", NoDeref: true, Gen: func(vm *VM, a []Value) Generator {
-		return &revGen{vars: a[:1], olds: []Value{Deref(a[0])}, news: []Value{Deref(a[1])}}
+		return &revGen{vars: append([]Value(nil), a[:1]...), olds: []Value{Deref(a[0])}, news: []Value{Deref(a[1])}}
 	}}
 	Ops["n<->"] = &Builtin{Name: "<->", NoDeref: true, Gen: func(vm *VM, a []Value) Generator {
 		x, y := Deref(a[0]), Deref(a[1])
-		return &revGen{vars: a[:2], olds: []Value{x, y}, news: []Value{y, x}}
+		return &revGen{vars: append([]Value(nil), a[:2]...), olds: []Value{x, y}, news: []Value{y, x}}
 	}}
 	Ops["u/"] = &Builtin{Name: "/", Fn: func(vm *VM, a []Value) (Value, bool) {
 		_, isNull := a[0].AsNull()

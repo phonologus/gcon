@@ -40,7 +40,7 @@ type VM struct {
 	cur        *Frame        // the running frame
 	co         *Coexp        // the running co-expression
 	main       *Coexp        // &main
-	subject    *String       // &subject
+	subject    String        // &subject
 	pos        int           // &pos
 	out        *bufio.Writer // &output's writer
 	errout     *bufio.Writer // &errout's writer
@@ -75,7 +75,7 @@ type VM struct {
 	// keywords.go
 	dump                               Int
 	collections                        [4]Int // total, static, string, block
-	progname                           *String
+	progname                           String
 	eventcode, eventsource, eventvalue Value
 
 	// Deadline, if set, stops the program with status DeadlineStatus
@@ -325,45 +325,43 @@ func (vm *VM) operInt(f *Frame, in *Instr) bool {
 	return true
 }
 
-// argsRoom is args with room for extra more arguments.
-func (vm *VM) argsRoom(f *Frame, ops []Operand, extra int) []Value {
-	a := make([]Value, len(ops), len(ops)+extra)
+// scratchArgs returns the dereferenced values of ops in the VM's scratch
+// buffer, for a call that does not keep its argument slice: a function
+// (a generator takes what it needs when called), a procedure, which
+// copies its arguments, a record constructor. Arguments live only while
+// such a call runs, and no other code runs meanwhile, so one buffer
+// serves; release returns it. The slice has spare capacity
+// (scratchRoom) for adjustArgs's padding. With GCONDEBUG=poisonargs,
+// release overwrites the buffer, so that a callee that kept it shows up
+// in the tests.
+func (vm *VM) scratchArgs(f *Frame, ops []Operand) []Value {
+	n := len(ops)
+	if n == 0 {
+		return nil
+	}
+	if cap(vm.scratch) < n+scratchRoom {
+		vm.scratch = make([]Value, max(n+scratchRoom, 16))
+	}
+	a := vm.scratch[: n : n+scratchRoom]
 	for i, o := range ops {
 		a[i] = Deref(vm.get(f, o))
 	}
 	return a
 }
 
-// scratchArgs returns the dereferenced values of ops in the VM's scratch
-// buffer, for a call that does not keep its argument slice (a function
-// that is not a generator, a procedure, which copies its arguments, a
-// record constructor). Arguments live only while such a call runs, and
-// no other code runs meanwhile, so one buffer serves; release returns
-// it. The slice's capacity is its length, so a callee that appends gets
-// a copy. With GCONDEBUG=poisonargs, release overwrites the buffer, so
-// that a callee that kept it shows up in the tests.
-func (vm *VM) scratchArgs(f *Frame, ops []Operand) []Value {
-	n := len(ops)
-	if n == 0 {
-		return nil
-	}
-	if cap(vm.scratch) < n {
-		vm.scratch = make([]Value, max(n, 16))
-	}
-	a := vm.scratch[:n:n]
-	for i, o := range ops {
-		a[i] = Deref(vm.get(f, o))
-	}
-	return a
-}
+// scratchRoom is the spare capacity of a scratch argument slice, so
+// that adjustArgs can pad it to a function's arity without allocating.
+const scratchRoom = 6
 
 // poisoned fills released argument buffers with GCONDEBUG=poisonargs.
 type poisoned struct{}
 
 var poisonArgs = os.Getenv("GCONDEBUG") == "poisonargs"
 
-// release ends the use of a scratch argument slice.
+// release ends the use of a scratch argument slice, including any
+// padding adjustArgs appended in its spare capacity.
 func (vm *VM) release(a []Value) {
+	a = a[:cap(a)]
 	if poisonArgs {
 		for i := range a {
 			a[i] = Value{k: KPoison}
@@ -495,14 +493,8 @@ func (vm *VM) loop(f *Frame) {
 			fv := Deref(vm.get(f, in.X))
 			// The arguments are in the scratch buffer unless they come
 			// from p ! x; a generator, which keeps them, gets a copy.
-			var args, scratch []Value
-			if fv.k == KBuiltin && fv.Builtin().Gen != nil {
-				// Room for adjustArgs to pad them without reallocating.
-				args = vm.argsRoom(f, in.Args, 4)
-			} else {
-				args = vm.scratchArgs(f, in.Args)
-				scratch = args
-			}
+			args := vm.scratchArgs(f, in.Args)
+			scratch := args
 			if in.Fn == ApplyOp {
 				args = applyArgs(args[0])
 				vm.release(scratch)
@@ -545,11 +537,12 @@ func (vm *VM) loop(f *Frame) {
 					args = adjustArgs(p, args)
 				}
 				if p.Gen != nil {
-					if scratch != nil {
-						args = append([]Value(nil), args...)
-						vm.release(scratch)
-					}
-					vm.next(f, in, genVal(p.Gen(vm, args)))
+					// A generator takes what it needs from its arguments
+					// when called, so they too are in the scratch buffer
+					// (the poison-argument run checks that none keeps them).
+					g := p.Gen(vm, args)
+					vm.release(scratch)
+					vm.next(f, in, genVal(g))
 				} else {
 					f.temps[in.H] = Value{}
 					v, ok := p.Fn(vm, args)

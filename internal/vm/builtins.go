@@ -124,14 +124,14 @@ func init() {
 			return CsetVal(c), true
 		}
 		s := MustStr(arg(a, 0))
-		return StrVal(&String{s: s.s, unit: TextUnit, ascii: s.ascii}), true
+		return StrVal(String{s: s.s, unit: TextUnit, ascii: s.ascii}), true
 	})
 	fn("bytes", func(vm *VM, a []Value) (Value, bool) {
 		if c, ok := arg(a, 0).AsCset(); ok {
 			return CsetVal(c.AsBytes()), true
 		}
 		s := MustStr(arg(a, 0))
-		return StrVal(&String{s: s.s, unit: BytesUnit, ascii: s.ascii}), true
+		return StrVal(String{s: s.s, unit: BytesUnit, ascii: s.ascii}), true
 	})
 	// len(s) is the number of characters in s; *s is its length in bytes.
 	fn("len", func(vm *VM, a []Value) (Value, bool) {

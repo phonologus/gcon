@@ -22,7 +22,11 @@ const (
 )
 
 // String is an Icon string: its bytes, its unit, and whether they are
-// all ASCII (cached). Strings are immutable.
+// all ASCII. Strings are immutable and passed by value; in a Value, a
+// string is a pointer to its bytes with its length, unit and ASCII flag
+// (valuecore.go), so making a substring or a string Value allocates
+// nothing, as in iconx, whose strings are a length and a pointer into
+// its string region.
 //
 // Positions, subscripts and lengths are byte offsets, as in Go; the unit
 // says how characters are read where an operation reads them (!s, move,
@@ -34,42 +38,57 @@ type String struct {
 	ascii int8 // 0 unknown, 1 all ASCII, -1 not
 }
 
-// NewString returns a string with the given bytes and unit.
-func NewString(s string, u Unit) *String { return &String{s: s, unit: u} }
+// NewString returns a string with the given bytes and unit. Making a
+// string reads its bytes anyway, so whether they are ASCII is found now.
+func NewString(s string, u Unit) String {
+	return String{s: s, unit: u, ascii: asciiFlag(s)}
+}
 
 // Text returns a text string.
-func Text(s string) *String { return NewString(s, TextUnit) }
+func Text(s string) String { return NewString(s, TextUnit) }
+
+// asciiFlag returns 1 if every byte of s is ASCII, else -1.
+func asciiFlag(s string) int8 {
+	for i := 0; i < len(s); i++ {
+		if s[i] >= utf8.RuneSelf {
+			return -1
+		}
+	}
+	return 1
+}
 
 // Go returns the string's bytes.
-func (s *String) Go() string { return s.s }
+func (s String) Go() string { return s.s }
 
 // IsASCII reports whether every byte of s is ASCII.
-func (s *String) IsASCII() bool {
+func (s String) IsASCII() bool {
 	if s.ascii == 0 {
-		s.ascii = 1
-		for i := 0; i < len(s.s); i++ {
-			if s.s[i] >= utf8.RuneSelf {
-				s.ascii = -1
-				break
-			}
-		}
+		return asciiFlag(s.s) > 0
 	}
 	return s.ascii > 0
 }
 
+// withASCII returns s with its ASCII flag known.
+func (s String) withASCII() String {
+	if s.ascii == 0 {
+		s.ascii = asciiFlag(s.s)
+	}
+	return s
+}
+
 // IsBytes reports whether s counts in bytes. ASCII strings behave the
 // same in either unit.
-func (s *String) IsBytes() bool { return s.unit == BytesUnit }
+func (s String) IsBytes() bool { return s.unit == BytesUnit }
 
 // Unit returns the string's unit.
-func (s *String) Unit() Unit { return s.unit }
+func (s String) Unit() Unit { return s.unit }
 
 // Len returns the length of s in bytes (*s).
-func (s *String) Len() int { return len(s.s) }
+func (s String) Len() int { return len(s.s) }
 
 // Runes returns the number of characters in s (len(s)): in text, as
 // utf8.RuneCountInString counts, each invalid byte being one.
-func (s *String) Runes() int {
+func (s String) Runes() int {
 	if s.unit == BytesUnit || s.IsASCII() {
 		return len(s.s)
 	}
@@ -77,9 +96,10 @@ func (s *String) Runes() int {
 }
 
 // Slice returns the substring between byte positions i and j
-// (1 <= i <= j <= Len()+1).
-func (s *String) Slice(i, j int) *String {
-	r := &String{s: s.s[i-1 : j-1], unit: s.unit}
+// (1 <= i <= j <= Len()+1). A substring of ASCII is ASCII; otherwise
+// whether it is is left to be found when needed.
+func (s String) Slice(i, j int) String {
+	r := String{s: s.s[i-1 : j-1], unit: s.unit}
 	if s.ascii > 0 {
 		r.ascii = 1
 	}
@@ -88,14 +108,15 @@ func (s *String) Slice(i, j int) *String {
 
 // Concat joins a and b. The result is text if either operand is
 // non-ASCII text, else bytes if either is non-ASCII bytes.
-func Concat(a, b *String) *String {
+func Concat(a, b String) String {
+	a, b = a.withASCII(), b.withASCII()
 	u := TextUnit
 	switch {
-	case a.unit == TextUnit && !a.IsASCII(), b.unit == TextUnit && !b.IsASCII():
-	case !a.IsASCII() || !b.IsASCII():
+	case a.unit == TextUnit && a.ascii < 0, b.unit == TextUnit && b.ascii < 0:
+	case a.ascii < 0 || b.ascii < 0:
 		u = BytesUnit
 	}
-	r := &String{s: a.s + b.s, unit: u}
+	r := String{s: a.s + b.s, unit: u, ascii: -1}
 	if a.ascii > 0 && b.ascii > 0 {
 		r.ascii = 1
 	}
@@ -144,6 +165,11 @@ type Builtin struct {
 	// intOp, if not zero, names a binary operator the VM computes
 	// itself when both operands are Ints (see fastInt).
 	intOp intOp
+	// How a call written in the program adjusts the arguments
+	// (adjustArgs), worked out once for the builtins of the tables.
+	adjMode uint8
+	adjN    int32
+	adjSet  bool
 }
 
 // Generator is a suspended built-in generator: Next produces its next

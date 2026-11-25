@@ -254,7 +254,7 @@ func (vm *VM) offending(f *Frame, pc int) string {
 		case "+", "-", "*", "/", "%", "^", "<", "<=", ">", ">=", "=", "~=":
 			c, ok = CvNum(x)
 		case "||", "==", "~==", "<<", "<<=", ">>", ">>=":
-			var cs *String
+			var cs String
 			cs, ok = CvStr(x)
 			c = StrVal(cs)
 		case "++", "--", "**":

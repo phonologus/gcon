@@ -80,7 +80,7 @@ func (vm *VM) writer(f *File) *bufio.Writer {
 // readLine reads a line; false at end of file. As in iconx, a line ends
 // at "\n", "\r\n" or a lone "\r", except in an untranslated ("u") file,
 // where only "\n" ends it and a "\r" is kept.
-func (vm *VM) readLine(f *File) (*String, bool) {
+func (vm *VM) readLine(f *File) (String, bool) {
 	r := vm.reader(f)
 	if f.isDir {
 		return f.nextEntry(-1)
@@ -90,7 +90,7 @@ func (vm *VM) readLine(f *File) (*String, bool) {
 		c, err := r.ReadByte()
 		if err != nil {
 			if len(b) == 0 {
-				return nil, false
+				return String{}, false
 			}
 			break
 		}
@@ -110,7 +110,7 @@ func (vm *VM) readLine(f *File) (*String, bool) {
 
 // readChars reads up to n characters; false at end of file. In text, a
 // character is a UTF-8 sequence or an invalid byte, and is never split.
-func (vm *VM) readChars(f *File, n int) (*String, bool) {
+func (vm *VM) readChars(f *File, n int) (String, bool) {
 	r := vm.reader(f)
 	if f.isDir {
 		return f.nextEntry(n)
@@ -134,7 +134,7 @@ func (vm *VM) readChars(f *File, n int) (*String, bool) {
 		b.Write(p[:w])
 	}
 	if b.Len() == 0 {
-		return nil, false
+		return String{}, false
 	}
 	return NewString(b.String(), f.unit), true
 }
@@ -484,9 +484,9 @@ func init() {
 
 // nextEntry returns the next entry of a directory, cut to n bytes if n
 // is not negative, or fails at the end.
-func (f *File) nextEntry(n int) (*String, bool) {
+func (f *File) nextEntry(n int) (String, bool) {
 	if len(f.dir) == 0 {
-		return nil, false
+		return String{}, false
 	}
 	e := f.dir[0]
 	f.dir = f.dir[1:]

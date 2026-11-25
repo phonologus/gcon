@@ -51,7 +51,7 @@ func callStr(vm *VM, fn string, args []Value) string {
 	if !ok {
 		return "<failed>"
 	}
-	return v.Any().(*String).s
+	return v.Any().(String).s
 }
 
 func TestStrFuncs(t *testing.T) {

@@ -90,25 +90,25 @@ func CvInt(v Value) (Int, bool) {
 }
 
 // CvStr converts v to a string, if it can.
-func CvStr(v Value) (*String, bool) {
+func CvStr(v Value) (String, bool) {
 	switch v.Kind() {
 	case KString:
 		x := v.Str()
 		return x, true
 	case KInt:
 		x := v.Int()
-		return &String{s: itoa(x), ascii: 1}, true
+		return String{s: itoa(x), ascii: 1}, true
 	case KBig:
 		x := v.Big()
-		return &String{s: x.v.String(), ascii: 1}, true
+		return String{s: x.v.String(), ascii: 1}, true
 	case KReal:
 		x := v.Real()
-		return &String{s: rtos(float64(x)), ascii: 1}, true
+		return String{s: rtos(float64(x)), ascii: 1}, true
 	case KCset:
 		x := v.Cset()
 		return x.String(), true
 	}
-	return nil, false
+	return String{}, false
 }
 
 // MustInt converts v to an integer or raises error 101.
@@ -121,7 +121,7 @@ func MustInt(v Value) Int {
 }
 
 // MustStr converts v to a string or raises error 103.
-func MustStr(v Value) *String {
+func MustStr(v Value) String {
 	s, ok := CvStr(v)
 	if !ok {
 		Runerr(103, v)
@@ -332,7 +332,7 @@ func section(vm *VM, a []Value) (Value, bool) {
 	x := Deref(ref)
 	var n int
 	l, isList := x.AsList()
-	var s *String
+	var s String
 	if isList {
 		n = len(l.Elems)
 	} else {
@@ -437,7 +437,7 @@ func (g *listGen) Next(vm *VM) (Value, bool) {
 }
 
 type strGen struct {
-	s   *String
+	s   String
 	off int // byte offset of the next character
 }
 
@@ -509,7 +509,7 @@ func (vm *VM) Image(v Value) string {
 // \U escapes, invalid bytes as \xNN. ASCII follows iconx, which uses
 // \b \t \n \v \f \r \e \d and otherwise \xNN for control characters. A
 // bytes string escapes every byte from 0x80 as \xNN.
-func quote(s *String, q byte) string {
+func quote(s String, q byte) string {
 	var b strings.Builder
 	b.WriteByte(q)
 	str := s.s
