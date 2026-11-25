@@ -221,3 +221,85 @@ func BenchmarkIndexLoopInterface(b *testing.B) { bench(b, indexLoop, true) }
 func BenchmarkIndexLoopStruct(b *testing.B)    { bench(b, indexLoop, false) }
 func BenchmarkRealLoopInterface(b *testing.B)  { bench(b, realLoop, true) }
 func BenchmarkRealLoopStruct(b *testing.B)     { bench(b, realLoop, false) }
+
+// ---------------------------------------------------------------------
+// A procedure call with frames on a contiguous stack, as gcon-vm's
+// experiments/spike measures it in C: while i <= n do { v := q(i, n);
+// i := i + 1 }, where q(a, b) is local c; c := a; return b.
+
+const (
+	opCall op = opHalt + 1 + iota
+	opReturn
+	opMove
+)
+
+type retEntry struct {
+	pc   int
+	code []instr
+	base int
+	dst  int32
+}
+
+func tRunCalls(code, qcode []instr, stack []tValue) {
+	pc, base, sp := 0, 0, 64
+	var rs [1024]retEntry
+	rsp := 0
+	f := stack[base:]
+	for {
+		in := &code[pc]
+		switch in.op {
+		case opAdd:
+			x, y := f[in.b], f[in.c]
+			s := x.int() + y.int()
+			if (s > x.int()) != (y.int() > 0) {
+				panic("overflow")
+			}
+			f[in.a] = tInt(s)
+			pc++
+		case opLE:
+			if f[in.b].int() <= f[in.c].int() {
+				pc++
+			} else {
+				pc = int(in.l)
+			}
+		case opJump:
+			pc = int(in.l)
+		case opCall:
+			nf := stack[sp:]
+			nf[0], nf[1], nf[2] = f[in.b], f[in.b+1], tValue{}
+			rs[rsp] = retEntry{pc + 1, code, base, in.a}
+			rsp++
+			base, sp = sp, sp+3
+			f, code, pc = nf, qcode, 0
+		case opMove:
+			f[in.a] = f[in.b]
+			pc++
+		case opReturn:
+			v := f[in.b]
+			rsp--
+			e := rs[rsp]
+			sp, base = base, e.base
+			f, code, pc = stack[base:], e.code, e.pc
+			f[e.dst] = v
+		case opHalt:
+			return
+		}
+	}
+}
+
+func BenchmarkCallLoopStruct(b *testing.B) {
+	code := []instr{
+		{op: opLE, b: 0, c: 1, l: 4},
+		{op: opCall, a: 7, b: 0},
+		{op: opAdd, a: 0, b: 0, c: 3},
+		{op: opJump, l: 0},
+		{op: opHalt},
+	}
+	qcode := []instr{{op: opMove, a: 2, b: 0}, {op: opReturn, b: 1}}
+	stack := make([]tValue, 1<<16)
+	copy(stack, tFrame(b.N))
+	tRunCalls(code, qcode, stack)
+	if stack[0].int() != int64(b.N)+1 {
+		b.Fatal("wrong count")
+	}
+}

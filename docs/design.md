@@ -335,6 +335,44 @@ operations faster than iconx's, 29 within 1.5 times, 55 within three,
 iconx's), `suspend`, conversion of strings to numbers, and the
 instruction count of compiled expressions.
 
+### Decision (2026-11-25): the VM in C (gcon-vm)
+
+A stock-take after a day of performance work, which took the Go VM from
+3.51 to 1.61 times iconx's time over `micro.icn`.
+
+- **Wins.** Co-expressions are cheap by design: a non-recursive VM with
+  frames that are not on the C stack makes activation a frame switch
+  (21 ns, against 2611 for iconx on macOS, which switches threads). The
+  display server keeps graphics out of the interpreter's process and
+  language. The toolchain (front end, `build` and `dis`, the
+  built-program format, GCONROOT, the conformance, program and
+  differential tests) does not depend on the VM's language.
+- **Loss.** Go is the wrong language for a VM meant to match iconx. It
+  reached within 1.6 times, and beat iconx on loops and arithmetic, but
+  only by working against the runtime (`unsafe` for tagged values,
+  generators dispatched by a type number, closures held by pointer);
+  and it keeps costs C does not have: a write barrier on every store of
+  a value into the heap while the collector marks, frames on the heap,
+  bounds checks, switch dispatch, allocation through the collector.
+- **Neutral.** UTF-8 processing is straightforward with positions as
+  bytes; Unicode's semantics (two units, csets with code-point ranges,
+  `image()`, mixed operands) bring complexity of their own, whatever the
+  language.
+
+So gcon's VM moves to C, in its own repository, **gcon-vm**, beside gcon
+and gcon-graphics, keeping C builds out of this one: gcon remains the Go
+toolchain (translation, `build`, `fmt`, the language server) and hands
+bytecode, in the built-program format, to gcon-vm. gcon-vm ports this
+VM's design and semantics rather than extending iconx, whose
+thread-switched co-expressions and 8-bit strings and csets run through
+its whole runtime. A spike (gcon-vm's `experiments/spike`, beside this
+repository's `experiments/valuerep`) measured C at about twice Go's
+speed for the same design: `x := i + 407` 2.1 ns against 3.7, `L[3]`
+2.7 against 5.2, a call with frames on a stack 3.5 against 7.4. The Go
+VM stays as the reference implementation, and as a second oracle in
+testing, until gcon-vm passes the tests; gcon-vm's `docs/design.md`
+has the plan.
+
 ## Strings and Unicode
 
 Icon 9.5 strings are bytes, and a cset is a set of 256 byte values.
@@ -1340,3 +1378,5 @@ a procedure, `$line`, the predefined symbols and digraphs against iconx.
 8. `&allocated`, `&storage`, `&regions` and `&collections` from Go's
    memory statistics; record that `loadfunc` is not supported.
 9. A distribution section, with packaging when graphics arrives.
+10. gcon-vm, the VM in C (see "Decision: the VM in C"), reading the
+    built-program format; the Go VM stays as the reference meanwhile.
