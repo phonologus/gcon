@@ -117,11 +117,15 @@ no display; protocol transcripts are diffable.
 programs to distribute and to find at run time; bulk pixel traffic for
 images (shared memory is a later optimisation if it ever matters).
 
-**Open questions:** the wire format (binary, Plan 9 draw-message style,
-is the likely choice); the server's name and where its source lives (a C
-directory in gcon, or in icon-sdl); and how the Go headless server and
-the reference server are kept in step (a shared conformance suite over
-the protocol).
+**The server** is `gcon-graphics`, in its own repository, forked from
+icon-sdl's backend and vendored deps (2026-11-25). Its design notes
+cover the server side and the protocol.
+
+**Wire format:** modelled on Plan 9's draw protocol (draw(3)): compact
+binary messages, client-chosen integer ids, few replies.
+
+**Open question:** how the Go headless server and gcon-graphics are kept
+in step (a shared conformance suite over the protocol).
 
 ## Prior art
 
