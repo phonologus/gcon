@@ -2,6 +2,7 @@ package vm
 
 import (
 	"encoding/binary"
+	"maps"
 	"math/rand/v2"
 	"sort"
 	"strconv"
@@ -152,10 +153,18 @@ func (m *omap) compact() {
 }
 
 func (m *omap) copy() omap {
-	c := newOmap()
+	if m.dead == 0 {
+		// The index can be copied as it is, without hashing again.
+		return omap{index: maps.Clone(m.index),
+			keys: append([]Value(nil), m.keys...), vals: append([]Value(nil), m.vals...)}
+	}
+	n := m.len()
+	c := omap{index: make(map[hkey]int, n), keys: make([]Value, 0, n), vals: make([]Value, 0, n)}
 	for i, k := range m.keys {
 		if !k.IsNone() {
-			c.put(k, m.vals[i])
+			c.index[keyOf(k)] = len(c.keys)
+			c.keys = append(c.keys, k)
+			c.vals = append(c.vals, m.vals[i])
 		}
 	}
 	return c
