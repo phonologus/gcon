@@ -1,9 +1,18 @@
 package vm
 
-import "unicode/utf8"
+import (
+	"strings"
+	"unicode/utf8"
+)
 
 // String scanning. &subject and &pos are global, as in iconx: switching
 // co-expressions does not switch them.
+//
+// Positions are byte positions (docs/design.md, "Positions are bytes").
+// A function that tests or steps over characters (move, upto, many, any,
+// bal) reads the character at a position and steps by its width; match,
+// find and =s compare bytes, as Go's strings.HasPrefix and strings.Index
+// do.
 
 // scanEnv is a saved scanning environment, held in a temporary by
 // OpScanEnter and exchanged with the current one by OpScanSwap.
@@ -60,21 +69,14 @@ func (s *String) width(i int) int {
 	return w
 }
 
-// chars returns the number of characters in s.s[i:j] when j is at a
-// character boundary from i, else -1.
-func (s *String) chars(i, j int) int {
-	if s.unit == BytesUnit || s.IsASCII() {
-		return j - i
+// widthBefore returns the width in bytes of the character ending at byte
+// offset i.
+func (s *String) widthBefore(i int) int {
+	if s.unit == BytesUnit || s.s[i-1] < utf8.RuneSelf {
+		return 1
 	}
-	n := 0
-	for i < j {
-		i += s.width(i)
-		n++
-	}
-	if i != j {
-		return -1
-	}
-	return n
+	_, w := utf8.DecodeLastRuneInString(s.s[:i])
+	return w
 }
 
 // scanArgs converts the subject and range arguments a[k], a[k+1],
@@ -151,14 +153,11 @@ func (c *Cset) matchAt(s *String, off int) (int, bool) {
 	return c.MatchText(s.s, off)
 }
 
-// matchLen returns the number of characters of s matched by t at byte
-// offset off, not going beyond byte offset end, or -1.
-func matchLen(s *String, off, end int, t *String) int {
+// matches reports whether t's bytes occur in s at byte offset off,
+// ending at or before byte offset end.
+func matches(s *String, off, end int, t *String) bool {
 	n := len(t.s)
-	if off+n > end || s.s[off:off+n] != t.s {
-		return -1
-	}
-	return s.chars(off, off+n)
+	return off+n <= end && s.s[off:off+n] == t.s
 }
 
 // restorer is a generator that produces a value once and, when resumed,
@@ -214,13 +213,10 @@ func init() {
 	// =s is tab(match(s)).
 	Ops["u="] = &Builtin{Name: "=", Gen: func(vm *VM, a []Value) Generator {
 		t := MustStr(a[0])
-		s := vm.subject
-		off := s.offset(vm.pos)
-		n := matchLen(s, off, len(s.s), t)
-		if n < 0 {
+		if !matches(vm.subject, vm.pos-1, len(vm.subject.s), t) {
 			return failGen{}
 		}
-		return vm.tabTo(vm.pos + n)
+		return vm.tabTo(vm.pos + len(t.s))
 	}}
 	Ops["u~"] = &Builtin{Name: "~", Fn: func(vm *VM, a []Value) (Value, bool) {
 		return Complement(MustCset(a[0])), true
@@ -253,12 +249,23 @@ func init() {
 		}
 		return vm.tabTo(p)
 	})
+	// move(n) moves over n characters (backwards if n is negative).
 	gen("move", func(vm *VM, a []Value) Generator {
-		p := Int(vm.pos) + MustInt(arg(a, 0))
-		if p < 1 || p > Int(vm.subject.Len())+1 {
-			return failGen{}
+		n := MustInt(arg(a, 0))
+		s, off := vm.subject, vm.pos-1
+		for ; n > 0; n-- {
+			if off >= len(s.s) {
+				return failGen{}
+			}
+			off += s.width(off)
 		}
-		return vm.tabTo(int(p))
+		for ; n < 0; n++ {
+			if off <= 0 {
+				return failGen{}
+			}
+			off -= s.widthBefore(off)
+		}
+		return vm.tabTo(off + 1)
 	})
 	fn("pos", func(vm *VM, a []Value) (Value, bool) {
 		p, ok := cvpos(MustInt(arg(a, 0)), vm.subject.Len())
@@ -270,8 +277,7 @@ func init() {
 			return nil, false
 		}
 		t := MustStr(arg(a, 0))
-		n := matchLen(s, s.offset(i), s.offset(j), t)
-		return Int(i + n), n >= 0
+		return Int(i + len(t.s)), matches(s, i-1, j-1, t)
 	})
 	gen("find", func(vm *VM, a []Value) Generator {
 		s, i, j, ok := vm.scanArgs(a, 1)
@@ -279,21 +285,21 @@ func init() {
 			return failGen{}
 		}
 		t := MustStr(arg(a, 0))
-		off, end := s.offset(i), s.offset(j)
-		// Try each character position from i to j (inclusive, so that
-		// the empty string is found at j too), as iconx does.
+		// Every byte position from i to j where t occurs (an empty t
+		// occurs at each, j included), as iconx and strings.Index find.
+		off, end := i-1, j-1
 		return funcGen(func() (Value, bool) {
-			for i <= j {
-				p, o := i, off
-				if o < end {
-					off += s.width(o)
-				}
-				i++
-				if matchLen(s, o, end, t) >= 0 {
-					return Int(p), true
-				}
+			if off > end {
+				return nil, false
 			}
-			return nil, false
+			k := strings.Index(s.s[off:end], t.s)
+			if k < 0 {
+				off = end + 1
+				return nil, false
+			}
+			p := off + k + 1
+			off += k + 1
+			return Int(p), true
 		})
 	})
 	gen("upto", func(vm *VM, a []Value) Generator {
@@ -302,13 +308,12 @@ func init() {
 		if !ok {
 			return failGen{}
 		}
-		off := s.offset(i)
+		off, end := i-1, j-1
 		return funcGen(func() (Value, bool) {
-			for i < j {
+			for off < end {
 				w, in := c.matchAt(s, off)
-				p := i
+				p := off + 1
 				off += w
-				i++
 				if in {
 					return Int(p), true
 				}
@@ -322,16 +327,15 @@ func init() {
 		if !ok {
 			return nil, false
 		}
-		off, start := s.offset(i), i
-		for i < j {
+		off, end := i-1, j-1
+		for off < end {
 			w, in := c.matchAt(s, off)
 			if !in {
 				break
 			}
 			off += w
-			i++
 		}
-		return Int(i), i > start
+		return Int(off + 1), off > i-1
 	})
 	fn("any", func(vm *VM, a []Value) (Value, bool) {
 		c := MustCset(arg(a, 0))
@@ -339,8 +343,8 @@ func init() {
 		if !ok || i >= j {
 			return nil, false
 		}
-		_, in := c.matchAt(s, s.offset(i))
-		return Int(i + 1), in
+		w, in := c.matchAt(s, i-1)
+		return Int(i + w), in
 	})
 	gen("bal", func(vm *VM, a []Value) Generator {
 		s, i, j, ok := vm.scanArgs(a, 3)
@@ -350,17 +354,16 @@ func init() {
 		if !ok {
 			return failGen{}
 		}
-		off, cnt := s.offset(i), 0
+		off, end, cnt := i-1, j-1, 0
 		return funcGen(func() (Value, bool) {
-			for i < j {
-				p, o := i, off
+			for off < end {
+				o := off
 				w, in1 := c1.matchAt(s, o)
 				_, in2 := c2.matchAt(s, o)
 				_, in3 := c3.matchAt(s, o)
 				// Advance past this character before suspending, so
 				// that resumption continues from the next one.
 				off += w
-				i++
 				suspend := cnt == 0 && in1
 				if in2 {
 					cnt++
@@ -369,9 +372,9 @@ func init() {
 				}
 				if suspend {
 					if cnt < 0 {
-						j = i // fail when resumed
+						end = off // fail when resumed
 					}
-					return Int(p), true
+					return Int(o + 1), true
 				}
 				if cnt < 0 {
 					return nil, false

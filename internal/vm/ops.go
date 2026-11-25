@@ -76,9 +76,9 @@ func CvStr(v Value) (*String, bool) {
 	case *String:
 		return x, true
 	case Int:
-		return &String{s: itoa(x), n: -1, ascii: 1}, true
+		return &String{s: itoa(x), ascii: 1}, true
 	case Real:
-		return &String{s: rtos(float64(x)), n: -1, ascii: 1}, true
+		return &String{s: rtos(float64(x)), ascii: 1}, true
 	case *Cset:
 		return x.String(), true
 	}
@@ -426,6 +426,8 @@ func bang(vm *VM, a []Value) Generator {
 	return &strGen{s: s}
 }
 
+// strGen generates the characters of a string (!s), as Go's range does.
+
 type listGen struct {
 	l *List
 	i int
@@ -440,16 +442,17 @@ func (g *listGen) Next(vm *VM) (Value, bool) {
 }
 
 type strGen struct {
-	s *String
-	i int // characters produced
+	s   *String
+	off int // byte offset of the next character
 }
 
 func (g *strGen) Next(vm *VM) (Value, bool) {
-	if g.i >= g.s.Len() {
+	if g.off >= len(g.s.s) {
 		return nil, false
 	}
-	g.i++
-	return g.s.Slice(g.i, g.i+1), true
+	w := g.s.width(g.off)
+	g.off += w
+	return g.s.Slice(g.off-w+1, g.off+1), true
 }
 
 // ---------------------------------------------------------------------

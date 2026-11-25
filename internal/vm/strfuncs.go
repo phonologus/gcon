@@ -63,7 +63,7 @@ func init() {
 		s1, n, s2 := padArgs(a)
 		c1, c2 := charsOf(s1), charsOf(s2)
 		if n <= len(c1) {
-			return s1.Slice(1, n+1), true
+			return join(c1[:n], s1.unit), true
 		}
 		// Copies of s2 from the right end, then s1 at the left.
 		buf := make([]string, n)
@@ -80,7 +80,7 @@ func init() {
 		s1, n, s2 := padArgs(a)
 		c1, c2 := charsOf(s1), charsOf(s2)
 		if n <= len(c1) {
-			return s1.Slice(len(c1)-n+1, len(c1)+1), true
+			return join(c1[len(c1)-n:], s1.unit), true
 		}
 		// Copies of s2 from the left end, then s1 at the right.
 		buf := make([]string, n)
@@ -97,8 +97,8 @@ func init() {
 		s1, n, s2 := padArgs(a)
 		c1, c2 := charsOf(s1), charsOf(s2)
 		if n <= len(c1) {
-			i := (len(c1)-n+1)>>1 + 1
-			return s1.Slice(i, i+n), true
+			i := (len(c1) - n + 1) >> 1
+			return join(c1[i:i+n], s1.unit), true
 		}
 		// The right half is filled with copies of s2 from the right end,
 		// the left half from the left end; then s1 goes in the middle.
@@ -153,7 +153,11 @@ func init() {
 			}
 			n--
 		}
-		return s.Slice(1, n+1), true
+		end := len(s.s)
+		if n < len(offs) {
+			end = offs[n]
+		}
+		return s.Slice(1, end+1), true
 	})
 	fn("map", func(vm *VM, a []Value) (Value, bool) {
 		s1 := MustStr(arg(a, 0))

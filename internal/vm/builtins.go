@@ -123,14 +123,18 @@ func init() {
 			return c, true
 		}
 		s := MustStr(arg(a, 0))
-		return &String{s: s.s, unit: TextUnit, ascii: s.ascii, n: -1}, true
+		return &String{s: s.s, unit: TextUnit, ascii: s.ascii}, true
 	})
 	fn("bytes", func(vm *VM, a []Value) (Value, bool) {
 		if c, ok := arg(a, 0).(*Cset); ok {
 			return c.AsBytes(), true
 		}
 		s := MustStr(arg(a, 0))
-		return &String{s: s.s, unit: BytesUnit, ascii: s.ascii, n: -1}, true
+		return &String{s: s.s, unit: BytesUnit, ascii: s.ascii}, true
+	})
+	// len(s) is the number of characters in s; *s is its length in bytes.
+	fn("len", func(vm *VM, a []Value) (Value, bool) {
+		return Int(MustStr(arg(a, 0)).Runes()), true
 	})
 	fn("utf8valid", func(vm *VM, a []Value) (Value, bool) {
 		s := MustStr(arg(a, 0))
@@ -156,7 +160,7 @@ func init() {
 	})
 	fn("ord", func(vm *VM, a []Value) (Value, bool) {
 		s := MustStr(arg(a, 0))
-		if s.Len() != 1 {
+		if s.Runes() != 1 {
 			Runerr(205, s)
 		}
 		if s.unit == BytesUnit || s.IsASCII() {

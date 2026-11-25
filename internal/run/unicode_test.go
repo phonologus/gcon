@@ -15,10 +15,16 @@ import (
 // cites the rule it checks.
 func TestUnicode(t *testing.T) {
 	tests := []struct{ name, body, want string }{
-		// Text strings count runes; bytes strings count bytes.
-		{"length", `write(*"héllo", " ", *bytes("héllo"), " ", *"日本語")`, "5 6 3"},
-		{"subscript", `write("héllo"[2], " ", "日本語"[-1], " ", "héllo"[2:4], " ", image(bytes("é")[1]))`,
-			`é 語 él "\xc3"`},
+		// Positions, subscripts and lengths are bytes; len counts characters.
+		{"length", `write(*"héllo", " ", len("héllo"), " ", *"日本語", " ", len("日本語"), " ", len(bytes("é")), " ", len(""))`,
+			"6 5 9 3 2 0"},
+		{"subscript", `write(image("héllo"[2]), " ", "héllo"[2:4], " ", image("日本語"[-1]), " ", "日本語"[4+:3])`,
+			`"\xc3" é "\x9e" 本`},
+		// Joining never changes lengths, even when it completes a character.
+		{"join lengths", `s := runes("\xc3") || runes("\xa9"); write(*s, " ", len(s), " ", s)`, "2 1 é"},
+		// move steps over characters; tab takes byte positions.
+		{"move and tab", `"é日x" ? { move(1); writes(&pos, " "); move(1); writes(&pos, " "); move(-1); writes(&pos, " "); write(image(tab(2)), " ", image(tab(0))) }`,
+			`3 6 3 "\xa9" "\xa9日x"`},
 		{"bang", `every writes(!"aé日", "|"); write()`, "a|é|日|"},
 		// image follows %q for text; bytes escape 0x80-0xFF.
 		{"image", `write(image("é"), " ", image(bytes("é")), " ", image("\u00a0"), " ", image(uchar(16r1F600)))`,
@@ -26,20 +32,20 @@ func TestUnicode(t *testing.T) {
 		// Malformed UTF-8: each invalid byte is one character, read as U+FFFD,
 		// and never rewritten.
 		{"lone bytes", `s := runes("caf\xe9"); write(*s, " ", ord(s[4]), " ", image(s), " ", *(s || "é"))`,
-			`4 65533 "caf\xe9" 5`},
+			`4 65533 "caf\xe9" 6`},
 		{"bytes ord", `write(ord(bytes("é")[1]), " ", ord(char(200)), " ", ord("é"))`, "195 200 233"},
 		// Mixed units: non-ASCII text makes text; else non-ASCII bytes make bytes.
-		{"concat units", `write(*("é" || char(200)), " ", *("abc" || char(200)), " ", type(char(200)))`, "2 4 string"},
-		{"escapes", `write("\u00e9" == "é", " ", *"\U01f600", " ", image("\U10ffff"))`, `é 1 "\U10ffff"`},
+		{"concat units", `write(len("é" || char(200)), " ", *("abc" || char(200)), " ", type(char(200)))`, "2 4 string"},
+		{"escapes", `write("\u00e9" == "é", " ", *"\U01f600", " ", image("\U10ffff"))`, `é 4 "\U10ffff"`},
 		{"uchar", `write(image(uchar(16rD800)), " ", image(uchar(-1)))`, `"�" "�"`},
 		{"utf8valid", `write(image(utf8valid("é")) | "no", " ", image(utf8valid(bytes("\xff"))) | "invalid")`,
 			`"é" invalid`},
-		// Scanning text counts characters.
+		// Scanning positions are bytes; the tests step over characters.
 		{"scan", `"naïve café" ? { write(tab(upto(' ')), " ", &pos); move(1); write(tab(0), " ", &pos) }`,
-			"naïve 6\ncafé 11"},
+			"naïve 7\ncafé 13"},
 		{"scan match", `"日本語テキスト" ? { write(="日本", " ", &pos, " ", tab(many('語テ')), " ", &pos) }`,
-			"日本 5 語テ 5"}, // &pos is dereferenced when write is called
-		{"find text", `every writes(find("é", "éaéaé"), " "); write()`, "1 3 5 "},
+			"日本 13 語テ 13"}, // &pos is dereferenced when write is called
+		{"find text", `every writes(find("é", "éaéaé"), " "); write()`, "1 4 7 "},
 		// Csets.
 		{"cset literal", `write(*'αβγα', " ", image('γβα'), " ", upto('αβγ', "xβy"))`, "3 'αβγ' 2"},
 		{"complement", `"é x" ? write(tab(many(~' ')))`, "é"},
@@ -70,7 +76,7 @@ func TestUnicode(t *testing.T) {
 		{"reads units", `f := open("u.txt", "w"); writes(f, "é日"); close(f); ` +
 			`f := open("u.txt"); s := reads(f, 1); write(*s, " ", image(s), " ", image(reads(f, 5))); close(f); ` +
 			`f := open("u.txt", "u"); s := reads(f, 1); write(*s, " ", image(s), " ", image(read(f))); close(f)`,
-			"1 \"é\" \"日\"\n1 \"\\xc3\" \"\\xa9\\xe6\\x97\\xa5\""},
+			"2 \"é\" \"日\"\n1 \"\\xc3\" \"\\xa9\\xe6\\x97\\xa5\""},
 		{"lone byte match", `s := runes("a\xffb"); write(upto('\xff', s), " ", image(upto('\uFFFD', s)) | "no")`,
 			"2 no"},
 	}

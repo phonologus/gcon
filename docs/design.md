@@ -146,7 +146,8 @@ Go's handling of UTF-8 throughout. All encoding and decoding goes through
   puts one byte in each character), and it **drops string scanning and
   csets** (`doc/diffs.adoc`). Its source names "Go strings with
   annotations for quicker `*s`, `s[i]`" as the alternative it did not
-  take; gcon takes it.
+  take. gcon uses Go strings without the annotations: positions are
+  bytes, as in Go, so `*s` and `s[i]` need none.
 - **Object Icon** (objecticon.sourceforge.net, "Unicode") adds a `ucs`
   type: a UTF-8 string with an offset index for random access, written
   `u"..."`. Its csets range over 0 to 0x10FFFF, and it adds `&uset`,
@@ -156,19 +157,18 @@ Go's handling of UTF-8 throughout. All encoding and decoding goes through
 
 ### Decision: one representation, two units
 
-- A string value is a Go `string` plus a **unit**, text or bytes. Length,
-  subscripts, `!s`, `move`, `&pos`, `left`/`right`/`center`, `reverse` and
-  `map` all count in the value's unit.
+- A string value is a Go `string` plus a **unit**, text or bytes. The unit
+  says how the string's characters are read; it never changes positions
+  or lengths, which are bytes (see "Positions are bytes" below).
 - **Malformed UTF-8 is handled as Go handles it.** A text string may hold
   any bytes, and they are never rewritten. Reading it as characters
   follows `utf8.DecodeRuneInString`: each invalid byte is a one-byte
-  character whose code point is U+FFFD. So `*s` is
+  character whose code point is U+FFFD. So `len(s)` is
   `utf8.RuneCountInString`, and `!s` yields exactly what a Go `range`
-  loop does. Since `s[i]` is a substring of the original bytes, `s` is
-  always the concatenation of `!s`, and any data round-trips unchanged.
-  Joining two text strings can complete a split sequence, so
-  `*(a || b)` may be less than `*a + *b`. That happens only with invalid
-  UTF-8, as it does in Go.
+  loop does. Since every character is a substring of the original bytes,
+  `s` is always the concatenation of `!s`, and any data round-trips
+  unchanged. This is also what makes byte positions safe: a slice through
+  a character yields lone bytes, which rejoin to the character.
 - **Conversions never fail or copy.** `runes(s)` and `bytes(s)` relabel
   the same bytes, as Go's `[]rune` and `[]byte` conversions read them. `utf8valid(s)` is available for programs that need to check.
 - **ASCII is neutral.** A cached flag marks all-ASCII strings, which
@@ -207,11 +207,6 @@ Go's handling of UTF-8 throughout. All encoding and decoding goes through
   a sequence; `read` strips `"\n"` or `"\r\n"`, as iconx does.
 - **Csets** have no unit; their characters are ASCII, bytes and code
   points (see "Csets" below).
-- **Fast positions.** A scanning environment caches its cursor
-  (`&pos` and the matching byte offset), so scanning functions cost only
-  the distance they move. Random subscripts on non-ASCII text use a
-  sparse offset index built on first use, one checkpoint every 32–64
-  runes, as Object Icon does. ASCII strings need neither.
 - Out of scope: normalization, grapheme clusters and display width. The
   unit is the rune, as in Go.
 - **UTF-8 is the only text encoding.** As in Go, text means UTF-8 and
@@ -220,6 +215,44 @@ Go's handling of UTF-8 throughout. All encoding and decoding goes through
   non-UTF-8 bytes read as U+FFFD; to work with it, read it as bytes.
   Latin-1 bytes in source literals make those literals bytes, which is
   what preserves 9.5's behaviour for them, not support for Latin-1 text.
+
+### Positions are bytes
+
+**Decision (revised 2026-11-25).** As in Go, a position, subscript or
+length is a byte offset; an operation that reads characters decodes them
+at that offset. (The first design counted every position in the string's
+unit, characters in text.)
+
+| Bytes: positions, subscripts, lengths | Characters: operations that read them |
+|---|---|
+| `*s` (Go's `len`) | `len(s)` (Go's `utf8.RuneCountInString`) |
+| `s[i]`, `s[i:j]`, `s[i+:n]` | `!s` (Go's `range`) |
+| `&pos`, `tab(i)`, `pos(i)` | `move(n)`: n characters, forward or back |
+| positions produced by `upto`, `many`, `any`, `find`, `match`, `bal` | the tests those functions make, and their steps |
+| the `i, j` range arguments of the string analysis functions | `reads(f, n)` |
+| | `map`, `reverse`, `trim`, `cset(s)`, `ord`, `image` |
+| | widths in `left`, `right`, `center`; `detab`/`entab` columns |
+
+- **Why.** It is exactly 9.5, whose positions are byte positions. The unit
+  no longer affects positions: `runes(s)` and `bytes(s)` have the same
+  length and positions, and `*(a || b) = *a + *b` always. Slicing anywhere
+  is safe, because of the malformed-UTF-8 rule above. Positions produced
+  by the scanning functions fall on character boundaries whenever the
+  subject is valid UTF-8, since those functions step over whole
+  characters, so `tab(upto(c))` and `tab(many(c))` never split one.
+  Indexing is constant-time, with no cursor or offset index.
+- **Where it bites, as in Go.** `"é"[1]` is the lone byte `"Ã"` and
+  `*"é"` is 2. `tab(&pos + 1)` can split a character where `move(1)`
+  cannot: `move` is Icon's "next character", the scanning counterpart of
+  a `range` step. `match`, `find` and `=s` compare bytes, as Go's
+  `strings.HasPrefix` and `strings.Index` do.
+- **Padding widths are characters**, as Go's `fmt` widths count runes:
+  the least surprising choice for lining up text, short of display width
+  (East Asian wide characters, combining marks), which stays out of scope.
+- **`len`** is gcon's built-in for the character count. The corpus uses
+  `len` 135 times, always declared (or as a record field), so the
+  built-in changes no program. Note that Go's `len` of a string counts
+  bytes, which here is `*s`.
 
 ### Csets
 
@@ -413,7 +446,7 @@ conformance test with this reason.
   `Record`. Field references are looked up by name when they run, so
   `x.f` works on any record type with a field `f`; `r[i]` and `r["f"]`
   subscript by position or field name.
-- gcon's extra built-ins (`runes`, `bytes`, `uchar`, `utf8valid`) and
+- gcon's extra built-ins (`len`, `runes`, `bytes`, `uchar`, `utf8valid`) and
   the keyword `&uset` are in the catalogue marked `Gcon`. Like any
   built-in, they are hidden by a declaration of the same name but not by
   an undeclared use, which would assign to the global. None of these
@@ -433,10 +466,6 @@ conformance test with this reason.
 - Integers are 64-bit; overflow is run-time error 203 until large
   integers exist.
 - Run-time errors print iconx's header lines but no traceback.
-- Non-ASCII text positions are found from a cursor (the last position
-  looked up in that string), so scanning is cheap; the sparse index of
-  "Fast positions", for random access far from the cursor, is still to
-  come.
 - Run-time error messages show offending records as `record point_1(2)`;
   iconx shows their fields, `record point_1(0,0)` (with the traceback).
 - Integers beyond 64 bits: `integer(1e30)` and strings of more than 19

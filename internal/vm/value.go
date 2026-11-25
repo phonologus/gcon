@@ -29,21 +29,21 @@ const (
 	BytesUnit
 )
 
-// String is an Icon string: its bytes, its unit, and cached facts about
-// them. Strings are immutable.
+// String is an Icon string: its bytes, its unit, and whether they are
+// all ASCII (cached). Strings are immutable.
+//
+// Positions, subscripts and lengths are byte offsets, as in Go; the unit
+// says how characters are read where an operation reads them (!s, move,
+// the scanning functions' tests, map, reverse and so on). See
+// docs/design.md ("Positions are bytes").
 type String struct {
 	s     string
 	unit  Unit
 	ascii int8 // 0 unknown, 1 all ASCII, -1 not
-	n     int  // character count, -1 unknown
-	// A cursor: character position cpos (0 if none) is at byte offset
-	// coff. Scanning moves through a subject in small steps, so finding
-	// an offset from the last one found is cheap.
-	cpos, coff int
 }
 
 // NewString returns a string with the given bytes and unit.
-func NewString(s string, u Unit) *String { return &String{s: s, unit: u, n: -1} }
+func NewString(s string, u Unit) *String { return &String{s: s, unit: u} }
 
 // Text returns a text string.
 func Text(s string) *String { return NewString(s, TextUnit) }
@@ -72,47 +72,22 @@ func (s *String) IsBytes() bool { return s.unit == BytesUnit }
 // Unit returns the string's unit.
 func (s *String) Unit() Unit { return s.unit }
 
-// Len returns the number of characters in s. In text, each invalid byte
-// is one character, as utf8.RuneCountInString counts.
-func (s *String) Len() int {
-	if s.n < 0 {
-		if s.unit == BytesUnit || s.IsASCII() {
-			s.n = len(s.s)
-		} else {
-			s.n = utf8.RuneCountInString(s.s)
-		}
-	}
-	return s.n
-}
+// Len returns the length of s in bytes (*s).
+func (s *String) Len() int { return len(s.s) }
 
-// offset returns the byte offset of character position i (1-based,
-// 1 <= i <= Len()+1). For non-ASCII text it steps from the cursor, or
-// from the start if the cursor is beyond i, and leaves the cursor at i.
-//
-// TODO: the sparse offset index of docs/design.md ("Fast positions"),
-// for random access far from the cursor.
-func (s *String) offset(i int) int {
+// Runes returns the number of characters in s (len(s)): in text, as
+// utf8.RuneCountInString counts, each invalid byte being one.
+func (s *String) Runes() int {
 	if s.unit == BytesUnit || s.IsASCII() {
-		return i - 1
+		return len(s.s)
 	}
-	k, off := 1, 0
-	if s.cpos > 0 && s.cpos <= i {
-		k, off = s.cpos, s.coff
-	}
-	for ; k < i; k++ {
-		_, w := utf8.DecodeRuneInString(s.s[off:])
-		off += w
-	}
-	s.cpos, s.coff = i, off
-	return off
+	return utf8.RuneCountInString(s.s)
 }
 
-// Slice returns the substring from character position i up to j
+// Slice returns the substring between byte positions i and j
 // (1 <= i <= j <= Len()+1).
 func (s *String) Slice(i, j int) *String {
-	a := s.offset(i)
-	b := s.offset(j)
-	r := &String{s: s.s[a:b], unit: s.unit, n: j - i}
+	r := &String{s: s.s[i-1 : j-1], unit: s.unit}
 	if s.ascii > 0 {
 		r.ascii = 1
 	}
@@ -128,7 +103,7 @@ func Concat(a, b *String) *String {
 	case !a.IsASCII() || !b.IsASCII():
 		u = BytesUnit
 	}
-	r := &String{s: a.s + b.s, unit: u, n: -1}
+	r := &String{s: a.s + b.s, unit: u}
 	if a.ascii > 0 && b.ascii > 0 {
 		r.ascii = 1
 	}
