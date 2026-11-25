@@ -198,46 +198,89 @@ Go's handling of UTF-8 throughout. All encoding and decoding goes through
 
 ### Csets
 
-A cset is a set of characters in one unit, like a string: a **bytes
-cset** is a subset of the byte values 0–255 (9.5's cset, a 256-bit set),
-and a **text cset** is a subset of the code points 0–0x10FFFF (a sorted
-range list with a bitmap for 0–255). A cset whose members are all ASCII
-is neutral, since ASCII characters are the same in both units.
+A cset is a set of *characters*, in one unit, like a string. A
+character is identified by its bytes, as a one-character substring is:
 
-- **One conversion rule.** A cset converts between units the way each
-  member would as a one-character string read in the other unit. A byte
-  128–255 read as text is invalid UTF-8, so it becomes U+FFFD, as in Go.
-  A non-ASCII code point read as bytes becomes the bytes of its UTF-8
-  encoding (`'é'` becomes `{0xC3, 0xA9}`, which is what 9.5 makes of
-  `'é'` in a UTF-8 source file). The conversion loses information: a
-  bytes cset's high members all collapse into U+FFFD. Strings do not
-  lose anything, because they keep their bytes.
-- **Literals** follow the string rule: a literal is text unless it
-  contains a byte escape `\x80`–`\xff` or source bytes that are not
-  valid UTF-8. So `'αβγ'` is a text cset with three members. `cset(s)`
-  reads the characters of `s` in its unit; for text, an invalid byte
-  contributes U+FFFD.
+- In a **bytes cset**, a character is one byte. This is 9.5's cset.
+- In a **text cset**, a character is either the UTF-8 encoding of a code
+  point, or a **lone invalid byte** (0x80–0xFF), exactly as
+  `utf8.DecodeRuneInString` splits a string. A lone invalid byte *reads*
+  as U+FFFD (`ord` gives 0xFFFD) but is not rewritten: the cset
+  containing byte 0xE9 is a different cset from the one containing byte
+  0xFF, and from the one containing U+FFFD itself. Strings behave the
+  same way.
+
+A cset whose members are all ASCII is neutral, since ASCII characters
+are the same in both units.
+
+**The value is a string.** A cset is its members sorted in string (`<<`)
+order and concatenated, together with its unit. That string is
+canonical, and it reads back, in its unit, as exactly its members.
+For text this holds because, in sorted order, a lone lead byte
+(0xC2–0xF4) is followed only by members whose first byte is at least
+as large, which is never a continuation byte, so it cannot fuse with
+them. (`experiments/csetorder` checks this, and the bytes case below, on
+random sets; it becomes a fuzz test of the real cset type.) Hence:
+
+- `string(c)` is that string, and `!c` generates the members in order.
+  `string(&cset)` is 9.5's 256-byte string.
+- `cset(s)` reads the characters of `s` in its unit, then sorts and
+  removes duplicates.
+- **Relabelling reads the same bytes in the other unit**, exactly as for
+  strings: `text(c)` and `bytes(c)` keep the stored bytes. Reading the
+  sorted bytes of a bytes cset as text yields only lone invalid bytes,
+  never a fused sequence (the same argument as above). So
+  bytes → text → bytes is lossless: `bytes(text(c)) === c`.
+  Text → bytes splits a multi-byte character into its bytes
+  (`bytes('é')` is `{0xC3, 0xA9}`, which is what 9.5 makes of `'é'` in a
+  UTF-8 source file). Going back to text then gives two lone bytes, not
+  `é`. That loss cannot be avoided: a set of bytes has no order in which
+  to remember that they formed a sequence.
+- **Literals** follow the string rule: a cset literal is text unless it
+  contains a byte escape `\x80`–`\xff` or source bytes that are not valid
+  UTF-8, in which case it is bytes.
 - **Set operations** (`++`, `**`, `--`) choose the result's unit as
-  strings do (non-ASCII text, else non-ASCII bytes, else neutral) and
-  convert the other operand by the rule above.
-- **Matching.** The scanning functions read the subject's characters in
-  the subject's unit and test them against the cset converted to that
-  unit (conversion is cheap and cached). A text subject's invalid bytes
-  therefore match exactly when the cset contains U+FFFD, or any high
-  byte if it is a bytes cset. A bytes subject tested against `'é'`
-  matches the bytes 0xC3 and 0xA9, as 9.5 does.
-- **Complement** is over the cset's own unit: 256 bytes, or all code
-  points. A neutral cset complements as text, so `upto(~' ')` steps over
-  `é` in text. `&cset` is the bytes cset of all 256 bytes, so
-  `~&cset` is `''` as in 9.5. `&ascii`, `&letters`, `&lcase`, `&ucase`
-  and `&digits` are neutral. `&uset` (Object Icon's name) is the text
-  cset of all code points.
-- **To string:** `string(c)` and `!c` produce the members in increasing
-  order, in the cset's unit. So `string(&cset)` is 9.5's 256-byte
-  string, and `string('αβ')` is text.
+  strings do (non-ASCII text, else non-ASCII bytes, else neutral). The
+  other operand is first relabelled.
+- **Matching.** Scanning functions read the subject's characters in the
+  subject's unit and test each one's bytes for membership in the cset,
+  relabelled to the subject's unit. A lone invalid byte in a text subject
+  matches only that same byte; a real U+FFFD matches only U+FFFD.
+- **Complement** is over the cset's own unit. For bytes, that is all 256
+  bytes. For text, it is every code point that UTF-8 can encode
+  (0–0x10FFFF less the 2,048 surrogates), plus the 128 lone invalid bytes:
+  1,112,192 characters. A neutral cset complements as text, so
+  `upto(~' ')` steps over `é` in text. `&cset` is the bytes cset of all
+  256 bytes, so `~&cset` is `''` as in 9.5. `&ascii`, `&letters`,
+  `&lcase`, `&ucase` and `&digits` are neutral. `&uset` (Object Icon's
+  name) is the full text universe.
+- **Representation.** The canonical string is the *meaning*, not
+  necessarily the storage: `~'a'` would be about 4 MB as a string.
+  Storage is a 256-bit bitmap for single-byte characters (ASCII, plus
+  lone bytes in text or all bytes in bytes csets) and a sorted list of
+  code-point ranges for multi-byte characters. The string is built only
+  when asked for.
 - **Unicode classes.** Go's `unicode` tables give text csets for
   categories and scripts (names to be settled, e.g. `ucat("L")`,
   `uscript("Greek")`).
+
+### image()
+
+`image()` follows Go's `%q` (`strconv.Quote`): printable characters
+appear as themselves, other code points as `\u`/`\U` escapes, and lone
+invalid bytes as `\xNN`. Two Icon escapes are kept: `\e` for 0x1B and
+`\d` for 0x7F, where Go writes `\x1b` and `\x7f`. With those, `image()`
+of ASCII matches 9.5 (checked against icont: `"\x00\x01\b\t\n\v\f\r\e\d"`
+renders identically). 52 of the 99 reference tests call `image`.
+
+- A **bytes** string or cset escapes every byte 0x80–0xFF as `\xNN`, as
+  9.5 does. So the image shows the unit: `"é"` is text, while
+  `"\xc3\xa9"` is the same bytes as a bytes string. Both images are
+  literals that rebuild the value with its unit.
+- A text string that holds lone invalid bytes images with `\xNN`
+  escapes, and as a literal that would be bytes, so its image does not
+  carry its unit. This is accepted.
+- Csets use single quotes and escape `'` rather than `"`, as 9.5 does.
 
 ### Compatibility cost and open points
 
@@ -254,7 +297,7 @@ cset rules above:
   9.5.
 - `checkc.icn`: `&cset -- ~&ascii` gives `&ascii` and `image(&cset)` is
   unchanged, both as in 9.5. **Differs:** `&letters ++ ~&ucase` is the
-  text cset of all code points (1,114,112 members), not 256.
+  full text universe (1,112,192 characters), not 256.
 - `scan.icn`: `image(~&cset)` is `''` as in 9.5. **Differs:**
   `image(~&ascii)` is every non-ASCII code point, not `\x80`–`\xff`.
 
@@ -262,9 +305,8 @@ Both differences are complements of ASCII csets, which is where the new
 meaning is intended. They are kept deliberately and will be listed in
 the conformance test with this reason.
 
-Still open: how `image()` renders non-ASCII text (9.5's `\xNN` escapes,
-`\u` escapes, or printable characters as Go's `%q` does), and how it
-renders a text cset with a very large number of members compactly.
+Still open: how `image()` renders a very large text cset compactly
+(`image(~'a')` would otherwise be megabytes).
 
 ## Verification
 
