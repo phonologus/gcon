@@ -187,15 +187,7 @@ Go's handling of UTF-8 throughout. All encoding and decoding goes through
 - **I/O.** Files are text by default; mode `"b"` reads bytes. Reading does
   no validation or rewriting; it only sets the unit. In text mode
   `reads(f, n)` reads n characters and never splits a sequence.
-- **Csets** are sets of code points from 0 to 0x10FFFF, held as a sorted
-  range list with a bitmap for 0–255. A literal is read as UTF-8
-  (`'αβγ'` has three members). Against a bytes subject, byte b tests code
-  point b, so 9.5's byte csets work unchanged. Against a text subject, an
-  invalid byte matches a cset exactly when the cset contains U+FFFD. `~c`
-  complements over all of Unicode. `&cset` stays the 256 byte values and
-  `&uset` (Object Icon's name) is every code point. Go's `unicode` tables
-  give category and script csets (names to be settled, e.g. `ucat("L")`,
-  `uscript("Greek")`).
+- **Csets** carry a unit too (see "Csets" below).
 - **Fast positions.** A scanning environment caches its cursor
   (`&pos` and the matching byte offset), so scanning functions cost only
   the distance they move. Random subscripts on non-ASCII text use a
@@ -204,27 +196,75 @@ Go's handling of UTF-8 throughout. All encoding and decoding goes through
 - Out of scope: normalization, grapheme clusters and display width. The
   unit is the rune, as in Go.
 
+### Csets
+
+A cset is a set of characters in one unit, like a string: a **bytes
+cset** is a subset of the byte values 0–255 (9.5's cset, a 256-bit set),
+and a **text cset** is a subset of the code points 0–0x10FFFF (a sorted
+range list with a bitmap for 0–255). A cset whose members are all ASCII
+is neutral, since ASCII characters are the same in both units.
+
+- **One conversion rule.** A cset converts between units the way each
+  member would as a one-character string read in the other unit. A byte
+  128–255 read as text is invalid UTF-8, so it becomes U+FFFD, as in Go.
+  A non-ASCII code point read as bytes becomes the bytes of its UTF-8
+  encoding (`'é'` becomes `{0xC3, 0xA9}`, which is what 9.5 makes of
+  `'é'` in a UTF-8 source file). The conversion loses information: a
+  bytes cset's high members all collapse into U+FFFD. Strings do not
+  lose anything, because they keep their bytes.
+- **Literals** follow the string rule: a literal is text unless it
+  contains a byte escape `\x80`–`\xff` or source bytes that are not
+  valid UTF-8. So `'αβγ'` is a text cset with three members. `cset(s)`
+  reads the characters of `s` in its unit; for text, an invalid byte
+  contributes U+FFFD.
+- **Set operations** (`++`, `**`, `--`) choose the result's unit as
+  strings do (non-ASCII text, else non-ASCII bytes, else neutral) and
+  convert the other operand by the rule above.
+- **Matching.** The scanning functions read the subject's characters in
+  the subject's unit and test them against the cset converted to that
+  unit (conversion is cheap and cached). A text subject's invalid bytes
+  therefore match exactly when the cset contains U+FFFD, or any high
+  byte if it is a bytes cset. A bytes subject tested against `'é'`
+  matches the bytes 0xC3 and 0xA9, as 9.5 does.
+- **Complement** is over the cset's own unit: 256 bytes, or all code
+  points. A neutral cset complements as text, so `upto(~' ')` steps over
+  `é` in text. `&cset` is the bytes cset of all 256 bytes, so
+  `~&cset` is `''` as in 9.5. `&ascii`, `&letters`, `&lcase`, `&ucase`
+  and `&digits` are neutral. `&uset` (Object Icon's name) is the text
+  cset of all code points.
+- **To string:** `string(c)` and `!c` produce the members in increasing
+  order, in the cset's unit. So `string(&cset)` is 9.5's 256-byte
+  string, and `string('αβ')` is text.
+- **Unicode classes.** Go's `unicode` tables give text csets for
+  categories and scripts (names to be settled, e.g. `ucat("L")`,
+  `uscript("Greek")`).
+
 ### Compatibility cost and open points
 
 All 99 programs in `icon/tests/general` and their expected outputs are
 pure ASCII. Of the 1,197 `.icn` files in `icon/tests` and `icon/ipl`, 19
 contain non-ASCII bytes (14 of them valid UTF-8); it has not yet been
 checked whether those bytes are in literals or only comments.
-Differences from 9.5 appear only through csets and `image()` in the
-range 128–255:
 
-- `scan.icn` prints `image(~&cset)`: `''` in 9.5, but every code point
-  from 256 up when complement is over Unicode.
-- `collate.icn`, `checkc.icn` and `iobig.icn` convert `&cset` to a string
-  and print or write it. Their output matches 9.5 only if converting a
-  cset with members 128–255 to a string, and `image()` of characters in
-  that range, keep 9.5's byte rendering.
+The four tests that use characters 128–255, traced by hand under the
+cset rules above:
 
-To decide when csets are implemented, using those four tests: whether
-cset-to-string conversion of 128–255 gives bytes or text, and how
-`image()` renders non-ASCII text (9.5's `\xNN` escapes, or `\u` escapes,
-or printable characters as Go's `%q` does). Any differences kept
-deliberately are listed in the conformance test with their reasons.
+- `collate.icn` and `iobig.icn` use only `&cset` (`string`, `reverse`,
+  `left`, subscripts, `!&cset`). It is a bytes cset, so both behave as in
+  9.5.
+- `checkc.icn`: `&cset -- ~&ascii` gives `&ascii` and `image(&cset)` is
+  unchanged, both as in 9.5. **Differs:** `&letters ++ ~&ucase` is the
+  text cset of all code points (1,114,112 members), not 256.
+- `scan.icn`: `image(~&cset)` is `''` as in 9.5. **Differs:**
+  `image(~&ascii)` is every non-ASCII code point, not `\x80`–`\xff`.
+
+Both differences are complements of ASCII csets, which is where the new
+meaning is intended. They are kept deliberately and will be listed in
+the conformance test with this reason.
+
+Still open: how `image()` renders non-ASCII text (9.5's `\xNN` escapes,
+`\u` escapes, or printable characters as Go's `%q` does), and how it
+renders a text cset with a very large number of members compactly.
 
 ## Verification
 
