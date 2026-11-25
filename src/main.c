@@ -10,7 +10,7 @@
 #include <string.h>
 
 static void usage(void) {
-	fputs("usage: gcon-vm program [argument ...]\n"
+	fputs("usage: gcon-vm [-progname name] program [argument ...]\n"
 	      "       gcon-vm -dis program\n"
 	      "       gcon-vm -version\n",
 	      stderr);
@@ -75,13 +75,21 @@ int main(int argc, char **argv) {
 		fwrite(b.b, 1, b.n, stdout);
 		return fflush(stdout) == 0 ? 0 : 1;
 	}
-	if (argc >= 2 && argv[1][0] != '-') {
-		/* Run the program with its arguments; &progname is its name
-		 * as given, as iconx's is the icode file's. */
-		Program *p = load(argv[1]);
+	/* Run the program with its arguments. &progname is its name as
+	 * given, as iconx's is the icode file's, unless -progname gives
+	 * another: gcon run passes a translated program as /dev/fd/N, with
+	 * the name the source would have when built. */
+	const char *progname = NULL;
+	int i = 1;
+	if (argc >= 3 && strcmp(argv[1], "-progname") == 0) {
+		progname = argv[2];
+		i = 3;
+	}
+	if (i < argc && argv[i][0] != '-') {
+		Program *p = load(argv[i]);
 		builtins_init();
 		link_program(p);
-		return run_program(p, argv[1], argc - 2, argv + 2);
+		return run_program(p, progname ? progname : argv[i], argc - i - 1, argv + i + 1);
 	}
 	usage();
 }

@@ -21,6 +21,18 @@ needs only a C compiler (C11, with the computed-goto extension that GCC
 and Clang provide), and leaves `bin/gcon-vm`. `$CC` and `$CFLAGS` are
 used if set.
 
+## Using it with gcon
+
+    tools/install.sh [gcon-root]
+
+copies `bin/gcon-vm` to the gcon root's `libexec` (by default `../gcon`,
+a checkout of gcon being a root), where `gcon run`, and so every program
+gcon builds, finds it and hands programs to it. `GCONVM` overrides the
+choice (a path to a gcon-vm, or `go` for gcon's own VM); `gcon env`
+shows it. gcon-vm can also be run directly on a built program:
+
+    gcon-vm [-progname name] program [argument ...]
+
 ## Testing
 
 The tests compare gcon-vm with gcon, so they need Go and gcon's source

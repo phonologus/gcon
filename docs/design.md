@@ -364,3 +364,21 @@ faster than iconx on every one; the geometric mean over the first
 fourteen is about 0.64 of iconx's time, and 0.51 of the Go VM's.
 `upto` and `find` are nearest parity: the cost there is the call and
 the generator, which a later pass can take on.
+
+## Running from gcon (2026-11-26)
+
+`gcon run` hands programs to gcon-vm (gcon's `docs/design.md`,
+"Decision: gcon run uses gcon-vm"): a built program by `exec`ing
+`gcon-vm program args...`; source by translating it, writing the
+encoded program to a file deleted at once, and `exec`ing `gcon-vm
+-progname name /dev/fd/N args...`, so that `&progname` is what the Go
+VM gives the source. gcon finds gcon-vm through `$GCONVM`, or in its
+root's `libexec`, where `tools/install.sh` puts it; with neither, or
+`GCONVM=go`, it uses its Go VM. The loader accepts either a built file
+(the shell header, the marker, the encoding) or the bare encoding.
+
+gcon's `TestExecVM` runs all its program tests from source through the
+hand-over, when `GCONVM` names a gcon-vm: all 94 pass. Starting a
+program costs about the same either way (11 ms for a built program,
+most of it the shell header and gcon's own start); a built program's
+header could later run gcon-vm directly.
