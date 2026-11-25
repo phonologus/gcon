@@ -149,6 +149,9 @@ type Builtin struct {
 	// RefFirst: the first argument is passed as a variable (subscripts,
 	// sections, ?x and !x, which make substring variables of strings).
 	RefFirst bool
+	// intOp, if not zero, names a binary operator the VM computes
+	// itself when both operands are Ints (see fastInt).
+	intOp intOp
 }
 
 // Generator is a suspended built-in generator: Next produces its next

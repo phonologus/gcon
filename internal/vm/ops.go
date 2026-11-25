@@ -368,7 +368,7 @@ func (g *toGen) Next(vm *VM) (Value, bool) {
 	if (g.by > 0 && g.i > g.j) || (g.by < 0 && g.i < g.j) {
 		return nil, false
 	}
-	return g.i, true
+	return mkInt(g.i), true
 }
 
 // bang generates the elements of a list, or the characters of a string.

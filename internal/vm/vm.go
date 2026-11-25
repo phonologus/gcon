@@ -35,6 +35,7 @@ type VM struct {
 	prog       *Program
 	stackLimit int       // evaluation stack capacity in descriptors (see push)
 	mapTab     *mapTable // map's last translation table
+	scratch    []Value   // the argument buffer (scratchArgs)
 	globals    []Value
 	cur        *Frame        // the running frame
 	co         *Coexp        // the running co-expression
@@ -59,7 +60,7 @@ type VM struct {
 	// system give a child the parent's descriptors, so that its output
 	// does not depend on gcon relaying it and survives gcon's exit.
 	stdinFile, stdoutFile, stderrFile *os.File
-	serials                           map[string]int // last serial number issued, by type
+	serials                           serials // last serial number issued, by type
 
 	// Error conversion (errors.go): &error, and the last error converted.
 	errorKw    Int
@@ -115,7 +116,6 @@ func New(prog *Program, stdin io.Reader, stdout, stderr io.Writer) *VM {
 		stackLimit: stackLimit(),
 		out:        bufio.NewWriter(stdout),
 		errout:     bufio.NewWriter(stderr),
-		serials:    map[string]int{},
 		subject:    Text(""),
 		pos:        1,
 		stdin:      stdin,
@@ -205,7 +205,7 @@ func (vm *VM) Run(args []string) (status int) {
 		}
 		margs = []Value{l}
 	}
-	vm.serials["co-expression"] = 1
+	vm.serials.coexps = 1
 	vm.main = &Coexp{serial: 1, proc: main, state: coRunning, results: 1}
 	vm.main.activator = vm.main
 	vm.co = vm.main
@@ -302,6 +302,72 @@ func (vm *VM) args(f *Frame, ops []Operand) []Value {
 		a[i] = Deref(vm.get(f, o))
 	}
 	return a
+}
+
+// operInt executes OpOper in for an operator with an inline integer
+// path (fastInt), reporting false if the operands are not both Ints or
+// the result does not fit, for the general path to handle. It is kept
+// out of loop so as not to burden the dispatch loop's code.
+func (vm *VM) operInt(f *Frame, in *Instr) bool {
+	xv, yv := Deref(vm.get(f, in.Args[0])), Deref(vm.get(f, in.Args[1]))
+	x, ok := xv.(Int)
+	if !ok {
+		return false
+	}
+	y, ok := yv.(Int)
+	if !ok {
+		return false
+	}
+	v, ok, done := fastInt(in.Fn.intOp, x, y, yv)
+	if !done {
+		return false
+	}
+	if ok {
+		f.temps[in.Dst.Index] = v
+		f.pc = int(in.L1)
+	} else {
+		f.pc = int(in.L2)
+	}
+	return true
+}
+
+// scratchArgs returns the dereferenced values of ops in the VM's scratch
+// buffer, for a call that does not keep its argument slice (a function
+// that is not a generator, a procedure, which copies its arguments, a
+// record constructor). Arguments live only while such a call runs, and
+// no other code runs meanwhile, so one buffer serves; release returns
+// it. The slice's capacity is its length, so a callee that appends gets
+// a copy. With GCONDEBUG=poisonargs, release overwrites the buffer, so
+// that a callee that kept it shows up in the tests.
+func (vm *VM) scratchArgs(f *Frame, ops []Operand) []Value {
+	n := len(ops)
+	if n == 0 {
+		return nil
+	}
+	if cap(vm.scratch) < n {
+		vm.scratch = make([]Value, max(n, 16))
+	}
+	a := vm.scratch[:n:n]
+	for i, o := range ops {
+		a[i] = Deref(vm.get(f, o))
+	}
+	return a
+}
+
+// poisoned fills released argument buffers with GCONDEBUG=poisonargs.
+type poisoned struct{}
+
+var poisonArgs = os.Getenv("GCONDEBUG") == "poisonargs"
+
+// release ends the use of a scratch argument slice.
+func (vm *VM) release(a []Value) {
+	if poisonArgs {
+		for i := range a {
+			a[i] = poisoned{}
+		}
+		return
+	}
+	clear(a) // so that the buffer keeps nothing alive
 }
 
 // run executes until the frame f, and so the program, returns or fails.
@@ -407,11 +473,16 @@ func (vm *VM) loop(f *Frame) {
 				f.pc = int(in.L1)
 			}
 		case OpOper:
-			args := vm.args(f, in.Args)
+			if in.Fn.intOp != intNone && vm.operInt(f, in) {
+				continue
+			}
+			args := vm.scratchArgs(f, in.Args)
 			if in.Fn.RefFirst {
 				args[0] = vm.ref(f, in.Args[0])
 			}
-			if v, ok := in.Fn.Fn(vm, args); ok {
+			v, ok := in.Fn.Fn(vm, args)
+			vm.release(args)
+			if ok {
 				f.temps[in.Dst.Index] = v
 				f.pc = int(in.L1)
 			} else {
@@ -419,9 +490,19 @@ func (vm *VM) loop(f *Frame) {
 			}
 		case OpCall:
 			fv := Deref(vm.get(f, in.X))
-			args := vm.args(f, in.Args)
+			// The arguments are in the scratch buffer unless they come
+			// from p ! x; a generator, which keeps them, gets a copy.
+			var args, scratch []Value
+			if b, ok := fv.(*Builtin); ok && b.Gen != nil {
+				args = vm.args(f, in.Args)
+			} else {
+				args = vm.scratchArgs(f, in.Args)
+				scratch = args
+			}
 			if in.Fn == ApplyOp {
 				args = applyArgs(args[0])
+				vm.release(scratch)
+				scratch = nil
 			}
 			switch fv.(type) {
 			case *Proc, *Builtin, *RecordType, Int:
@@ -437,6 +518,7 @@ func (vm *VM) loop(f *Frame) {
 			case *Proc:
 				vm.push(p)
 				nf := vm.newFrame(p, args)
+				vm.release(scratch)
 				if vm.tracing() {
 					// The arguments as the procedure receives them, as
 					// iconx traces them: padded with &null, extras
@@ -457,11 +539,17 @@ func (vm *VM) loop(f *Frame) {
 					args = adjustArgs(p, args)
 				}
 				if p.Gen != nil {
+					if scratch != nil {
+						args = append([]Value(nil), args...)
+						vm.release(scratch)
+					}
 					g := p.Gen(vm, args)
 					vm.next(f, in, g)
 				} else {
 					f.temps[in.H] = nil
-					if v, ok := p.Fn(vm, args); ok {
+					v, ok := p.Fn(vm, args)
+					vm.release(scratch)
+					if ok {
 						f.temps[in.Dst.Index] = v
 						f.pc = int(in.L1)
 					} else {
@@ -471,6 +559,7 @@ func (vm *VM) loop(f *Frame) {
 			case *RecordType:
 				f.temps[in.H] = nil
 				f.temps[in.Dst.Index] = p.construct(args)
+				vm.release(scratch)
 				f.pc = int(in.L1)
 			case Int:
 				// Integer invocation i(e1, ..., en) produces ei.
@@ -484,6 +573,7 @@ func (vm *VM) loop(f *Frame) {
 				} else {
 					f.pc = int(in.L2)
 				}
+				vm.release(scratch)
 			default:
 				Runerr(106, fv)
 			}
@@ -605,10 +695,13 @@ func (vm *VM) next(f *Frame, in *Instr, g Generator) {
 // Exit ends the program with the given status.
 func (vm *VM) Exit(code int) { panic(exitSignal{code}) }
 
+// serials are the last serial numbers issued for each type.
+type serials struct{ lists, tables, sets, coexps int }
+
 // NewList returns a new list with the next list serial number.
 func (vm *VM) NewList(elems []Value) *List {
-	vm.serials["list"]++
-	return &List{Elems: elems, serial: vm.serials["list"]}
+	vm.serials.lists++
+	return &List{Elems: elems, serial: vm.serials.lists}
 }
 
 // RuntimeError is an Icon run-time error.

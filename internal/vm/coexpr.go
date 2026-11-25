@@ -38,8 +38,8 @@ type Coexp struct {
 }
 
 func (vm *VM) newCoexp(proc *Proc, entry int, init []Value) *Coexp {
-	vm.serials["co-expression"]++
-	return &Coexp{serial: vm.serials["co-expression"], proc: proc, entry: entry, init: init}
+	vm.serials.coexps++
+	return &Coexp{serial: vm.serials.coexps, proc: proc, entry: entry, init: init}
 }
 
 // transfer switches to co-expression c, delivering v (or failure, if

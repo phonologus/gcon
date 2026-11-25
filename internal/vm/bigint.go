@@ -187,7 +187,7 @@ func intArith(x, y Value, fi func(x, y Int) (Int, bool), fb func(x, y *big.Int) 
 	if xi, ok := x.(Int); ok {
 		if yi, ok := y.(Int); ok {
 			if r, ok := fi(xi, yi); ok {
-				return r
+				return mkInt(r)
 			}
 		}
 	}

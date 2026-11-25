@@ -143,13 +143,13 @@ type Set struct {
 }
 
 func (vm *VM) newTable(dflt Value) *Table {
-	vm.serials["table"]++
-	return &Table{m: newOmap(), dflt: dflt, serial: vm.serials["table"]}
+	vm.serials.tables++
+	return &Table{m: newOmap(), dflt: dflt, serial: vm.serials.tables}
 }
 
 func (vm *VM) newSet() *Set {
-	vm.serials["set"]++
-	return &Set{m: newOmap(), serial: vm.serials["set"]}
+	vm.serials.sets++
+	return &Set{m: newOmap(), serial: vm.serials.sets}
 }
 
 // TableElem is the variable T[k]: reading a missing key gives the

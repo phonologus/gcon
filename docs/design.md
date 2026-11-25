@@ -1187,11 +1187,33 @@ a procedure, `$line`, the predefined symbols and digraphs against iconx.
     (`internal/vm/strfuncs_test.go`), and in `micro.icn` they are now
     2.4 to 7 times iconx's time, the same band as other operations; the
     geometric mean over all operations went from 3.51 to 2.88.
-  - What remains is the cost of each instruction. `go test ./internal/run
-    -bench VM` times single operations in a loop through the VM; its
-    profile shows `VM.args` allocating an argument slice for every
-    operator and function call, integers boxed into `Value`
-    (`convT64`), and the garbage collector's work that these cause.
+  - The cost of each instruction (`go test ./internal/run -bench VM`
+    times single operations through the VM). First round:
+    - Arguments of calls that do not keep them (functions other than
+      generators, procedures, record constructors) go in a scratch
+      buffer the VM reuses, not a new slice per call (`scratchArgs`).
+      `GCONDEBUG=poisonargs` overwrites the buffer after every call, so
+      a function that kept it fails visibly; the whole test suite
+      passes so, and a deliberately broken list literal is caught.
+    - Integer arithmetic and comparison are computed inline when both
+      operands are Ints (`fastInt`, via the operator's `intOp`),
+      falling back to the operator's function for anything else.
+    - Boxing an Int into a Value allocates beyond 255; `mkInt` hands
+      out boxes for -256 to 4095 made together at start-up. (Boxes made
+      lazily over a wider range measured slower: scattered over the
+      heap, they missed the cache when a counter ran through them.)
+    - Serial numbers are plain counters, not a map lookup by type name.
+    - Tuning the garbage collector (GOGC) changed nothing measurable.
+
+    `x + 407` went from 30.5 to 13.3 ns with no allocation, and in
+    `micro.icn` integer arithmetic and comparison are now level with
+    iconx; the geometric mean over its operations went from 2.88 to
+    2.36 times iconx's time. What remains is structural: Ints beyond
+    the boxed range and every real still allocate when stored in a
+    Value; operators and functions go through a general call that
+    converts their operands; a subscript or field always makes a
+    variable, even where only its value is used; and `to` and other
+    generators go through an interface call per result.
 
 ## Plan
 
