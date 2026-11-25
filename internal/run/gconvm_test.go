@@ -130,3 +130,69 @@ func TestExecVMHelper(t *testing.T) {
 		LibPath: []string{}, IncludePath: []string{}}
 	os.Exit(ExecVM(a[0], a[1], cfg))
 }
+
+// TestHeaderChoice runs a built program's header with stand-ins for
+// gcon and gcon-vm that report how they were run, checking the order in
+// which the header chooses (see header).
+func TestHeaderChoice(t *testing.T) {
+	if !canExec {
+		t.Skip("gcon-vm is not used on this system")
+	}
+	dir := t.TempDir()
+	script := func(name, who string) string {
+		p := filepath.Join(dir, name)
+		if err := os.WriteFile(p, []byte("#!/bin/sh\necho "+who+" \"$@\"\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	gcon, vm := script("gcon", "gcon"), script("gcon-vm", "vm")
+	other, envgcon := script("other-vm", "other"), script("env-gcon", "envgcon")
+	prog, errs := TranslateLinked("p.icn", "procedure main()\nend\n", []string{}, []string{})
+	if len(errs) > 0 {
+		t.Fatal(errs)
+	}
+	b, err := Build(prog, gcon, vm)
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Mkdir(filepath.Join(dir, "sub"), 0o755)
+	if err := os.WriteFile(filepath.Join(dir, "sub", "prog"), b, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	run := func(env ...string) string {
+		cmd := exec.Command("./sub/prog", "a")
+		cmd.Dir = dir
+		cmd.Env = append([]string{"PATH=/usr/bin:/bin"}, env...)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("%v: %v\n%s", env, err, out)
+		}
+		return strings.TrimSpace(string(out))
+	}
+	for _, c := range []struct {
+		env  []string
+		want string
+	}{
+		{nil, "vm ./sub/prog a"},
+		{[]string{"GCONVM=go"}, "gcon run ./sub/prog a"},
+		{[]string{"GCONVM=" + other}, "other ./sub/prog a"},
+		{[]string{"GCON=" + envgcon}, "envgcon run ./sub/prog a"},
+	} {
+		if got := run(c.env...); got != c.want {
+			t.Errorf("%v: got %q, want %q", c.env, got, c.want)
+		}
+	}
+	// A gcon beside the program decides.
+	local := filepath.Join(dir, "sub", "gcon")
+	os.WriteFile(local, []byte("#!/bin/sh\necho local \"$@\"\n"), 0o755)
+	if got := run(); got != "local run ./sub/prog a" {
+		t.Errorf("gcon beside: got %q", got)
+	}
+	os.Remove(local)
+	// No gcon-vm in the root: through gcon.
+	os.Chmod(vm, 0o644)
+	if got := run(); got != "gcon run ./sub/prog a" {
+		t.Errorf("no gcon-vm: got %q", got)
+	}
+}

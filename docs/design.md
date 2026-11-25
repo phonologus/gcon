@@ -387,8 +387,18 @@ run` hands programs to it when it is installed (`internal/run`,
 - **A built program** is run as it is: gcon `exec`s gcon-vm on the file,
   so gcon's process becomes gcon-vm's, and the exit status, signals and
   standard streams are simply its own; `&progname` is the name the
-  program was invoked by, as before. The header of a built program
-  still runs `gcon run`, which keeps one place that finds the VM.
+  program was invoked by, as before.
+- **A built program's header** runs gcon-vm itself where it can, so as
+  not to start gcon: `$GCONVM` if it names one; else, unless `$GCON` or a
+  gcon beside the program is there to decide, the gcon-vm of the root of
+  the gcon that built it, recorded in the header (`GCVM`) as the gcon's
+  path is; else `gcon run` as before (and so `GCONVM=go` goes through
+  gcon to this VM). The header also finds the gcon beside the program by
+  parameter expansion rather than `sed`, so it starts no command but the
+  VM. Hello world now starts in 6.6 ms (gcon-vm itself 4.2, the rest
+  sh), against 8.0 through gcon and 11.2 for icont's output on iconx.
+  `TestHeaderChoice` checks the order, with stand-ins for gcon and
+  gcon-vm.
 - **Source** is translated as before, built to a temporary file deleted
   at once (gcon-vm reads it as `/dev/fd/N`, inherited across the
   `exec`, rewound first since opening `/dev/fd/N` shares the offset on
