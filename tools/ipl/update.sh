@@ -6,17 +6,18 @@
 #   tools/ipl/update.sh [ICON_SRC]
 #
 # ICON_SRC defaults to ../icon relative to the repository root. It is
-# read, never modified, and the network is never used. Only public-domain
-# files are copied: those listed in $exclude carry other licences.
+# read, never modified, and the network is never used. The IPL is public
+# domain, except for the card bitmaps in gprocs/cardbits.icn, whose
+# copyright and permission notices are reproduced in NOTICE, as they ask;
+# a test checks that NOTICE carries them while the file is present.
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 repo=$(cd "$here/../.." && pwd)
 src=$(cd "${1:-$repo/../icon}" && pwd)
 dst=$repo/lib/ipl
 dirs="procs gprocs incl gincl"
-# gprocs/cardbits.icn: card bitmaps under an X11-style licence (Sun
-# Microsystems and others), not public domain.
-exclude="gprocs/cardbits.icn"
+# Files not to copy, as "dir/file.icn ...".
+exclude=""
 
 if command -v sha256sum >/dev/null 2>&1; then sha="sha256sum"; else sha="shasum -a 256"; fi
 commit=$(git -C "$src" rev-parse HEAD)

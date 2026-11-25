@@ -3,7 +3,6 @@
 # to change a file, copy it to a directory on IPATH (or LPATH).
 commit 8434b6e33dc20e0f31406ecf6d56f527e392cec3
 date 2025-10-04
-excluded gprocs/cardbits.icn
 sha256 e3de12e085036e4ac03fedb08727aebce2d0e4f96c5da986c69187b36ddb08b3  procs/abkform.icn
 sha256 21ce51e2c3aafb6b7cf3f2359b8fa4f319b49acb3591d197ca6b12dce6653605  procs/adjuncts.icn
 sha256 03d2b33161a777dba079705abc0998bd5a9e2d5a20db59e3541b4727eeae77ba  procs/adlutils.icn
@@ -261,6 +260,7 @@ sha256 08289c63223e2da1f39cab542eba23827e9eca23e41a85547bea3391fd60306c  gprocs/
 sha256 c0d088fc64f842df36c64f41893a8cba5085de569515bcafe8b00500e3949601  gprocs/bevel.icn
 sha256 70aeeccfe3711f6e49944659cb27b003e23ce64b5034617dff6920b4bf6878a4  gprocs/bitplane.icn
 sha256 f069fa9bc2c9653f5ed08f0f796c7d7602b2e3c02c774999536761a54fe2a2c0  gprocs/button.icn
+sha256 f45058c70c71da8cbc23cfd77318dd5299b1e5b0693eae5318fc27cc38d9a336  gprocs/cardbits.icn
 sha256 1d11d709b0509c94a25d82d89b570a8be92a6caa9183be274f510553b722a9ad  gprocs/cells.icn
 sha256 8ec28a6f1da243d7d7e8a3053dcfef2e44582c748c4b730b2456dbcbd0405f68  gprocs/clip.icn
 sha256 ab969c001585e5a074b1d584b8c1623ffd8836e6ca160d4dc1ae9fd7ba685555  gprocs/clipping.icn

@@ -722,13 +722,16 @@ failed `link` with no root found adds a line pointing to it.
 **The library's copy.** `tools/ipl/update.sh` copies `procs`, `gprocs`,
 `incl` and `gincl` from the local clone of the reference
 implementation (never the network) and writes `UPSTREAM`; a test
-checks that the files are exactly those it lists. Only public-domain
-files are copied. `gprocs/cardbits.icn` (card bitmaps under an
-X11-style licence from Sun Microsystems and others) is left out, so
-`drawcard`, which links it, cannot be linked, nor can the three
-`gprogs` card games that use it (`concen`, `spider`, `gxplor`): the only
-programs of the reference tree that translate from its own `ipl` and
-not from gcon's root.
+checks that the files are exactly those it lists. The reference
+implementation declares its material public domain, but
+`gprocs/cardbits.icn` carries copyright and permission notices for its
+card bitmaps (from the XView "Spider" game: Sun Microsystems, Network
+Computing Devices, Donald Woods, David Lemke, Heather Rose), each
+asking to appear in supporting documentation. That is probably an
+oversight upstream; as a precaution the file is distributed unchanged
+and `NOTICE`, at the top of the tree, reproduces the notices verbatim
+(a test checks that it does). A release tarball of the root includes
+`NOTICE`, `LICENSE` and `lib/ipl/README`.
 
 ## The preprocessor
 

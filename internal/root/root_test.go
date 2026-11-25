@@ -137,3 +137,45 @@ func TestRepositoryIsRoot(t *testing.T) {
 		t.Errorf("%d files present, UPSTREAM lists %d", seen, len(listed))
 	}
 }
+
+// TestNotice checks that NOTICE reproduces the copyright and permission
+// notices of lib/ipl/gprocs/cardbits.icn, which ask to appear in
+// supporting documentation, for as long as the file is distributed.
+func TestNotice(t *testing.T) {
+	repo := filepath.Join("..", "..")
+	b, err := os.ReadFile(filepath.Join(repo, "lib", "ipl", "gprocs", "cardbits.icn"))
+	if os.IsNotExist(err) {
+		return
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	notice, err := os.ReadFile(filepath.Join(repo, "NOTICE"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Each notice: from its copyright line to the end of the file, with
+	// the comment marks removed.
+	src := strings.Split(string(b), "\n")
+	start := -1
+	for i, l := range src {
+		if strings.HasPrefix(l, "# Copyright 1990 Heather Rose") {
+			start = i
+			break
+		}
+	}
+	if start < 0 {
+		t.Fatal("cardbits.icn: notices not found")
+	}
+	for _, l := range src[start:] {
+		l = strings.TrimPrefix(strings.TrimPrefix(l, "#"), " ")
+		if !strings.Contains(string(notice), l) {
+			t.Errorf("NOTICE lacks the line %q of cardbits.icn's notices", l)
+		}
+	}
+	for _, holder := range []string{"Heather Rose and Sun Microsystems", "David Lemke and Network Computing Devices", "Donald R. Woods and Sun Microsystems"} {
+		if !strings.Contains(string(notice), "Copyright") || !strings.Contains(string(notice), holder) {
+			t.Errorf("NOTICE does not name %s", holder)
+		}
+	}
+}

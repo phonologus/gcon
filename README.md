@@ -31,4 +31,7 @@ no longer needs the sources. `gcon dis` lists a program's VM code.
 The front end (lexer, parser and name resolution) was forked from
 [icontools](https://github.com/phonologus/icontools).
 
-MIT licence; see [LICENSE](LICENSE).
+MIT licence; see [LICENSE](LICENSE). The Icon Program Library in
+`lib/ipl` is public domain; [NOTICE](NOTICE) reproduces the copyright
+notices of the card bitmaps in `lib/ipl/gprocs/cardbits.icn`, as a
+precaution.

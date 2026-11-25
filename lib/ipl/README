@@ -11,5 +11,9 @@ These files are in the public domain, as the reference implementation's
 README says of its material: "You may use and copy this material freely.
 This privilege extends to modifications, although any modified version of
 this system given to a third party should clearly identify your
-modifications as well as the original source." gprocs/cardbits.icn,
-which carries a different licence, is not included.
+modifications as well as the original source."
+
+The one exception is gprocs/cardbits.icn, whose playing-card bitmaps
+carry copyright and permission notices from Sun Microsystems, Network
+Computing Devices and their authors. As a precaution those notices are
+reproduced in NOTICE at the top of the gcon tree, as they ask.
