@@ -123,6 +123,109 @@ gcon's VM never recurses on the Go stack for Icon-level control:
 Cost: built-in generators are more work to write than yield loops. That
 is the deliberate trade.
 
+## Strings and Unicode
+
+Icon 9.5 strings are bytes, and a cset is a set of 256 byte values.
+gcon makes Unicode text the default while keeping byte strings, and follows
+Go's handling of UTF-8 throughout. All encoding and decoding goes through
+`unicode/utf8`; gcon never hand-rolls a UTF-8 decoder.
+
+### Prior art
+
+- **Goaldi** makes every string Unicode, stored as parallel low-byte and
+  high-bits arrays (`runtime/vstring.go`). It has no byte strings (`readb`
+  puts one byte in each character), and it **drops string scanning and
+  csets** (`doc/diffs.adoc`). Its source names "Go strings with
+  annotations for quicker `*s`, `s[i]`" as the alternative it did not
+  take; gcon takes it.
+- **Object Icon** (objecticon.sourceforge.net, "Unicode") adds a `ucs`
+  type: a UTF-8 string with an offset index for random access, written
+  `u"..."`. Its csets range over 0 to 0x10FFFF, and it adds `&uset`,
+  `uchar` and `ucs()`. Unicode is opt-in there (a `u` prefix, plus
+  `$encoding UTF-8`), and mixing a `ucs` with an invalid string is a
+  runtime error.
+
+### Decision: one representation, two units
+
+- A string value is a Go `string` plus a **unit**, text or bytes. Length,
+  subscripts, `!s`, `move`, `&pos`, `left`/`right`/`center`, `reverse` and
+  `map` all count in the value's unit.
+- **Malformed UTF-8 is handled as Go handles it.** A text string may hold
+  any bytes, and they are never rewritten. Reading it as characters
+  follows `utf8.DecodeRuneInString`: each invalid byte is a one-byte
+  character whose code point is U+FFFD. So `*s` is
+  `utf8.RuneCountInString`, and `!s` yields exactly what a Go `range`
+  loop does. Since `s[i]` is a substring of the original bytes, `s` is
+  always the concatenation of `!s`, and any data round-trips unchanged.
+  Joining two text strings can complete a split sequence, so
+  `*(a || b)` may be less than `*a + *b`. That happens only with invalid
+  UTF-8, as it does in Go.
+- **Conversions never fail or copy.** `text(s)` and `bytes(s)` relabel the
+  same bytes. `utf8valid(s)` is available for programs that need to check.
+- **ASCII is neutral.** A cached flag marks all-ASCII strings, which
+  behave identically in either unit and take a fast path. Every ASCII-only
+  9.5 program therefore behaves as in 9.5.
+- **Mixed operands.** When an operation combines units, non-ASCII text
+  makes the result text. Otherwise non-ASCII bytes make it bytes.
+  Otherwise the result is ASCII. Nothing is an error. For example
+  `"abc" || char(200)` is bytes, exactly as in 9.5.
+- **Literals.** A string literal is text, unless it contains a byte escape
+  `\x80`–`\xff` or source bytes that are not valid UTF-8 (a Latin-1 file);
+  then it is bytes, so such files behave as in 9.5. Escapes follow Go:
+  `\x` gives a byte, and `\u` (4 hex digits) or `\U` (up to 6) gives a code
+  point. A surrogate or a value above 0x10FFFF is a compile-time error.
+  In 9.5 `\u` is not an escape: icont reads `"é"` as the five
+  characters `u00e9`. No file in `icon/tests` or `icon/ipl` uses `\u` or
+  `\U` in a literal, so the incompatibility is accepted.
+- **Comparison is plain byte comparison.** For valid UTF-8, byte order is
+  code-point order, so `<<`, `==` and `sort` need no decoding.
+- **Code points to characters.** `char(i)` keeps its 9.5 meaning for
+  0–255: text below 128, bytes from 128 to 255. `uchar(i)` gives a
+  one-character text string for any code point; an invalid code point
+  gives U+FFFD, as Go's `string(rune)` does. `ord` returns the code point,
+  which is U+FFFD for an invalid byte.
+- **I/O.** Files are text by default; mode `"b"` reads bytes. Reading does
+  no validation or rewriting; it only sets the unit. In text mode
+  `reads(f, n)` reads n characters and never splits a sequence.
+- **Csets** are sets of code points from 0 to 0x10FFFF, held as a sorted
+  range list with a bitmap for 0–255. A literal is read as UTF-8
+  (`'αβγ'` has three members). Against a bytes subject, byte b tests code
+  point b, so 9.5's byte csets work unchanged. Against a text subject, an
+  invalid byte matches a cset exactly when the cset contains U+FFFD. `~c`
+  complements over all of Unicode. `&cset` stays the 256 byte values and
+  `&uset` (Object Icon's name) is every code point. Go's `unicode` tables
+  give category and script csets (names to be settled, e.g. `ucat("L")`,
+  `uscript("Greek")`).
+- **Fast positions.** A scanning environment caches its cursor
+  (`&pos` and the matching byte offset), so scanning functions cost only
+  the distance they move. Random subscripts on non-ASCII text use a
+  sparse offset index built on first use, one checkpoint every 32–64
+  runes, as Object Icon does. ASCII strings need neither.
+- Out of scope: normalization, grapheme clusters and display width. The
+  unit is the rune, as in Go.
+
+### Compatibility cost and open points
+
+All 99 programs in `icon/tests/general` and their expected outputs are
+pure ASCII. Of the 1,197 `.icn` files in `icon/tests` and `icon/ipl`, 19
+contain non-ASCII bytes (14 of them valid UTF-8); it has not yet been
+checked whether those bytes are in literals or only comments.
+Differences from 9.5 appear only through csets and `image()` in the
+range 128–255:
+
+- `scan.icn` prints `image(~&cset)`: `''` in 9.5, but every code point
+  from 256 up when complement is over Unicode.
+- `collate.icn`, `checkc.icn` and `iobig.icn` convert `&cset` to a string
+  and print or write it. Their output matches 9.5 only if converting a
+  cset with members 128–255 to a string, and `image()` of characters in
+  that range, keep 9.5's byte rendering.
+
+To decide when csets are implemented, using those four tests: whether
+cset-to-string conversion of 128–255 gives bytes or text, and how
+`image()` renders non-ASCII text (9.5's `\xNN` escapes, or `\u` escapes,
+or printable characters as Go's `%q` does). Any differences kept
+deliberately are listed in the conformance test with their reasons.
+
 ## Verification
 
 - Oracle: `icon/tests/general` has 99 `.icn`/`.std` pairs. gcon's
@@ -139,6 +242,8 @@ is the deliberate trade.
 2. **Vertical slice.** Integers, strings, locals and globals, procedures,
    `every`, `to`, `|`, `&`, `if`, `while`, `suspend`, `!` on strings and
    lists, `write`. Translation to IR, lowering to bytecode, and the VM loop.
+   The string value carries its unit and ASCII flag from the start
+   ("Strings and Unicode").
 3. **Co-expressions** in the slice: `create`, `@`, `^`, `&source`,
    `&current`. Confirm the switch cost from the real VM loop.
 4. Grow the value types and built-ins, driven by the conformance suite.
