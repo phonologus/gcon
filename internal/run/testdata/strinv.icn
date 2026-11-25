@@ -1,0 +1,24 @@
+# String invocation: operators by spelling and arity, functions, procedures
+# and records (which must be invocable), integer selection, error 106.
+invocable "p", "pt"
+record pt(x, y)
+procedure main()
+   local L
+   write("+"(1, 2), " ", "-"(5), " ", "-"(5, 2), " ", "*"([1,2,3]))
+   write("||"("ab", "cd"), " ", "2"("a", "b", "c"), " ", 2.0("a", "b"))
+   every writes("..."(1, 10, 3), " "); write()
+   every writes("!"("xyz"), " "); write()
+   L := [10, 20, 30]
+   write("[]"(L, 2), " ", "[:]"("abcdef", 2, 4), " ", image("/"(&null)), " ", "\\"(4))
+   write("write"("called write"))
+   write("p"(3), " ", "pt"(1, 2).y, " ", "main" === "main")
+   write(image(".") , " ", "."(7))
+   &error := -1
+   every x := "+" | "-" | "*" | ":=" | "foo" | "" | "L" | 3 | [] | "1" do
+      write(image(x), " with 1: ", image(x(5)) | ("error " || &errornumber))
+   every x := "+" | "~" | "[:]" | "..." | "frob" | "-3" do
+      write(image(x), " with 2: ", image(x(5, 6)) | ("error " || &errornumber))
+end
+procedure p(x)
+   return x * 10
+end

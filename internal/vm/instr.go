@@ -115,4 +115,7 @@ type Program struct {
 	Globals     []Value // initial values of the globals
 	GlobalNames []string
 	Main        int // global index of main, or -1
+	// Invocable says which globals string invocation can find, by
+	// index; nil means all of them ("invocable all").
+	Invocable []bool
 }

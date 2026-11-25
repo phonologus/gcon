@@ -5,6 +5,7 @@ btrees
 case
 center
 ck
+coerce
 concord
 cxprimes
 diffwrds

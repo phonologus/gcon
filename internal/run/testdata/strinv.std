@@ -1,0 +1,25 @@
+3 -5 3 3
+abcd b b
+1 4 7 10 
+x y z 
+20 bc &null 4
+called write
+called write
+30 2 main
+"." 7
+"+" with 1: 5
+"-" with 1: -5
+"*" with 1: 1
+":=" with 1: error 106
+"foo" with 1: error 106
+"" with 1: error 106
+"L" with 1: error 106
+3 with 1: error 106
+list_3(0) with 1: error 106
+"1" with 1: 5
+"+" with 2: 11
+"~" with 2: error 106
+"[:]" with 2: error 106
+"..." with 2: error 106
+"frob" with 2: error 106
+"-3" with 2: error 106

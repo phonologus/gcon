@@ -45,6 +45,11 @@ type compiler struct {
 	consts  map[string]int         // constant pool indices, by a key for the value
 	fields  map[string]*vm.Builtin // field reference operators, by name
 	errs    []error
+	// For string invocation (see invocable): the globals each procedure
+	// refers to, the names declared invocable, and invocable all.
+	refs     map[string]map[string]bool
+	invoc    []string
+	invocAll bool
 }
 
 // Compile compiles a program whose files have been resolved.
@@ -54,6 +59,7 @@ func Compile(p *sema.Program, infos []*sema.Info) (*vm.Program, []error) {
 		globals: map[string]int{},
 		consts:  map[string]int{},
 		fields:  map[string]*vm.Builtin{},
+		refs:    map[string]map[string]bool{},
 	}
 	// Globals, procedures and records, in name order.
 	names := make([]string, 0, len(p.Globals))
@@ -91,6 +97,25 @@ func Compile(p *sema.Program, infos []*sema.Info) (*vm.Program, []error) {
 				line, _ := lines.Position(d.Link.Offset)
 				c.errorf(info.File.Path, line, "link is not yet supported")
 			case *syntax.InvocableDecl:
+				for _, it := range d.Items.Elems {
+					if it == nil || it.Name == nil {
+						continue
+					}
+					name := it.Name.Text
+					if it.Name.Kind == token.STRINGLIT {
+						name, _, _ = lit.String(name)
+					}
+					if it.Name.Kind == token.IDENT {
+						// As in icont (addinvk), the only identifier
+						// allowed is all.
+						if name != "all" {
+							line, _ := lines.Position(it.Name.Offset)
+							c.errorf(info.File.Path, line, "%q: invalid operand to invocable", name)
+						}
+						c.invocAll = true
+					}
+					c.invoc = append(c.invoc, name)
+				}
 			default:
 				if s, _, ok := syntax.Span(d); ok {
 					line, _ := lines.Position(s)
@@ -111,7 +136,37 @@ func Compile(p *sema.Program, infos []*sema.Info) (*vm.Program, []error) {
 			c.prog.Main = i
 		}
 	}
+	c.invocable()
 	return c.prog, c.errs
+}
+
+// invocable records which globals string invocation can find. icont's
+// linker discards the globals that main does not reach, directly or
+// through the procedures it refers to, unless they are declared
+// invocable (lglob.c, scanrefs); "invocable all" (or icont -fs) keeps
+// them all. So "p"(x) is error 106 for a procedure p that is only ever
+// named in strings.
+func (c *compiler) invocable() {
+	if c.invocAll {
+		return
+	}
+	keep := make([]bool, len(c.prog.Globals))
+	var mark func(name string)
+	mark = func(name string) {
+		i, ok := c.globals[name]
+		if !ok || keep[i] {
+			return
+		}
+		keep[i] = true
+		for r := range c.refs[name] {
+			mark(r)
+		}
+	}
+	mark("main")
+	for _, n := range c.invoc {
+		mark(n)
+	}
+	c.prog.Invocable = keep
 }
 
 func (c *compiler) errorf(file string, line int, format string, args ...any) {
@@ -543,6 +598,16 @@ func (p *pcomp) block(es []syntax.Expr, fail, succ label) (label, label, vm.Oper
 	return first, r, v
 }
 
+// ref records that the procedure being compiled refers to a global.
+func (p *pcomp) ref(name string) {
+	r := p.c.refs[p.decl.Name.Text]
+	if r == nil {
+		r = map[string]bool{}
+		p.c.refs[p.decl.Name.Text] = r
+	}
+	r[name] = true
+}
+
 func (p *pcomp) ident(t *syntax.Token) vm.Operand {
 	s := p.info.Uses[t]
 	if s == nil {
@@ -557,8 +622,10 @@ func (p *pcomp) ident(t *syntax.Token) vm.Operand {
 	case sema.Static:
 		return vm.Operand{Kind: vm.GlobalOp, Index: int32(p.c.global(p.decl.Name.Text+" "+s.Name, vm.NullValue))}
 	case sema.Global, sema.Procedure, sema.Record:
+		p.ref(s.Name)
 		return vm.Operand{Kind: vm.GlobalOp, Index: int32(p.c.global(s.Name, vm.NullValue))}
 	case sema.Builtin:
+		p.ref(s.Name)
 		f := vm.Functions[s.Name]
 		if f == nil {
 			f = vm.Unsupported(s.Name)

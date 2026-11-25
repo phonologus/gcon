@@ -332,6 +332,11 @@ func (vm *VM) loop(f *Frame) {
 		case OpCall:
 			fv := Deref(vm.get(f, in.X))
 			args := vm.args(f, in.Args)
+			switch fv.(type) {
+			case *Proc, *Builtin, *RecordType, Int:
+			default:
+				fv = vm.callable(fv, len(args))
+			}
 			switch p := fv.(type) {
 			case *Proc:
 				nf := vm.newFrame(p, args)

@@ -609,6 +609,20 @@ conformance test with this reason.
   counts as a value). As in iconx, an interrupted `write` keeps the
   output it had produced. `errorclear()` and `runerr()` are as in
   `fmisc.r`. Checked against iconx by `testdata/errconv.icn`.
+- String invocation (`internal/vm/invoke.go`) follows iconx's `invoke`
+  and `strprc`: a value that is not a procedure is first converted to an
+  integer, which selects an argument (so `"2"(a, b)` is `b`); otherwise
+  it is converted to a string naming a global procedure, function or
+  record constructor, or else (when it does not start with a letter) an
+  operator, chosen by spelling and the number of arguments (`"-"(x)`
+  negates, `"-"(x, y)` subtracts). Anything else is error 106. As icont's
+  linker discards the globals that main does not reach (`lglob.c`,
+  `scanrefs`), the compiler records which globals each procedure refers
+  to and `Program.Invocable` marks those reachable from main or named
+  in an `invocable` declaration; `invocable all` keeps them all. As in
+  icont, the only identifier `invocable` accepts is `all`. The
+  assignment operators (`:=`, `<-`, `:=:`, `<->`) and `?` cannot yet be
+  invoked by name.
 - Operators that produce at most one result are `OpOper` instructions
   calling a Go function; generators (`to`, `!`, built-in generators)
   and procedure calls use `OpCall` and `OpResume` with a handle in a
