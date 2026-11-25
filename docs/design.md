@@ -536,6 +536,34 @@ icont's linker gives only the file. Program tests link files from
 `internal/run/testdata/lib`, which `expect.sh` translates with `icont
 -c` for iconx; the conformance test links the IPL from `ipl/procs`.
 
+### Decision (2026-11-25): the built program is an icont-style script
+
+`gcon build` writes one file, the counterpart of icont's icode
+executable, and that is its only artefact: no self-contained binary.
+Programs are meant to be invocable files in an Icon/gcon environment,
+not binaries to distribute, and people coming from Icon already have
+an installation and expect this. (A self-contained binary, gcon with
+the program appended, was considered: one file and no dependence on an
+installed gcon, but a few MB per program, built per platform, and on
+macOS appending to the binary fails strict code-signing validation.)
+
+The file follows icont's: a `#!/bin/sh` header that finds gcon and
+execs it on the file with the arguments, then a marker line, then the
+program. icont's header tries `$ICONX`, then iconx beside the program,
+then the iconx it was built with, then `iconx` on `PATH`; gcon's tries
+`$GCON`, gcon beside the program, the gcon that built it, then `gcon`
+on `PATH`. `&progname` is the file's name as invoked (`$0`), as in
+iconx.
+
+What follows the marker is the program as linked bytecode, as in
+icont: a serialisation of the whole compiled `vm.Program` (code,
+constants, globals, records, procedures), the counterpart of icode,
+written once and only when asked for. Built-in functions and operators
+are recorded by name, not as Go function values. The format carries a
+version; gcon refuses a file whose version it does not read, saying to
+rebuild it, as a newer iconx refuses old icode. (Bundling the linked
+sources instead, translated at each run, was considered and set aside.)
+
 ## Implementation status
 
 ### Translation and VM
@@ -882,5 +910,6 @@ icont's linker gives only the file. Program tests link files from
    `*C`, `&current`, `&source` and `&main`, with symmetric transfer.
    Switch cost confirmed on the real VM loop (see "Co-expressions").
 4. Grow the value types and built-ins, driven by the conformance suite.
-5. `gcon build` producing a self-contained executable (the gcon binary
-   with the bytecode appended), the counterpart of icont's output.
+5. `gcon build` producing an icont-style script (see "Decision: the
+   built program is an icont-style script"), the counterpart of
+   icont's output.
