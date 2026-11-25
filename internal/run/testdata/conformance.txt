@@ -70,6 +70,7 @@ statics
 string
 string1
 struct
+subjpos
 substring
 table
 tracer

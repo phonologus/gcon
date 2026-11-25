@@ -945,8 +945,12 @@ func (p *pcomp) binary(e *syntax.Binary, fail, succ label) (label, label, vm.Ope
 		p.emit(vm.Instr{Op: vm.OpAssign, Fn: vm.AsgnOp("<->"), Dst: vs[0], X: vs[1], Args: []vm.Operand{vs[1]}, L1: int32(b), L2: int32(r)})
 		p.place(b)
 		p.emit(vm.Instr{Op: vm.OpAssign, Dst: vs[1], X: ox, Args: []vm.Operand{vs[0]}, L1: int32(succ), L2: int32(r)})
+		// Resumed: restore x, then y. If an assignment fails (as &pos
+		// := 3 does after &subject has been shortened), the operator
+		// fails at once, leaving the other unrestored, as iconx's
+		// rswap does.
 		p.place(rr)
-		p.emit(vm.Instr{Op: vm.OpAssign, Dst: vs[0], X: ox, Args: []vm.Operand{vs[1]}, L1: int32(c), L2: int32(c)})
+		p.emit(vm.Instr{Op: vm.OpAssign, Dst: vs[0], X: ox, Args: []vm.Operand{vs[1]}, L1: int32(c), L2: int32(r)})
 		p.place(c)
 		p.emit(vm.Instr{Op: vm.OpAssign, Dst: vs[1], X: oy, Args: []vm.Operand{vs[0]}, L1: int32(r), L2: int32(r)})
 		return st, rr, vs[0]

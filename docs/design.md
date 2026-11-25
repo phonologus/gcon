@@ -674,7 +674,11 @@ conformance test with this reason.
   string held in a variable is a substring variable, as `s[i]` is.
 - Reversible assignment: `x <- y` and `x <-> y` save the old values
   before assigning; resumed, they restore them and fail (iconx's `rasgn`
-  and `rswap`). The compiler emits them inline, as it does `:=:`.
+  and `rswap`). The compiler emits them inline, as it does `:=:`. As in
+  iconx, each assignment that fails makes the operator fail at once, so
+  `x :=: &pos` with an invalid x leaves x assigned and &pos not, and a
+  resumed `&pos <-> x` whose `&pos := old` fails (the subject having
+  been shortened meanwhile) leaves x unrestored (`subjpos`).
 - Procedures return and suspend variables, as iconx's `retderef`
   decides: a variable in the procedure's own frame (a local or
   parameter) is dereferenced, since the frame is going away; globals,
