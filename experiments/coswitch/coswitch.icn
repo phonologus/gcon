@@ -1,0 +1,15 @@
+# switch cost: one co-expression, many activations
+procedure main(a)
+   n := integer(a[1]) | 1000000
+   c := create |1
+   t := &time
+   every 1 to n do @c
+   t := &time - t
+   write("switch: ", n, " activations, ", t, " ms, ", (1000000.0*t)/n, " ns each")
+   # creation cost: create + first activation
+   m := n / 10
+   t := &time
+   every 1 to m do @(create 1)
+   t := &time - t
+   write("create+activate: ", m, " in ", t, " ms, ", (1000000.0*t)/m, " ns each")
+end
