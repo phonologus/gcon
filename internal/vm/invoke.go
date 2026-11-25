@@ -49,11 +49,11 @@ func init() {
 		return &revGen{vars: a[:2], olds: []Value{x, y}, news: []Value{y, x}}
 	}}
 	Ops["u/"] = &Builtin{Name: "/", Fn: func(vm *VM, a []Value) (Value, bool) {
-		_, isNull := a[0].(Null)
+		_, isNull := a[0].Any().(Null)
 		return a[0], isNull
 	}}
 	Ops[`u\`] = &Builtin{Name: `\`, Fn: func(vm *VM, a []Value) (Value, bool) {
-		_, isNull := a[0].(Null)
+		_, isNull := a[0].Any().(Null)
 		return a[0], !isNull
 	}}
 	Ops["u."] = &Builtin{Name: ".", Fn: func(vm *VM, a []Value) (Value, bool) {
@@ -67,15 +67,15 @@ func init() {
 // error 106 if there is none.
 func (vm *VM) callable(v Value, nargs int) Value {
 	if i, ok := CvInt(v); ok {
-		return i
+		return V(i)
 	}
 	if s, ok := CvStr(v); ok {
-		if p := vm.strproc(s.s, nargs); p != nil {
+		if p := vm.strproc(s.s, nargs); !p.IsNone() {
 			return p
 		}
 	}
 	Runerr(106, v)
-	return nil
+	return Value{}
 }
 
 // strproc returns the procedure, built-in function, record constructor
@@ -86,34 +86,34 @@ func (vm *VM) callable(v Value, nargs int) Value {
 // operands.
 func (vm *VM) strproc(name string, nargs int) Value {
 	if name == "" {
-		return nil
+		return Value{}
 	}
 	for i, g := range vm.prog.GlobalNames {
 		if g == name && (vm.prog.Invocable == nil || vm.prog.Invocable[i]) {
-			switch p := vm.globals[i].(type) {
+			switch p := vm.globals[i].Any().(type) {
 			case *Proc, *Builtin, *RecordType:
-				return p
+				return V(p)
 			}
-			return nil
+			return Value{}
 		}
 	}
 	if c := name[0]; !('a' <= c && c <= 'z' || 'A' <= c && c <= 'Z') {
 		impl, ok := opsByName[name]
 		if !ok || nargs > 3 || impl[nargs] == "" {
-			return nil
+			return Value{}
 		}
-		return Ops[impl[nargs]]
+		return V(Ops[impl[nargs]])
 	}
 	if f := Functions[name]; f != nil {
-		return f
+		return V(f)
 	}
-	return nil
+	return Value{}
 }
 
 // setVar assigns v to the variable ref, reporting whether the
 // assignment succeeded; ref must be a variable (error 111).
 func setVar(ref, v Value) bool {
-	switch x := ref.(type) {
+	switch x := ref.Any().(type) {
 	case *Value:
 		*x = v
 		return true
@@ -137,12 +137,12 @@ func (g *revGen) Next(vm *VM) (Value, bool) {
 		for i, v := range g.vars {
 			setVar(v, g.olds[i])
 		}
-		return nil, false
+		return Value{}, false
 	}
 	g.done = true
 	for i, v := range g.vars {
 		if !setVar(v, g.news[i]) {
-			return nil, false
+			return Value{}, false
 		}
 	}
 	return g.vars[0], true
@@ -155,7 +155,7 @@ var ApplyOp = &Builtin{Name: "!"}
 
 // applyArgs returns the arguments that p ! x passes.
 func applyArgs(x Value) []Value {
-	switch l := x.(type) {
+	switch l := x.Any().(type) {
 	case *List:
 		return append([]Value(nil), l.Elems...)
 	case *Record:

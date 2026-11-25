@@ -192,7 +192,7 @@ func (vm *VM) Run(args []string) (status int) {
 	}()
 	var main *Proc
 	if vm.prog.Main >= 0 {
-		main, _ = vm.globals[vm.prog.Main].(*Proc)
+		main, _ = vm.globals[vm.prog.Main].Any().(*Proc)
 	}
 	if main == nil {
 		Runerr(117)
@@ -201,9 +201,9 @@ func (vm *VM) Run(args []string) (status int) {
 	if main.NParams > 0 {
 		l := vm.NewList(nil)
 		for _, a := range args {
-			l.Elems = append(l.Elems, Text(a))
+			l.Elems = append(l.Elems, V(Text(a)))
 		}
-		margs = []Value{l}
+		margs = []Value{V(l)}
 	}
 	vm.serials.coexps = 1
 	vm.main = &Coexp{serial: 1, proc: main, state: coRunning, results: 1}
@@ -235,7 +235,7 @@ func (vm *VM) newFrame(p *Proc, args []Value) *Frame {
 		if len(args) > n {
 			rest.Elems = append(rest.Elems, args[n:]...)
 		}
-		f.locals[n] = rest
+		f.locals[n] = V(rest)
 	}
 	for i := 0; i < n && i < len(args); i++ {
 		f.locals[i] = args[i]
@@ -262,9 +262,9 @@ func (vm *VM) get(f *Frame, o Operand) Value {
 func (vm *VM) ref(f *Frame, o Operand) Value {
 	switch o.Kind {
 	case LocalOp:
-		return &f.locals[o.Index]
+		return V(&f.locals[o.Index])
 	case GlobalOp:
-		return &vm.globals[o.Index]
+		return V(&vm.globals[o.Index])
 	}
 	return vm.get(f, o)
 }
@@ -280,7 +280,7 @@ func (vm *VM) assign(f *Frame, o Operand, v Value) bool {
 		vm.globals[o.Index] = v
 		return true
 	case TempOp:
-		switch x := f.temps[o.Index].(type) {
+		switch x := f.temps[o.Index].Any().(type) {
 		case *Value:
 			*x = v
 			return true
@@ -310,11 +310,11 @@ func (vm *VM) args(f *Frame, ops []Operand) []Value {
 // out of loop so as not to burden the dispatch loop's code.
 func (vm *VM) operInt(f *Frame, in *Instr) bool {
 	xv, yv := Deref(vm.get(f, in.Args[0])), Deref(vm.get(f, in.Args[1]))
-	x, ok := xv.(Int)
+	x, ok := xv.Any().(Int)
 	if !ok {
 		return false
 	}
-	y, ok := yv.(Int)
+	y, ok := yv.Any().(Int)
 	if !ok {
 		return false
 	}
@@ -363,7 +363,7 @@ var poisonArgs = os.Getenv("GCONDEBUG") == "poisonargs"
 func (vm *VM) release(a []Value) {
 	if poisonArgs {
 		for i := range a {
-			a[i] = poisoned{}
+			a[i] = V(poisoned{})
 		}
 		return
 	}
@@ -408,9 +408,9 @@ func (vm *VM) loop(f *Frame) {
 		case OpGoto:
 			f.pc = int(in.L1)
 		case OpIGoto:
-			f.pc = int(f.temps[in.X.Index].(Int))
+			f.pc = int(f.temps[in.X.Index].Any().(Int))
 		case OpSetLabel:
-			f.temps[in.Dst.Index] = Int(in.L1)
+			f.temps[in.Dst.Index] = V(Int(in.L1))
 			f.pc++
 		case OpMove:
 			f.temps[in.Dst.Index] = Deref(vm.get(f, in.X))
@@ -433,8 +433,8 @@ func (vm *VM) loop(f *Frame) {
 				// if both are substrings of one string, the other one,
 				// when to the right, shifts by the change in length, as
 				// iconx's swap and rswap adjust it.
-				d, ok1 := vm.ref(f, in.Dst).(*SubstrVar)
-				o, ok2 := vm.ref(f, in.Args[0]).(*SubstrVar)
+				d, ok1 := vm.ref(f, in.Dst).Any().(*SubstrVar)
+				o, ok2 := vm.ref(f, in.Args[0]).Any().(*SubstrVar)
 				if ok1 && ok2 && d.v == o.v {
 					n := d.n
 					if !vm.assign(f, in.Dst, Deref(vm.get(f, in.X))) {
@@ -454,20 +454,20 @@ func (vm *VM) loop(f *Frame) {
 				f.pc = int(in.L2)
 			}
 		case OpScanEnter:
-			f.temps[in.Dst.Index] = vm.scanEnter(Deref(vm.get(f, in.X)))
+			f.temps[in.Dst.Index] = V(vm.scanEnter(Deref(vm.get(f, in.X))))
 			f.pc++
 		case OpScanSwap:
-			vm.scanSwap(f.temps[in.X.Index].(*scanEnv))
+			vm.scanSwap(f.temps[in.X.Index].Any().(*scanEnv))
 			f.pc++
 		case OpIsNull:
-			if _, ok := Deref(vm.get(f, in.X)).(Null); ok {
+			if _, ok := Deref(vm.get(f, in.X)).Any().(Null); ok {
 				f.pc = int(in.L1)
 			} else {
 				f.pc = int(in.L2)
 			}
 		case OpOnce:
-			if _, ok := vm.globals[in.X.Index].(Null); ok {
-				vm.globals[in.X.Index] = Int(1)
+			if _, ok := vm.globals[in.X.Index].Any().(Null); ok {
+				vm.globals[in.X.Index] = V(Int(1))
 				f.pc++
 			} else {
 				f.pc = int(in.L1)
@@ -493,7 +493,7 @@ func (vm *VM) loop(f *Frame) {
 			// The arguments are in the scratch buffer unless they come
 			// from p ! x; a generator, which keeps them, gets a copy.
 			var args, scratch []Value
-			if b, ok := fv.(*Builtin); ok && b.Gen != nil {
+			if b, ok := fv.Any().(*Builtin); ok && b.Gen != nil {
 				args = vm.args(f, in.Args)
 			} else {
 				args = vm.scratchArgs(f, in.Args)
@@ -504,17 +504,17 @@ func (vm *VM) loop(f *Frame) {
 				vm.release(scratch)
 				scratch = nil
 			}
-			switch fv.(type) {
+			switch fv.Any().(type) {
 			case *Proc, *Builtin, *RecordType, Int:
 			default:
 				fv = vm.callable(fv, len(args))
-				if b, ok := fv.(*Builtin); ok && b.NoDeref {
+				if b, ok := fv.Any().(*Builtin); ok && b.NoDeref {
 					for i, o := range in.Args {
 						args[i] = vm.ref(f, o)
 					}
 				}
 			}
-			switch p := fv.(type) {
+			switch p := fv.Any().(type) {
 			case *Proc:
 				vm.push(p)
 				nf := vm.newFrame(p, args)
@@ -546,7 +546,7 @@ func (vm *VM) loop(f *Frame) {
 					g := p.Gen(vm, args)
 					vm.next(f, in, g)
 				} else {
-					f.temps[in.H] = nil
+					f.temps[in.H] = Value{}
 					v, ok := p.Fn(vm, args)
 					vm.release(scratch)
 					if ok {
@@ -557,13 +557,13 @@ func (vm *VM) loop(f *Frame) {
 					}
 				}
 			case *RecordType:
-				f.temps[in.H] = nil
-				f.temps[in.Dst.Index] = p.construct(args)
+				f.temps[in.H] = Value{}
+				f.temps[in.Dst.Index] = V(p.construct(args))
 				vm.release(scratch)
 				f.pc = int(in.L1)
 			case Int:
 				// Integer invocation i(e1, ..., en) produces ei.
-				f.temps[in.H] = nil
+				f.temps[in.H] = Value{}
 				if i := int(p); i >= 1 && i <= len(args) {
 					f.temps[in.Dst.Index] = args[i-1]
 					f.pc = int(in.L1)
@@ -578,7 +578,7 @@ func (vm *VM) loop(f *Frame) {
 				Runerr(106, fv)
 			}
 		case OpResume:
-			switch h := f.temps[in.H].(type) {
+			switch h := f.temps[in.H].Any().(type) {
 			case nil:
 				f.pc = int(in.L2)
 			case *Frame:
@@ -612,7 +612,7 @@ func (vm *VM) loop(f *Frame) {
 			}
 			ci := &c.proc.Code[c.pc]
 			c.temps[ci.Dst.Index] = v
-			c.temps[ci.H] = nil
+			c.temps[ci.H] = Value{}
 			c.pc = int(ci.L1)
 			f = c
 			vm.cur = f
@@ -631,7 +631,7 @@ func (vm *VM) loop(f *Frame) {
 				return
 			}
 			ci := &c.proc.Code[c.pc]
-			c.temps[ci.H] = nil
+			c.temps[ci.H] = Value{}
 			c.pc = int(ci.L2)
 			f = c
 			vm.cur = f
@@ -653,7 +653,7 @@ func (vm *VM) loop(f *Frame) {
 			}
 			ci := &c.proc.Code[c.pc]
 			c.temps[ci.Dst.Index] = v
-			c.temps[ci.H] = f
+			c.temps[ci.H] = V(f)
 			c.pc = int(ci.L1)
 			f.caller = nil
 			f = c
@@ -661,7 +661,7 @@ func (vm *VM) loop(f *Frame) {
 		case OpCreate:
 			c := vm.newCoexp(f.proc, int(in.L1), append([]Value(nil), f.locals...))
 			c.from = vm.calledFrom(f)
-			f.temps[in.Dst.Index] = c
+			f.temps[in.Dst.Index] = V(c)
 			f.pc++
 		case OpActivate:
 			v := NullValue
@@ -683,11 +683,11 @@ func (vm *VM) loop(f *Frame) {
 // OpResume in.
 func (vm *VM) next(f *Frame, in *Instr, g Generator) {
 	if v, ok := g.Next(vm); ok {
-		f.temps[in.H] = g
+		f.temps[in.H] = V(g)
 		f.temps[in.Dst.Index] = v
 		f.pc = int(in.L1)
 	} else {
-		f.temps[in.H] = nil
+		f.temps[in.H] = Value{}
 		f.pc = int(in.L2)
 	}
 }
@@ -745,7 +745,7 @@ func (vm *VM) report(e *RuntimeError) {
 // (globals, statics, elements of structures, keywords) are produced as
 // variables, so that f(x) := y assigns to what f returned.
 func (vm *VM) retDeref(f *Frame, v Value) Value {
-	if p, ok := v.(*Value); ok {
+	if p, ok := v.Any().(*Value); ok {
 		for i := range f.locals {
 			if p == &f.locals[i] {
 				return *p
@@ -761,7 +761,7 @@ func (vm *VM) isVar(f *Frame, o Operand) bool {
 	case LocalOp, GlobalOp:
 		return true
 	case TempOp:
-		switch f.temps[o.Index].(type) {
+		switch f.temps[o.Index].Any().(type) {
 		case *Value, Var:
 			return true
 		}

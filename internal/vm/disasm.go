@@ -50,7 +50,7 @@ func Disasm(w io.Writer, p *Program, info Info) error {
 
 	seen := map[*Proc]bool{}
 	for _, v := range p.Globals {
-		if pr, ok := v.(*Proc); ok && !seen[pr] {
+		if pr, ok := v.Any().(*Proc); ok && !seen[pr] {
 			seen[pr] = true
 			disasmProc(b, pr)
 		}
@@ -139,7 +139,7 @@ func InstrText(in *Instr) string {
 // constImage returns the listing of a constant or a global's initial
 // value.
 func constImage(v Value) string {
-	switch x := v.(type) {
+	switch x := v.Any().(type) {
 	case Null:
 		return "&null"
 	case Int:

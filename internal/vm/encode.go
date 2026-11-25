@@ -104,7 +104,7 @@ func Encode(p *Program, info map[string]string) ([]byte, error) {
 		}
 	}
 	collect := func(v Value) {
-		switch v := v.(type) {
+		switch v := v.Any().(type) {
 		case *Builtin:
 			addBuiltin(v)
 		case *RecordType:
@@ -327,7 +327,7 @@ func (e *encoder) proc(p *Proc) error {
 }
 
 func (e *encoder) value(v Value) error {
-	switch v := v.(type) {
+	switch v := v.Any().(type) {
 	case Null:
 		e.byte(valNull)
 	case Int:
@@ -744,7 +744,7 @@ func (d *decoder) value() Value {
 	case valNull:
 		return NullValue
 	case valInt:
-		return Int(d.int())
+		return V(Int(d.int()))
 	case valBig:
 		neg := d.byte()
 		x := new(big.Int).SetBytes(d.take(d.small()))
@@ -755,13 +755,13 @@ func (d *decoder) value() Value {
 		}
 		return NewInteger(x)
 	case valReal:
-		return Real(math.Float64frombits(d.u64()))
+		return V(Real(math.Float64frombits(d.u64())))
 	case valString:
 		u := Unit(d.byte())
 		if u != TextUnit && u != BytesUnit {
 			d.fail("bad string unit %d", u)
 		}
-		return NewString(d.str(), u)
+		return V(NewString(d.str(), u))
 	case valCset:
 		c := &Cset{n: -1}
 		for i := range c.bits {
@@ -774,26 +774,26 @@ func (d *decoder) value() Value {
 				lo, hi := d.uint(), d.uint()
 				if lo > hi || hi > 0x10FFFF || rune(lo) <= prev {
 					d.fail("bad cset range")
-					return c
+					return V(c)
 				}
 				c.ranges[i] = runeRange{rune(lo), rune(hi)}
 				prev = rune(hi)
 			}
 		}
-		return c
+		return V(c)
 	case valBuiltin:
 		if i := d.small(); i < len(d.builtins) {
-			return d.builtins[i]
+			return V(d.builtins[i])
 		}
 		d.fail("builtin out of range")
 	case valProc:
 		if i := d.small(); i < len(d.procs) {
-			return d.procs[i]
+			return V(d.procs[i])
 		}
 		d.fail("procedure out of range")
 	case valRecord:
 		if i := d.small(); i < len(d.records) {
-			return d.records[i]
+			return V(d.records[i])
 		}
 		d.fail("record type out of range")
 	default:
@@ -814,7 +814,7 @@ func Validate(p *Program) error {
 		if p.Main < 0 || p.Main >= ng {
 			return fmt.Errorf("main %d out of range", p.Main)
 		}
-		if _, ok := p.Globals[p.Main].(*Proc); !ok {
+		if _, ok := p.Globals[p.Main].Any().(*Proc); !ok {
 			return errors.New("main is not a procedure")
 		}
 	}
@@ -823,7 +823,7 @@ func Validate(p *Program) error {
 	}
 	seen := map[*Proc]bool{}
 	for _, v := range p.Globals {
-		pr, ok := v.(*Proc)
+		pr, ok := v.Any().(*Proc)
 		if !ok || seen[pr] {
 			continue
 		}

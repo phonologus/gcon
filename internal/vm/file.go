@@ -42,7 +42,7 @@ func (f *File) image() string {
 }
 
 func mustFile(v Value) *File {
-	f, ok := v.(*File)
+	f, ok := v.Any().(*File)
 	if !ok {
 		Runerr(105, v)
 	}
@@ -51,7 +51,7 @@ func mustFile(v Value) *File {
 
 // fileArg returns a[i] as a file, defaulting to d.
 func fileArg(a []Value, i int, d *File) *File {
-	if _, null := arg(a, i).(Null); null {
+	if _, null := arg(a, i).Any().(Null); null {
 		return d
 	}
 	return mustFile(a[i])
@@ -59,7 +59,7 @@ func fileArg(a []Value, i int, d *File) *File {
 
 func (vm *VM) reader(f *File) *bufio.Reader {
 	if f.r == nil || f.closed {
-		Runerr(212, f)
+		Runerr(212, V(f))
 	}
 	if f == vm.input {
 		vm.output.w.Flush() // let a prompt appear before input is read
@@ -69,7 +69,7 @@ func (vm *VM) reader(f *File) *bufio.Reader {
 
 func (vm *VM) writer(f *File) *bufio.Writer {
 	if f.w == nil || f.closed {
-		Runerr(213, f)
+		Runerr(213, V(f))
 	}
 	if f.errout {
 		vm.output.w.Flush() // keep standard output and error in order
@@ -158,7 +158,7 @@ func (vm *VM) writeArgs(f *File, a []Value, nl bool) Value {
 	var buf []byte
 	for n, v := range a {
 		last = v
-		switch x := v.(type) {
+		switch x := v.Any().(type) {
 		case *File:
 			if nl && n > 0 {
 				buf = append(buf, '\n')
@@ -170,7 +170,7 @@ func (vm *VM) writeArgs(f *File, a []Value, nl bool) Value {
 			f = x
 		case Null:
 		default:
-			s, ok := CvStr(x)
+			s, ok := CvStr(V(x))
 			if !ok {
 				vm.writer(f)
 				if f.errout {
@@ -178,7 +178,7 @@ func (vm *VM) writeArgs(f *File, a []Value, nl bool) Value {
 				} else {
 					vm.partial, vm.partialFile = buf, f
 				}
-				Runerr(109, x)
+				Runerr(109, V(x))
 			}
 			buf = append(buf, s.s...)
 		}
@@ -209,7 +209,7 @@ func (vm *VM) openFile(name, mode string) (*File, bool) {
 	has := func(c byte) bool { return strings.IndexByte(mode, c) >= 0 }
 	for i := 0; i < len(mode); i++ {
 		if !strings.ContainsRune("rwabctupRWABCTUP", rune(mode[i])) {
-			Runerr(209, Text(mode))
+			Runerr(209, V(Text(mode)))
 		}
 	}
 	mode = strings.ToLower(mode)
@@ -312,13 +312,13 @@ func (vm *VM) openFile(name, mode string) (*File, bool) {
 // byte: the exit code, not the wait status that system() returns).
 func (vm *VM) closeFile(f *File) Value {
 	if f.closed {
-		return f
+		return V(f)
 	}
 	if f.w != nil {
 		f.w.Flush()
 	}
 	if f.keyword {
-		return f
+		return V(f)
 	}
 	if f.cmd != nil {
 		vm.out.Flush() // the command may write to standard output as it ends
@@ -328,12 +328,12 @@ func (vm *VM) closeFile(f *File) Value {
 		f.closer.Close()
 	}
 	if f.cmd != nil {
-		return Int(waitStatus(f.cmd.Wait()) >> 8 & 0xff)
+		return V(Int(waitStatus(f.cmd.Wait()) >> 8 & 0xff))
 	}
 	if f.os != nil {
 		f.os.Close()
 	}
-	return f
+	return V(f)
 }
 
 // shell returns a command that runs s with /bin/sh as C's system and
@@ -371,26 +371,30 @@ func waitStatus(err error) int {
 // lineGen generates the lines of a file (!f).
 type lineGen struct{ f *File }
 
-func (g lineGen) Next(vm *VM) (Value, bool) { return vm.readLine(g.f) }
+func (g lineGen) Next(vm *VM) (Value, bool) {
+	s, ok := vm.readLine(g.f)
+	return V(s), ok
+}
 
 func init() {
-	Ops["&input"] = &Builtin{Name: "&input", Fn: func(vm *VM, a []Value) (Value, bool) { return vm.input, true }}
-	Ops["&output"] = &Builtin{Name: "&output", Fn: func(vm *VM, a []Value) (Value, bool) { return vm.output, true }}
-	Ops["&errout"] = &Builtin{Name: "&errout", Fn: func(vm *VM, a []Value) (Value, bool) { return vm.errfile, true }}
+	Ops["&input"] = &Builtin{Name: "&input", Fn: func(vm *VM, a []Value) (Value, bool) { return V(vm.input), true }}
+	Ops["&output"] = &Builtin{Name: "&output", Fn: func(vm *VM, a []Value) (Value, bool) { return V(vm.output), true }}
+	Ops["&errout"] = &Builtin{Name: "&errout", Fn: func(vm *VM, a []Value) (Value, bool) { return V(vm.errfile), true }}
 
 	fn("write", func(vm *VM, a []Value) (Value, bool) { return vm.writeArgs(vm.output, a, true), true })
 	fn("writes", func(vm *VM, a []Value) (Value, bool) { return vm.writeArgs(vm.output, a, false), true })
 	fn("stop", func(vm *VM, a []Value) (Value, bool) {
 		vm.writeArgs(vm.errfile, a, true)
 		vm.Exit(1)
-		return nil, false
+		return Value{}, false
 	})
 	fn("open", func(vm *VM, a []Value) (Value, bool) {
 		mode := "r"
-		if _, null := arg(a, 1).(Null); !null {
+		if _, null := arg(a, 1).Any().(Null); !null {
 			mode = MustStr(a[1]).s
 		}
-		return vm.openFile(MustStr(arg(a, 0)).s, mode)
+		f, ok := vm.openFile(MustStr(arg(a, 0)).s, mode)
+		return V(f), ok
 	})
 	fn("close", func(vm *VM, a []Value) (Value, bool) {
 		return vm.closeFile(mustFile(arg(a, 0))), true
@@ -400,27 +404,29 @@ func init() {
 		if f.w != nil {
 			f.w.Flush()
 		}
-		return f, true
+		return V(f), true
 	})
 	fn("read", func(vm *VM, a []Value) (Value, bool) {
-		return vm.readLine(fileArg(a, 0, vm.input))
+		s, ok := vm.readLine(fileArg(a, 0, vm.input))
+		return V(s), ok
 	})
 	fn("reads", func(vm *VM, a []Value) (Value, bool) {
 		f := fileArg(a, 0, vm.input)
 		n := 1
-		if _, null := arg(a, 1).(Null); !null {
+		if _, null := arg(a, 1).Any().(Null); !null {
 			n = int(MustInt(a[1]))
 		}
 		if n <= 0 {
-			Runerr(205, Int(n))
+			Runerr(205, V(Int(n)))
 		}
-		return vm.readChars(f, n)
+		s, ok := vm.readChars(f, n)
+		return V(s), ok
 	})
 	fn("seek", func(vm *VM, a []Value) (Value, bool) {
 		f := mustFile(arg(a, 0))
 		i := MustInt(arg(a, 1))
 		if f.os == nil {
-			return nil, false
+			return Value{}, false
 		}
 		if f.w != nil {
 			f.w.Flush()
@@ -432,29 +438,29 @@ func init() {
 			_, err = f.os.Seek(int64(i), io.SeekEnd)
 		}
 		if err != nil {
-			return nil, false
+			return Value{}, false
 		}
 		if f.r != nil {
 			f.r.Reset(f.os)
 		}
-		return f, true
+		return V(f), true
 	})
 	fn("where", func(vm *VM, a []Value) (Value, bool) {
 		f := mustFile(arg(a, 0))
 		if f.os == nil {
-			return nil, false
+			return Value{}, false
 		}
 		if f.w != nil {
 			f.w.Flush()
 		}
 		off, err := f.os.Seek(0, io.SeekCurrent)
 		if err != nil {
-			return nil, false
+			return Value{}, false
 		}
 		if f.r != nil {
 			off -= int64(f.r.Buffered())
 		}
-		return Int(off + 1), true
+		return V(Int(off + 1)), true
 	})
 	fn("remove", func(vm *VM, a []Value) (Value, bool) {
 		return NullValue, os.Remove(MustStr(arg(a, 0)).s) == nil
@@ -464,13 +470,13 @@ func init() {
 	})
 	fn("getenv", func(vm *VM, a []Value) (Value, bool) {
 		v, ok := os.LookupEnv(MustStr(arg(a, 0)).s)
-		return Text(v), ok
+		return V(Text(v)), ok
 	})
 	fn("system", func(vm *VM, a []Value) (Value, bool) {
 		vm.output.w.Flush()
 		vm.errfile.w.Flush()
 		cmd := vm.shell(MustStr(arg(a, 0)).s)
-		return Int(waitStatus(cmd.Run())), true
+		return V(Int(waitStatus(cmd.Run()))), true
 	})
 }
 

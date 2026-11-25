@@ -42,7 +42,7 @@ func (vm *VM) scanSwap(e *scanEnv) {
 // subjectVar is the variable &subject.
 type subjectVar struct{ vm *VM }
 
-func (k subjectVar) Get() Value { return k.vm.subject }
+func (k subjectVar) Get() Value { return V(k.vm.subject) }
 func (k subjectVar) Set(v Value) bool {
 	k.vm.subject, k.vm.pos = MustStr(v), 1
 	return true
@@ -51,7 +51,7 @@ func (k subjectVar) Set(v Value) bool {
 // posVar is the variable &pos; assigning an invalid position fails.
 type posVar struct{ vm *VM }
 
-func (k posVar) Get() Value { return Int(k.vm.pos) }
+func (k posVar) Get() Value { return V(Int(k.vm.pos)) }
 func (k posVar) Set(v Value) bool {
 	p, ok := cvpos(MustInt(v), k.vm.subject.Len())
 	if ok {
@@ -85,8 +85,8 @@ func (s *String) widthBefore(i int) int {
 // end. It fails if a position is out of range.
 func (vm *VM) scanArgs(a []Value, k int) (s *String, i, j int, ok bool) {
 	sv, iv, jv := arg(a, k), arg(a, k+1), arg(a, k+2)
-	_, iNull := iv.(Null)
-	if _, null := sv.(Null); null {
+	_, iNull := iv.Any().(Null)
+	if _, null := sv.Any().(Null); null {
 		s = vm.subject
 		if iNull {
 			i = vm.pos
@@ -103,7 +103,7 @@ func (vm *VM) scanArgs(a []Value, k int) (s *String, i, j int, ok bool) {
 			return nil, 0, 0, false
 		}
 	}
-	if _, null := jv.(Null); null {
+	if _, null := jv.Any().(Null); null {
 		j = n + 1
 	} else {
 		if j, ok = cvpos(MustInt(jv), n); !ok {
@@ -127,7 +127,7 @@ func MustCset(v Value) *Cset {
 
 // CvCset converts v to a cset, if it can.
 func CvCset(v Value) (*Cset, bool) {
-	if c, ok := v.(*Cset); ok {
+	if c, ok := v.Any().(*Cset); ok {
 		return c, true
 	}
 	if s, ok := CvStr(v); ok {
@@ -138,7 +138,7 @@ func CvCset(v Value) (*Cset, bool) {
 
 // csetArg converts a[i] to a cset, with default d.
 func csetArg(a []Value, i int, d *Cset) *Cset {
-	if _, null := arg(a, i).(Null); null {
+	if _, null := arg(a, i).Any().(Null); null {
 		return d
 	}
 	return MustCset(a[i])
@@ -171,7 +171,7 @@ type restorer struct {
 func (g *restorer) Next(vm *VM) (Value, bool) {
 	if g.done {
 		vm.pos = g.old
-		return nil, false
+		return Value{}, false
 	}
 	g.done = true
 	return g.v, true
@@ -180,7 +180,7 @@ func (g *restorer) Next(vm *VM) (Value, bool) {
 // failGen produces nothing.
 type failGen struct{}
 
-func (failGen) Next(*VM) (Value, bool) { return nil, false }
+func (failGen) Next(*VM) (Value, bool) { return Value{}, false }
 
 // tabTo moves &pos to p, producing the substring passed over.
 func (vm *VM) tabTo(p int) Generator {
@@ -191,7 +191,7 @@ func (vm *VM) tabTo(p int) Generator {
 	}
 	v := vm.subject.Slice(i, j)
 	vm.pos = p
-	return &restorer{v: v, old: old}
+	return &restorer{v: V(v), old: old}
 }
 
 // funcGen is a generator from a Go function returning successive results.
@@ -205,10 +205,10 @@ func gen(name string, f func(vm *VM, a []Value) Generator) {
 
 func init() {
 	Ops["&subject"] = &Builtin{Name: "&subject", Fn: func(vm *VM, a []Value) (Value, bool) {
-		return subjectVar{vm}, true
+		return V(subjectVar{vm}), true
 	}}
 	Ops["&pos"] = &Builtin{Name: "&pos", Fn: func(vm *VM, a []Value) (Value, bool) {
-		return posVar{vm}, true
+		return V(posVar{vm}), true
 	}}
 	// =s is tab(match(s)).
 	Ops["u="] = &Builtin{Name: "=", Gen: func(vm *VM, a []Value) Generator {
@@ -219,7 +219,7 @@ func init() {
 		return vm.tabTo(vm.pos + len(t.s))
 	}}
 	Ops["u~"] = &Builtin{Name: "~", Fn: func(vm *VM, a []Value) (Value, bool) {
-		return Complement(MustCset(a[0])), true
+		return V(Complement(MustCset(a[0]))), true
 	}}
 	for _, op := range []struct {
 		name string
@@ -230,10 +230,10 @@ func init() {
 			// Two sets, or else both are converted to csets, x first
 			// (oset.r): error 120 names the first that fails, so a set
 			// and a cset is an error in the set if it comes first.
-			s1, set1 := a[0].(*Set)
-			s2, set2 := a[1].(*Set)
+			s1, set1 := a[0].Any().(*Set)
+			s2, set2 := a[1].Any().(*Set)
 			if set1 && set2 {
-				return vm.setOp(c, s1, s2), true
+				return V(vm.setOp(c, s1, s2)), true
 			}
 			x, ok := CvCset(a[0])
 			if !ok {
@@ -243,12 +243,13 @@ func init() {
 			if !ok {
 				Runerr(120, a[1])
 			}
-			return CsetOp(c, x, y), true
+			return V(CsetOp(c, x, y)), true
 		}}
 	}
 
 	fn("cset", func(vm *VM, a []Value) (Value, bool) {
-		return CvCset(arg(a, 0))
+		c, ok := CvCset(arg(a, 0))
+		return V(c), ok
 	})
 	gen("tab", func(vm *VM, a []Value) Generator {
 		p, ok := cvpos(MustInt(arg(a, 0)), vm.subject.Len())
@@ -277,15 +278,15 @@ func init() {
 	})
 	fn("pos", func(vm *VM, a []Value) (Value, bool) {
 		p, ok := cvpos(MustInt(arg(a, 0)), vm.subject.Len())
-		return Int(p), ok && p == vm.pos
+		return V(Int(p)), ok && p == vm.pos
 	})
 	fn("match", func(vm *VM, a []Value) (Value, bool) {
 		s, i, j, ok := vm.scanArgs(a, 1)
 		if !ok {
-			return nil, false
+			return Value{}, false
 		}
 		t := MustStr(arg(a, 0))
-		return Int(i + len(t.s)), matches(s, i-1, j-1, t)
+		return V(Int(i + len(t.s))), matches(s, i-1, j-1, t)
 	})
 	gen("find", func(vm *VM, a []Value) Generator {
 		s, i, j, ok := vm.scanArgs(a, 1)
@@ -298,16 +299,16 @@ func init() {
 		off, end := i-1, j-1
 		return funcGen(func() (Value, bool) {
 			if off > end {
-				return nil, false
+				return Value{}, false
 			}
 			k := strings.Index(s.s[off:end], t.s)
 			if k < 0 {
 				off = end + 1
-				return nil, false
+				return Value{}, false
 			}
 			p := off + k + 1
 			off += k + 1
-			return Int(p), true
+			return V(Int(p)), true
 		})
 	})
 	gen("upto", func(vm *VM, a []Value) Generator {
@@ -323,17 +324,17 @@ func init() {
 				p := off + 1
 				off += w
 				if in {
-					return Int(p), true
+					return V(Int(p)), true
 				}
 			}
-			return nil, false
+			return Value{}, false
 		})
 	})
 	fn("many", func(vm *VM, a []Value) (Value, bool) {
 		c := MustCset(arg(a, 0))
 		s, i, j, ok := vm.scanArgs(a, 1)
 		if !ok {
-			return nil, false
+			return Value{}, false
 		}
 		off, end := i-1, j-1
 		for off < end {
@@ -343,16 +344,16 @@ func init() {
 			}
 			off += w
 		}
-		return Int(off + 1), off > i-1
+		return V(Int(off + 1)), off > i-1
 	})
 	fn("any", func(vm *VM, a []Value) (Value, bool) {
 		c := MustCset(arg(a, 0))
 		s, i, j, ok := vm.scanArgs(a, 1)
 		if !ok || i >= j {
-			return nil, false
+			return Value{}, false
 		}
 		w, in := c.matchAt(s, i-1)
-		return Int(i + w), in
+		return V(Int(i + w)), in
 	})
 	gen("bal", func(vm *VM, a []Value) Generator {
 		s, i, j, ok := vm.scanArgs(a, 3)
@@ -382,13 +383,13 @@ func init() {
 					if cnt < 0 {
 						end = off // fail when resumed
 					}
-					return Int(o + 1), true
+					return V(Int(o + 1)), true
 				}
 				if cnt < 0 {
-					return nil, false
+					return Value{}, false
 				}
 			}
-			return nil, false
+			return Value{}, false
 		})
 	})
 }

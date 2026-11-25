@@ -57,24 +57,24 @@ func FieldOp(name string) *Builtin { return fieldOps.get(name) }
 
 var fieldOps = newMemo(func(name string) *Builtin {
 	return &Builtin{Name: "." + name, Fn: func(vm *VM, a []Value) (Value, bool) {
-		r, ok := a[0].(*Record)
+		r, ok := a[0].Any().(*Record)
 		if !ok {
 			Runerr(107, a[0])
 		}
 		i, ok := r.T.index[name]
 		if !ok {
-			Runerr(207, r)
+			Runerr(207, V(r))
 		}
-		return FieldVar{r, i}, true
+		return V(FieldVar{r, i}), true
 	}}
 })
 
 // recordIndex is r[x]: by position, or by field name.
 func recordIndex(r *Record, x Value) (Value, bool) {
-	if s, ok := x.(*String); ok {
+	if s, ok := x.Any().(*String); ok {
 		if _, isNum := strToNum(s.s); !isNum {
 			i, ok := r.T.index[s.s]
-			return FieldVar{r, i}, ok
+			return V(FieldVar{r, i}), ok
 		}
 	}
 	i := MustInt(x)
@@ -83,9 +83,9 @@ func recordIndex(r *Record, x Value) (Value, bool) {
 		i += n + 1
 	}
 	if i < 1 || i > n {
-		return nil, false
+		return Value{}, false
 	}
-	return FieldVar{r, int(i - 1)}, true
+	return V(FieldVar{r, int(i - 1)}), true
 }
 
 type recordGen struct {
@@ -95,8 +95,8 @@ type recordGen struct {
 
 func (g *recordGen) Next(vm *VM) (Value, bool) {
 	if g.i >= len(g.r.Fields) {
-		return nil, false
+		return Value{}, false
 	}
 	g.i++
-	return FieldVar{g.r, g.i - 1}, true
+	return V(FieldVar{g.r, g.i - 1}), true
 }

@@ -18,31 +18,31 @@ var strCases = []struct {
 	args []Value
 	want string
 }{
-	{"reverse", "reverse", []Value{Text("abcdefghijklmnopqrstuvwxyz")}, "zyxwvutsrqponmlkjihgfedcba"},
-	{"reverse/text", "reverse", []Value{Text("aé€𝄞b")}, "b𝄞€éa"},
-	{"reverse/bytes", "reverse", []Value{NewString("a\xc3\xa9", BytesUnit)}, "\xa9\xc3a"},
-	{"left", "left", []Value{Text("a"), Int(10)}, "a         "},
-	{"left/pad", "left", []Value{Text("abc"), Int(8), Text("xy")}, "abcyxyxy"},
-	{"left/text", "left", []Value{Text("é"), Int(4), Text("€·")}, "é·€·"},
-	{"left/cut", "left", []Value{Text("aéb"), Int(2)}, "aé"},
-	{"right", "right", []Value{Text("a"), Int(10)}, "         a"},
-	{"right/pad", "right", []Value{Text("abc"), Int(8), Text("xy")}, "xyxyxabc"},
-	{"right/text", "right", []Value{Text("é"), Int(4), Text("€·")}, "€·€é"},
-	{"right/cut", "right", []Value{Text("aéb"), Int(2)}, "éb"},
-	{"center", "center", []Value{Text("a"), Int(10)}, "    a     "},
-	{"center/pad", "center", []Value{Text("ab"), Int(9), Text("xy")}, "xyxabxyxy"},
-	{"center/text", "center", []Value{Text("é"), Int(5), Text("€·")}, "€·é€·"},
-	{"center/cut", "center", []Value{Text("aébcd"), Int(2)}, "bc"},
-	{"trim", "trim", []Value{Text("a         ")}, "a"},
-	{"trim/cset", "trim", []Value{Text("xaéyé"), NewCsetLiteral([]string{"é"}, nil, TextUnit)}, "xaéy"},
-	{"trim/all", "trim", []Value{Text("   ")}, ""},
-	{"map", "map", []Value{Text("quick brown fox"), Text("abcdefghijklmnopqrstuvwxyz"), Text("ABCDEFGHIJKLMNOPQRSTUVWXYZ")}, "QUICK BROWN FOX"},
-	{"map/small", "map", []Value{Text("b"), Text("ab"), Text("ba")}, "a"},
-	{"map/text", "map", []Value{Text("aébé"), Text("é"), Text("€")}, "a€b€"},
-	{"map/later", "map", []Value{Text("aba"), Text("aa"), Text("xy")}, "yby"},
-	{"map/default", "map", []Value{Text("Hello")}, "hello"},
-	{"detab", "detab", []Value{Text("a\tb\tc")}, "a       b       c"},
-	{"entab", "entab", []Value{Text("a         ")}, "a\t  "},
+	{"reverse", "reverse", []Value{V(Text("abcdefghijklmnopqrstuvwxyz"))}, "zyxwvutsrqponmlkjihgfedcba"},
+	{"reverse/text", "reverse", []Value{V(Text("aé€𝄞b"))}, "b𝄞€éa"},
+	{"reverse/bytes", "reverse", []Value{V(NewString("a\xc3\xa9", BytesUnit))}, "\xa9\xc3a"},
+	{"left", "left", []Value{V(Text("a")), V(Int(10))}, "a         "},
+	{"left/pad", "left", []Value{V(Text("abc")), V(Int(8)), V(Text("xy"))}, "abcyxyxy"},
+	{"left/text", "left", []Value{V(Text("é")), V(Int(4)), V(Text("€·"))}, "é·€·"},
+	{"left/cut", "left", []Value{V(Text("aéb")), V(Int(2))}, "aé"},
+	{"right", "right", []Value{V(Text("a")), V(Int(10))}, "         a"},
+	{"right/pad", "right", []Value{V(Text("abc")), V(Int(8)), V(Text("xy"))}, "xyxyxabc"},
+	{"right/text", "right", []Value{V(Text("é")), V(Int(4)), V(Text("€·"))}, "€·€é"},
+	{"right/cut", "right", []Value{V(Text("aéb")), V(Int(2))}, "éb"},
+	{"center", "center", []Value{V(Text("a")), V(Int(10))}, "    a     "},
+	{"center/pad", "center", []Value{V(Text("ab")), V(Int(9)), V(Text("xy"))}, "xyxabxyxy"},
+	{"center/text", "center", []Value{V(Text("é")), V(Int(5)), V(Text("€·"))}, "€·é€·"},
+	{"center/cut", "center", []Value{V(Text("aébcd")), V(Int(2))}, "bc"},
+	{"trim", "trim", []Value{V(Text("a         "))}, "a"},
+	{"trim/cset", "trim", []Value{V(Text("xaéyé")), V(NewCsetLiteral([]string{"é"}, nil, TextUnit))}, "xaéy"},
+	{"trim/all", "trim", []Value{V(Text("   "))}, ""},
+	{"map", "map", []Value{V(Text("quick brown fox")), V(Text("abcdefghijklmnopqrstuvwxyz")), V(Text("ABCDEFGHIJKLMNOPQRSTUVWXYZ"))}, "QUICK BROWN FOX"},
+	{"map/small", "map", []Value{V(Text("b")), V(Text("ab")), V(Text("ba"))}, "a"},
+	{"map/text", "map", []Value{V(Text("aébé")), V(Text("é")), V(Text("€"))}, "a€b€"},
+	{"map/later", "map", []Value{V(Text("aba")), V(Text("aa")), V(Text("xy"))}, "yby"},
+	{"map/default", "map", []Value{V(Text("Hello"))}, "hello"},
+	{"detab", "detab", []Value{V(Text("a\tb\tc"))}, "a       b       c"},
+	{"entab", "entab", []Value{V(Text("a         "))}, "a\t  "},
 }
 
 func callStr(vm *VM, fn string, args []Value) string {
@@ -51,7 +51,7 @@ func callStr(vm *VM, fn string, args []Value) string {
 	if !ok {
 		return "<failed>"
 	}
-	return v.(*String).s
+	return v.Any().(*String).s
 }
 
 func TestStrFuncs(t *testing.T) {

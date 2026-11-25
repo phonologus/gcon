@@ -45,12 +45,12 @@ func (vm *VM) getKey(echo bool) (Value, bool) {
 		c, err = r.ReadByte()
 	})
 	if err != nil {
-		return nil, false
+		return Value{}, false
 	}
 	if c < utf8.RuneSelf {
-		return Text(string(rune(c))), true
+		return V(Text(string(rune(c)))), true
 	}
-	return NewString(string([]byte{c}), BytesUnit), true
+	return V(NewString(string([]byte{c}), BytesUnit)), true
 }
 
 func init() {

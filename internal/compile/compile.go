@@ -92,7 +92,7 @@ func Compile(p *sema.Program, infos []*sema.Info) (*vm.Program, []error) {
 						fields = append(fields, t.Text)
 					}
 				}
-				c.prog.Globals[c.global(d.Name.Text, vm.NullValue)] = vm.NewRecordType(d.Name.Text, fields)
+				c.prog.Globals[c.global(d.Name.Text, vm.NullValue)] = vm.V(vm.NewRecordType(d.Name.Text, fields))
 			case *syntax.LinkDecl:
 				// Resolved by run.TranslateLinked, which passes the
 				// linked files in.
@@ -129,10 +129,10 @@ func Compile(p *sema.Program, infos []*sema.Info) (*vm.Program, []error) {
 			continue
 		}
 		proc := c.proc(pi.decl, pi.info)
-		c.prog.Globals[c.globals[proc.Name]] = proc
+		c.prog.Globals[c.globals[proc.Name]] = vm.V(proc)
 	}
 	if i, ok := c.globals["main"]; ok {
-		if _, isProc := c.prog.Globals[i].(*vm.Proc); isProc {
+		if _, isProc := c.prog.Globals[i].Any().(*vm.Proc); isProc {
 			c.prog.Main = i
 		}
 	}
@@ -641,7 +641,7 @@ func (p *pcomp) genOp(b *vm.Builtin, args []syntax.Expr, fail, succ label) (labe
 	a := p.newLabel()
 	st, r, vs := p.seq(args, fail, a)
 	p.place(a)
-	fn := p.c.constant("op "+b.Name, b)
+	fn := p.c.constant("op "+b.Name, vm.V(b))
 	res := p.call(fn, vs, r, succ)
 	return st, res, p.lastTemp(2)
 }
@@ -711,7 +711,7 @@ func (p *pcomp) ident(t *syntax.Token) vm.Operand {
 		if f == nil {
 			f = vm.Unsupported(s.Name)
 		}
-		return vm.Operand{Kind: vm.GlobalOp, Index: int32(p.c.global(s.Name, f))}
+		return vm.Operand{Kind: vm.GlobalOp, Index: int32(p.c.global(s.Name, vm.V(f)))}
 	}
 	p.errorf(&syntax.Ident{Name: t}, "%s %s is not yet supported", s.Kind, s.Name)
 	return p.null()
@@ -730,7 +730,7 @@ func (p *pcomp) literal(e *syntax.Literal) vm.Operand {
 		if u == lit.Bytes {
 			unit = vm.BytesUnit
 		}
-		return p.c.constant(fmt.Sprintf("s%d%q", unit, s), vm.NewString(s, unit))
+		return p.c.constant(fmt.Sprintf("s%d%q", unit, s), vm.V(vm.NewString(s, unit)))
 	case token.CSETLIT:
 		segs, ranges, u, err := lit.Cset(t.Text)
 		if err != nil {
@@ -745,7 +745,7 @@ func (p *pcomp) literal(e *syntax.Literal) vm.Operand {
 		for i, r := range ranges {
 			rs[i] = vm.CsetRange{Lo: r.Lo, Hi: r.Hi, LoneBytes: r.LoneBytes}
 		}
-		return p.c.constant(fmt.Sprintf("c%d%q%v", unit, segs, ranges), vm.NewCsetLiteral(segs, rs, unit))
+		return p.c.constant(fmt.Sprintf("c%d%q%v", unit, segs, ranges), vm.V(vm.NewCsetLiteral(segs, rs, unit)))
 	case token.INTLIT:
 		n, err := lit.ParseNumber(t.Text)
 		if err != nil {
@@ -753,14 +753,14 @@ func (p *pcomp) literal(e *syntax.Literal) vm.Operand {
 		} else if n.Big != nil {
 			return p.c.constant("I"+n.Big.String(), vm.NewInteger(n.Big))
 		} else {
-			return p.c.constant(fmt.Sprintf("i%d", n.Int), vm.Int(n.Int))
+			return p.c.constant(fmt.Sprintf("i%d", n.Int), vm.V(vm.Int(n.Int)))
 		}
 	case token.REALLIT:
 		n, err := lit.ParseNumber(t.Text)
 		if err != nil {
 			p.errorf(e, "%v", err)
 		} else {
-			return p.c.constant(fmt.Sprintf("r%v", n.Real), vm.Real(n.Real))
+			return p.c.constant(fmt.Sprintf("r%v", n.Real), vm.V(vm.Real(n.Real)))
 		}
 	default:
 		p.errorf(e, "invalid literal")
@@ -775,25 +775,25 @@ func (p *pcomp) keyword(e *syntax.Keyword, fail, succ label) (label, label, vm.O
 	case "fail":
 		return fail, fail, p.null()
 	case "pi":
-		return succ, fail, p.c.constant("&pi", vm.Real(math.Pi))
+		return succ, fail, p.c.constant("&pi", vm.V(vm.Real(math.Pi)))
 	case "e":
-		return succ, fail, p.c.constant("&e", vm.Real(math.E))
+		return succ, fail, p.c.constant("&e", vm.V(vm.Real(math.E)))
 	case "phi":
-		return succ, fail, p.c.constant("&phi", vm.Real(math.Phi))
+		return succ, fail, p.c.constant("&phi", vm.V(vm.Real(math.Phi)))
 	case "cset":
-		return succ, fail, p.c.constant("&cset", vm.CsetAll)
+		return succ, fail, p.c.constant("&cset", vm.V(vm.CsetAll))
 	case "ascii":
-		return succ, fail, p.c.constant("&ascii", vm.CsetASCII)
+		return succ, fail, p.c.constant("&ascii", vm.V(vm.CsetASCII))
 	case "digits":
-		return succ, fail, p.c.constant("&digits", vm.CsetDigits)
+		return succ, fail, p.c.constant("&digits", vm.V(vm.CsetDigits))
 	case "lcase":
-		return succ, fail, p.c.constant("&lcase", vm.CsetLcase)
+		return succ, fail, p.c.constant("&lcase", vm.V(vm.CsetLcase))
 	case "ucase":
-		return succ, fail, p.c.constant("&ucase", vm.CsetUcase)
+		return succ, fail, p.c.constant("&ucase", vm.V(vm.CsetUcase))
 	case "letters":
-		return succ, fail, p.c.constant("&letters", vm.CsetLetters)
+		return succ, fail, p.c.constant("&letters", vm.V(vm.CsetLetters))
 	case "uset":
-		return succ, fail, p.c.constant("&uset", vm.CsetUniv)
+		return succ, fail, p.c.constant("&uset", vm.V(vm.CsetUniv))
 	case "current", "source", "main", "subject", "pos", "input", "output", "errout",
 		"error", "errornumber", "errortext", "errorvalue", "line", "file", "random",
 		"trace", "level", "clock", "date", "dateline", "time", "host", "version",
@@ -813,7 +813,7 @@ func (p *pcomp) keyword(e *syntax.Keyword, fail, succ label) (label, label, vm.O
 		return fail, fail, p.null()
 	}
 	if n, ok := vm.MouseEvents[e.Name.Text]; ok {
-		return succ, fail, p.c.constant(fmt.Sprintf("i%d", n), n)
+		return succ, fail, p.c.constant(fmt.Sprintf("i%d", n), vm.V(n))
 	}
 	p.errorf(e, "&%s is not yet supported", e.Name.Text)
 	return fail, fail, p.null()
@@ -1028,7 +1028,7 @@ func (p *pcomp) repalt(x syntax.Expr, fail, succ label) (label, label, vm.Operan
 	p.emit(vm.Instr{Op: vm.OpMove, Dst: produced, X: null})
 	p.jump(again)
 	p.place(a)
-	p.emit(vm.Instr{Op: vm.OpMove, Dst: produced, X: p.c.constant("i1", vm.Int(1))})
+	p.emit(vm.Instr{Op: vm.OpMove, Dst: produced, X: p.c.constant("i1", vm.V(vm.Int(1)))})
 	t := p.temp()
 	p.emit(vm.Instr{Op: vm.OpMoveVar, Dst: t, X: v})
 	p.jump(succ)
@@ -1388,7 +1388,7 @@ func (p *pcomp) limit(e, n syntax.Expr, fail, succ label) (label, label, vm.Oper
 	p.place(a)
 	p.emit(vm.Instr{Op: vm.OpOper, Fn: vm.Ops["limit"], Dst: lim, Args: []vm.Operand{vn}, L1: int32(b), L2: int32(rn)})
 	p.place(b)
-	p.emit(vm.Instr{Op: vm.OpMove, Dst: cnt, X: p.c.constant("i0", vm.Int(0))})
+	p.emit(vm.Instr{Op: vm.OpMove, Dst: cnt, X: p.c.constant("i0", vm.V(vm.Int(0)))})
 	var re label
 	var ve vm.Operand
 	p.enter(func() label {
@@ -1398,7 +1398,7 @@ func (p *pcomp) limit(e, n syntax.Expr, fail, succ label) (label, label, vm.Oper
 	})
 	// e produced a result: count it.
 	p.place(c)
-	p.emit(vm.Instr{Op: vm.OpOper, Fn: vm.Ops["+"], Dst: cnt, Args: []vm.Operand{cnt, p.c.constant("i1", vm.Int(1))}, L1: int32(succ), L2: int32(succ)})
+	p.emit(vm.Instr{Op: vm.OpOper, Fn: vm.Ops["+"], Dst: cnt, Args: []vm.Operand{cnt, p.c.constant("i1", vm.V(vm.Int(1)))}, L1: int32(succ), L2: int32(succ)})
 	// Resumed: resume e if the limit allows, else resume n.
 	p.place(res)
 	p.emit(vm.Instr{Op: vm.OpOper, Fn: vm.Ops["<"], Dst: junk, Args: []vm.Operand{cnt, lim}, L1: int32(re), L2: int32(rn)})

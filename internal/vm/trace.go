@@ -30,7 +30,7 @@ const (
 // Inside a list or record (noimage > 0), a non-empty list is shown by
 // size and a record by its number of fields.
 func (vm *VM) OutImage(v Value, noimage int) string {
-	switch x := v.(type) {
+	switch x := v.Any().(type) {
 	case posVar:
 		return "&pos = " + vm.OutImage(x.Get(), noimage)
 	case subjectVar:
@@ -46,7 +46,7 @@ func (vm *VM) OutImage(v Value, noimage int) string {
 	case *Value, Var:
 		return "(variable = " + vm.OutImage(Deref(v), noimage) + ")"
 	}
-	switch x := v.(type) {
+	switch x := v.Any().(type) {
 	case *String:
 		if x.Runes() <= stringLimit {
 			return quote(x, '"')
@@ -182,7 +182,7 @@ func (vm *VM) traceCo(f *Frame, pc int, kind string, v Value, next *Coexp) {
 // traceVar is the variable &trace.
 type traceVar struct{ vm *VM }
 
-func (k traceVar) Get() Value { return k.vm.trace }
+func (k traceVar) Get() Value { return V(k.vm.trace) }
 func (k traceVar) Set(v Value) bool {
 	k.vm.trace = MustInt(v)
 	return true
@@ -190,10 +190,10 @@ func (k traceVar) Set(v Value) bool {
 
 func init() {
 	Ops["&trace"] = &Builtin{Name: "&trace", Fn: func(vm *VM, a []Value) (Value, bool) {
-		return traceVar{vm}, true
+		return V(traceVar{vm}), true
 	}}
 	Ops["&level"] = &Builtin{Name: "&level", Fn: func(vm *VM, a []Value) (Value, bool) {
-		return Int(vm.level), true
+		return V(Int(vm.level)), true
 	}}
 }
 
@@ -250,10 +250,14 @@ func (vm *VM) offending(f *Frame, pc int) string {
 		case "+", "-", "*", "/", "%", "^", "<", "<=", ">", ">=", "=", "~=":
 			c, ok = CvNum(x)
 		case "||", "==", "~==", "<<", "<<=", ">>", ">>=":
-			c, ok = CvStr(x)
+			var cs *String
+			cs, ok = CvStr(x)
+			c = V(cs)
 		case "++", "--", "**":
-			if _, isSet := x.(*Set); !isSet {
-				c, ok = CvCset(x)
+			if _, isSet := x.Any().(*Set); !isSet {
+				var cc *Cset
+				cc, ok = CvCset(x)
+				c = V(cc)
 			}
 		}
 		if !ok {
@@ -331,7 +335,7 @@ func (vm *VM) offending(f *Frame, pc int) string {
 		if in.Fn == ApplyOp {
 			return val(in.X) + " ! " + val(in.Args[0])
 		}
-		switch fv := Deref(vm.get(f, in.X)).(type) {
+		switch fv := Deref(vm.get(f, in.X)).Any().(type) {
 		case *Builtin:
 			if Functions[fv.Name] == fv {
 				// The arguments as the function receives them: padded
@@ -358,8 +362,8 @@ func (vm *VM) offending(f *Frame, pc int) string {
 			return fv.Name + "(" + args(in.Args) + ")"
 		default:
 			// Invoked by name: shown by the name it resolved to, if any.
-			if s, ok := CvStr(fv); ok {
-				switch p := vm.strproc(s.s, len(in.Args)).(type) {
+			if s, ok := CvStr(V(fv)); ok {
+				switch p := vm.strproc(s.s, len(in.Args)).Any().(type) {
 				case *Builtin:
 					return p.Name + "(" + args(in.Args) + ")"
 				case *Proc:
@@ -374,7 +378,7 @@ func (vm *VM) offending(f *Frame, pc int) string {
 			for i, o := range in.Args {
 				parts[i] = vari(o)
 			}
-			return vm.OutImage(fv, 0) + "(" + strings.Join(parts, ",") + ")"
+			return vm.OutImage(V(fv), 0) + "(" + strings.Join(parts, ",") + ")"
 		}
 	}
 	return "{...}"

@@ -5,16 +5,8 @@ import (
 	"unicode/utf8"
 )
 
-// Value is an Icon value: one of the types below. A Value may also be a
-// variable reference (see Var) where an expression produces a variable;
-// operations dereference their operands with Deref.
-type Value any
-
-// Null is the type of &null.
+// Null is &null in the representation V and Value.Any use.
 type Null struct{}
-
-// NullValue is &null.
-var NullValue Value = Null{}
 
 // Int is an Icon integer that fits in 64 bits; larger ones are *Big
 // (bigint.go).
@@ -187,20 +179,9 @@ func (e ListElem) Set(v Value) bool {
 	return true
 }
 
-// Deref returns the value of v if it is a variable, else v.
-func Deref(v Value) Value {
-	switch x := v.(type) {
-	case *Value:
-		return *x
-	case Var:
-		return x.Get()
-	}
-	return v
-}
-
 // TypeName returns the Icon type name of a (dereferenced) value.
 func TypeName(v Value) string {
-	switch x := v.(type) {
+	switch x := v.Any().(type) {
 	case Null:
 		return "null"
 	case Int, *Big:

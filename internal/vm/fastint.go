@@ -18,7 +18,7 @@ const (
 
 var intBoxes = func() (b [maxCachedInt - minCachedInt + 1]Value) {
 	for i := range b {
-		b[i] = Int(i + minCachedInt)
+		b[i] = V(Int(i + minCachedInt))
 	}
 	return b
 }()
@@ -26,7 +26,7 @@ var intBoxes = func() (b [maxCachedInt - minCachedInt + 1]Value) {
 // mkInt returns i as a Value, reusing a box for a small integer.
 func mkInt(i Int) Value {
 	if i < minCachedInt || i > maxCachedInt {
-		return i
+		return V(i)
 	}
 	return intBoxes[i-minCachedInt]
 }
@@ -81,7 +81,7 @@ func fastInt(op intOp, x, y Int, yv Value) (v Value, ok, done bool) {
 		return yv, x != y, true
 	}
 	if !done {
-		return nil, false, false
+		return Value{}, false, false
 	}
 	return mkInt(r), true, true
 }

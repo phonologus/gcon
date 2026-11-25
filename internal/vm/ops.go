@@ -78,7 +78,7 @@ func CvInt(v Value) (Int, bool) {
 	if !ok {
 		return 0, false
 	}
-	switch x := n.(type) {
+	switch x := n.Any().(type) {
 	case Real:
 		return realToInt(float64(x))
 	case Int:
@@ -89,7 +89,7 @@ func CvInt(v Value) (Int, bool) {
 
 // CvStr converts v to a string, if it can.
 func CvStr(v Value) (*String, bool) {
-	switch x := v.(type) {
+	switch x := v.Any().(type) {
 	case *String:
 		return x, true
 	case Int:
@@ -149,30 +149,30 @@ func add(x, y Int) Int {
 func strCompare(name string, ok func(c int) bool) *Builtin {
 	return &Builtin{Name: name, Fn: func(vm *VM, a []Value) (Value, bool) {
 		x, y := MustStr(a[0]), MustStr(a[1])
-		return y, ok(strings.Compare(x.s, y.s))
+		return V(y), ok(strings.Compare(x.s, y.s))
 	}}
 }
 
 // Identical reports whether x === y.
 func Identical(x, y Value) bool {
-	switch a := x.(type) {
+	switch a := x.Any().(type) {
 	case Null:
-		_, ok := y.(Null)
+		_, ok := y.Any().(Null)
 		return ok
 	case Int:
-		b, ok := y.(Int)
+		b, ok := y.Any().(Int)
 		return ok && a == b
 	case *Big:
-		b, ok := y.(*Big)
+		b, ok := y.Any().(*Big)
 		return ok && a.v.Cmp(b.v) == 0
 	case Real:
-		b, ok := y.(Real)
+		b, ok := y.Any().(Real)
 		return ok && a == b
 	case *String:
-		b, ok := y.(*String)
+		b, ok := y.Any().(*String)
 		return ok && a.s == b.s && (a.unit == b.unit || a.IsASCII())
 	case *Cset:
-		b, ok := y.(*Cset)
+		b, ok := y.Any().(*Cset)
 		return ok && equalCsets(a, b)
 	}
 	return x == y
@@ -210,11 +210,11 @@ var Ops = map[string]*Builtin{
 	}},
 
 	"||": {Name: "||", Fn: func(vm *VM, a []Value) (Value, bool) {
-		return Concat(MustStr(a[0]), MustStr(a[1])), true
+		return V(Concat(MustStr(a[0]), MustStr(a[1]))), true
 	}},
 	"|||": {Name: "|||", Fn: func(vm *VM, a []Value) (Value, bool) {
-		x, ok1 := a[0].(*List)
-		y, ok2 := a[1].(*List)
+		x, ok1 := a[0].Any().(*List)
+		y, ok2 := a[1].Any().(*List)
 		if !ok1 {
 			Runerr(108, a[0])
 		}
@@ -222,12 +222,12 @@ var Ops = map[string]*Builtin{
 			Runerr(108, a[1])
 		}
 		e := make([]Value, 0, len(x.Elems)+len(y.Elems))
-		return vm.NewList(append(append(e, x.Elems...), y.Elems...)), true
+		return V(vm.NewList(append(append(e, x.Elems...), y.Elems...))), true
 	}},
 
 	"u-": {Name: "-", Fn: func(vm *VM, a []Value) (Value, bool) {
-		if r, ok := MustNum(a[0]).(Real); ok {
-			return -r, true
+		if r, ok := MustNum(a[0]).Any().(Real); ok {
+			return V(-r), true
 		}
 		return neg(MustNum(a[0])), true
 	}},
@@ -235,32 +235,32 @@ var Ops = map[string]*Builtin{
 		return MustNum(a[0]), true
 	}},
 	"u*": {Name: "*", Fn: func(vm *VM, a []Value) (Value, bool) {
-		switch x := a[0].(type) {
+		switch x := a[0].Any().(type) {
 		case *List:
-			return Int(len(x.Elems)), true
+			return V(Int(len(x.Elems))), true
 		case *Coexp:
-			return Int(x.results), true
+			return V(Int(x.results)), true
 		case *Cset:
-			return Int(x.Size()), true
+			return V(Int(x.Size())), true
 		case *Record:
-			return Int(len(x.Fields)), true
+			return V(Int(len(x.Fields))), true
 		case *Table:
-			return Int(x.m.len()), true
+			return V(Int(x.m.len())), true
 		case *Set:
-			return Int(x.m.len()), true
+			return V(Int(x.m.len())), true
 		}
 		if s, ok := CvStr(a[0]); ok {
-			return Int(s.Len()), true
+			return V(Int(s.Len())), true
 		}
 		Runerr(112, a[0])
-		return nil, false
+		return Value{}, false
 	}},
 	"u!": {Name: "!", Gen: bang, RefFirst: true},
 
 	"[]":  {Name: "[]", Fn: index, RefFirst: true},
 	"[:]": {Name: "[:]", Fn: section, RefFirst: true},
 	"[...]": {Name: "[...]", Fn: func(vm *VM, a []Value) (Value, bool) {
-		return vm.NewList(append([]Value(nil), a...)), true
+		return V(vm.NewList(append([]Value(nil), a...))), true
 	}},
 	"to": {Name: "to", Gen: toBy},
 	// limit validates the limit of e \ n: an integer, at least 0; a limit
@@ -268,19 +268,19 @@ var Ops = map[string]*Builtin{
 	"limit": {Name: "limit", Fn: func(vm *VM, a []Value) (Value, bool) {
 		n := MustInt(a[0])
 		if n < 0 {
-			Runerr(205, n)
+			Runerr(205, V(n))
 		}
-		return n, n > 0
+		return V(n), n > 0
 	}},
 }
 
 func index(vm *VM, a []Value) (Value, bool) {
 	ref := a[0]
-	switch x := Deref(ref).(type) {
+	switch x := Deref(ref).Any().(type) {
 	case *Record:
 		return recordIndex(x, a[1])
 	case *Table:
-		return TableElem{x, a[1]}, true
+		return V(TableElem{x, a[1]}), true
 	case *List:
 		i := MustInt(a[1])
 		n := Int(len(x.Elems))
@@ -288,9 +288,9 @@ func index(vm *VM, a []Value) (Value, bool) {
 			i += n + 1
 		}
 		if i < 1 || i > n {
-			return nil, false
+			return Value{}, false
 		}
-		return ListElem{x, int(i - 1)}, true
+		return V(ListElem{x, int(i - 1)}), true
 	}
 	s, ok := CvStr(Deref(ref))
 	if !ok {
@@ -298,19 +298,19 @@ func index(vm *VM, a []Value) (Value, bool) {
 	}
 	i, ok := cvpos(MustInt(a[1]), s.Len())
 	if !ok || i > s.Len() {
-		return nil, false
+		return Value{}, false
 	}
 	if strVar(ref) {
-		return newSubstr(ref, i, 1), true
+		return V(newSubstr(ref, i, 1)), true
 	}
-	return s.Slice(i, i+1), true
+	return V(s.Slice(i, i+1)), true
 }
 
 func section(vm *VM, a []Value) (Value, bool) {
 	ref := a[0]
 	x := Deref(ref)
 	var n int
-	l, isList := x.(*List)
+	l, isList := x.Any().(*List)
 	var s *String
 	if isList {
 		n = len(l.Elems)
@@ -324,18 +324,18 @@ func section(vm *VM, a []Value) (Value, bool) {
 	i, ok1 := cvpos(MustInt(a[1]), n)
 	j, ok2 := cvpos(MustInt(a[2]), n)
 	if !ok1 || !ok2 {
-		return nil, false
+		return Value{}, false
 	}
 	if i > j {
 		i, j = j, i
 	}
 	if isList {
-		return vm.NewList(append([]Value(nil), l.Elems[i-1:j-1]...)), true
+		return V(vm.NewList(append([]Value(nil), l.Elems[i-1:j-1]...))), true
 	}
 	if strVar(ref) {
-		return newSubstr(ref, i, j-i), true
+		return V(newSubstr(ref, i, j-i)), true
 	}
-	return s.Slice(i, j), true
+	return V(s.Slice(i, j)), true
 }
 
 // toBy generates i to j by k.
@@ -346,7 +346,7 @@ func toBy(vm *VM, a []Value) Generator {
 		g.by = MustInt(a[2])
 	}
 	if g.by == 0 {
-		Runerr(211, g.by)
+		Runerr(211, V(g.by))
 	}
 	return g
 }
@@ -360,13 +360,13 @@ func (g *toGen) Next(vm *VM) (Value, bool) {
 	if g.started {
 		n := g.i + g.by
 		if (n < g.i) != (g.by < 0) { // overflow: the sequence has ended
-			return nil, false
+			return Value{}, false
 		}
 		g.i = n
 	}
 	g.started = true
 	if (g.by > 0 && g.i > g.j) || (g.by < 0 && g.i < g.j) {
-		return nil, false
+		return Value{}, false
 	}
 	return mkInt(g.i), true
 }
@@ -376,7 +376,7 @@ func bang(vm *VM, a []Value) Generator {
 	if strVar(a[0]) {
 		return &strVarGen{v: a[0]}
 	}
-	switch x := Deref(a[0]).(type) {
+	switch x := Deref(a[0]).Any().(type) {
 	case *List:
 		return &listGen{l: x}
 	case *Record:
@@ -404,10 +404,10 @@ type listGen struct {
 
 func (g *listGen) Next(vm *VM) (Value, bool) {
 	if g.i >= len(g.l.Elems) {
-		return nil, false
+		return Value{}, false
 	}
 	g.i++
-	return ListElem{g.l, g.i - 1}, true
+	return V(ListElem{g.l, g.i - 1}), true
 }
 
 type strGen struct {
@@ -417,11 +417,11 @@ type strGen struct {
 
 func (g *strGen) Next(vm *VM) (Value, bool) {
 	if g.off >= len(g.s.s) {
-		return nil, false
+		return Value{}, false
 	}
 	w := g.s.width(g.off)
 	g.off += w
-	return g.s.Slice(g.off-w+1, g.off+1), true
+	return V(g.s.Slice(g.off-w+1, g.off+1)), true
 }
 
 // ---------------------------------------------------------------------
@@ -429,7 +429,7 @@ func (g *strGen) Next(vm *VM) (Value, bool) {
 
 // Image returns the image of v, as image(v).
 func (vm *VM) Image(v Value) string {
-	switch x := Deref(v).(type) {
+	switch x := Deref(v).Any().(type) {
 	case Null:
 		return "&null"
 	case Int:

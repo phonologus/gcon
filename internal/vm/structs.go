@@ -28,7 +28,7 @@ type hkey struct {
 }
 
 func keyOf(v Value) hkey {
-	switch x := v.(type) {
+	switch x := v.Any().(type) {
 	case Null:
 		return hkey{t: 0}
 	case Int:
@@ -77,7 +77,7 @@ func (m *omap) get(k Value) (Value, bool) {
 	if i, ok := m.index[keyOf(k)]; ok {
 		return m.vals[i], true
 	}
-	return nil, false
+	return Value{}, false
 }
 
 func (m *omap) put(k, v Value) {
@@ -98,7 +98,7 @@ func (m *omap) del(k Value) {
 		return
 	}
 	delete(m.index, h)
-	m.keys[i], m.vals[i] = nil, nil
+	m.keys[i], m.vals[i] = Value{}, Value{}
 	m.dead++
 	if m.dead > 16 && m.dead > len(m.keys)/2 {
 		m.compact()
@@ -110,7 +110,7 @@ func (m *omap) del(k Value) {
 func (m *omap) compact() {
 	keys, vals := make([]Value, 0, m.len()), make([]Value, 0, m.len())
 	for i, k := range m.keys {
-		if k != nil {
+		if !k.IsNone() {
 			m.index[keyOf(k)] = len(keys)
 			keys = append(keys, k)
 			vals = append(vals, m.vals[i])
@@ -122,7 +122,7 @@ func (m *omap) compact() {
 func (m *omap) copy() omap {
 	c := newOmap()
 	for i, k := range m.keys {
-		if k != nil {
+		if !k.IsNone() {
 			c.put(k, m.vals[i])
 		}
 	}
@@ -191,18 +191,18 @@ func (g *omapGen) Next(vm *VM) (Value, bool) {
 	for g.i < len(g.keys) {
 		k := g.keys[(g.start+g.i)%len(g.keys)]
 		g.i++
-		if k == nil {
+		if k.IsNone() {
 			continue
 		}
 		if _, ok := g.m.index[keyOf(k)]; ok {
 			return g.f(k), true
 		}
 	}
-	return nil, false
+	return Value{}, false
 }
 
 func tableVals(t *Table) Generator {
-	return &omapGen{m: &t.m, f: func(k Value) Value { return TableElem{t, k} }}
+	return &omapGen{m: &t.m, f: func(k Value) Value { return V(TableElem{t, k}) }}
 }
 
 func setElems(s *Set) Generator {
@@ -213,7 +213,7 @@ func setElems(s *Set) Generator {
 func (m *omap) members() []Value {
 	out := make([]Value, 0, m.len())
 	for _, k := range m.keys {
-		if k != nil {
+		if !k.IsNone() {
 			out = append(out, k)
 		}
 	}
@@ -243,7 +243,7 @@ func (vm *VM) setOp(op byte, a, b *Set) *Set {
 // order is the collating class of a value, as iconx's order()
 // (src/runtime/rcomp.r).
 func order(v Value) int {
-	switch v.(type) {
+	switch v.Any().(type) {
 	case Null:
 		return 0
 	case Int, *Big:
@@ -273,7 +273,7 @@ func order(v Value) int {
 }
 
 func procName(v Value) string {
-	switch p := v.(type) {
+	switch p := v.Any().(type) {
 	case *Proc:
 		return p.Name
 	case *Builtin:
@@ -302,11 +302,11 @@ func anycmp(x, y Value) int {
 	if ox != oy {
 		return cmpInt(ox, oy)
 	}
-	switch a := x.(type) {
+	switch a := x.Any().(type) {
 	case Int, *Big:
-		return cmpInteger(a, y)
+		return cmpInteger(V(a), y)
 	case Real:
-		b := y.(Real)
+		b := y.Any().(Real)
 		switch {
 		case a < b:
 			return -1
@@ -315,22 +315,22 @@ func anycmp(x, y Value) int {
 		}
 		return 0
 	case *String:
-		return strings.Compare(a.s, y.(*String).s)
+		return strings.Compare(a.s, y.Any().(*String).s)
 	case *Cset:
 		// As the strings the csets convert to compare.
-		return strings.Compare(a.String().s, y.(*Cset).String().s)
+		return strings.Compare(a.String().s, y.Any().(*Cset).String().s)
 	case *File:
-		return strings.Compare(a.name, y.(*File).name)
+		return strings.Compare(a.name, y.Any().(*File).name)
 	case *Coexp:
-		return cmpInt(a.serial, y.(*Coexp).serial)
+		return cmpInt(a.serial, y.Any().(*Coexp).serial)
 	case *List:
-		return cmpInt(a.serial, y.(*List).serial)
+		return cmpInt(a.serial, y.Any().(*List).serial)
 	case *Set:
-		return cmpInt(a.serial, y.(*Set).serial)
+		return cmpInt(a.serial, y.Any().(*Set).serial)
 	case *Table:
-		return cmpInt(a.serial, y.(*Table).serial)
+		return cmpInt(a.serial, y.Any().(*Table).serial)
 	case *Record:
-		b := y.(*Record)
+		b := y.Any().(*Record)
 		if c := strings.Compare(a.T.Name, b.T.Name); c != 0 {
 			return c
 		}
@@ -355,7 +355,7 @@ func cmp64(a, b int64) int {
 // nth returns the nth field of a record or element of a list, as iconx's
 // nth does for sortf.
 func nth(v Value, n Int) (Value, bool) {
-	switch x := v.(type) {
+	switch x := v.Any().(type) {
 	case *Record:
 		if i, ok := cvpos(n, len(x.Fields)); ok && i <= len(x.Fields) {
 			return x.Fields[i-1], true
@@ -365,14 +365,14 @@ func nth(v Value, n Int) (Value, bool) {
 			return x.Elems[i-1], true
 		}
 	}
-	return nil, false
+	return Value{}, false
 }
 
 // nthcmp compares on the nth field, as iconx's nthcmp: values with no
 // such field come first, and ties are settled by anycmp.
 func nthcmp(x, y Value, n Int) int {
-	_, rx := x.(*Record)
-	_, lx := x.(*List)
+	_, rx := x.Any().(*Record)
+	_, lx := x.Any().(*List)
 	if (rx || lx) && order(x) == order(y) {
 		ex, okx := nth(x, n)
 		ey, oky := nth(y, n)
@@ -399,7 +399,7 @@ func sortValues(vs []Value, cmp func(x, y Value) int) {
 
 // elements returns the values of a list, set or record, for sort.
 func elements(v Value) ([]Value, bool) {
-	switch x := v.(type) {
+	switch x := v.Any().(type) {
 	case *List:
 		return append([]Value(nil), x.Elems...), true
 	case *Set:
@@ -424,50 +424,50 @@ type seqGen struct{ i, j Int }
 func (g *seqGen) Next(vm *VM) (Value, bool) {
 	v := g.i
 	g.i = add(g.i, g.j)
-	return v, true
+	return V(v), true
 }
 
 func init() {
-	fn("table", func(vm *VM, a []Value) (Value, bool) { return vm.newTable(arg(a, 0)), true })
+	fn("table", func(vm *VM, a []Value) (Value, bool) { return V(vm.newTable(arg(a, 0))), true })
 	fn("set", func(vm *VM, a []Value) (Value, bool) {
 		s := vm.newSet()
-		switch l := arg(a, 0).(type) {
+		switch l := arg(a, 0).Any().(type) {
 		case Null:
 		case *List:
 			for _, x := range l.Elems {
 				s.m.put(x, NullValue)
 			}
 		default:
-			Runerr(108, l)
+			Runerr(108, V(l))
 		}
-		return s, true
+		return V(s), true
 	})
 	fn("insert", func(vm *VM, a []Value) (Value, bool) {
-		switch x := arg(a, 0).(type) {
+		switch x := arg(a, 0).Any().(type) {
 		case *Set:
 			x.m.put(arg(a, 1), NullValue)
-			return x, true
+			return V(x), true
 		case *Table:
 			x.m.put(arg(a, 1), arg(a, 2))
-			return x, true
+			return V(x), true
 		}
 		Runerr(122, arg(a, 0))
-		return nil, false
+		return Value{}, false
 	})
 	fn("delete", func(vm *VM, a []Value) (Value, bool) {
-		switch x := arg(a, 0).(type) {
+		switch x := arg(a, 0).Any().(type) {
 		case *Set:
 			x.m.del(arg(a, 1))
-			return x, true
+			return V(x), true
 		case *Table:
 			x.m.del(arg(a, 1))
-			return x, true
+			return V(x), true
 		}
 		Runerr(122, arg(a, 0))
-		return nil, false
+		return Value{}, false
 	})
 	fn("member", func(vm *VM, a []Value) (Value, bool) {
-		switch x := arg(a, 0).(type) {
+		switch x := arg(a, 0).Any().(type) {
 		case *Set:
 			_, ok := x.m.get(arg(a, 1))
 			return arg(a, 1), ok
@@ -476,30 +476,30 @@ func init() {
 			return arg(a, 1), ok
 		}
 		Runerr(122, arg(a, 0))
-		return nil, false
+		return Value{}, false
 	})
 	gen("key", func(vm *VM, a []Value) Generator {
-		t, ok := arg(a, 0).(*Table)
+		t, ok := arg(a, 0).Any().(*Table)
 		if !ok {
 			Runerr(124, arg(a, 0))
 		}
 		return &omapGen{m: &t.m, f: func(k Value) Value { return k }}
 	})
 	fn("sort", func(vm *VM, a []Value) (Value, bool) {
-		if t, ok := arg(a, 0).(*Table); ok {
+		if t, ok := arg(a, 0).Any().(*Table); ok {
 			i := Int(1)
-			if _, null := arg(a, 1).(Null); !null {
+			if _, null := arg(a, 1).Any().(Null); !null {
 				i = MustInt(a[1])
 			}
 			if i < 1 || i > 4 {
-				Runerr(205, i)
+				Runerr(205, V(i))
 			}
 			// Sort [key, value] pairs; methods 1 and 2 return them as
 			// lists, 3 and 4 as one alternating list (making no pair
 			// lists, as iconx makes none, so serial numbers agree).
 			var pairs [][2]Value
 			for k, key := range t.m.keys {
-				if key != nil {
+				if !key.IsNone() {
 					pairs = append(pairs, [2]Value{key, t.m.vals[k]})
 				}
 			}
@@ -514,20 +514,20 @@ func init() {
 			out := make([]Value, 0, 2*len(pairs))
 			for _, p := range pairs {
 				if i <= 2 {
-					out = append(out, vm.NewList([]Value{p[0], p[1]}))
+					out = append(out, V(vm.NewList([]Value{p[0], p[1]})))
 				} else {
 					out = append(out, p[0], p[1])
 				}
 			}
 			result.Elems = out
-			return result, true
+			return V(result), true
 		}
 		vs, ok := elements(arg(a, 0))
 		if !ok {
 			Runerr(115, arg(a, 0))
 		}
 		sortValues(vs, anycmp)
-		return vm.NewList(vs), true
+		return V(vm.NewList(vs)), true
 	})
 	fn("sortf", func(vm *VM, a []Value) (Value, bool) {
 		vs, ok := elements(arg(a, 0))
@@ -535,57 +535,57 @@ func init() {
 			Runerr(125, arg(a, 0))
 		}
 		n := Int(1)
-		if _, null := arg(a, 1).(Null); !null {
+		if _, null := arg(a, 1).Any().(Null); !null {
 			n = MustInt(a[1])
 		}
 		if n == 0 {
-			Runerr(205, n)
+			Runerr(205, V(n))
 		}
 		sortValues(vs, func(x, y Value) int { return nthcmp(x, y, n) })
-		return vm.NewList(vs), true
+		return V(vm.NewList(vs)), true
 	})
 	fn("copy", func(vm *VM, a []Value) (Value, bool) {
-		switch x := arg(a, 0).(type) {
+		switch x := arg(a, 0).Any().(type) {
 		case *List:
-			return vm.NewList(append([]Value(nil), x.Elems...)), true
+			return V(vm.NewList(append([]Value(nil), x.Elems...))), true
 		case *Table:
 			t := vm.newTable(x.dflt)
 			t.m = x.m.copy()
-			return t, true
+			return V(t), true
 		case *Set:
 			s := vm.newSet()
 			s.m = x.m.copy()
-			return s, true
+			return V(s), true
 		case *Record:
-			return x.T.construct(x.Fields), true
+			return V(x.T.construct(x.Fields)), true
 		}
 		return arg(a, 0), true
 	})
 	fn("serial", func(vm *VM, a []Value) (Value, bool) {
-		switch x := arg(a, 0).(type) {
+		switch x := arg(a, 0).Any().(type) {
 		case *List:
-			return Int(x.serial), true
+			return V(Int(x.serial)), true
 		case *Set:
-			return Int(x.serial), true
+			return V(Int(x.serial)), true
 		case *Table:
-			return Int(x.serial), true
+			return V(Int(x.serial)), true
 		case *Record:
-			return Int(x.serial), true
+			return V(Int(x.serial)), true
 		case *Coexp:
-			return Int(x.serial), true
+			return V(Int(x.serial)), true
 		}
-		return nil, false
+		return Value{}, false
 	})
 	gen("seq", func(vm *VM, a []Value) Generator {
 		g := &seqGen{i: 1, j: 1}
-		if _, null := arg(a, 0).(Null); !null {
+		if _, null := arg(a, 0).Any().(Null); !null {
 			g.i = MustInt(a[0])
 		}
-		if _, null := arg(a, 1).(Null); !null {
+		if _, null := arg(a, 1).Any().(Null); !null {
 			g.j = MustInt(a[1])
 		}
 		if g.j == 0 {
-			Runerr(211, g.j)
+			Runerr(211, V(g.j))
 		}
 		return g
 	})

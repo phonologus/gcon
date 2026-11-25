@@ -74,7 +74,7 @@ func (vm *VM) transfer(c *Coexp, v Value, ok bool) *Frame {
 
 // activate runs OpActivate in frame f: transmit v to co-expression c.
 func (vm *VM) activate(f *Frame, in *Instr, target Value, v Value) *Frame {
-	c, isCo := target.(*Coexp)
+	c, isCo := target.Any().(*Coexp)
 	if !isCo {
 		Runerr(118, target)
 	}
@@ -109,32 +109,32 @@ func (vm *VM) coret(f *Frame, v Value, resume int) *Frame {
 func (vm *VM) cofail() *Frame {
 	c := vm.co
 	if vm.tracing() {
-		vm.traceCo(vm.cur, vm.cur.pc, "fail", nil, c.activator)
+		vm.traceCo(vm.cur, vm.cur.pc, "fail", Value{}, c.activator)
 	}
 	c.state = coDone
-	return vm.transfer(c.activator, nil, false)
+	return vm.transfer(c.activator, Value{}, false)
 }
 
 func init() {
 	Ops["u^"] = &Builtin{Name: "^", Fn: func(vm *VM, a []Value) (Value, bool) {
-		c, ok := a[0].(*Coexp)
+		c, ok := a[0].Any().(*Coexp)
 		if !ok {
 			Runerr(118, a[0])
 		}
 		if c == vm.main {
-			Runerr(215, c)
+			Runerr(215, V(c))
 		}
 		r := vm.newCoexp(c.proc, c.entry, c.init)
 		r.from = c.from
-		return r, true
+		return V(r), true
 	}}
 	Ops["&current"] = &Builtin{Name: "&current", Fn: func(vm *VM, a []Value) (Value, bool) {
-		return vm.co, true
+		return V(vm.co), true
 	}}
 	Ops["&source"] = &Builtin{Name: "&source", Fn: func(vm *VM, a []Value) (Value, bool) {
-		return vm.co.activator, true
+		return V(vm.co.activator), true
 	}}
 	Ops["&main"] = &Builtin{Name: "&main", Fn: func(vm *VM, a []Value) (Value, bool) {
-		return vm.main, true
+		return V(vm.main), true
 	}}
 }

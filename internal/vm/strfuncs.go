@@ -85,14 +85,14 @@ func joinUnit(ss ...*String) Unit {
 func padArgs(a []Value) (*String, int, *String) {
 	s1 := MustStr(arg(a, 0))
 	n := 1
-	if _, null := arg(a, 1).(Null); !null {
+	if _, null := arg(a, 1).Any().(Null); !null {
 		n = int(MustInt(a[1]))
 	}
 	if n < 0 {
-		Runerr(205, Int(n))
+		Runerr(205, V(Int(n)))
 	}
 	s2 := blank
-	if _, null := arg(a, 2).(Null); !null {
+	if _, null := arg(a, 2).Any().(Null); !null {
 		if s := MustStr(a[2]); s.s != "" {
 			s2 = s
 		}
@@ -154,7 +154,7 @@ func init() {
 		c1 := charsIn(s1)
 		l := c1.n()
 		if n <= l {
-			return NewString(c1.slice(0, n), s1.unit), true
+			return V(NewString(c1.slice(0, n), s1.unit)), true
 		}
 		// s1, then copies of s2 ending at the right end.
 		pd := newPadder(s2)
@@ -164,14 +164,14 @@ func init() {
 		for p := l; p < n; p++ {
 			pd.fromRight(&b, p, n)
 		}
-		return NewString(b.String(), joinUnit(s1, s2)), true
+		return V(NewString(b.String(), joinUnit(s1, s2))), true
 	})
 	fn("right", func(vm *VM, a []Value) (Value, bool) {
 		s1, n, s2 := padArgs(a)
 		c1 := charsIn(s1)
 		l := c1.n()
 		if n <= l {
-			return NewString(c1.slice(l-n, l), s1.unit), true
+			return V(NewString(c1.slice(l-n, l), s1.unit)), true
 		}
 		// Copies of s2 from the left end, then s1.
 		pd := newPadder(s2)
@@ -181,7 +181,7 @@ func init() {
 			pd.fromLeft(&b, p)
 		}
 		b.WriteString(s1.s)
-		return NewString(b.String(), joinUnit(s1, s2)), true
+		return V(NewString(b.String(), joinUnit(s1, s2))), true
 	})
 	fn("center", func(vm *VM, a []Value) (Value, bool) {
 		s1, n, s2 := padArgs(a)
@@ -189,7 +189,7 @@ func init() {
 		l := c1.n()
 		if n <= l {
 			i := (l - n + 1) >> 1
-			return NewString(c1.slice(i, i+n), s1.unit), true
+			return V(NewString(c1.slice(i, i+n), s1.unit)), true
 		}
 		// The left half is padded with copies of s2 from the left end,
 		// the right half with copies from the right end, and s1 goes in
@@ -213,15 +213,15 @@ func init() {
 				pd.fromRight(&b, p, n)
 			}
 		}
-		return NewString(b.String(), joinUnit(s1, s2)), true
+		return V(NewString(b.String(), joinUnit(s1, s2))), true
 	})
 	fn("repl", func(vm *VM, a []Value) (Value, bool) {
 		s := MustStr(arg(a, 0))
 		n := MustInt(arg(a, 1))
 		if n < 0 || (len(s.s) > 0 && n > Int(1<<31/len(s.s))) {
-			Runerr(205, n)
+			Runerr(205, V(n))
 		}
-		return NewString(strings.Repeat(s.s, int(n)), s.unit), true
+		return V(NewString(strings.Repeat(s.s, int(n)), s.unit)), true
 	})
 	fn("reverse", func(vm *VM, a []Value) (Value, bool) {
 		s := MustStr(arg(a, 0))
@@ -239,7 +239,7 @@ func init() {
 				i += w
 			}
 		}
-		return NewString(byteString(b), s.unit), true
+		return V(NewString(byteString(b), s.unit)), true
 	})
 	fn("trim", func(vm *VM, a []Value) (Value, bool) {
 		s := MustStr(arg(a, 0))
@@ -263,15 +263,15 @@ func init() {
 			}
 			end = cs.offs[k]
 		}
-		return s.Slice(1, end+1), true
+		return V(s.Slice(1, end+1)), true
 	})
 	fn("map", func(vm *VM, a []Value) (Value, bool) {
 		s1 := MustStr(arg(a, 0))
 		s2, s3 := mapUcase, mapLcase
-		if _, null := arg(a, 1).(Null); !null {
+		if _, null := arg(a, 1).Any().(Null); !null {
 			s2 = MustStr(a[1])
 		}
-		if _, null := arg(a, 2).(Null); !null {
+		if _, null := arg(a, 2).Any().(Null); !null {
 			s3 = MustStr(a[2])
 		}
 		t := vm.mapTab
@@ -279,10 +279,10 @@ func init() {
 			t = newMapTable(s2, s3)
 			vm.mapTab = t
 		}
-		return NewString(t.apply(s1), joinUnit(s1, s3)), true
+		return V(NewString(t.apply(s1), joinUnit(s1, s3))), true
 	})
-	fn("detab", func(vm *VM, a []Value) (Value, bool) { return tabs(a, false), true })
-	fn("entab", func(vm *VM, a []Value) (Value, bool) { return tabs(a, true), true })
+	fn("detab", func(vm *VM, a []Value) (Value, bool) { return V(tabs(a, false)), true })
+	fn("entab", func(vm *VM, a []Value) (Value, bool) { return V(tabs(a, true)), true })
 }
 
 // mapTable is map's translation from the characters of s2 to those of

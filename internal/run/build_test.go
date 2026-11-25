@@ -41,13 +41,13 @@ func roundTrip(t *testing.T, name string, p *vm.Program) {
 		return
 	}
 	same := func(what string, x, y vm.Value) {
-		switch x := x.(type) {
+		switch x := x.Any().(type) {
 		case *vm.Builtin:
-			if x != y {
+			if vm.V(x) != y {
 				t.Errorf("%s: %s: builtin %s not restored as the same value", name, what, x.Name)
 			}
 		case vm.Real:
-			if math.Float64bits(float64(x)) != math.Float64bits(float64(y.(vm.Real))) {
+			if math.Float64bits(float64(x)) != math.Float64bits(float64(y.Any().(vm.Real))) {
 				t.Errorf("%s: %s: real %v changed", name, what, x)
 			}
 		}
@@ -57,8 +57,8 @@ func roundTrip(t *testing.T, name string, p *vm.Program) {
 	}
 	for i := range p.Globals {
 		same("global", p.Globals[i], q.Globals[i])
-		if pp, ok := p.Globals[i].(*vm.Proc); ok {
-			qp := q.Globals[i].(*vm.Proc)
+		if pp, ok := p.Globals[i].Any().(*vm.Proc); ok {
+			qp := q.Globals[i].Any().(*vm.Proc)
 			for j := range pp.Code {
 				if pp.Code[j].Fn != qp.Code[j].Fn {
 					t.Errorf("%s: %s %d: builtin not restored as the same value", name, pp.Name, j)
