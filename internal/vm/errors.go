@@ -95,7 +95,7 @@ func init() {
 		return Int(f.proc.Code[f.pc].Line), true
 	}}
 	Ops["&file"] = &Builtin{Name: "&file", Fn: func(vm *VM, a []Value) (Value, bool) {
-		return Text(vm.cur.proc.File), true
+		return Text(vm.cur.proc.FileAt(vm.cur.pc)), true
 	}}
 }
 
@@ -103,8 +103,11 @@ func init() {
 // the features gcon has, in iconx's order (src/h/features.h).
 var Features = func() []string {
 	f := []string{"UNIX"}
-	if runtime.GOOS == "windows" {
+	switch runtime.GOOS {
+	case "windows":
 		f[0] = "MS Windows"
+	case "darwin":
+		f = append(f, "Macintosh") // as iconx's macOS build reports
 	}
 	return append(f, "ASCII", "co-expressions", "environment variables",
 		"keyboard functions", "large integers", "pipes", "system function")

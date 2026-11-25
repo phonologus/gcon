@@ -79,6 +79,7 @@ type Instr struct {
 	Fn     *Builtin // for OpOper
 	L1, L2 int32
 	Line   int32
+	File   int32 // 0: the procedure's file; k: its Files[k-1]
 }
 
 func (in *Instr) String() string {

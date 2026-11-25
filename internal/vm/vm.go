@@ -603,7 +603,7 @@ func (vm *VM) report(e *RuntimeError) {
 	w := vm.errout
 	fmt.Fprintf(w, "\nRun-time error %d\n", e.Num)
 	if f := vm.cur; f != nil && f.pc < len(f.proc.Code) {
-		fmt.Fprintf(w, "File %s; Line %d\n", f.proc.File, f.proc.Code[f.pc].Line)
+		fmt.Fprintf(w, "File %s; Line %d\n", f.proc.FileAt(f.pc), f.proc.Code[f.pc].Line)
 	}
 	fmt.Fprintln(w, errorText[e.Num])
 	if e.HasValue {

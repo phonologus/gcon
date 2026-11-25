@@ -76,7 +76,7 @@ func Compile(p *sema.Program, infos []*sema.Info) (*vm.Program, []error) {
 	}
 	var procs []procInfo
 	for _, info := range infos {
-		lines := lexer.NewLines(info.File.Syntax.Src)
+		loc := locator(info.File)
 		for _, d := range info.File.Syntax.Decls {
 			switch d := d.(type) {
 			case *syntax.ProcDecl:
@@ -109,8 +109,8 @@ func Compile(p *sema.Program, infos []*sema.Info) (*vm.Program, []error) {
 						// As in icont (addinvk), the only identifier
 						// allowed is all.
 						if name != "all" {
-							line, _ := lines.Position(it.Name.Offset)
-							c.errorf(info.File.Path, line, "%q: invalid operand to invocable", name)
+							file, line := loc(it.Name.Offset)
+							c.errorf(file, line, "%q: invalid operand to invocable", name)
 						}
 						c.invocAll = true
 					}
@@ -118,8 +118,8 @@ func Compile(p *sema.Program, infos []*sema.Info) (*vm.Program, []error) {
 				}
 			default:
 				if s, _, ok := syntax.Span(d); ok {
-					line, _ := lines.Position(s)
-					c.errorf(info.File.Path, line, "invalid declaration")
+					file, line := loc(s)
+					c.errorf(file, line, "invalid declaration")
 				}
 			}
 		}
@@ -217,8 +217,9 @@ type loop struct {
 type pcomp struct {
 	c      *compiler
 	info   *sema.Info
-	file   string
-	lines  *lexer.Lines
+	file   string // the file of the code being compiled (see emit)
+	loc    func(off int) (file string, line int)
+	proc   *vm.Proc
 	decl   *syntax.ProcDecl
 	code   []vm.Instr
 	pos    []int   // label -> code index, or -1
@@ -237,12 +238,14 @@ func (c *compiler) proc(d *syntax.ProcDecl, info *sema.Info) *vm.Proc {
 		c:      c,
 		info:   info,
 		file:   info.File.Path,
-		lines:  lexer.NewLines(info.File.Syntax.Src),
+		loc:    locator(info.File),
 		decl:   d,
 		locals: map[*sema.Symbol]int{},
 	}
-	proc := &vm.Proc{Name: d.Name.Text, File: p.file, Variadic: d.Lbrack != nil}
+	proc := &vm.Proc{Name: d.Name.Text, Variadic: d.Lbrack != nil}
+	p.proc = proc
 	p.setLine(d.Name)
+	proc.File = p.file
 
 	// Parameters first, then the other locals in name order; statics
 	// live in globals.
@@ -307,17 +310,36 @@ func (c *compiler) proc(d *syntax.ProcDecl, info *sema.Info) *vm.Proc {
 }
 
 func (p *pcomp) errorf(n syntax.Node, format string, args ...any) {
-	line := int(p.line)
+	file, line := p.file, int(p.line)
 	if s, _, ok := syntax.Span(n); ok {
-		line, _ = p.lines.Position(s)
+		file, line = p.loc(s)
 	}
-	p.c.errorf(p.file, line, format, args...)
+	p.c.errorf(file, line, format, args...)
 }
 
 func (p *pcomp) setLine(t *syntax.Token) {
 	if t != nil {
-		l, _ := p.lines.Position(t.Offset)
-		p.line = int32(l)
+		p.setPos(t.Offset)
+	}
+}
+
+// setPos makes the source position of offset off the one instructions
+// are emitted with.
+func (p *pcomp) setPos(off int) {
+	f, l := p.loc(off)
+	p.file, p.line = f, int32(l)
+}
+
+// locator returns the position function for f: the preprocessor's map,
+// or the lines of f itself.
+func locator(f *sema.File) func(int) (string, int) {
+	if f.Locate != nil {
+		return f.Locate
+	}
+	lines := lexer.NewLines(f.Syntax.Src)
+	return func(off int) (string, int) {
+		l, _ := lines.Position(off)
+		return f.Path, l
 	}
 }
 
@@ -339,6 +361,20 @@ func (p *pcomp) bind(a, b label) {
 
 func (p *pcomp) emit(in vm.Instr) {
 	in.Line = p.line
+	if p.file != p.proc.File && p.proc.File != "" {
+		// Code from another file (an $include within the procedure).
+		k := 0
+		for i, f := range p.proc.Files {
+			if f == p.file {
+				k = i + 1
+			}
+		}
+		if k == 0 {
+			p.proc.Files = append(p.proc.Files, p.file)
+			k = len(p.proc.Files)
+		}
+		in.File = int32(k)
+	}
 	p.code = append(p.code, in)
 }
 
@@ -462,8 +498,7 @@ func (p *pcomp) expr(e syntax.Expr, fail, succ label) (start, resume label, v vm
 		return succ, fail, p.null()
 	}
 	if s, _, ok := syntax.Span(e); ok {
-		l, _ := p.lines.Position(s)
-		p.line = int32(l)
+		p.setPos(s)
 	}
 	switch e := e.(type) {
 	case *syntax.Ident:

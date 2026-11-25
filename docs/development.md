@@ -61,7 +61,8 @@ With `$ICONTOK` set:
 - `sema`'s `TestOracle` compares semantic diagnostics with `icont -u`.
 
 Files that need the preprocessor are compared on their `icont -E`
-expansion.
+expansion, and `ipp`'s `TestOracle` compares gcon's preprocessor with
+`icont -E` on every corpus file.
 
 ## The built-in catalogue
 

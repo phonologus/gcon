@@ -1,0 +1,9 @@
+
+Run-time error 102
+File renamed.icn; Line 211
+numeric expected
+offending value: list_2 = []
+Traceback:
+main()
+f(1) from line 206 in renamed.icn
+{1 + list_2 = []} from line 211 in renamed.icn

@@ -40,6 +40,7 @@ lists
 map
 mathfunc
 meander
+mega
 mffsol
 mindfa
 misc
@@ -51,6 +52,7 @@ overflow
 parse
 pdco
 prefix
+prepro
 primes
 proto
 queens
@@ -66,6 +68,7 @@ scan2
 sets
 sieve
 sorting
+spellnum
 statics
 string
 string1
@@ -73,6 +76,7 @@ struct
 subjpos
 substring
 table
+techo
 tprintf
 tracer
 transmit

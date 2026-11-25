@@ -86,6 +86,13 @@ type File struct {
 	Path   string
 	Syntax *syntax.File
 	Macros []MacroScope // preprocessor symbols defined in or included by the file
+	// Locate, if set, maps a byte offset in Syntax.Src to the file and
+	// line it came from (the preprocessor's map, which follows
+	// $include); if nil, offsets are lines of Path.
+	Locate func(off int) (file string, line int)
+	// Preprocessed is set when Syntax is the preprocessor's output, in
+	// which no identifier is a preprocessor symbol any longer.
+	Preprocessed bool
 }
 
 // Program is a set of files linked together.
@@ -234,6 +241,9 @@ type resolver struct {
 // macro returns the symbol for a preprocessor symbol in force at t, if
 // any: one defined in (or included into) the file, or predefined.
 func (r *resolver) macro(t *syntax.Token) *Symbol {
+	if r.info.File.Preprocessed {
+		return nil
+	}
 	var def *MacroDef
 	for i := range r.info.File.Macros {
 		m := &r.info.File.Macros[i]

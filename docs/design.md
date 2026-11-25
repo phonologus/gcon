@@ -525,7 +525,13 @@ The Icon Program Library is used from its source (`ipl/procs`), which
 gcon finds on `IPATH`.
 
 Implemented in `run.TranslateLinked`: files are read breadth first from
-the main file, each once (by absolute path), so cycles are harmless; a
+the main file, each once (by absolute path), so cycles are harmless. A
+candidate that declares `procedure main` is passed over and the search
+goes on: it cannot be linked into a program (it would redeclare main),
+and passing over it is what icont does in effect, since a program's
+source has no `.u1` unless someone translated it as a library. Without
+this, `link lists` from an IPL file run in icon/tests/general finds the
+test program `lists.icn` there. a
 linked file is known in the program by the name it was linked by plus
 ".icn" (`&file`, tracebacks and trace lines say "printf.icn"), as icont
 knows a library file by the name it was translated under. An unfound
@@ -563,6 +569,39 @@ are recorded by name, not as Go function values. The format carries a
 version; gcon refuses a file whose version it does not read, saying to
 rebuild it, as a newer iconx refuses old icode. (Bundling the linked
 sources instead, translated at each run, was considered and set aside.)
+
+## The preprocessor
+
+`internal/ipp` is icont's preprocessor (`src/common/ipp.c`), ported
+step for step: `$define`, `$undef`, `$ifdef`, `$ifndef`, `$else`,
+`$endif`, `$include`, `$line`, `$error`, and `#line` at a line's start;
+substitution of whole identifiers outside literals, numbers and
+comments, rescanned, never within its own definition; icont's error
+messages. Every file is preprocessed, each on its own from the
+predefined symbols, as icont translates each file on its own. The
+predefined symbols are `_V9` and one for each of gcon's `&features`
+(`_UNIX`, and `_MACINTOSH` on macOS, as iconx's macOS build defines it;
+`_ASCII`, `_CO_EXPRESSIONS`, `_KEYBOARD_FUNCTIONS`, `_LARGE_INTEGERS`,
+`_PIPES`, `_SYSTEM_FUNCTION`), each "1". `$include` searches the
+current directory, then `LPATH`, as icont's `pathfind`.
+
+Positions survive `$include` because the output has exactly one line for
+each line read (directive and skipped lines become empty, and a
+definition is a single line), and a map records each output line's file
+and line. Name resolution and the compiler take every position from the
+map (`sema.File.Locate`); an instruction carries a file index as well as
+its line (`Instr.File`, `Proc.FileAt`), so code included in the middle
+of a procedure reports its own file in `&file`, traces and tracebacks.
+`$line n` makes the directive line n, so the next is n+1, as icont's
+`#line` markers do. Once a file is preprocessed, none of its identifiers
+is a preprocessor symbol for name resolution (`sema.File.Preprocessed`).
+
+Verified: `ipp`'s `TestOracle` compares the output with `icont -E` on
+every corpus file icont can preprocess (1188 of 1203), ignoring blank
+lines and icont's `#line` markers, adding the two predefined symbols of
+the reference icont that gcon lacks (dynamic loading, external values);
+`testdata/preproc.icn` checks expansion, conditionals, `$include` within
+a procedure, `$line`, the predefined symbols and digraphs against iconx.
 
 ## Implementation status
 
@@ -882,7 +921,9 @@ sources instead, translated at each run, was considered and set aside.)
 
 ### Deliberate simplifications (to be removed)
 
-- Not yet implemented: the preprocessor, `link`.
+- `&allocated`, `&storage` are zeros (see the keywords above), so the
+  IPL's `large()`, which detects large integers by the allocation they
+  cause, never succeeds (the `ilib` test).
 
 ## Verification
 

@@ -129,8 +129,11 @@ type Proc struct {
 	// Statics are the global slots of the procedure's statics, in
 	// declaration order.
 	Statics []int
-	NTemps  int
-	Code    []Instr
+	// Files are the other files code of the procedure came from, by
+	// $include (see Instr.File).
+	Files  []string
+	NTemps int
+	Code   []Instr
 }
 
 // Builtin is a built-in function or operator implementation. Exactly one
@@ -226,3 +229,13 @@ func TypeName(v Value) string {
 }
 
 func itoa(i Int) string { return strconv.FormatInt(int64(i), 10) }
+
+// FileAt returns the source file of the instruction at pc.
+func (p *Proc) FileAt(pc int) string {
+	if pc >= 0 && pc < len(p.Code) {
+		if k := p.Code[pc].File; k > 0 {
+			return p.Files[k-1]
+		}
+	}
+	return p.File
+}

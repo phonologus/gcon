@@ -163,3 +163,24 @@ func (o *Oracle) Icont(dir string, args ...string) (stderr string, ok bool) {
 	err := cmd.Run()
 	return b.String(), err == nil
 }
+
+// Expand returns icont's preprocessed form of file ("icont -E", run in
+// the file's directory with the IPL's include directories on LPATH), or
+// ok false if icont cannot preprocess it.
+func (o *Oracle) Expand(file string) (out []byte, ok bool) {
+	cmd := exec.Command(o.icont, "-E", filepath.Base(file))
+	cmd.Dir = filepath.Dir(file)
+	cmd.Env = append(os.Environ(), "LPATH="+o.includePath())
+	out, err := cmd.Output()
+	return out, err == nil
+}
+
+// IncludePath returns the IPL's include directories, as Expand gives
+// them to icont.
+func (o *Oracle) IncludePath() []string {
+	return strings.Fields(o.includePath())
+}
+
+func (o *Oracle) includePath() string {
+	return filepath.Join(o.Root, "ipl", "incl") + " " + filepath.Join(o.Root, "ipl", "gincl")
+}

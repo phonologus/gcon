@@ -149,7 +149,7 @@ func (vm *VM) traceAt(f *Frame, pc int, msg string) {
 	}
 	file := ""
 	if f != nil {
-		file = f.proc.File
+		file = f.proc.FileAt(pc)
 	}
 	vm.traceLine(file, line, msg)
 }
@@ -237,7 +237,7 @@ func (vm *VM) traceback(w interface{ WriteString(string) (int, error) }) {
 		w.WriteString(s + "\n")
 	}
 	in := &f.proc.Code[f.pc]
-	w.WriteString(vm.offending(f, f.pc) + fmt.Sprintf(" from line %d in %s\n", in.Line, f.proc.File))
+	w.WriteString(vm.offending(f, f.pc) + fmt.Sprintf(" from line %d in %s\n", in.Line, f.proc.FileAt(f.pc)))
 }
 
 // offending describes the operation at instruction pc of frame f as
@@ -373,5 +373,5 @@ func (vm *VM) calledFrom(f *Frame) string {
 	if c == nil {
 		return vm.co.from
 	}
-	return fmt.Sprintf(" from line %d in %s", c.proc.Code[c.pc].Line, c.proc.File)
+	return fmt.Sprintf(" from line %d in %s", c.proc.Code[c.pc].Line, c.proc.FileAt(c.pc))
 }

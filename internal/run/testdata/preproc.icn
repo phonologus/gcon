@@ -1,0 +1,72 @@
+#STDERR
+# The preprocessor: $define and $undef, rescanning, no substitution in
+# literals, comments or numbers, self-reference, $ifdef/$ifndef/$else
+# (nested, with directives in skipped text ignored), $include within a
+# procedure (with &file, &line and a traceback in the included code),
+# $line, the predefined symbols, and $( as a digraph, not a directive.
+global selfref
+
+procedure init()    # before the $define below, so selfref is itself here
+   selfref := 10
+end
+
+$define two 2
+$define four (two + two)
+$define e 7
+$define F 15
+$define selfref selfref + 1
+$define inc_val "from a define"
+$define msg "two four"	# a comment after the value
+$ define spaced  3
+$undef nothing_defined
+
+procedure main()
+   init()
+   write(two, " ", four, " ", e, " ", spaced)
+   write("two four e", ' two', msg)   # two in a comment
+   write(1e2, " ", 16rFF, " ", 2e1, " ", e)
+   write(selfref)   # selfref + 1, not expanded again
+$ifdef two
+   write("two is defined")
+$ifndef four
+   write("not reached")
+$error not reported: skipped
+$else
+   write("four is defined")
+$endif
+$else
+   write("not reached either")
+$endif
+$ifdef undefined_name
+$ifdef two
+   write("nested, skipped")
+$endif
+$BOGUS directive in skipped text
+$else
+   write("else of undefined_name")
+$endif
+$undef two
+$ifndef two
+   write("two undefined")
+$endif
+   write(image(two))
+$include "preproc.inc"
+$ifdef INCLUDED
+   write("INCLUDED defined by the included file")
+$endif
+   write(&file, " ", &line)
+$line 100 "renamed.icn"
+   write(&file, " ", &line)
+$line 200
+   write(&file, " ", &line)
+   every write(_V9 | _UNIX | _ASCII | _CO_EXPRESSIONS | _LARGE_INTEGERS |
+      _PIPES | _SYSTEM_FUNCTION | _KEYBOARD_FUNCTIONS)
+   write(image(_EBCDIC), image(_GRAPHICS), image(_X_WINDOW_SYSTEM))
+   x := [1, 2] ; write(x $< 1 $>)
+   f(1)
+end
+
+procedure f(n)
+$include "preproc.inc"
+   return n + []
+end

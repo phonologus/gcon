@@ -1,0 +1,25 @@
+2 4 7 3
+two four e otwtwo four
+100.0 255 20.0 7
+11
+two is defined
+four is defined
+else of undefined_name
+two undefined
+&null
+included: preproc.inc 2 from a define
+INCLUDED defined by the included file
+preproc.icn 57
+renamed.icn 101
+renamed.icn 201
+1
+1
+1
+1
+1
+1
+1
+1
+&null&null&null
+1
+included: preproc.inc 2 from a define
