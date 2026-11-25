@@ -6,7 +6,7 @@
 # beside this repository), whose tree is then its root (the library).
 set -u
 here=$(cd "$(dirname "$0")/.." && pwd)
-vm=$here/bin/gcon-vm
+vm=${VM:-$here/bin/gcon-vm}
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 if [ -z "${GCON:-}" ]; then

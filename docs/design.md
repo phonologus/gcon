@@ -163,3 +163,85 @@ back. Take this up once the interpreter runs and the builtins are in.
 - **Gains:** the IPL programs that need C functions (`htget`,
   `weblinks`) can run, and native bindings can be added without growing
   the VM.
+
+## The interpreter (2026-11-25)
+
+gcon-vm runs programs: `gcon-vm prog args...` loads a built program,
+links it and runs it, with `&progname` the name it was given, as
+iconx's is the icode file's. The run-time system is a port of gcon's Go
+VM (`internal/vm`), file for file, keeping its semantics exactly: the
+Go VM is the reference, and the tests compare the two.
+
+| gcon (Go)                         | gcon-vm (C)        |
+|-----------------------------------|--------------------|
+| vm.go, coexpr.go, errors.go       | `src/interp.c`     |
+| value.go, valuecore.go, substr.go | `src/conv.c`       |
+| ops.go, invoke.go, random.go      | `src/ops.c`, `src/num.c` |
+| bigint.go (math/big)              | `src/big.c`        |
+| cset.go                           | `src/cset.c`       |
+| structs.go, record.go             | `src/struct.c`     |
+| scan.go                           | `src/scan.c`       |
+| strfuncs.go                       | `src/strfn.c`      |
+| file.go, kbd.go                   | `src/file.c`       |
+| trace.go, names.go, keywords.go   | `src/trace.c`, `src/builtins.c` |
+
+- **Values** are the 16-byte layout above. Strings keep their unit and
+  ASCII flag in the header's flags, their length in its 48-bit field;
+  list elements and record fields as variables are the structure and
+  an index, so subscripting allocates nothing.
+- **Frames and control** are as in the Go VM, for now: frames on the
+  heap, chained by caller; a suspended procedure is a frame held in a
+  temporary of its caller; a co-expression is a chain of frames, and
+  switching co-expressions switches the running chain. Moving frames to
+  per-co-expression stacks is for later, measured.
+- **Run-time errors** unwind by `longjmp` to the loop's caller, which
+  converts the error to failure at the failing instruction if `&error`
+  allows (as the Go VM's `recover` does), or reports it with iconx's
+  message and traceback.
+- **Builtins** are resolved by name at link time, from tables each
+  source file registers; generators are structs with a `next` function,
+  and builtins that restore `&pos` when resumed (`tab`, `move`, `=s`)
+  keep the old position in the handle, allocating nothing.
+- **Large integers** (`src/big.c`): sign and magnitude in base 2^32
+  digits, as iconx's, with Knuth's division; every result normalised,
+  so a large integer is never equal to a small one. Conversions to and
+  from reals follow iconx digit by digit, as gcon's do.
+- **Files** are buffered by gcon-vm itself on file descriptors (so a
+  read from a terminal returns what is there). One difference from
+  gcon: at exit, gcon-vm waits for the commands of pipes still open for
+  writing, so their output is complete when it ends; gcon waits only
+  when it relays their output, and iconx never waits.
+- **Memory is never freed yet.** Everything is `malloc`ed; the collector
+  (above, "Memory") is the next step, and programs that allocate
+  heavily grow without bound until then.
+
+**Tests.** `tests/programs.sh` runs gcon's program tests (expected
+output, exit status and standard error recorded from iconx) built, as
+gcon's own tests run them: all 93 pass. `tests/vs-go.sh` runs programs
+on both VMs from the same built file and compares output, messages and
+exit status: the 89 reference tests gcon builds are identical.
+`tests/bench.sh` times gcon's VM micro-benchmarks on both.
+
+**First measurements** (Apple M-series, `cc -O2`, no tuning, ns per
+iteration, Go VM then gcon-vm): empty loop 6.6 / 4.8, `x + 407` 11.3 /
+7.6, `p()` 26.0 / 17.9, `q(1, 2)` 50.8 / 27.5, `L[3]` 19.7 / 11.8,
+`insert(T, 5) & delete(T, 5)` 106.5 / 29.4, `left("a", 10)` 66.5 / 49.1,
+`map(...)` 48.5 / 62.0. Faster on all but `map` before any tuning, and
+without a collector's costs, which will change these.
+
+**The IPL** (`tests/vs-go.sh ../icon/ipl/progs`, each run limited to
+ten seconds): 260 programs identical on both VMs; 3 nondeterministic
+(their two Go runs differ); 9 that run past the limit on the Go VM
+(most wait on input that never ends a loop); 2 gcon does not build.
+One, `envelope`, differs only in timing: it writes to a pipe into
+`lpr`, whose message gcon-vm waits for before exiting and gcon does
+not. A program that seeds `&random` from the clock (`ilib`, through
+the IPL's `randomize`) is caught as nondeterministic only when its two
+Go runs fall in different seconds.
+
+**Co-expressions** (`tests/bench.sh`, ns per operation, iconx / Go VM /
+gcon-vm): `@C` round trip 2,659 / 42.3 / 24.5; `@(create 1)` 17,488 /
+150.7 / 77.9. Over the other fourteen micro-benchmarks gcon-vm's
+geometric mean is about 0.82 of iconx's time and 0.65 of the Go VM's,
+before tuning and without a collector; `left` (1.7 times iconx) and
+`map` (2.1) are the outliers.

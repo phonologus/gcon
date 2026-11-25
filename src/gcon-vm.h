@@ -74,6 +74,7 @@ typedef struct Cset {
 	uint64_t bits[4];
 	int nranges;
 	uint32_t (*ranges)[2];
+	void *str; /* run time: the cset as a string, once made (a cset never changes) */
 } Cset;
 
 /* Big: a large integer, sign and magnitude in base 2^32 digits, least
@@ -108,6 +109,7 @@ typedef struct Instr {
 	int32_t nargs;
 	Operand *args;
 	int32_t fn; /* index in Program.builtins, or -1 */
+	void *fnp; /* the Builtin, once linked */
 	int32_t l1, l2;
 	int32_t line;
 	int32_t file; /* 0: the procedure's file; k: its files[k-1] */
@@ -133,6 +135,7 @@ typedef struct RecordType {
 	Str name;
 	int nfields;
 	Str *fields;
+	int64_t serial; /* the last serial number issued (run time) */
 } RecordType;
 
 enum BuiltinKind {

@@ -6,9 +6,10 @@ bytecode. It is the counterpart of iconx to gcon's icont, as
 [gcon-graphics](https://github.com/phonologus/gcon-graphics) is gcon's
 display server: C builds are kept out of the Go repository.
 
-**Status: the loader.** gcon-vm reads and checks a program gcon has
-built, and lists it (`gcon-vm -dis prog`, identical to `gcon dis
-prog`); nothing runs Icon yet. See [docs/design.md](docs/design.md) for
+**Status: running programs.** `gcon-vm prog args...` runs a program gcon
+has built (`gcon build`), with the same results as gcon's Go VM on
+gcon's program tests and the reference tests; `gcon-vm -dis prog` lists
+one. There is no garbage collector yet, so memory is never freed. See [docs/design.md](docs/design.md) for
 why the VM is in C and how it is built, and `experiments/spike` for the
 measurement behind it.
 
@@ -36,6 +37,16 @@ identical to gcon's.
 checks every truncation and every changed byte of a built program:
 gcon-vm, built with the address and undefined-behaviour sanitizers,
 must report each exactly as gcon does.
+
+    tests/programs.sh
+
+runs gcon's program tests (expected results recorded from iconx).
+
+    tests/vs-go.sh ../icon/tests/general ../icon/ipl/progs
+
+runs each program on gcon's Go VM and on gcon-vm and compares output,
+messages and exit status. `tests/bench.sh` times gcon's VM
+micro-benchmarks on both.
 
 `src/gen_tables.c` is generated from gcon's sources by
 `tools/gentables.sh`: the names of gcon's builtins, and which characters

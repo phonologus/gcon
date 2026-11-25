@@ -1,8 +1,8 @@
 /*
  * gcon-vm: the virtual machine for gcon's bytecode (docs/design.md).
- * So far it loads a program and lists it; nothing runs yet.
+ * It loads a built program and runs it, or lists it.
  */
-#include "gcon-vm.h"
+#include "vm.h"
 
 #include <errno.h>
 #include <stdio.h>
@@ -10,7 +10,8 @@
 #include <string.h>
 
 static void usage(void) {
-	fputs("usage: gcon-vm -dis program\n"
+	fputs("usage: gcon-vm program [argument ...]\n"
+	      "       gcon-vm -dis program\n"
 	      "       gcon-vm -version\n",
 	      stderr);
 	exit(2);
@@ -73,6 +74,14 @@ int main(int argc, char **argv) {
 		disasm(&b, p);
 		fwrite(b.b, 1, b.n, stdout);
 		return fflush(stdout) == 0 ? 0 : 1;
+	}
+	if (argc >= 2 && argv[1][0] != '-') {
+		/* Run the program with its arguments; &progname is its name
+		 * as given, as iconx's is the icode file's. */
+		Program *p = load(argv[1]);
+		builtins_init();
+		link_program(p);
+		return run_program(p, argv[1], argc - 2, argv + 2);
 	}
 	usage();
 }
