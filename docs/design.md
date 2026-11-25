@@ -266,12 +266,39 @@ ns to 3.9, a subscript `v := L[3]` 15.8 to 4.9, a real loop `r := r +
 1.5` 12.4 to 4.0 (Apple M-series). iconx takes 7 ns for `4 + 7`,
 including its loop.
 
-**Migration.** The VM's code works through constructors and accessors
-(`v.Kind()`, `v.Int()`, `IntVal(i)`, ...) in place of Go type switches
-and assertions; Go's type checker finds every place that relied on a
-concrete type converting to an interface, so the change is checked
-mechanically, and the test suite, the conformance tests and the
-differential test against iconx confirm it.
+**Migration** (done, 2026-11-25). The VM's code works through
+constructors and accessors (`v.Kind()`, `v.Int()`, `IntVal(i)`,
+`v.AsList()`, ...) in place of Go type switches and assertions. It was
+done in two mechanical steps, each checked by the full test suite, the
+conformance tests and the differential test against iconx:
+
+1. `V(x)` and `v.Any()` bridged the new representation and the old
+   concrete types, and a throwaway codemod using `go/types` rewrote the
+   791 places the type checker flagged; 16 more by hand.
+2. A second codemod turned `V(x)` into the constructor for `x`'s static
+   type, comma-ok assertions into `AsT` methods and type switches into
+   switches on the kind; the hot paths (dispatch loop, calls,
+   generators, variables, conversions) were then made native by hand.
+   `V` and `Any` remain for code off the hot paths.
+
+Along the way: a generator in a Value is its pointer and a number
+naming its type (`gen.go`; a closure generator by its closure pointer,
+which a test checks), so holding one allocates nothing; a saved
+scanning environment is held in the Value; table keys hold structures
+by pointer, and deleted table entries are reclaimed in place unless a
+traversal shares the arrays (copy-on-write).
+
+**Result** (2026-11-25, Apple M-series). The empty `every` loop takes 4
+ns against iconx's 7; integer arithmetic and comparison are faster
+than iconx's; `L[i]` 19 ns, without allocation. `micro.icn`'s geometric
+mean is 2.35 times iconx's time: the core operations gained, and what
+remains is in built-in functions (most scanning and string functions
+take four to six times iconx's time) and in strings, each of which is
+a `*String` allocated on the heap where iconx's are a pointer and a
+length into its string region. Of the benchmark programs, `rsg` runs in
+a third of iconx's time and `queens` level; `deal`, `concord` and
+`ipxref` (string and table work) are slower. Output is identical, and
+the differential test shows the same five known differences.
 
 ## Strings and Unicode
 
