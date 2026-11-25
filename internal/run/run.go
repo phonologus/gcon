@@ -44,6 +44,7 @@ func File(path string, cfg Config) int {
 		stdin = strings.NewReader("")
 	}
 	m := vm.New(prog, stdin, cfg.Stdout, cfg.Stderr)
+	m.SetProgname(path)
 	if cfg.Timeout > 0 {
 		m.Deadline = time.Now().Add(cfg.Timeout)
 	}

@@ -773,6 +773,27 @@ conformance test with this reason.
   `chdir` and `delay` are as iconx's.
 - Not provided: `loadfunc` (dynamic loading of C functions; error 121),
   and `fattrib`, which iconx's Unix builds leave out.
+- Programmer-defined control operations: `p{e1, ..., en}` is
+  `p([create e1, ..., create en])`, as icont's `Pdco` rules build it
+  (an empty `ei` is `create &null`; `p{}` passes an empty list).
+- **Keywords** (`internal/vm/keywords.go`), as iconx's `keyword.r`:
+  `&clock`, `&date` and `&dateline` in iconx's formats; `&time` is
+  processor time in milliseconds (`getrusage`, as iconx's `millisec`);
+  `&host`; `&version` is "Icon Version 9.5 (gcon)"; `&progname` is the
+  name the program would have if built by icont and run from its
+  directory (`./kwds` for `kwds.icn`, as iconx's is its `argv[0]`), and
+  assignable; `&dump`, when nonzero at the end (normal, `exit`, `stop`
+  or a run-time error), writes iconx's termination dump; `&eventcode`,
+  `&eventsource` and `&eventvalue` are plain variables; the mouse-event
+  codes (`&lpress` .. `&resize`) are iconx's constants; `&x`, `&y`,
+  `&row`, `&col`, `&interval`, `&control`, `&shift`, `&meta`,
+  `&window` and `&column` fail, as in an Icon without graphics.
+  The storage keywords describe iconx's regions, which gcon does not
+  have: `&collections` counts `collect()` calls as iconx counts
+  collections (total, and by region), which are the only collections
+  in a program that does not fill iconx's regions; `&regions` gives
+  iconx's initial sizes (0, 500000, 500000); `&storage` and
+  `&allocated` give zeros, where iconx reports bytes used.
 - Operators that produce at most one result are `OpOper` instructions
   calling a Go function; generators (`to`, `!`, built-in generators)
   and procedure calls use `OpCall` and `OpResume` with a handle in a
@@ -780,8 +801,7 @@ conformance test with this reason.
 
 ### Deliberate simplifications (to be removed)
 
-- Not yet implemented: programmer-defined control operations, many
-  keywords and built-in functions, the preprocessor, `link`.
+- Not yet implemented: the preprocessor, `link`.
 
 ## Verification
 

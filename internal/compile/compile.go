@@ -561,7 +561,15 @@ func (p *pcomp) expr(e syntax.Expr, fail, succ label) (start, resume label, v vm
 	case *syntax.Create:
 		return p.create(e, fail, succ)
 	case *syntax.PDCO:
-		p.errorf(e, "programmer-defined control operations are not yet supported")
+		// p{e1, ..., en} is p([create e1, ..., create en]), as icont's
+		// Pdco rules build it; an empty ei is create &null.
+		creates := make([]syntax.Expr, len(e.Args.Elems))
+		for i, x := range e.Args.Elems {
+			creates[i] = &syntax.Create{Create: e.Lbrace, X: x}
+		}
+		list := &syntax.ListLit{Lbrack: e.Lbrace, List: syntax.List[syntax.Expr]{Elems: creates}, Rbrack: e.Rbrace}
+		return p.expr(&syntax.Call{Fun: e.Fun, Lparen: e.Lbrace,
+			Args: syntax.List[syntax.Expr]{Elems: []syntax.Expr{list}}, Rparen: e.Rbrace}, fail, succ)
 	case *syntax.Field:
 		f := p.c.fields[e.Name.Text]
 		if f == nil {
@@ -753,15 +761,24 @@ func (p *pcomp) keyword(e *syntax.Keyword, fail, succ label) (label, label, vm.O
 		return succ, fail, p.c.constant("&uset", vm.CsetUniv)
 	case "current", "source", "main", "subject", "pos", "input", "output", "errout",
 		"error", "errornumber", "errortext", "errorvalue", "line", "file", "random",
-		"trace", "level":
+		"trace", "level", "clock", "date", "dateline", "time", "host", "version",
+		"progname", "dump", "eventcode", "eventsource", "eventvalue":
 		s := p.newLabel()
 		p.place(s)
 		t := p.temp()
 		p.emit(vm.Instr{Op: vm.OpOper, Fn: vm.Ops["&"+e.Name.Text], Dst: t, L1: int32(succ), L2: int32(fail)})
 		return s, fail, t
 	}
-	if e.Name.Text == "features" {
-		return p.genOp(vm.Ops["&features"], nil, fail, succ)
+	switch e.Name.Text {
+	case "features", "collections", "regions", "storage", "allocated":
+		return p.genOp(vm.Ops["&"+e.Name.Text], nil, fail, succ)
+	case "col", "row", "x", "y", "interval", "control", "shift", "meta", "window", "column":
+		// Graphics keywords (and &column), which fail in an Icon
+		// without graphics.
+		return fail, fail, p.null()
+	}
+	if n, ok := vm.MouseEvents[e.Name.Text]; ok {
+		return succ, fail, p.c.constant(fmt.Sprintf("i%d", n), n)
 	}
 	p.errorf(e, "&%s is not yet supported", e.Name.Text)
 	return fail, fail, p.null()

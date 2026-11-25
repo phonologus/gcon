@@ -1,0 +1,15 @@
+nn:nn:nn
+nnnn/nn/nn
+dateline ok
+integer 0
+0
+keywords
+"12"
+ 0 0 0 0 0 500000 500000
+ 4 1 1 1
+ -1 -2 -3 -4 -5 -6 -7 -8 -9 -10
+graphics keywords fail
+&null&null&null
+7
+collect(4): error 205
+&dump := "x": error 101

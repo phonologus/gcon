@@ -143,16 +143,24 @@ func init() {
 		s := MustStr(arg(a, 0)).s
 		return vm.lookupVar(s)
 	})
-	// collect(region, bytes): iconx's garbage collection; gcon's memory
-	// is Go's, so only the arguments are checked.
+	// collect(region, bytes): iconx's garbage collection. gcon's memory
+	// is Go's; the collection is counted, for &collections, as iconx
+	// counts it: in the total, and for regions 1, 2 and 3 (static,
+	// string, block) in that region's count.
 	fn("collect", func(vm *VM, a []Value) (Value, bool) {
-		for i := 0; i < 2; i++ {
-			if _, null := arg(a, i).(Null); !null {
-				MustInt(a[i])
-			}
+		var region Int
+		if _, null := arg(a, 0).(Null); !null {
+			region = MustInt(a[0])
 		}
 		if _, null := arg(a, 1).(Null); !null && MustInt(a[1]) < 0 {
 			Runerr(205, a[1])
+		}
+		if region < 0 || region > 3 {
+			Runerr(205, region)
+		}
+		vm.collections[0]++
+		if region > 0 {
+			vm.collections[region]++
 		}
 		return NullValue, true
 	})
@@ -318,32 +326,39 @@ func init() {
 		if n > Int(vm.level) {
 			n = Int(vm.level)
 		}
-		var b strings.Builder
-		b.WriteString("co-expression_" + strconv.Itoa(vm.co.serial) + "(" + strconv.Itoa(vm.co.results) + ")\n\n")
-		for fr := vm.cur; fr != nil && n > 0; fr, n = fr.caller, n-1 {
-			p := fr.proc
-			b.WriteString(p.Name + " local identifiers:\n")
-			for i, name := range p.LocalNames {
-				b.WriteString("   " + name + " = " + vm.OutImage(fr.locals[i], 0) + "\n")
-			}
-			for _, g := range p.Statics {
-				name := vm.prog.GlobalNames[g]
-				name = name[strings.IndexByte(name, ' ')+1:]
-				b.WriteString("   " + name + " = " + vm.OutImage(vm.globals[g], 0) + "\n")
-			}
-		}
-		b.WriteString("\nglobal identifiers:\n")
-		var gs []int
-		for i, name := range vm.prog.GlobalNames {
-			if strings.IndexByte(name, ' ') < 0 && (vm.prog.Invocable == nil || vm.prog.Invocable[i]) {
-				gs = append(gs, i)
-			}
-		}
-		sort.Slice(gs, func(i, j int) bool { return vm.prog.GlobalNames[gs[i]] < vm.prog.GlobalNames[gs[j]] })
-		for _, i := range gs {
-			b.WriteString("   " + vm.prog.GlobalNames[i] + " = " + vm.OutImage(vm.globals[i], 0) + "\n")
-		}
-		vm.emit(f, []byte(b.String()), true)
+		s := "co-expression_" + strconv.Itoa(vm.co.serial) + "(" + strconv.Itoa(vm.co.results) + ")\n\n" + vm.listing(int(n))
+		vm.emit(f, []byte(s), true)
 		return NullValue, true
 	})
+}
+
+// listing returns the identifiers of the n innermost procedure
+// activations and the globals with their values, as iconx's xdisp (for
+// display and the termination dump).
+func (vm *VM) listing(n int) string {
+	var b strings.Builder
+	for fr := vm.cur; fr != nil && n > 0; fr, n = fr.caller, n-1 {
+		p := fr.proc
+		b.WriteString(p.Name + " local identifiers:\n")
+		for i, name := range p.LocalNames {
+			b.WriteString("   " + name + " = " + vm.OutImage(fr.locals[i], 0) + "\n")
+		}
+		for _, g := range p.Statics {
+			name := vm.prog.GlobalNames[g]
+			name = name[strings.IndexByte(name, ' ')+1:]
+			b.WriteString("   " + name + " = " + vm.OutImage(vm.globals[g], 0) + "\n")
+		}
+	}
+	b.WriteString("\nglobal identifiers:\n")
+	var gs []int
+	for i, name := range vm.prog.GlobalNames {
+		if strings.IndexByte(name, ' ') < 0 && (vm.prog.Invocable == nil || vm.prog.Invocable[i]) {
+			gs = append(gs, i)
+		}
+	}
+	sort.Slice(gs, func(i, j int) bool { return vm.prog.GlobalNames[gs[i]] < vm.prog.GlobalNames[gs[j]] })
+	for _, i := range gs {
+		b.WriteString("   " + vm.prog.GlobalNames[i] + " = " + vm.OutImage(vm.globals[i], 0) + "\n")
+	}
+	return b.String()
 }

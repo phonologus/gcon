@@ -64,6 +64,11 @@ type VM struct {
 	lastCharPos int // position of randomChar's last choice
 	trace       Int // &trace (trace.go)
 	level       int // &level
+	// keywords.go
+	dump                               Int
+	collections                        [4]Int // total, static, string, block
+	progname                           *String
+	eventcode, eventsource, eventvalue Value
 
 	// Deadline, if set, stops the program with status DeadlineStatus
 	// once passed (checked every few thousand instructions). For tests.
@@ -106,6 +111,8 @@ func New(prog *Program, stdin io.Reader, stdout, stderr io.Writer) *VM {
 		stdout:  stdout,
 		stderr:  stderr,
 	}
+	vm.progname = Text("")
+	vm.eventcode, vm.eventsource, vm.eventvalue = NullValue, NullValue, NullValue
 	vm.input = &File{name: "&input", keyword: true, r: bufio.NewReader(stdin)}
 	vm.output = &File{name: "&output", keyword: true, w: vm.out}
 	vm.errfile = &File{name: "&errout", keyword: true, w: vm.errout, errout: true}
@@ -150,6 +157,9 @@ func (vm *VM) Run(args []string) (status int) {
 			status = 1
 		default:
 			panic(e)
+		}
+		if vm.co != nil {
+			vm.termDump() // &dump, as iconx's c_exit
 		}
 	}()
 	var main *Proc

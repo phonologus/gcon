@@ -1,0 +1,32 @@
+
+Termination dump:
+
+co-expression #1(1)
+p local identifiers:
+   n = 0
+p local identifiers:
+   n = 1
+p local identifiers:
+   n = 2
+p local identifiers:
+   n = 3
+main local identifiers:
+   x = "local"
+   s = "static"
+
+global identifiers:
+   collect = function collect
+   exit = function exit
+   g = list_1 = [1,2]
+   image = function image
+   main = procedure main
+   many = function many
+   map = function map
+   move = function move
+   p = procedure p
+   repl = function repl
+   tab = function tab
+   type = function type
+   upto = function upto
+   write = function write
+   writes = function writes

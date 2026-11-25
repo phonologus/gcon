@@ -9,6 +9,7 @@ center
 checkfpc
 ck
 coerce
+coexpr
 collate
 concord
 cset
@@ -22,12 +23,14 @@ every
 fncs
 fncs1
 gc1
+gc2
 gener
 genqueen
 image
 io
 iobig
 kross
+kwds
 large
 left
 level
@@ -39,12 +42,14 @@ mathfunc
 meander
 mffsol
 mindfa
+misc
 nargs
 numeric
 others
 over
 overflow
 parse
+pdco
 prefix
 primes
 proto
@@ -69,6 +74,7 @@ substring
 table
 tracer
 transmit
+traps
 trim
 var
 wordcnt
