@@ -201,6 +201,12 @@ Go's handling of UTF-8 throughout. All encoding and decoding goes through
   runes, as Object Icon does. ASCII strings need neither.
 - Out of scope: normalization, grapheme clusters and display width. The
   unit is the rune, as in Go.
+- **UTF-8 is the only text encoding.** As in Go, text means UTF-8 and
+  anything else is binary. gcon does not transcode or guess encodings:
+  a Latin-1 (or other) file read in text mode keeps its bytes, and its
+  non-UTF-8 bytes read as U+FFFD; to work with it, read it as bytes.
+  Latin-1 bytes in source literals make those literals bytes, which is
+  what preserves 9.5's behaviour for them, not support for Latin-1 text.
 
 ### Csets
 
@@ -305,13 +311,13 @@ renders identically). 52 of the 99 reference tests call `image`.
   is `` '\x00..`b..\U0010ffff\x80..\xff' ``. Because they contain
   non-ASCII code points, these literals read back as text with lone bytes:
   exact, and short.
-- **One inexact case (open).** A text value whose only non-ASCII content
-  is lone bytes, such as a line read in text mode from a Latin-1 file
-  (`"caf\xe9"`), has no literal of its own unit: its image reads back as
-  bytes. The two differ only where units matter (`ord` gives 0xFFFD rather
-  than 233, and cset matching). Options: accept it; or add one small
-  syntax for "text" that only `image()` needs to use. To decide before
-  `image()` is implemented.
+- **One inexact case, accepted.** A text value whose only non-ASCII
+  content is lone bytes (for example `"caf\xe9"`, from reading a Latin-1
+  file in text mode) has no literal of its own unit: its image reads back
+  as bytes. The two differ only where units matter (`ord` gives 0xFFFD
+  rather than 233, and cset matching). This is accepted, following Go:
+  such a value is malformed text, and gcon does not try to make it
+  first-class (see "UTF-8 is the only text encoding").
 
 ### Compatibility cost and open points
 
