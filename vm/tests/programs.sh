@@ -15,7 +15,7 @@ here=$(cd "$(dirname "$0")/.." && pwd)
 vm=${VM:-$here/bin/gcon-vm}
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
-src=$(cd "${GCONSRC:-$here/../gcon}" && pwd) || exit 2
+src=$(cd "${GCONSRC:-$here/..}" && pwd) || exit 2
 if [ -z "${GCON:-}" ]; then
 	(cd "$src" && go build -o "$tmp/gcon" ./cmd/gcon) || exit 2
 	GCON=$tmp/gcon

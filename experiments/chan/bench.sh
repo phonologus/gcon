@@ -1,12 +1,12 @@
 #!/bin/sh
 # bench.sh: ring and sieve on gcon-vm, gcon's Go VM and iconx, with peak
 # memory. Needs gcon (../../bin/gcon), gcon-vm ($GCONVM, default
-# ../../../gcon-vm/bin/gcon-vm) and iconx ($ICONBIN, else built by
+# ../../vm/bin/gcon-vm) and iconx ($ICONBIN, else built by
 # gcon's tools/iconx/build.sh).
 set -eu
 cd "$(dirname "$0")"
 gcon=../../bin/gcon
-vm=${GCONVM:-../../../gcon-vm/bin/gcon-vm}
+vm=${GCONVM:-../../vm/bin/gcon-vm}
 ICONBIN=${ICONBIN:-$(sh ../../tools/iconx/build.sh)}
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT

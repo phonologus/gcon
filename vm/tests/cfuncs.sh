@@ -10,11 +10,11 @@
 set -eu
 here=$(cd "$(dirname "$0")/.." && pwd)
 vm=${VM:-$here/bin/gcon-vm}
-icon=$(cd "${ICONSRC:-$here/../icon}" && pwd)
+icon=$(cd "${ICONSRC:-$here/../../icon}" && pwd)
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 if [ -z "${GCON:-}" ]; then
-	src=$(cd "${GCONSRC:-$here/../gcon}" && pwd)
+	src=$(cd "${GCONSRC:-$here/..}" && pwd)
 	(cd "$src" && go build -o "$tmp/gcon" ./cmd/gcon)
 	GCON=$tmp/gcon
 	export GCONROOT="$src" # for the IPL (link io)
@@ -40,7 +40,7 @@ else
 	echo "cfuncs: FAIL"
 	exit 1
 fi
-ICONBIN=${ICONBIN:-$(sh "${GCONSRC:-$here/../gcon}/tools/iconx/build.sh" 2>/dev/null || true)}
+ICONBIN=${ICONBIN:-$(sh "${GCONSRC:-$here/..}/tools/iconx/build.sh" 2>/dev/null || true)}
 if [ -x "${ICONBIN:-}/iconx" ]; then
 	cp "$icon/ipl/procs/io.icn" .
 	"$ICONBIN/icont" -s -c io.icn cfunc.icn

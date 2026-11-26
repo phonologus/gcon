@@ -1,9 +1,9 @@
 // Command gentables writes src/gen_tables.c: the names of gcon's
 // builtins, which a built program refers to (gcon's
 // internal/vm/builtinref.go), and the code points that are not
-// printable (strconv.IsPrint), which images escape. It runs inside
-// gcon's module through an overlay, so it can read gcon's internal/vm
-// without gcon changing: see gentables.sh.
+// printable (strconv.IsPrint), which images escape. It is part of
+// gcon's module, so it reads gcon's internal/vm directly: see
+// gentables.sh.
 package main
 
 import (

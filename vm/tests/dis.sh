@@ -2,15 +2,15 @@
 # The loader test: gcon builds each program given (directories are
 # searched for *.icn), and gcon-vm's listing of the built file must be
 # identical to gcon's (`gcon dis`). Programs gcon cannot build are
-# skipped. Needs gcon: $GCON, or built from $GCONSRC (default ../gcon
-# beside this repository), whose tree is then its root (the library).
+# skipped. Needs gcon: $GCON, or built from $GCONSRC (default .., this checkout),
+# whose tree is then its root (the library).
 set -u
 here=$(cd "$(dirname "$0")/.." && pwd)
 vm=${VM:-$here/bin/gcon-vm}
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 if [ -z "${GCON:-}" ]; then
-	src=$(cd "${GCONSRC:-$here/../gcon}" && pwd) || exit 2
+	src=$(cd "${GCONSRC:-$here/..}" && pwd) || exit 2
 	(cd "$src" && go build -o "$tmp/gcon" ./cmd/gcon) || exit 2
 	GCON=$tmp/gcon
 	export GCONROOT="${GCONROOT:-$src}"

@@ -1,14 +1,14 @@
 #!/bin/sh
-# Regenerate src/gen_tables.c from gcon's sources ($GCONSRC, default
-# ../gcon beside this repository). Run it when gcon gains a builtin or
-# changes Go version (and so Unicode version). Never needed to build.
+# Regenerate vm/src/gen_tables.c from gcon's Go sources (the names of
+# gcon's builtins, Go's Unicode printability). Run it when gcon gains a
+# builtin or changes Go version (and so Unicode version). Never needed
+# to build. (Until the C front end replaces the Go: then these tables
+# come from the C.)
 set -eu
 here=$(cd "$(dirname "$0")/.." && pwd)
-gcon=$(cd "${GCONSRC:-$here/../gcon}" && pwd)
-tmp=$(mktemp -d)
-trap 'rm -rf "$tmp"' EXIT
-printf '{"Replace":{"%s/cmd/gcon-vm-gentables/main.go":"%s/tools/gentables/main.go"}}\n' \
-	"$gcon" "$here" >"$tmp/overlay.json"
+gcon=$(cd "$here/.." && pwd)
 rev=$(git -C "$gcon" rev-parse --short HEAD)
-(cd "$gcon" && go run -overlay "$tmp/overlay.json" ./cmd/gcon-vm-gentables "$rev") >"$tmp/out.c"
-mv "$tmp/out.c" "$here/src/gen_tables.c"
+tmp=$(mktemp)
+trap 'rm -f "$tmp"' EXIT
+(cd "$gcon" && go run ./vm/tools/gentables "$rev") >"$tmp"
+mv "$tmp" "$here/src/gen_tables.c"

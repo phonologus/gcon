@@ -1,12 +1,13 @@
 #!/bin/sh
 # Install gcon-vm into a gcon root, where gcon run finds it:
-# $GCONROOT/libexec/gcon-vm. GCONROOT defaults to ../gcon beside this
-# repository (a checkout of gcon is a root). Builds first if needed.
+# ROOT/libexec/gcon-vm. ROOT defaults to $GCONROOT, else this checkout
+# (a checkout of gcon is a root; ../build.sh installs it there too).
+# Builds first if needed.
 #
 #   tools/install.sh [root]
 set -eu
 here=$(cd "$(dirname "$0")/.." && pwd)
-root=${1:-${GCONROOT:-$here/../gcon}}
+root=${1:-${GCONROOT:-$here/..}}
 root=$(cd "$root" && pwd)
 [ -d "$root/lib/ipl/procs" ] || { echo "install.sh: $root is not a gcon root" >&2; exit 2; }
 [ -x "$here/bin/gcon-vm" ] || "$here/build.sh"

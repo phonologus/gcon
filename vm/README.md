@@ -26,10 +26,14 @@ used if set.
 
 ## Using it with gcon
 
+gcon-vm is part of gcon (`vm/` of gcon's repository), and gcon's
+`build.sh` installs it in the root's `libexec`. To install it in another
+root:
+
     tools/install.sh [gcon-root]
 
-copies `bin/gcon-vm` to the gcon root's `libexec` (by default `../gcon`,
-a checkout of gcon being a root), where `gcon run`, and so every program
+copies `bin/gcon-vm` to that root's `libexec` (by default this
+checkout's), where `gcon run`, and so every program
 gcon builds, finds it and hands programs to it. `GCONVM` overrides the
 choice (a path to a gcon-vm, or `go` for gcon's own VM); `gcon env`
 shows it. gcon-vm can also be run directly on a built program:
@@ -38,8 +42,8 @@ shows it. gcon-vm can also be run directly on a built program:
 
 ## Testing
 
-The tests compare gcon-vm with gcon, so they need Go and gcon's source
-(`$GCONSRC`, by default `../gcon` beside this repository); building
+The tests need gcon (built from this checkout, `..`, while it is Go)
+and the Icon sources beside the checkout (`../../icon`); building
 gcon-vm needs neither.
 
     tests/dis.sh tests/values.icn ../icon/tests/general ../icon/ipl/progs

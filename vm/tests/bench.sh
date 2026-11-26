@@ -17,11 +17,11 @@ vm=${VM:-$here/bin/gcon-vm}
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 if [ -z "${GCON:-}" ]; then
-	src=$(cd "${GCONSRC:-$here/../gcon}" && pwd) || exit 2
+	src=$(cd "${GCONSRC:-$here/..}" && pwd) || exit 2
 	(cd "$src" && go build -o "$tmp/gcon" ./cmd/gcon) || exit 2
 	GCON=$tmp/gcon
 fi
-ICONBIN=${ICONBIN:-$(sh "${GCONSRC:-$here/../gcon}/tools/iconx/build.sh" 2>/dev/null)}
+ICONBIN=${ICONBIN:-$(sh "${GCONSRC:-$here/..}/tools/iconx/build.sh" 2>/dev/null)}
 [ -x "$ICONBIN/iconx" ] || ICONBIN=
 N=${1:-2000000}
 best() { # best of three wall times, in ns, of "$@"

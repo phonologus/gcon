@@ -6,8 +6,8 @@
 # program, if present, is its standard input.
 #
 #   tests/expected.sh [file.icn | dir] ...          check (default:
-#                                                   ../icon/tests/general
-#                                                   ../icon/ipl/progs)
+#                                                   ../../icon/tests/general
+#                                                   ../../icon/ipl/progs)
 #   tests/expected.sh -record-go [file | dir] ...   record gcon's Go VM
 #   tests/expected.sh -accept file.icn ...          record gcon-vm
 #
@@ -32,13 +32,13 @@ case "${1:-}" in
 -accept) mode=accept; shift ;;
 esac
 if [ -z "${GCON:-}" ]; then
-	src=$(cd "${GCONSRC:-$here/../gcon}" && pwd) || exit 2
+	src=$(cd "${GCONSRC:-$here/..}" && pwd) || exit 2
 	(cd "$src" && go build -o "$tmp/gcon" ./cmd/gcon) || exit 2
 	GCON=$tmp/gcon
 	export GCONROOT="${GCONROOT:-$src}"
 fi
 t=${TIMEOUT:-10}
-[ $# -gt 0 ] || set -- "$here/../icon/tests/general" "$here/../icon/ipl/progs"
+[ $# -gt 0 ] || set -- "$here/../../icon/tests/general" "$here/../../icon/ipl/progs"
 for arg in "$@"; do
 	if [ -d "$arg" ]; then find "$arg" -name '*.icn'; else echo "$arg"; fi
 done | sort >"$tmp/list"
