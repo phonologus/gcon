@@ -4,12 +4,15 @@
  *	gcon run file [args...]        run Icon source, or a built program
  *	gcon build [-o out] file.icn   build a program: an executable file
  *	gcon dis file                  list the VM code of source or a built program
+ *	gcon fmt [-l] [-w] [-d] [path ...]
+ *	                               format Icon source
  *	gcon env                       print gcon's root and library search paths
  *	gcon version                   print gcon's version
  *
  * Programs run on gcon-vm, the root's (libexec/gcon-vm) or $GCONVM's.
  */
 #include "driver.h"
+#include "format.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -20,6 +23,7 @@ static _Noreturn void usage(void) {
 	      "\tgcon run file [args...]\n"
 	      "\tgcon build [-o out] file.icn\n"
 	      "\tgcon dis file\n"
+	      "\tgcon fmt [-l] [-w] [-d] [path ...]\n"
 	      "\tgcon env\n"
 	      "\tgcon version\n",
 		stderr);
@@ -164,6 +168,8 @@ int main(int argc, char **argv) {
 			usage();
 		return execvm(vm(), argv[2], NULL, 0, true, &c);
 	}
+	if (!strcmp(cmd, "fmt"))
+		return format_main(argc - 1, argv + 1);
 	if (!strcmp(cmd, "env")) {
 		env();
 		return 0;

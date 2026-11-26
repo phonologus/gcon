@@ -17,6 +17,7 @@ identical before the next (`../docs/design.md`, "gcon in C").
 | `prog.c` | `internal/vm`: the program, its constants (csets as `cset.go`), `encode.go` | done |
 | `compile.c` | `internal/compile`, iterative | done |
 | `driver.c`, `main.c` | `internal/run`, `internal/root`, `cmd/gcon` | done |
+| `format.c` | icontools' `internal/format` and `cmd/icfmt` (`gcon fmt`) | done |
 
 `tokens.inc` is generated from the Go's token table by
 `tests/gentoken.sh`, and `builtin.inc` from its catalogue of built-ins
@@ -129,3 +130,13 @@ path (missing files, unresolved links with and without a root, syntax
 errors, flags); and gcon-vm's tests run with it as `$GCON`
 (`../vm/tests/expected.sh`, `programs.sh`, `dis.sh`). Under the
 sanitizers, it builds the 476 programs of the IPL and `../icn` cleanly.
+
+The formatter (`format.c`, `gcon fmt`) is icontools' (`icfmt`),
+whose tree is gcon's (gcon's front end is icontools' fork), on gcon's
+front end, iterative like the rest. `tests/fmt.sh` checks it against
+icfmt (built from `../icontools`): the same output, messages and exit
+status for every file of the corpus and its damaged variants (2,822,
+1,838 of them changed by formatting), the token sequence of every
+formatted file kept (inserted semicolons included), and the flags
+(`-l`, `-w`, `-d`, standard input, errors). gcon's literals (`\u`,
+`\U`, cset ranges) are tokens like any other, kept byte for byte.

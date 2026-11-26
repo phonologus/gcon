@@ -201,6 +201,14 @@ own, is a pseudo-version naming the commit, stamped by `build.sh`. Its
 `gcon build` writes what the Go's writes, byte for byte but for the
 header's name of the gcon that built it.
 
+The formatter is ported (`src/format.c`, `gcon fmt`), from icontools'
+`internal/format` and `icfmt`: gcon's front end is icontools' fork, so
+the trees are the same and `icfmt` is its oracle (`src/tests/fmt.sh`:
+identical over the corpus and its damaged variants, every formatted
+file's tokens kept). gcon's additions to the language are lexical (the
+literal escapes `\u` and `\U`, cset ranges) and pass through it as
+written.
+
 ### Graphics: a separate display server
 
 **Decision (2026-11-25): graphics runs in a separate display server
