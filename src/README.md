@@ -11,13 +11,14 @@ identical before the next (`../docs/design.md`, "gcon in C").
 | `lexer.c` | `internal/lexer` | done |
 | `lit.c` | `internal/lit` | done |
 | `syntax.c` | `internal/syntax` | done |
+| `ipp.c` | icont's `src/common/ipp.c` (output as `internal/ipp`) | done |
 
 `tokens.inc` is generated from the Go's token table by
 `tests/gentoken.py` (while the Go is the reference).
 
 ## Testing
 
-    tests/diff.sh [lex|parse|walk]
+    tests/diff.sh [lex|parse|walk|pp]
 
 builds `tests/dump.c` with the address and undefined-behaviour
 sanitizers, and the Go reference's `tools/refdump`, and checks that
@@ -60,3 +61,18 @@ in 1,177 (7,750 procedures), 10 rejected by both, 1 with only
 non-syntax errors (skipped), 15 not preprocessable by icont; 300
 mutants, no disagreement. A planted bug (`^` made left-associative) is
 caught, in `tests/general/parse.icn`.
+
+The preprocessor is icont's own code (`ipp.c`, public domain), its
+output given gcon's form (a line for each line read, and a map of where
+each came from) and its nested `$if` skip made iterative. `oracle.sh`
+checks it against `icont -E`, with the symbols that icont defines: the
+same lines that are not blank, each from the same file and line (from
+icont's `#line` markers), and the same errors, for the Icon tree and
+the edge cases in `tests/pp` (every directive error, includes nested,
+circular, and by icont's rule of the name's last component on the
+path). At its port: 1,208 files identical, 181,001 lines with their
+positions, 101 errors. `diff.sh pp` checks it against the Go (2,795
+files identical); the port found three places where the Go was not
+icont's, fixed in both (`../docs/design.md`). Deep nesting (a million
+`$if`s, or a chain of a million definitions) has no ceiling; the chain
+is slow, as icont's 256-bin definition table makes it.

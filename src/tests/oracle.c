@@ -18,6 +18,14 @@
  *   oracle strip tokens|trees
  *                           a filter: positions dropped from either
  *                           side's output, for files with #line
+ *   oracle pp FILE SYM...   the file preprocessed with the predefined
+ *                           symbols SYM (each "1") and the include path
+ *                           $LPATH (split as icont splits it, at spaces
+ *                           and colons): "file TAB line TAB text" for
+ *                           each line that is not blank, and the errors
+ *                           on stderr, as icont reports them
+ *   oracle ppnorm           a filter: "icont -E" output in the same form,
+ *                           the positions from its #line markers
  *   oracle mutate SEED FILE a token deleted, duplicated or swapped with
  *                           the next, chosen by SEED; the change is
  *                           described on stderr; exit 3 if FILE has
@@ -33,6 +41,7 @@
  */
 #define _POSIX_C_SOURCE 200809L
 #include "../syntax.h"
+#include "../ipp.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -570,9 +579,90 @@ static int mutate(void) {
 	return 0;
 }
 
+/* ------------------------------------------------------------------ */
+/* The preprocessor */
+
+static bool blank(const char *s, size_t n) {
+	for (size_t i = 0; i < n; i++)
+		if (!strchr(" \t\n\v\f\r", s[i]) || !s[i])
+			return false;
+	return true;
+}
+
+/* ppline writes a line (without its newline) that is not blank. */
+static void ppline(const char *file, long line, const char *s, size_t n) {
+	if (n && s[n - 1] == '\n')
+		n--;
+	if (blank(s, n))
+		return;
+	bufprintf(&out, "%s\t%ld\t", file, line);
+	bufadd(&out, s, n);
+	bufputc(&out, '\n');
+}
+
+static int pp(const char *name, int nsyms, char **syms) {
+	Buf src = readfile(name);
+	PPOptions o = {0};
+	const char **values = xcalloc((size_t)nsyms + 1, sizeof *values);
+	for (int i = 0; i < nsyms; i++)
+		values[i] = "1";
+	o.prenames = (const char *const *)syms;
+	o.prevalues = values;
+	o.npredef = (size_t)nsyms;
+	/* LPATH, split at spaces and colons, as icont's pathelem */
+	VEC(const char *) dirs = {0};
+	const char *lp = getenv("LPATH");
+	while (lp && *lp) {
+		while (*lp && strchr(" :", *lp))
+			lp++;
+		const char *e = lp;
+		while (*e && !strchr(" :", *e))
+			e++;
+		if (e > lp)
+			VPUSH(dirs, xstrndup(lp, (size_t)(e - lp)));
+		lp = e;
+	}
+	o.incpath = dirs.v;
+	o.nincpath = dirs.n;
+	PPResult *r = ipp_preprocess(name, src.b, src.n, &o);
+	for (size_t off = 0; off < r->src.n;) {
+		const char *nl = memchr(r->src.b + off, '\n', r->src.n - off);
+		size_t len = nl ? (size_t)(nl - (r->src.b + off)) + 1 : r->src.n - off;
+		const char *file;
+		long line;
+		ipp_locate(&r->map, off, &file, &line);
+		ppline(file, line, r->src.b + off, len);
+		off += len;
+	}
+	for (size_t i = 0; i < r->errs.n; i++)
+		fprintf(stderr, "%s\n", ipp_error(&r->errs.v[i]));
+	fwrite(out.b ? out.b : "", 1, out.n, stdout);
+	return r->errs.n ? 1 : 0;
+}
+
+/* ppnorm: each #line marker ('#line N "file"') says that the next line
+ * is line N+1 of file. */
+static int ppnorm(void) {
+	char *line = NULL, *file = xstrndup("", 0);
+	size_t cap = 0;
+	ssize_t n;
+	long lno = 0;
+	while ((n = getline(&line, &cap, stdin)) > 0) {
+		char *q;
+		if (!strncmp(line, "#line ", 6) && (q = strchr(line, '"')) && strrchr(line, '"') > q) {
+			lno = strtol(line + 6, NULL, 10);
+			file = xstrndup(q + 1, (size_t)(strrchr(line, '"') - q - 1));
+			continue;
+		}
+		ppline(file, ++lno, line, (size_t)n);
+	}
+	fwrite(out.b ? out.b : "", 1, out.n, stdout);
+	return 0;
+}
+
 static _Noreturn void usage(void) {
 	fprintf(stderr, "usage: oracle tokens|trees|linedirs FILE | needspp FILE SYM... | "
-			"strip tokens|trees | mutate SEED FILE\n");
+			"pp FILE SYM... | ppnorm | strip tokens|trees | mutate SEED FILE\n");
 	exit(2);
 }
 
@@ -583,11 +673,15 @@ static void load(const char *name) {
 
 int main(int argc, char **argv) {
 	int rc;
+	if (argc == 2 && !strcmp(argv[1], "ppnorm"))
+		return ppnorm();
 	if (argc < 3)
 		usage();
 	const char *mode = argv[1];
 	if (!strcmp(mode, "strip"))
 		return strip(!strcmp(argv[2], "trees"));
+	if (!strcmp(mode, "pp"))
+		return pp(argv[2], argc - 3, argv + 3);
 	if (!strcmp(mode, "mutate")) {
 		if (argc != 4)
 			usage();

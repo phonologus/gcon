@@ -110,6 +110,21 @@ heap and does not recurse, and the passes after it walk trees
 iteratively, so nothing in the toolchain has a stack ceiling. Its
 trees and errors are the Go's for every input the Go can parse.
 
+The preprocessor is the first part ported from icont's code itself
+(`src/ipp.c` is icont's `ipp.c`, its output in gcon's form), checked
+against `icont -E` (text, positions and errors) as well as the Go. The
+port found three places where the Go was not icont's, fixed in both:
+an error's offending value is shown as it is, in quotes (the Go quoted
+it as Go does, escaping quotes and backslashes); an included file is
+looked for on the path as icont's `pathfind` does (each directory, a
+"/" added if it lacks one, and the *last component* of the name;
+absolute names too; no cleaning of the path), where the Go joined and
+cleaned the whole name; and a file that opens but cannot be read ends
+at once, where the Go reported "cannot open". One question is left for
+the driver's port: icont also searches the source file's own directory
+(`tunix.c`, prepended to LPATH); gcon searches the current directory,
+LPATH and its root.
+
 ### Graphics: a separate display server
 
 **Decision (2026-11-25): graphics runs in a separate display server

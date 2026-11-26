@@ -1,0 +1,39 @@
+# Conditionals, nested and skipped, and $line/#line.
+$ifdef _V9
+v9 := 1
+$ifndef NOPE
+  $ifdef NOPE
+    skipped
+    $ifdef ANY
+      deeper
+    $else
+      deeper else
+    $endif
+    $iffy whatever
+    $endif
+    $line 500 "renamed.icn"
+  $else
+    taken
+  $endif
+$else
+not v9
+$endif
+$ifdef NOPE
+#line 900 "hashed.icn"
+$endif
+$line 100
+after line 100
+$line 200 newname
+after newname
+#line 300 "quoted name.icn"
+after hash line
+#line bad
+#line 7 too many
+$ ifdef _V9
+spaced directive
+$ endif
+   $ifndef _V9
+   indented skipped
+   $endif # comment
+procedure main()
+end

@@ -8,10 +8,15 @@
  *                    indexes; the token walk; the errors
  *   dump walk FILE   the same without the tree (nothing recursive: for
  *                    deeply nested input)
+ *   dump pp FILE     the preprocessed text, line by line with the map,
+ *                    and the errors ($PPDEFS: the predefined symbols,
+ *                    each "1"; $PPPATH: the include path; both
+ *                    separated by spaces)
  */
 #include "../lexer.h"
 #include "../lit.h"
 #include "../syntax.h"
+#include "../ipp.h"
 
 #include <inttypes.h>
 #include <stdio.h>
@@ -403,9 +408,64 @@ static void parse(const char *src, size_t n, bool tree) {
 	fwrite(out.b ? out.b : "", 1, out.n, stdout);
 }
 
+/* words splits $var at spaces. */
+static size_t words(const char *var, const char ***out) {
+	const char *s = getenv(var);
+	VEC(const char *) v = {0};
+	while (s && *s) {
+		while (*s == ' ')
+			s++;
+		const char *e = s;
+		while (*e && *e != ' ')
+			e++;
+		if (e > s)
+			VPUSH(v, xstrndup(s, (size_t)(e - s)));
+		s = e;
+	}
+	*out = v.v;
+	return v.n;
+}
+
+static void pp(const char *name, const char *src, size_t n) {
+	PPOptions o = {0};
+	const char **names, **values;
+	o.npredef = words("PPDEFS", &names);
+	values = xcalloc(o.npredef + 1, sizeof *values);
+	for (size_t i = 0; i < o.npredef; i++)
+		values[i] = "1";
+	o.prenames = names;
+	o.prevalues = values;
+	const char **path;
+	o.nincpath = words("PPPATH", &path);
+	o.incpath = path;
+	PPResult *r = ipp_preprocess(name, src, n, &o);
+	for (size_t off = 0; off < r->src.n;) {
+		const char *nl = memchr(r->src.b + off, '\n', r->src.n - off);
+		size_t len = nl ? (size_t)(nl - (r->src.b + off)) + 1 : r->src.n - off;
+		const char *file;
+		long line;
+		ipp_locate(&r->map, off, &file, &line);
+		bufprintf(&out, "L %zu ", off);
+		escz(file);
+		bufprintf(&out, " %ld ", line);
+		esc(r->src.b + off, len);
+		bufputc(&out, '\n');
+		off += len;
+	}
+	for (size_t i = 0; i < r->errs.n; i++) {
+		bufputs(&out, "E ");
+		escz(r->errs.v[i].file);
+		bufprintf(&out, " %ld ", r->errs.v[i].line);
+		escz(r->errs.v[i].msg);
+		bufputc(&out, '\n');
+	}
+	fwrite(out.b ? out.b : "", 1, out.n, stdout);
+}
+
 int main(int argc, char **argv) {
-	if (argc != 3 || (strcmp(argv[1], "lex") && strcmp(argv[1], "parse") && strcmp(argv[1], "walk"))) {
-		fprintf(stderr, "usage: dump lex|parse|walk FILE\n");
+	if (argc != 3 || (strcmp(argv[1], "lex") && strcmp(argv[1], "parse") && strcmp(argv[1], "walk") &&
+			    strcmp(argv[1], "pp"))) {
+		fprintf(stderr, "usage: dump lex|parse|walk|pp FILE\n");
 		return 2;
 	}
 	FILE *f = fopen(argv[2], "rb");
@@ -419,7 +479,9 @@ int main(int argc, char **argv) {
 	while ((k = fread(chunk, 1, sizeof chunk, f)) > 0)
 		bufadd(&src, chunk, k);
 	fclose(f);
-	if (!strcmp(argv[1], "parse") || !strcmp(argv[1], "walk"))
+	if (!strcmp(argv[1], "pp"))
+		pp(argv[2], src.b ? src.b : "", src.n);
+	else if (!strcmp(argv[1], "parse") || !strcmp(argv[1], "walk"))
 		parse(src.b ? src.b : "", src.n, !strcmp(argv[1], "parse"));
 	else
 		lex(src.b ? src.b : "", src.n);

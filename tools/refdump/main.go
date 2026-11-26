@@ -8,6 +8,9 @@
 //	refdump parse FILE  the syntax tree, field by field, with tokens as
 //	                    indexes; the token walk; the errors
 //	refdump walk FILE   the same without the tree
+//	refdump pp FILE     the preprocessed text, line by line with the map,
+//	                    and the errors ($PPPATH: the include path)
+//	refdump predef      the names of the predefined symbols
 package main
 
 import (
@@ -90,8 +93,12 @@ func lex(src string) {
 }
 
 func main() {
-	if len(os.Args) != 3 || (os.Args[1] != "lex" && os.Args[1] != "parse" && os.Args[1] != "walk") {
-		fmt.Fprintln(os.Stderr, "usage: refdump lex|parse|walk FILE")
+	if len(os.Args) == 2 && os.Args[1] == "predef" {
+		predef()
+		return
+	}
+	if len(os.Args) != 3 || (os.Args[1] != "lex" && os.Args[1] != "parse" && os.Args[1] != "walk" && os.Args[1] != "pp") {
+		fmt.Fprintln(os.Stderr, "usage: refdump lex|parse|walk|pp FILE | predef")
 		os.Exit(2)
 	}
 	b, err := os.ReadFile(os.Args[2])
@@ -99,7 +106,9 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	if os.Args[1] != "lex" {
+	if os.Args[1] == "pp" {
+		pp(os.Args[2], string(b))
+	} else if os.Args[1] != "lex" {
 		parse(string(b), os.Args[1] == "parse")
 	} else {
 		lex(string(b))

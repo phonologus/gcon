@@ -20,7 +20,6 @@ package ipp
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 )
 
@@ -170,7 +169,8 @@ func (p *pp) fatal(msg, value string) {
 	f := p.cur()
 	value = strings.TrimSuffix(value, "\n")
 	if value != "" {
-		msg = fmt.Sprintf("%q: %s", value, msg)
+		// As icont: the value as it is, in quotes (not Go-quoted).
+		msg = "\"" + value + "\": " + msg
 	}
 	p.errs = append(p.errs, &Error{File: f.name, Line: f.lno, Msg: msg})
 }
@@ -525,38 +525,46 @@ func (p *pp) include(s string) string {
 	if read == nil {
 		read = os.ReadFile
 	}
-	var b []byte
-	var err error
-	if found {
-		b, err = read(path)
-	}
-	if !found || err != nil {
+	if !found {
 		p.fatal("cannot open", name)
 		return ""
 	}
+	// As icont: a file that opens but cannot be read (a directory, say)
+	// ends at once.
+	b, _ := read(path)
 	p.push(path, string(b))
 	return ""
 }
 
-// find looks for an included file in the current directory, then in the
-// include path, as icont's pathfind.
+// find looks for an included file as icont's pathfind
+// (src/common/filepart.c): name itself (in the current directory), then
+// in each directory of the include path, with a "/" added if it lacks
+// one, the last component of name. A file is found if it can be opened.
 func (p *pp) find(name string) (string, bool) {
 	exists := func(f string) bool {
 		if p.opts.ReadFile != nil {
 			_, err := p.opts.ReadFile(f)
 			return err == nil
 		}
-		st, err := os.Stat(f)
-		return err == nil && !st.IsDir()
+		h, err := os.Open(f)
+		if err != nil {
+			return false
+		}
+		h.Close()
+		return true
 	}
 	if exists(name) {
 		return name, true
 	}
-	if filepath.IsAbs(name) {
-		return "", false
-	}
+	base := name[strings.LastIndexByte(name, '/')+1:]
 	for _, dir := range p.opts.IncludePath {
-		if f := filepath.Join(dir, name); exists(f) {
+		if dir == "" {
+			continue
+		}
+		if !strings.HasSuffix(dir, "/") {
+			dir += "/"
+		}
+		if f := dir + base; exists(f) {
 			return f, true
 		}
 	}

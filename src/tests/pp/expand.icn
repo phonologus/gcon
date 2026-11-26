@@ -1,0 +1,30 @@
+# Preprocessor edge cases: expansion (src/tests/diff.sh pp, oracle.sh).
+$define A B
+$define B A
+$define C C + 1
+$define D (E * 2)
+$define E 3
+$define F "quoted # not a comment" # but this is
+$define G 'cset\'s'
+$define EMPTY
+$define FF 99
+$define e7 bad
+$define rFF bad
+$define X_Y xy
+procedure main()
+   write(A, B, C, D, E)            # A B C D E in a comment
+   write("A B C", 'D E', F, G)
+   write(16rFF, 1e7, 2.5e7, 1e+FF, 3.FF, 7e-E, 12rFF.E)
+   write(X_Y, X_YZ, _A, A_, EMPTY, FF)
+   write("unterminated A
+   write(A, "esc \" A", B)
+   x := $( A, B $)
+end
+$undef A
+$undef NOTDEFINED
+$define B A
+$define B  A   
+$define TAB	tabbed	
+procedure q()
+   return A + B + TAB
+end

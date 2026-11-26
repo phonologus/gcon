@@ -1,0 +1,4 @@
+$define INC2 "inc2"
+$ifdef _V9
+$line 40
+y := INC2

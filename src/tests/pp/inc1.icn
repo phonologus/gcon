@@ -1,0 +1,4 @@
+$ifndef INC1
+$define INC1 "inc1"
+$endif
+x := INC1

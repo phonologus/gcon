@@ -1,0 +1,42 @@
+# Every directive error icont reports.
+$define
+$define 9x
+$define f(x) x
+$define S "unterminated
+$define Q 'also
+$define R "fine" "then # unterminated
+$undef
+$undef a b
+$ifdef
+$ifdef a b
+$endif
+$ifndef 9
+$endif
+$else
+$endif
+$ifdef _V9
+$else extra
+$endif extra
+$ifndef _V9
+$else  # just a comment
+$endif
+$include
+$include "unterminated
+$include a b
+$include nosuchfile
+$include "no/such/file.icn"
+$line
+$line x
+$line 5 "unterminated
+$line 5 a b
+$error
+$error say "hi" \ there # still in the text
+$frobnicate
+$ 5
+$ #comment only
+$define DUP 1
+$define DUP 2
+$(not a directive$)
+$ifdef _V9
+procedure main()
+end
