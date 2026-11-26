@@ -1,0 +1,30 @@
+{
+  "name": "tree-sitter-gcon",
+  "version": "0.1.0",
+  "description": "Icon grammar for tree-sitter, as gcon reads Icon",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/phonologus/gcon",
+    "directory": "editors/tree-sitter-gcon"
+  },
+  "keywords": [
+    "tree-sitter",
+    "parser",
+    "icon",
+    "gcon"
+  ],
+  "files": [
+    "grammar.js",
+    "src/**",
+    "queries/**",
+    "tree-sitter.json"
+  ],
+  "devDependencies": {
+    "tree-sitter-cli": "0.27.1"
+  },
+  "scripts": {
+    "build": "tree-sitter generate",
+    "test": "tree-sitter test"
+  }
+}

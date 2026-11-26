@@ -1,0 +1,103 @@
+================================================================================
+Escapes in strings: Icon 9.5's and gcon's
+================================================================================
+
+procedure main()
+   s := "a\nb\x41\101\^c\"\\"
+   t := "caf\u00e9 \U01F600"
+   u := "no # comment here"
+end
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (procedure_declaration
+    name: (identifier)
+    parameters: (parameter_list)
+    (assignment_expression
+      left: (identifier)
+      right: (string
+        (escape_sequence)
+        (escape_sequence)
+        (escape_sequence)
+        (escape_sequence)
+        (escape_sequence)
+        (escape_sequence)))
+    (assignment_expression
+      left: (identifier)
+      right: (string
+        (escape_sequence)
+        (escape_sequence)))
+    (assignment_expression
+      left: (identifier)
+      right: (string))))
+
+================================================================================
+Cset ranges, a lone dot and an escaped dot
+================================================================================
+
+procedure main()
+   c := 'a..zA..Z_'
+   d := '\u0370..\u03ff'
+   e := 'a.b'
+   f := '\...z'
+   g := ''
+end
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (procedure_declaration
+    name: (identifier)
+    parameters: (parameter_list)
+    (assignment_expression
+      left: (identifier)
+      right: (cset
+        (range_operator)
+        (range_operator)))
+    (assignment_expression
+      left: (identifier)
+      right: (cset
+        (escape_sequence)
+        (range_operator)
+        (escape_sequence)))
+    (assignment_expression
+      left: (identifier)
+      right: (cset))
+    (assignment_expression
+      left: (identifier)
+      right: (cset
+        (escape_sequence)
+        (range_operator)))
+    (assignment_expression
+      left: (identifier)
+      right: (cset))))
+
+================================================================================
+Continued literals and literals at line ends
+================================================================================
+
+procedure main()
+   s := "abc_
+         def"
+   write("x")
+   write('y')
+end
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (procedure_declaration
+    name: (identifier)
+    parameters: (parameter_list)
+    (assignment_expression
+      left: (identifier)
+      right: (string))
+    (call_expression
+      function: (identifier)
+      arguments: (argument_list
+        (string)))
+    (call_expression
+      function: (identifier)
+      arguments: (argument_list
+        (cset)))))

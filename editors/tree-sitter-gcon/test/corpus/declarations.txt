@@ -1,0 +1,49 @@
+================================================================================
+Declarations
+================================================================================
+
+link strings, "graphics"
+global a, b
+record point(x, y)
+invocable all, "+":2
+
+procedure main(args[])
+   local i, j
+   static k
+   initial k := 0
+   return "a long _
+      string"
+end
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (link_declaration
+    (identifier)
+    (string))
+  (global_declaration
+    (identifier)
+    (identifier))
+  (record_declaration
+    name: (identifier)
+    field: (identifier)
+    field: (identifier))
+  (invocable_declaration
+    (identifier)
+    (string)
+    (integer))
+  (procedure_declaration
+    name: (identifier)
+    parameters: (parameter_list
+      (identifier))
+    (local_declaration
+      (identifier)
+      (identifier))
+    (local_declaration
+      (identifier))
+    (initial_clause
+      (assignment_expression
+        left: (identifier)
+        right: (integer)))
+    (return_expression
+      (string))))

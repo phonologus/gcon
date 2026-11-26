@@ -1,0 +1,118 @@
+================================================================================
+Precedence and associativity
+================================================================================
+
+procedure main()
+   x := a + b * c ^ d ^ e
+   y := a | b | c & d ? e
+end
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (procedure_declaration
+    name: (identifier)
+    parameters: (parameter_list)
+    (assignment_expression
+      left: (identifier)
+      right: (binary_expression
+        left: (identifier)
+        right: (binary_expression
+          left: (identifier)
+          right: (binary_expression
+            left: (identifier)
+            right: (binary_expression
+              left: (identifier)
+              right: (identifier))))))
+    (binary_expression
+      left: (assignment_expression
+        left: (identifier)
+        right: (binary_expression
+          left: (identifier)
+          right: (binary_expression
+            left: (identifier)
+            right: (identifier))))
+      right: (binary_expression
+        left: (identifier)
+        right: (identifier)))))
+
+================================================================================
+Control structures extend to the right
+================================================================================
+
+procedure main()
+   x := if a then b else c + 1
+   every i := 1 to 10 by 2 do write(i)
+   suspend !s
+end
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (procedure_declaration
+    name: (identifier)
+    parameters: (parameter_list)
+    (assignment_expression
+      left: (identifier)
+      right: (if_expression
+        condition: (identifier)
+        consequence: (identifier)
+        alternative: (binary_expression
+          left: (identifier)
+          right: (integer))))
+    (loop_expression
+      condition: (assignment_expression
+        left: (identifier)
+        right: (to_expression
+          from: (integer)
+          to: (integer)
+          by: (integer)))
+      body: (call_expression
+        function: (identifier)
+        arguments: (argument_list
+          (identifier))))
+    (return_expression
+      (unary_expression
+        operand: (identifier)))))
+
+================================================================================
+Postfix forms and keywords
+================================================================================
+
+procedure main()
+   f(a, , b)[i:j].x{1}
+   &subject ? tab(0)
+   L := $<1, 2$>
+end
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (procedure_declaration
+    name: (identifier)
+    parameters: (parameter_list)
+    (pdco_expression
+      function: (field_expression
+        object: (section_expression
+          object: (call_expression
+            function: (identifier)
+            arguments: (argument_list
+              (identifier)
+              (identifier)))
+          start: (identifier)
+          end: (identifier))
+        field: (identifier))
+      arguments: (pdco_argument_list
+        (integer)))
+    (binary_expression
+      left: (keyword
+        (identifier))
+      right: (call_expression
+        function: (identifier)
+        arguments: (argument_list
+          (integer))))
+    (assignment_expression
+      left: (identifier)
+      right: (list
+        (integer)
+        (integer)))))

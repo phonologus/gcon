@@ -1,0 +1,88 @@
+================================================================================
+Semicolon insertion between lines
+================================================================================
+
+procedure main()
+   s
+   || t
+   x := a +
+      b
+   if x
+   then y
+end
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (procedure_declaration
+    name: (identifier)
+    parameters: (parameter_list)
+    (identifier)
+    (unary_expression
+      operand: (identifier))
+    (assignment_expression
+      left: (identifier)
+      right: (binary_expression
+        left: (identifier)
+        right: (identifier)))
+    (if_expression
+      condition: (identifier)
+      consequence: (identifier))))
+
+================================================================================
+Comments and directives count as line ends
+================================================================================
+
+$define N 10
+procedure main()
+   x   # comment
+$ifdef DEBUG
+   y
+$endif
+end
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (preprocessor_directive)
+  (procedure_declaration
+    name: (identifier)
+    parameters: (parameter_list)
+    (identifier)
+    (comment)
+    (preprocessor_directive)
+    (identifier)
+    (preprocessor_directive)))
+
+================================================================================
+Case clauses
+================================================================================
+
+procedure main()
+   case x of {
+      1: a
+      "two" | 3: { b; c }
+      default: d
+   }
+end
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (procedure_declaration
+    name: (identifier)
+    parameters: (parameter_list)
+    (case_expression
+      value: (identifier)
+      (case_clause
+        label: (integer)
+        body: (identifier))
+      (case_clause
+        label: (binary_expression
+          left: (string)
+          right: (integer))
+        body: (block
+          (identifier)
+          (identifier)))
+      (case_clause
+        body: (identifier)))))
