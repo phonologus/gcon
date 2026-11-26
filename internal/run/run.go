@@ -287,18 +287,24 @@ func TranslateLinked(path, src string, libPath, includePath []string) (*vm.Progr
 
 // findLink returns the candidates for "link name", in search order:
 // name.icn in the current directory, then in each directory of libPath,
-// as icont's pathfind searches for name.u1.
+// as icont's pathfind searches for name.u1 (common/filepart.c): each
+// directory, with a "/" added if it lacks one, and the last component of
+// the name, uncleaned, as $include does (internal/ipp).
 func findLink(name string, libPath []string) []string {
 	file := name + ".icn"
 	var c []string
 	if fileExists(file) {
 		c = append(c, file)
 	}
-	if filepath.IsAbs(file) {
-		return c
-	}
+	base := file[strings.LastIndexByte(file, '/')+1:]
 	for _, dir := range libPath {
-		if p := filepath.Join(dir, file); fileExists(p) {
+		if dir == "" {
+			continue
+		}
+		if !strings.HasSuffix(dir, "/") {
+			dir += "/"
+		}
+		if p := dir + base; fileExists(p) {
 			c = append(c, p)
 		}
 	}
