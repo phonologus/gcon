@@ -134,7 +134,9 @@ the next, a defect rather than a definition.
 Perl in the tree: generators (`src/tests/gentoken.sh`,
 `genbuiltin.sh`, `graphics/tools/mkxcolors.sh`) are sh and awk, and a
 job that needs a real program (the damaged files of `diff.sh`, which
-hold arbitrary bytes) is written in C (`src/tests/variants.c`).
+hold arbitrary bytes) is written in C (`src/tests/variants.c`; in
+`vm/tests`, `timeout.c`, `besttime.c` and `damage.c`), built by the
+script that uses it.
 
 Name resolution (`src/sema.c`) is the Go's, its diagnostics icont's
 (translator `tsym.c`, linker `lglob.c` and `lsym.c`), and is checked

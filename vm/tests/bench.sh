@@ -24,13 +24,8 @@ fi
 ICONBIN=${ICONBIN:-$(sh "${GCONSRC:-$here/..}/tools/iconx/build.sh" 2>/dev/null)}
 [ -x "$ICONBIN/iconx" ] || ICONBIN=
 N=${1:-2000000}
-best() { # best of three wall times, in ns, of "$@"
-	perl -MTime::HiRes=time -e '
-		my $best;
-		for (1..3) { my $t = time; system(@ARGV) == 0 or die "failed: @ARGV\n"; $t = time - $t;
-			$best = $t if !defined $best || $t < $best }
-		printf "%.0f\n", $best * 1e9' "$@"
-}
+${CC:-cc} -std=c11 -O1 -o "$tmp/besttime" "$here/tests/besttime.c" || exit 2
+best() { "$tmp/besttime" "$@" || exit 2; } # best of three wall times, in ns
 printf '%-12s %9s %9s %9s %8s %8s\n' benchmark "iconx ns" "go ns" "c ns" "c/go" "c/iconx"
 while IFS='|' read -r name body; do
 	cat >"$tmp/b.icn" <<EOF
@@ -59,10 +54,9 @@ EOF
 		(cd "$tmp" && "$ICONBIN/icont" -s -o bi b.icn) || exit 2
 		i=$(best "$ICONBIN/iconx" "$tmp/bi")
 	fi
-	perl -e 'my ($n, $i, $g, $c, $N) = @ARGV;
-		printf "%-12s %9s %9.1f %9.1f %8.2f %8s\n", $n, $i ? sprintf("%.1f", $i/$N) : "-",
-			$g/$N, $c/$N, $c/$g, $i ? sprintf("%.2f", $c/$i) : "-"' \
-		"$name" "$i" "$g" "$c" "$N"
+	awk -v n="$name" -v i="$i" -v g="$g" -v c="$c" -v N="$N" 'BEGIN {
+		printf "%-12s %9s %9.1f %9.1f %8.2f %8s\n", n, i ? sprintf("%.1f", i/N) : "-",
+			g/N, c/N, c/g, i ? sprintf("%.2f", c/i) : "-" }'
 done <<'EOF'
 empty|&null
 size|*"abcde"

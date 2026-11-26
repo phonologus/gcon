@@ -18,6 +18,7 @@ here=$(cd "$(dirname "$0")/.." && pwd)
 vm=${VM:-$here/bin/gcon-vm}
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
+${CC:-cc} -std=c11 -O1 -o "$tmp/timeout" "$here/tests/timeout.c" || exit 2
 if [ -z "${GCON:-}" ]; then
 	src=$(cd "${GCONSRC:-$here/..}" && pwd) || exit 2
 	(cd "$src" && go build -o "$tmp/gcon" ./cmd/gcon) || exit 2
@@ -41,7 +42,7 @@ while read -r f; do
 	fi
 	for k in a b; do
 		cp "$w/prog" "$w/$k/$name"
-		(cd "$w/$k" && GCONVM=go "$here/tests/timeout" "$t" "$GCON" run "./$name" <"$in" >out 2>err)
+		(cd "$w/$k" && GCONVM=go "$tmp/timeout" "$t" "$GCON" run "./$name" <"$in" >out 2>err)
 		echo "status $?" >>"$w/$k/err"
 	done
 	if grep -q "^status 142" "$w/a/err"; then
@@ -53,7 +54,7 @@ while read -r f; do
 		continue
 	fi
 	cp "$w/prog" "$w/c/$name"
-	(cd "$w/c" && "$here/tests/timeout" "$t" "$vm" "./$name" <"$in" >out 2>err)
+	(cd "$w/c" && "$tmp/timeout" "$t" "$vm" "./$name" <"$in" >out 2>err)
 	echo "status $?" >>"$w/c/err"
 	if cmp -s "$w/a/out" "$w/c/out" && cmp -s "$w/a/err" "$w/c/err"; then
 		pass=$((pass + 1))

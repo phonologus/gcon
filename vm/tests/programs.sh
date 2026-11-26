@@ -15,6 +15,7 @@ here=$(cd "$(dirname "$0")/.." && pwd)
 vm=${VM:-$here/bin/gcon-vm}
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
+${CC:-cc} -std=c11 -O1 -o "$tmp/timeout" "$here/tests/timeout.c" || exit 2
 src=$(cd "${GCONSRC:-$here/..}" && pwd) || exit 2
 if [ -z "${GCON:-}" ]; then
 	(cd "$src" && go build -o "$tmp/gcon" ./cmd/gcon) || exit 2
@@ -43,7 +44,7 @@ while read -r f; do
 	in=/dev/null
 	[ -f "$base.dat" ] && in=$base.dat
 	# shellcheck disable=SC2086
-	(cd "$d" && "$here/tests/timeout" "${TIMEOUT:-10}" "$vm" "./$name" $args <"$in" >"$tmp/out" 2>"$tmp/err")
+	(cd "$d" && "$tmp/timeout" "${TIMEOUT:-10}" "$vm" "./$name" $args <"$in" >"$tmp/out" 2>"$tmp/err")
 	status=$?
 	want=0
 	[ -f "$base.exit" ] && want=$(tr -d ' \n' <"$base.exit")

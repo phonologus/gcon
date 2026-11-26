@@ -26,6 +26,7 @@ vm=${VM:-$here/bin/gcon-vm}
 exp=$here/tests/expected
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
+${CC:-cc} -std=c11 -O1 -o "$tmp/timeout" "$here/tests/timeout.c" || exit 2
 mode=check
 case "${1:-}" in
 -record-go) mode=record; shift ;;
@@ -57,7 +58,7 @@ run() {
 	if ! (cd "$d" && "$GCON" build -o "$w/$name" "$name.icn") >/dev/null 2>&1; then
 		return 2
 	fi
-	(cd "$w" && "$here/tests/timeout" "$t" "$@" "./$name" <"$in" >"$o.out" 2>"$o.err")
+	(cd "$w" && "$tmp/timeout" "$t" "$@" "./$name" <"$in" >"$o.out" 2>"$o.err")
 	s=$?
 	echo "status $s" >>"$o.err"
 	[ $s -eq 142 ] && return 142
