@@ -152,9 +152,32 @@ void *gcnew(size_t n, int type) { return alloc(n, type, true); }
 void *gcraw(size_t n) { return alloc(n, T_RAW, false); }
 void *gcalloc(size_t n, int type, bool zero) { return alloc(n, type, zero); }
 
+/* Bytes allocated since the program started (&allocated): raw (strings,
+ * digits) and other blocks. */
+static uint64_t total_raw, total_blocks;
+
+void gc_allocated(int64_t out[4]) {
+	out[0] = (int64_t)(total_raw + total_blocks);
+	out[1] = 0; /* no static region */
+	out[2] = (int64_t)total_raw;
+	out[3] = (int64_t)total_blocks;
+}
+
+/* gc_unallocated sets the counts back to a snapshot gc_allocated took:
+ * &allocated's own allocations are not counted, as iconx's keyword
+ * allocates nothing. */
+void gc_unallocated(const int64_t snap[4]) {
+	total_raw = (uint64_t)snap[2];
+	total_blocks = (uint64_t)snap[3];
+}
+
 static void *alloc(size_t n, int type, bool zero) {
 	if (n == 0)
 		n = 1;
+	if (type == T_RAW)
+		total_raw += n;
+	else
+		total_blocks += n;
 	if (n > MaxSmall) {
 		size_t size = (n + CHUNK - 1) & ~(CHUNK - 1);
 		Chunk *c = newchunk(size, -1, 0); /* one block of size bytes */

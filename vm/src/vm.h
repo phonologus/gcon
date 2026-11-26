@@ -178,6 +178,8 @@ enum {
 
 void *gcnew(size_t n, int type);
 void *gcraw(size_t n); /* T_RAW, not zeroed: for bytes about to be written */
+void gc_allocated(int64_t out[4]); /* &allocated: total, static, string, block */
+void gc_unallocated(const int64_t snap[4]); /* back to a snapshot */
 void *gcalloc(size_t n, int type, bool zero); /* not zeroed: the caller initialises it all */
 bool markptr(const void *p);
 void markvalue(Value v);

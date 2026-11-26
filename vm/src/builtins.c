@@ -643,11 +643,23 @@ GENFN(k_collections) {
 	return strsgen(NULL, v, 4);
 }
 
-static int64_t regions[] = {0, 500000, 500000}, storage[] = {0, 0, 0}, allocated[] = {0, 0, 0, 0};
+static int64_t regions[] = {0, 500000, 500000}, storage[] = {0, 0, 0};
 
 GENFN(k_regions) { (void)b; (void)a; (void)n; return strsgen(NULL, regions, 3); }
 GENFN(k_storage) { (void)b; (void)a; (void)n; return strsgen(NULL, storage, 3); }
-GENFN(k_allocated) { (void)b; (void)a; (void)n; return strsgen(NULL, allocated, 4); }
+/* &allocated: bytes allocated since the start, in total, static (none),
+ * strings and blocks (gcon's one heap tells raw bytes, strings and big
+ * integers' digits, from other blocks). */
+GENFN(k_allocated) {
+	(void)b; (void)a; (void)n;
+	int64_t snap[4];
+	gc_allocated(snap);
+	int64_t *v = gcnew(4 * sizeof *v, T_RAW);
+	Gen *g = strsgen(NULL, v, 4);
+	memcpy(v, snap, sizeof snap);
+	gc_unallocated(snap); /* this keyword's own allocations not counted */
+	return g;
+}
 
 static Value timestr(const char *fmt) {
 	time_t t = time(NULL);

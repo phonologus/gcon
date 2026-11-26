@@ -1557,8 +1557,9 @@ a procedure, `$line`, the predefined symbols and digraphs against iconx.
   have: `&collections` counts `collect()` calls as iconx counts
   collections (total, and by region), which are the only collections
   in a program that does not fill iconx's regions; `&regions` gives
-  iconx's initial sizes (0, 500000, 500000); `&storage` and
-  `&allocated` give zeros, where iconx reports bytes used.
+  iconx's initial sizes (0, 500000, 500000); `&storage` gives
+  zeros, where iconx reports bytes used; `&allocated` gives the bytes
+  allocated since the start (see "Deliberate simplifications").
 - Operators that produce at most one result are `OpOper` instructions
   calling a Go function; generators (`to`, `!`, built-in generators)
   and procedure calls use `OpCall` and `OpResume` with a handle in a
@@ -1566,9 +1567,11 @@ a procedure, `$line`, the predefined symbols and digraphs against iconx.
 
 ### Deliberate simplifications (to be removed)
 
-- `&allocated`, `&storage` are zeros (see the keywords above), so the
-  IPL's `large()`, which detects large integers by the allocation they
-  cause, never succeeds (the `ilib` test).
+- `&storage` is zeros, and `&regions` fixed: gcon's one heap has no
+  regions. `&allocated` counts what is allocated since the start
+  (strings and big integers' digits as the string region, the rest as
+  blocks), so the IPL's `large()` works; `ilib` differs from iconx
+  only in its `randomize` line, which depends on the clock.
 
 ## Verification
 
