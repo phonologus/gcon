@@ -1751,3 +1751,10 @@ Next, after v0.1.0 (Sean, 2026-11-26):
   lists the procedures of an IPL file from its header comments, and
   `gcon doc WOpen` one of them; with no argument, the program at hand.
   Most of the parts are already in `gcon lsp`.
+- `gcon help`, the tool's own manual, as `go help` is beside `go doc`:
+  `gcon help` an overview and the list of subcommands, `gcon help run`
+  (`build`, `fmt`, `vet`, `lsp`, ...) each subcommand's page, with its
+  flags, and topic pages such as `gcon help environment` (GCONROOT,
+  GCONVM, IPATH, LPATH, FPATH and the search order) and the
+  differences from Icon 9.5. `gcon CMD -h` points to it. Written into
+  gcon itself, so it is always the installed version's.
