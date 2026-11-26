@@ -1,0 +1,19 @@
+id = "gcon"
+name = "Icon (gcon)"
+version = "0.1.0"
+schema_version = 1
+authors = ["Sean Jensen"]
+description = "Icon as gcon reads it: highlighting (with gcon's \\u escapes, cset ranges and built-ins), outline, and gcon's language server (diagnostics and vet warnings, hover, go to definition, references, completion, signature help, rename, formatting)."
+repository = "https://github.com/phonologus/gcon"
+
+# The grammar is in this repository, editors/tree-sitter-gcon, pinned at
+# the commit that last changed it (editors/test.sh checks that the pinned
+# grammar is the current one).
+[grammars.gcon]
+repository = "https://github.com/phonologus/gcon"
+rev = "57758148bf05b68e4ee5e81e74baecb7f9ce73de"
+path = "editors/tree-sitter-gcon"
+
+[language_servers.gcon]
+name = "gcon"
+languages = ["Icon"]

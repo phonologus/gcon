@@ -145,6 +145,29 @@ it (one file and what it links), the field is no record's. With
 findings as golden files, checks that the language server reports
 the probes' findings, and that vet never crashes on the corpus.
 
+### Decision (2026-11-26): editor support is forked into gcon
+
+**Decision (Sean): gcon carries its own editor support, in `editors/`,
+forked from icontools' and tree-sitter-icon, as its front end was.**
+`editors/tree-sitter-gcon` is tree-sitter-icon (at 6070fd3) renamed,
+with literals that show gcon's additions: escapes are `escape_sequence`
+nodes (with `\u` and `\U`) and a cset's `..` a `range_operator`, where
+tree-sitter-icon makes each literal one token. The trees are otherwise
+the same: the same 30 of 1,776 corpus files fail with both grammars.
+`editors/zed` and `editors/vscode` are icontools' extensions running
+`gcon lsp` (initialization options `icon95` and `ipath`), with
+highlighting from gcon's catalogue (`editors/gen.sh`, and the VS Code
+extension's `gen-grammar.js`). Zed reads the grammar from this
+repository's subdirectory, pinned by commit (`path` in a grammar entry
+of `extension.toml`, which Zed accepts though its documentation does not
+list it; its own OCaml extension uses it).
+
+The extensions are in their editors' languages (Rust, TypeScript), not
+C: they are not part of gcon's build, and `build.sh` does not touch
+them. icontools and tree-sitter-icon stay as they are, for Arizona
+Icon; a user installs gcon's extension or icontools', since both claim
+`.icn`. `editors/test.sh` tests all three.
+
 ### Decision (2026-11-26): gcon is its own oracle for fmt and lsp
 
 The C gcon is now gospel for gcon (Sean): `gcon fmt` and `gcon lsp` are

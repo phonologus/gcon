@@ -1,0 +1,118 @@
+{
+  "name": "gcon",
+  "displayName": "Icon (gcon)",
+  "description": "Icon as gcon reads it: highlighting, diagnostics and vet warnings, hover documentation, go to definition, references, completion, rename and formatting (gcon lsp).",
+  "version": "0.1.0",
+  "publisher": "phonologus",
+  "author": "Sean Jensen",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/phonologus/gcon",
+    "directory": "editors/vscode"
+  },
+  "engines": {
+    "vscode": "^1.91.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Formatters",
+    "Linters"
+  ],
+  "keywords": [
+    "icon",
+    "icn",
+    "gcon",
+    "language server"
+  ],
+  "main": "./out/src/extension.js",
+  "activationEvents": [],
+  "contributes": {
+    "languages": [
+      {
+        "id": "icon",
+        "aliases": [
+          "Icon"
+        ],
+        "extensions": [
+          ".icn"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "icon",
+        "scopeName": "source.icon",
+        "path": "./syntaxes/icon.tmLanguage.json"
+      }
+    ],
+    "configuration": {
+      "title": "Icon (gcon)",
+      "properties": {
+        "gcon.path": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Path to the `gcon` command. If empty, `gcon` is found on the `PATH`. Build it from https://github.com/phonologus/gcon (`./build.sh`) and put its `bin` directory on your `PATH`."
+        },
+        "gcon.ipath": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "markdownDescription": "More directories in which to find the sources of linked files (`link` declarations). gcon already searches the current directory, `$IPATH` and its own Icon Program Library."
+        },
+        "gcon.icon95": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Also warn of gcon additions that Icon 9.5 lacks (`\\u` escapes, cset ranges, gcon built-ins), as `gcon vet -icon95` does: for code that must also run under Arizona Icon."
+        },
+        "gcon.trace.server": {
+          "type": "string",
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
+          "default": "off",
+          "description": "Trace the communication between VS Code and gcon lsp (in the Output panel)."
+        }
+      }
+    },
+    "configurationDefaults": {
+      "[icon]": {
+        "editor.formatOnSave": true,
+        "editor.tabSize": 3,
+        "editor.insertSpaces": true,
+        "editor.detectIndentation": false
+      }
+    },
+    "commands": [
+      {
+        "command": "gcon.restartServer",
+        "title": "Icon (gcon): Restart Language Server"
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "node scripts/gen-grammar.js && tsc -p .",
+    "test:unit": "npm run compile && mocha --ui tdd out/test/unit/*.test.js",
+    "test": "npm run test:unit && node ./out/test/runTest.js",
+    "package": "npm run compile && vsce package"
+  },
+  "dependencies": {
+    "vscode-languageclient": "10.1.2"
+  },
+  "devDependencies": {
+    "@types/mocha": "10.0.10",
+    "@types/node": "22.15.3",
+    "@types/vscode": "1.91.0",
+    "@vscode/test-electron": "3.1.0",
+    "@vscode/vsce": "4.0.0",
+    "mocha": "12.0.3",
+    "typescript": "6.0.3",
+    "vscode-oniguruma": "2.0.1",
+    "vscode-textmate": "9.2.0"
+  }
+}

@@ -1,0 +1,7 @@
+procedure main()
+  local p
+  p := area(3)
+  write(&subject, p)
+  undeclared := 1
+  if p = "abc" then write(len("x"))
+end

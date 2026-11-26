@@ -25,6 +25,7 @@ the SDL backend; it stops if upstream has changed a line it replaces).
 | `tools/icontok` | C driver exposing icont's token stream and parse trees |
 | `tools/iconx` | builds the reference icont and iconx; generates expected test output |
 | `tools/ipl` | copies the IPL into `lib/ipl`, recording `lib/ipl/UPSTREAM`, and makes gcon's changes (`patch.sh`) |
+| `editors/` | editor support: the tree-sitter grammar, the Zed and VS Code extensions; not built by `build.sh` ([editors/README.md](../editors/README.md)) |
 | `experiments/` | measurements behind design decisions; not part of gcon |
 
 gcon was written in Go and ported to C part by part, each part proved
@@ -97,3 +98,17 @@ tests pass, `vm/tests/conformance.sh -update`.
 `vm/tests/expected.sh` checks the IPL's programs and Icon's suite
 against recorded runs (`vm/tests/expected/`); the other runtime tests
 are described in [vm/README.md](../vm/README.md).
+
+## Editor support
+
+`editors/test.sh` tests the tree-sitter grammar, the Zed extension and
+the VS Code extension (`editors/README.md`), skipping, and saying so, any
+part whose tools are missing: the tree-sitter CLI (`npm install` in
+`editors/tree-sitter-gcon`), cargo with the `wasm32-wasip2` target, and
+the VS Code extension's packages (`npm install` in `editors/vscode`).
+`-vscode` adds VS Code's integration tests, which open VS Code. Run it
+when touching `editors/`, and after changing the built-in functions
+(`editors/gen.sh` carries their names into the highlight queries). After
+changing the grammar, commit it and pin that commit in
+`editors/zed/extension.toml`: the test checks that the pinned grammar is
+the current one.
