@@ -243,17 +243,21 @@ func (d *dumper) node(depth int, field string, n syntax.Node) {
 	}
 }
 
-func parse(src string) {
+// parse writes the parse form; with tree false, only the token walk
+// and the errors (the walk form, for deeply nested input).
+func parse(src string, tree bool) {
 	f := syntax.Parse(src)
 	d := &dumper{index: map[*syntax.Token]int{}}
 	for i := range f.Tokens {
 		d.index[&f.Tokens[i]] = i
 	}
 	d.line(0, "File", fmt.Sprintf("%d tokens", len(f.Tokens)))
-	for _, n := range f.Decls {
-		d.node(1, "d", n)
+	if tree {
+		for _, n := range f.Decls {
+			d.node(1, "d", n)
+		}
+		d.tok(1, "EOF", f.EOF)
 	}
-	d.tok(1, "EOF", f.EOF)
 	d.out.WriteString("W")
 	for _, t := range syntax.Tokens(f) {
 		d.out.WriteString(" " + d.tokstr(t))

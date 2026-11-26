@@ -6,6 +6,8 @@
  *   dump lex FILE    tokens, trivia, decoded literals, lexical errors
  *   dump parse FILE  the syntax tree, field by field, with tokens as
  *                    indexes; the token walk; the errors
+ *   dump walk FILE   the same without the tree (nothing recursive: for
+ *                    deeply nested input)
  */
 #include "../lexer.h"
 #include "../lit.h"
@@ -355,23 +357,43 @@ static void pnode(int depth, const char *field, Node *n) {
 	}
 }
 
+/* walk writes the tree walk twice over: by syn_children, recursively
+ * (only in the parse form: it is the children that are under test),
+ * and by syn_tokens; the two must agree. */
+static Buf walked;
+
 static void walk(void *ctx, Token *t, Node *n) {
 	(void)ctx;
-	if (t) {
-		bufputc(&out, ' ');
-		tokval(t);
-	} else
+	if (t)
+		bufprintf(&walked, " %zu", (size_t)(t - pf->toks.v));
+	else
 		syn_children(n, walk, NULL);
 }
 
-static void parse(const char *src, size_t n) {
+static void walktok(void *ctx, Token *t) {
+	(void)ctx;
+	bufputc(&out, ' ');
+	tokval(t);
+}
+
+static void parse(const char *src, size_t n, bool tree) {
 	pf = syn_parse(src, n);
 	bufprintf(&out, "File %zu tokens\n", pf->toks.n);
-	for (size_t i = 0; i < pf->decls.n; i++)
-		pnode(1, "d", pf->decls.v[i]);
-	ptok(1, "EOF", pf->eof);
+	if (tree) {
+		for (size_t i = 0; i < pf->decls.n; i++)
+			pnode(1, "d", pf->decls.v[i]);
+		ptok(1, "EOF", pf->eof);
+	}
+	size_t at = out.n;
 	bufputc(&out, 'W');
-	syn_file_children(pf, walk, NULL);
+	syn_tokens(pf, walktok, NULL);
+	if (tree) {
+		syn_file_children(pf, walk, NULL);
+		if (walked.n != out.n - at - 1 || memcmp(walked.b, out.b + at + 1, walked.n)) {
+			fprintf(stderr, "dump: syn_children and syn_tokens disagree\n");
+			exit(1);
+		}
+	}
 	bufputc(&out, '\n');
 	for (size_t i = 0; i < pf->errs.n; i++) {
 		bufprintf(&out, "E %zu ", pf->errs.v[i].offset);
@@ -382,8 +404,8 @@ static void parse(const char *src, size_t n) {
 }
 
 int main(int argc, char **argv) {
-	if (argc != 3 || (strcmp(argv[1], "lex") && strcmp(argv[1], "parse"))) {
-		fprintf(stderr, "usage: dump lex|parse FILE\n");
+	if (argc != 3 || (strcmp(argv[1], "lex") && strcmp(argv[1], "parse") && strcmp(argv[1], "walk"))) {
+		fprintf(stderr, "usage: dump lex|parse|walk FILE\n");
 		return 2;
 	}
 	FILE *f = fopen(argv[2], "rb");
@@ -397,8 +419,8 @@ int main(int argc, char **argv) {
 	while ((k = fread(chunk, 1, sizeof chunk, f)) > 0)
 		bufadd(&src, chunk, k);
 	fclose(f);
-	if (!strcmp(argv[1], "parse"))
-		parse(src.b ? src.b : "", src.n);
+	if (!strcmp(argv[1], "parse") || !strcmp(argv[1], "walk"))
+		parse(src.b ? src.b : "", src.n, !strcmp(argv[1], "parse"));
 	else
 		lex(src.b ? src.b : "", src.n);
 	return 0;

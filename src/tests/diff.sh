@@ -4,7 +4,7 @@
 # sanitizers) and the Go (tools/refdump) write the same canonical form of
 # each file, and the two must be identical, file for file.
 #
-#   src/tests/diff.sh [lex|parse] [file ...]
+#   src/tests/diff.sh [lex|parse|walk] [file ...]
 #
 # The files are, by default, the corpus: every .icn file of the Icon tree
 # beside the checkout (../icon), of gcon's library, test data and
@@ -15,7 +15,7 @@
 set -u
 here=$(cd "$(dirname "$0")/../.." && pwd)
 what=lex
-case "${1:-}" in lex|parse) what=$1; shift ;; esac
+case "${1:-}" in lex|parse|walk) what=$1; shift ;; esac
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 CC=${CC:-cc}

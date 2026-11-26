@@ -7,6 +7,7 @@
 //	refdump lex FILE    tokens, trivia, decoded literals, lexical errors
 //	refdump parse FILE  the syntax tree, field by field, with tokens as
 //	                    indexes; the token walk; the errors
+//	refdump walk FILE   the same without the tree
 package main
 
 import (
@@ -89,8 +90,8 @@ func lex(src string) {
 }
 
 func main() {
-	if len(os.Args) != 3 || (os.Args[1] != "lex" && os.Args[1] != "parse") {
-		fmt.Fprintln(os.Stderr, "usage: refdump lex|parse FILE")
+	if len(os.Args) != 3 || (os.Args[1] != "lex" && os.Args[1] != "parse" && os.Args[1] != "walk") {
+		fmt.Fprintln(os.Stderr, "usage: refdump lex|parse|walk FILE")
 		os.Exit(2)
 	}
 	b, err := os.ReadFile(os.Args[2])
@@ -98,8 +99,8 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	if os.Args[1] == "parse" {
-		parse(string(b))
+	if os.Args[1] != "lex" {
+		parse(string(b), os.Args[1] == "parse")
 	} else {
 		lex(string(b))
 	}

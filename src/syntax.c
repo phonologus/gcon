@@ -1,10 +1,13 @@
 /*
- * The parser (syntax.h): recursive descent over the token stream,
- * transliterated from the Go reference's internal/syntax/parser.go, so
- * that trees and error messages are identical.
+ * The parser (syntax.h): the Go reference's internal/syntax/parser.go,
+ * whose trees and error messages it reproduces, but not recursive:
+ * expressions are parsed by a machine with its stack on the heap, as
+ * icont's parser keeps its stack, so nesting has no ceiling but memory
+ * (docs/design.md, "Two oracles").
  */
 #include "syntax.h"
 
+#include <stdlib.h>
 #include <string.h>
 
 static const char *const nodenames[N_NKINDS] = {
@@ -35,6 +38,7 @@ typedef struct Parser {
 	size_t pos;     /* index of the current token */
 	size_t lasterr; /* token index of the last syntax error, to suppress cascades */
 	bool anyerr;
+	VEC(struct Frame) stk; /* the expression machine's stack */
 } Parser;
 
 /* tok returns the current token. T_ILLEGAL tokens (already reported by
@@ -137,15 +141,168 @@ static Token *expect(Parser *p, TokKind k) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Declarations */
+/* Expressions: tables */
+
+/* canstart reports whether k can begin an expression. */
+static bool canstart(TokKind k) {
+	switch (k) {
+	case T_END: case T_DEFAULT: case T_INITIAL: case T_LOCAL: case T_STATIC:
+		return false;
+	default:
+		return tok_beginner(k);
+	}
+}
+
+/* The binary operator levels of grammar.h, loosest first: expr,
+ * expr1a, expr1, expr2, ..., expr9. binlevel[k] is the level of
+ * operator k plus one (an operator is at one level at most); the "to
+ * ... by" level has no operators of its own. */
+enum { L_AND, L_QMARK, L_ASSIGN, L_TO, L_BAR, L_COMPARE, L_CONCAT, L_ADD, L_MUL, L_CARET, L_LIMIT, NLEVELS };
+
+static const bool rightassoc[NLEVELS] = {[L_ASSIGN] = true, [L_BAR] = true, [L_CARET] = true};
+
+static const unsigned char binlevel[T_NKINDS] = {
+	[T_AND] = L_AND + 1,
+	[T_QMARK] = L_QMARK + 1,
+	[T_ASSIGN] = L_ASSIGN + 1, [T_SWAP] = L_ASSIGN + 1, [T_REVASSIGN] = L_ASSIGN + 1,
+	[T_REVSWAP] = L_ASSIGN + 1, [T_AUGCONCAT] = L_ASSIGN + 1, [T_AUGLCONCAT] = L_ASSIGN + 1,
+	[T_AUGDIFF] = L_ASSIGN + 1, [T_AUGUNION] = L_ASSIGN + 1, [T_AUGPLUS] = L_ASSIGN + 1,
+	[T_AUGMINUS] = L_ASSIGN + 1, [T_AUGSTAR] = L_ASSIGN + 1, [T_AUGINTER] = L_ASSIGN + 1,
+	[T_AUGSLASH] = L_ASSIGN + 1, [T_AUGMOD] = L_ASSIGN + 1, [T_AUGCARET] = L_ASSIGN + 1,
+	[T_AUGNMEQ] = L_ASSIGN + 1, [T_AUGEQUIV] = L_ASSIGN + 1, [T_AUGNMGE] = L_ASSIGN + 1,
+	[T_AUGNMGT] = L_ASSIGN + 1, [T_AUGNMLE] = L_ASSIGN + 1, [T_AUGNMLT] = L_ASSIGN + 1,
+	[T_AUGNMNE] = L_ASSIGN + 1, [T_AUGNEQUIV] = L_ASSIGN + 1, [T_AUGSEQ] = L_ASSIGN + 1,
+	[T_AUGSGE] = L_ASSIGN + 1, [T_AUGSGT] = L_ASSIGN + 1, [T_AUGSLE] = L_ASSIGN + 1,
+	[T_AUGSLT] = L_ASSIGN + 1, [T_AUGSNE] = L_ASSIGN + 1, [T_AUGQMARK] = L_ASSIGN + 1,
+	[T_AUGAND] = L_ASSIGN + 1, [T_AUGAT] = L_ASSIGN + 1,
+	[T_BAR] = L_BAR + 1,
+	[T_SEQ] = L_COMPARE + 1, [T_SGE] = L_COMPARE + 1, [T_SGT] = L_COMPARE + 1,
+	[T_SLE] = L_COMPARE + 1, [T_SLT] = L_COMPARE + 1, [T_SNE] = L_COMPARE + 1,
+	[T_NMEQ] = L_COMPARE + 1, [T_NMGE] = L_COMPARE + 1, [T_NMGT] = L_COMPARE + 1,
+	[T_NMLE] = L_COMPARE + 1, [T_NMLT] = L_COMPARE + 1, [T_NMNE] = L_COMPARE + 1,
+	[T_EQUIV] = L_COMPARE + 1, [T_NEQUIV] = L_COMPARE + 1,
+	[T_CONCAT] = L_CONCAT + 1, [T_LCONCAT] = L_CONCAT + 1,
+	[T_PLUS] = L_ADD + 1, [T_DIFF] = L_ADD + 1, [T_UNION] = L_ADD + 1, [T_MINUS] = L_ADD + 1,
+	[T_STAR] = L_MUL + 1, [T_INTER] = L_MUL + 1, [T_SLASH] = L_MUL + 1, [T_MOD] = L_MUL + 1,
+	[T_CARET] = L_CARET + 1,
+	[T_BACKSLASH] = L_LIMIT + 1, [T_AT] = L_LIMIT + 1, [T_BANG] = L_LIMIT + 1,
+};
+
+static bool atlevel(TokKind k, int lv) { return binlevel[k] == lv + 1; }
+
+/* The prefix operators of expr10. */
+static bool isunary(TokKind k) {
+	switch (k) {
+	case T_AT: case T_NOT: case T_BAR: case T_CONCAT: case T_LCONCAT: case T_DOT:
+	case T_BANG: case T_DIFF: case T_PLUS: case T_STAR: case T_SLASH: case T_CARET:
+	case T_INTER: case T_TILDE: case T_MINUS: case T_NMEQ: case T_NMNE: case T_SEQ:
+	case T_SNE: case T_EQUIV: case T_UNION: case T_QMARK: case T_NEQUIV:
+	case T_BACKSLASH:
+		return true;
+	default:
+		return false;
+	}
+}
+
+/* ------------------------------------------------------------------ */
+/* Expressions: the machine
+ *
+ * The expression grammar is nested, and the Go parses it by recursive
+ * descent. Here, as in icont (whose yacc parser keeps its stack on the
+ * heap and grows it), nesting has no ceiling but memory: each function
+ * of the Go's descent is a kind of Frame on the parser's own stack, with
+ * a state saying where it resumes. A frame calls another by setting its
+ * resume state and pushing the callee (call), and returns by popping
+ * itself and leaving its result in *r (done), where the caller's next
+ * step finds it. A frame may also become another in place (a tail call:
+ * nexpr becoming the binary operator frame). The Go function each kind
+ * stands for is named beside it; the parse is step for step the Go's,
+ * so the trees and errors are the same.
+ */
+
+enum {
+	F_NEXPR,     /* nexpr: an optional expression */
+	F_EXPRREQ,   /* exprRequired */
+	F_OPERAND,   /* operand(lv) */
+	F_BIN,       /* binary(lv), all levels from the tightest up to lv */
+	F_UNARY,     /* unary, and postfix of its primary */
+	F_PRIMARY,   /* primary: dispatches to the frames below */
+	F_GROUP,     /* ( list ), { compound }, [ list ] */
+	F_CREATE,
+	F_BREAK,
+	F_RETURN,    /* return and suspend */
+	F_IF,
+	F_LOOP,
+	F_CASE,      /* caseExpr */
+	F_LIST,      /* exprList, exprListFrom (with a first element) */
+	F_COMPOUND,  /* compound */
+	F_STATEMENT, /* statement(sep) */
+};
+
+typedef struct Frame {
+	unsigned char fn, st;
+	signed char lv, l; /* F_BIN: the loosest level wanted, the level being applied */
+	TokKind tk;        /* a closer or separator */
+	Node *n, *x;       /* the node being built; F_BIN, F_UNARY: the operand so far */
+	Token *t;          /* a pending operator or bracket */
+	NodeList *dst;     /* F_LIST, F_COMPOUND: the list being filled */
+} Frame;
+
+static Frame frame(int fn) {
+	Frame f = {0};
+	f.fn = (unsigned char)fn;
+	return f;
+}
+
+static Frame operandframe(int lv) {
+	Frame f = frame(F_OPERAND);
+	f.lv = (signed char)lv;
+	return f;
+}
+
+static Frame listframe(NodeList *dst, TokKind closer) {
+	Frame f = frame(F_LIST);
+	f.dst = dst;
+	f.tk = closer;
+	return f;
+}
+
+static Frame stmtframe(TokKind sep) {
+	Frame f = frame(F_STATEMENT);
+	f.tk = sep;
+	return f;
+}
+
+static Frame *top(Parser *p) { return &p->stk.v[p->stk.n - 1]; }
+
+/* call resumes the current frame at state st once c has returned. The
+ * push may move the stack: the caller must not touch its frame after. */
+static void call(Parser *p, int st, Frame c) {
+	top(p)->st = (unsigned char)st;
+	VPUSH(p->stk, c);
+}
+
+static void done(Parser *p, Node **r, Node *v) {
+	p->stk.n--;
+	*r = v;
+}
+
+static Node *mkbinary(Node *x, Token *op, Node *y) {
+	Node *n = newnode(N_BINARY);
+	n->binary.x = x;
+	n->binary.op = op;
+	n->binary.y = y;
+	return n;
+}
+
+static void finishlist(NodeList *l) {
+	if (l->elems.n == 1 && !l->elems.v[0])
+		l->elems.n = 0;
+}
 
 static bool isdeclstart(TokKind k) {
 	return k == T_PROCEDURE || k == T_GLOBAL || k == T_RECORD || k == T_LINK || k == T_INVOCABLE;
 }
-
-static Node *expr(Parser *p);
-static Node *nexpr(Parser *p);
-static Node *exprrequired(Parser *p);
 
 static void elemtok(ElemVec *v, Token *t) {
 	Elem e = {t, NULL};
@@ -156,6 +313,483 @@ static void elemnode(ElemVec *v, Node *n) {
 	Elem e = {NULL, n};
 	VPUSH(*v, e);
 }
+
+/* step runs the top frame until it calls, returns or becomes another;
+ * *r is the result of the frame that last returned. */
+static void step(Parser *p, Node **r) {
+	Frame *f = top(p);
+	Node *v = *r, *n;
+	switch (f->fn) {
+	case F_NEXPR:
+		if (!canstart(kind(p))) {
+			done(p, r, NULL);
+			return;
+		}
+		f->fn = F_BIN, f->lv = 0, f->st = 0;
+		return;
+
+	case F_EXPRREQ:
+	case F_OPERAND:
+		if (!canstart(kind(p))) {
+			errfound(p, "expected expression, found ");
+			done(p, r, NULL);
+			return;
+		}
+		if (f->fn == F_EXPRREQ)
+			f->lv = 0;
+		f->fn = F_BIN, f->st = 0;
+		return;
+
+	case F_BIN:
+		/* binary(lv) is apply(lv, apply(lv+1, ... apply(NLEVELS-1,
+		 * unary()))), where apply(l, x) is the operator loop of level
+		 * l on x: the climb applies each in turn. */
+		switch (f->st) {
+		case 0:
+			call(p, 1, frame(F_UNARY));
+			return;
+		case 1:
+			f->x = v;
+			f->l = NLEVELS - 1;
+			break;
+		case 2:
+			f->n->toby.y = v;
+			if ((f->n->toby.by = got(p, T_BY))) {
+				call(p, 3, operandframe(f->l + 1));
+				return;
+			}
+			f->x = f->n;
+			break;
+		case 3:
+			f->n->toby.z = v;
+			f->x = f->n;
+			break;
+		case 4: /* right-associative: one operator, then the next level out */
+			f->x = mkbinary(f->x, f->t, v);
+			f->l--;
+			break;
+		case 5: /* left-associative: loop at the same level */
+			f->x = mkbinary(f->x, f->t, v);
+			break;
+		}
+		while (f->l >= f->lv) {
+			int l = f->l;
+			if (l == L_TO) {
+				if (kind(p) == T_TO) {
+					n = newnode(N_TOBY);
+					n->toby.x = f->x;
+					n->toby.to = next(p);
+					f->n = n;
+					call(p, 2, operandframe(l + 1));
+					return;
+				}
+			} else if (atlevel(kind(p), l)) {
+				f->t = next(p);
+				if (rightassoc[l])
+					call(p, 4, operandframe(l));
+				else
+					call(p, 5, operandframe(l + 1));
+				return;
+			}
+			f->l--;
+		}
+		done(p, r, f->x);
+		return;
+
+	case F_UNARY:
+		switch (f->st) {
+		case 0:
+			if (isunary(kind(p))) {
+				n = newnode(N_UNARY);
+				n->unary.op = next(p);
+				if (!canstart(kind(p))) {
+					errfound(p, "expected expression, found ");
+					done(p, r, n);
+					return;
+				}
+				f->n = n;
+				call(p, 1, frame(F_UNARY));
+				return;
+			}
+			call(p, 2, frame(F_PRIMARY));
+			return;
+		case 1:
+			f->n->unary.x = v;
+			done(p, r, f->n);
+			return;
+		case 2:
+			if (!v) {
+				done(p, r, NULL);
+				return;
+			}
+			f->x = v;
+			break;
+		case 3: { /* after x[ first */
+			TokKind k = kind(p);
+			if (k == T_COLON || k == T_PCOLON || k == T_MCOLON) {
+				if (!v && errat(p)) {
+					Buf b = {0};
+					bufputs(&b, "expected expression before ");
+					goquote(&b, p->f->src + tok(p)->offset, tok(p)->len);
+					adderr(p, &b);
+				}
+				n = newnode(N_SECTION);
+				n->section.x = f->x;
+				n->section.lbrack = f->t;
+				n->section.lo = v;
+				n->section.op = next(p);
+				f->n = n;
+				call(p, 4, frame(F_EXPRREQ));
+			} else {
+				n = newnode(N_INDEX);
+				n->index.x = f->x;
+				n->index.lbrack = f->t;
+				f->n = n;
+				Frame c = listframe(&n->index.list, T_RBRACK);
+				c.st = 2, c.x = v;
+				call(p, 5, c);
+			}
+			return;
+		}
+		case 4:
+			f->n->section.hi = v;
+			f->n->section.rbrack = expect(p, T_RBRACK);
+			f->x = f->n;
+			break;
+		case 5:
+			f->n->index.rbrack = expect(p, T_RBRACK);
+			f->x = f->n;
+			break;
+		case 6:
+			f->n->call.close = expect(p, f->n->kind == N_CALL ? T_RPAREN : T_RBRACE);
+			f->x = f->n;
+			break;
+		}
+		/* postfix */
+		for (;;) {
+			switch (kind(p)) {
+			case T_LBRACK:
+				f->t = next(p);
+				call(p, 3, frame(F_NEXPR));
+				return;
+			case T_LPAREN:
+			case T_LBRACE: {
+				TokKind closer = kind(p) == T_LPAREN ? T_RPAREN : T_RBRACE;
+				n = newnode(closer == T_RPAREN ? N_CALL : N_PDCO);
+				n->call.fun = f->x;
+				n->call.open = next(p);
+				f->n = n;
+				call(p, 6, listframe(&n->call.args, closer));
+				return;
+			}
+			case T_DOT:
+				n = newnode(N_FIELD);
+				n->field.x = f->x;
+				n->field.dot = next(p);
+				n->field.name = expect(p, T_IDENT);
+				f->x = n;
+				break;
+			default:
+				done(p, r, f->x);
+				return;
+			}
+		}
+
+	case F_PRIMARY:
+		switch (kind(p)) {
+		case T_IDENT:
+			n = newnode(N_IDENT);
+			n->ident.name = next(p);
+			done(p, r, n);
+			return;
+		case T_INTLIT: case T_REALLIT: case T_STRINGLIT: case T_CSETLIT:
+			n = newnode(N_LITERAL);
+			n->literal.tok = next(p);
+			done(p, r, n);
+			return;
+		case T_AND:
+			n = newnode(N_KEYWORD);
+			n->keyword.amp = next(p);
+			if (kind(p) == T_IDENT || kind(p) == T_FAIL)
+				n->keyword.name = next(p);
+			else
+				errfound(p, "expected keyword name after \"&\", found ");
+			done(p, r, n);
+			return;
+		case T_LPAREN:
+		case T_LBRACE:
+		case T_LBRACK: {
+			TokKind k = kind(p);
+			n = newnode(k == T_LPAREN ? N_PAREN : k == T_LBRACE ? N_BLOCK : N_LISTLIT);
+			n->group.open = next(p);
+			f->fn = F_GROUP, f->n = n;
+			if (k == T_LBRACE) {
+				Frame c = frame(F_COMPOUND);
+				c.dst = &n->group.list;
+				call(p, 1, c);
+			} else
+				call(p, 1, listframe(&n->group.list, k == T_LPAREN ? T_RPAREN : T_RBRACK));
+			return;
+		}
+		case T_CREATE:
+			n = newnode(N_CREATE);
+			n->create.create = next(p);
+			f->fn = F_CREATE, f->n = n;
+			call(p, 1, frame(F_EXPRREQ));
+			return;
+		case T_NEXT:
+			n = newnode(N_NEXT);
+			n->next.next = next(p);
+			done(p, r, n);
+			return;
+		case T_BREAK:
+			n = newnode(N_BREAK);
+			n->break_.break_ = next(p);
+			f->fn = F_BREAK, f->n = n;
+			call(p, 1, frame(F_NEXPR));
+			return;
+		case T_FAIL:
+			n = newnode(N_RETURN);
+			n->ret.keyword = next(p);
+			done(p, r, n);
+			return;
+		case T_RETURN:
+		case T_SUSPEND:
+			n = newnode(N_RETURN);
+			n->ret.keyword = next(p);
+			f->fn = F_RETURN, f->n = n;
+			call(p, 1, frame(F_NEXPR));
+			return;
+		case T_IF:
+			n = newnode(N_IF);
+			n->if_.if_ = next(p);
+			f->fn = F_IF, f->n = n;
+			call(p, 1, frame(F_EXPRREQ));
+			return;
+		case T_WHILE: case T_UNTIL: case T_EVERY: case T_REPEAT: {
+			bool repeat = kind(p) == T_REPEAT;
+			n = newnode(N_LOOP);
+			n->loop.keyword = next(p);
+			f->fn = F_LOOP, f->n = n;
+			call(p, repeat ? 2 : 1, frame(F_EXPRREQ));
+			return;
+		}
+		case T_CASE:
+			n = newnode(N_CASE);
+			n->case_.case_ = next(p);
+			f->fn = F_CASE, f->n = n;
+			call(p, 1, frame(F_EXPRREQ));
+			return;
+		default:
+			/* Not reached for tokens satisfying canstart. */
+			errfound(p, "expected expression, found ");
+			done(p, r, NULL);
+			return;
+		}
+
+	case F_GROUP:
+		n = f->n;
+		n->group.close = expect(p, n->kind == N_PAREN ? T_RPAREN : n->kind == N_BLOCK ? T_RBRACE : T_RBRACK);
+		done(p, r, n);
+		return;
+
+	case F_CREATE:
+		f->n->create.x = v;
+		done(p, r, f->n);
+		return;
+
+	case F_BREAK:
+		f->n->break_.x = v;
+		done(p, r, f->n);
+		return;
+
+	case F_RETURN:
+		n = f->n;
+		if (f->st == 1) {
+			n->ret.x = v;
+			if (n->ret.keyword->kind == T_SUSPEND && (n->ret.do_ = got(p, T_DO))) {
+				call(p, 2, frame(F_EXPRREQ));
+				return;
+			}
+		} else
+			n->ret.body = v;
+		done(p, r, n);
+		return;
+
+	case F_IF:
+		n = f->n;
+		switch (f->st) {
+		case 1:
+			n->if_.cond = v;
+			n->if_.then = expect(p, T_THEN);
+			call(p, 2, frame(F_EXPRREQ));
+			return;
+		case 2:
+			n->if_.body = v;
+			if ((n->if_.else_ = got(p, T_ELSE))) {
+				call(p, 3, frame(F_EXPRREQ));
+				return;
+			}
+			break;
+		case 3:
+			n->if_.alt = v;
+			break;
+		}
+		done(p, r, n);
+		return;
+
+	case F_LOOP:
+		n = f->n;
+		if (f->st == 1) {
+			n->loop.cond = v;
+			if ((n->loop.do_ = got(p, T_DO))) {
+				call(p, 2, frame(F_EXPRREQ));
+				return;
+			}
+		} else
+			n->loop.body = v;
+		done(p, r, n);
+		return;
+
+	case F_CASE:
+		n = f->n;
+		switch (f->st) {
+		case 1:
+			n->case_.x = v;
+			n->case_.of = expect(p, T_OF);
+			n->case_.lbrace = expect(p, T_LBRACE);
+			if (!n->case_.lbrace) {
+				done(p, r, n);
+				return;
+			}
+			break;
+		case 2: /* after a label */
+			f->x->clause.label = v;
+			goto colon;
+		case 3: /* after a clause's body */
+			f->x->clause.body = v;
+			VPUSH(n->case_.clauses.elems, f->x);
+			Token *c = got(p, T_SEMICOL);
+			if (!c) {
+				n->case_.rbrace = expect(p, T_RBRACE);
+				done(p, r, n);
+				return;
+			}
+			VPUSH(n->case_.clauses.seps, c);
+			break;
+		}
+		/* a clause */
+		f->x = newnode(N_CASECLAUSE);
+		if (!(f->x->clause.default_ = got(p, T_DEFAULT))) {
+			call(p, 2, frame(F_EXPRREQ));
+			return;
+		}
+	colon:
+		f->x->clause.colon = expect(p, T_COLON);
+		call(p, 3, frame(F_EXPRREQ));
+		return;
+
+	case F_LIST:
+		/* states: 0 entry (exprList), 1 after an element, 2 entry with
+		 * the first element in x (exprListFrom) */
+		if (f->st == 0) {
+			call(p, 1, frame(F_NEXPR));
+			return;
+		}
+		if (f->st == 2)
+			v = f->x;
+		VPUSH(f->dst->elems, v);
+		Token *comma = got(p, T_COMMA);
+		if (comma) {
+			VPUSH(f->dst->seps, comma);
+			call(p, 1, frame(F_NEXPR));
+			return;
+		}
+		finishlist(f->dst);
+		if (kind(p) != f->tk && errat(p)) {
+			Buf b = {0};
+			bufputs(&b, "expected \",\" or ");
+			quotez(&b, tok_name(f->tk));
+			bufputs(&b, ", found ");
+			describe(p, &b, tok(p));
+			adderr(p, &b);
+		}
+		done(p, r, NULL);
+		return;
+
+	case F_COMPOUND:
+		if (f->st == 1) {
+			VPUSH(f->dst->elems, v);
+			Token *semi = got(p, T_SEMICOL);
+			if (!semi) {
+				finishlist(f->dst);
+				done(p, r, NULL);
+				return;
+			}
+			VPUSH(f->dst->seps, semi);
+		}
+		call(p, 1, stmtframe(T_SEMICOL));
+		return;
+
+	case F_STATEMENT: {
+		/* statement parses one element of a semicolon-separated
+		 * sequence: a possibly empty expression. If what follows is
+		 * neither the separator nor a token that ends the sequence,
+		 * the rest of the element (up to a separator, closing brace,
+		 * "end" or declaration keyword, skipping balanced brackets) is
+		 * gathered into a bad expression. */
+		if (f->st == 0) {
+			call(p, 1, frame(F_NEXPR));
+			return;
+		}
+		TokKind sep = f->tk, k = kind(p);
+		if (k == sep || k == T_END || k == T_EOF || k == T_RBRACE || isdeclstart(k)) {
+			done(p, r, v);
+			return;
+		}
+		if (k != T_ILLEGAL)
+			errfound(p, "unexpected ");
+		Node *bad = newnode(N_BADEXPR);
+		if (v)
+			elemnode(&bad->bad.elems, v);
+		int depth = 0;
+		for (;;) {
+			k = kind(p);
+			if (k == T_EOF || isdeclstart(k) || k == T_END)
+				break;
+			if (depth == 0 && (k == sep || k == T_RBRACE))
+				break;
+			switch (k) {
+			case T_LPAREN: case T_LBRACK: case T_LBRACE:
+				depth++;
+				break;
+			case T_RPAREN: case T_RBRACK: case T_RBRACE:
+				if (depth > 0)
+					depth--;
+				break;
+			default:
+				break;
+			}
+			elemtok(&bad->bad.elems, next(p));
+		}
+		done(p, r, bad);
+		return;
+	}
+	}
+}
+
+/* run runs the machine from frame start to its result. */
+static Node *run(Parser *p, Frame start) {
+	Node *r = NULL;
+	p->stk.n = 0;
+	VPUSH(p->stk, start);
+	while (p->stk.n)
+		step(p, &r);
+	return r;
+}
+
+/* ------------------------------------------------------------------ */
+/* Declarations */
 
 /* identlist parses IDENT {, IDENT}. */
 static TokList identlist(Parser *p) {
@@ -230,8 +864,6 @@ static Node *invocable(Parser *p) {
 	}
 }
 
-static Node *statement(Parser *p, TokKind sep);
-
 static Node *proc(Parser *p) {
 	Node *d = newnode(N_PROC);
 	d->proc.procedure = next(p);
@@ -255,7 +887,7 @@ static Node *proc(Parser *p) {
 	if (kind(p) == T_INITIAL) {
 		Node *in = newnode(N_INITIAL);
 		in->initial.initial = next(p);
-		in->initial.x = exprrequired(p);
+		in->initial.x = run(p, frame(F_EXPRREQ));
 		in->initial.semi = expect(p, T_SEMICOL);
 		d->proc.initial = in;
 	}
@@ -263,7 +895,7 @@ static Node *proc(Parser *p) {
 	/* procbody: { nexpr ; } */
 	while (kind(p) != T_END && kind(p) != T_EOF && !isdeclstart(kind(p))) {
 		size_t start = p->pos;
-		Node *x = statement(p, T_SEMICOL);
+		Node *x = run(p, stmtframe(T_SEMICOL));
 		Token *semi = got(p, T_SEMICOL);
 		if (p->pos == start) {
 			/* No progress (e.g. a stray "}"): consume one token. */
@@ -306,411 +938,6 @@ static void decls(Parser *p) {
 	}
 }
 
-/* statement parses one element of a semicolon-separated sequence: a
- * possibly empty expression. If what follows is neither the separator
- * nor a token that ends the sequence, the rest of the element (up to a
- * separator, closing brace, "end" or declaration keyword, skipping
- * balanced brackets) is gathered into a bad expression. */
-static Node *statement(Parser *p, TokKind sep) {
-	Node *x = nexpr(p);
-	TokKind k = kind(p);
-	if (k == sep || k == T_END || k == T_EOF || k == T_RBRACE || isdeclstart(k))
-		return x;
-	if (k != T_ILLEGAL)
-		errfound(p, "unexpected ");
-	Node *bad = newnode(N_BADEXPR);
-	if (x)
-		elemnode(&bad->bad.elems, x);
-	int depth = 0;
-	for (;;) {
-		k = kind(p);
-		if (k == T_EOF || isdeclstart(k) || k == T_END)
-			break;
-		if (depth == 0 && (k == sep || k == T_RBRACE))
-			break;
-		switch (k) {
-		case T_LPAREN: case T_LBRACK: case T_LBRACE:
-			depth++;
-			break;
-		case T_RPAREN: case T_RBRACK: case T_RBRACE:
-			if (depth > 0)
-				depth--;
-			break;
-		default:
-			break;
-		}
-		elemtok(&bad->bad.elems, next(p));
-	}
-	return bad;
-}
-
-/* ------------------------------------------------------------------ */
-/* Expressions */
-
-/* canstart reports whether k can begin an expression. */
-static bool canstart(TokKind k) {
-	switch (k) {
-	case T_END: case T_DEFAULT: case T_INITIAL: case T_LOCAL: case T_STATIC:
-		return false;
-	default:
-		return tok_beginner(k);
-	}
-}
-
-/* nexpr parses an optional expression; it returns NULL if none is
- * present. */
-static Node *nexpr(Parser *p) { return canstart(kind(p)) ? expr(p) : NULL; }
-
-/* exprrequired parses an expression, reporting an error if there is
- * none. */
-static Node *exprrequired(Parser *p) {
-	if (!canstart(kind(p))) {
-		errfound(p, "expected expression, found ");
-		return NULL;
-	}
-	return expr(p);
-}
-
-/* The binary operator levels of grammar.h, loosest first: expr,
- * expr1a, expr1, expr2, ..., expr9. binlevel[k] is the level of
- * operator k plus one (an operator is at one level at most); the "to
- * ... by" level has no operators of its own. */
-enum { L_AND, L_QMARK, L_ASSIGN, L_TO, L_BAR, L_COMPARE, L_CONCAT, L_ADD, L_MUL, L_CARET, L_LIMIT, NLEVELS };
-
-static const bool rightassoc[NLEVELS] = {[L_ASSIGN] = true, [L_BAR] = true, [L_CARET] = true};
-
-static const unsigned char binlevel[T_NKINDS] = {
-	[T_AND] = L_AND + 1,
-	[T_QMARK] = L_QMARK + 1,
-	[T_ASSIGN] = L_ASSIGN + 1, [T_SWAP] = L_ASSIGN + 1, [T_REVASSIGN] = L_ASSIGN + 1,
-	[T_REVSWAP] = L_ASSIGN + 1, [T_AUGCONCAT] = L_ASSIGN + 1, [T_AUGLCONCAT] = L_ASSIGN + 1,
-	[T_AUGDIFF] = L_ASSIGN + 1, [T_AUGUNION] = L_ASSIGN + 1, [T_AUGPLUS] = L_ASSIGN + 1,
-	[T_AUGMINUS] = L_ASSIGN + 1, [T_AUGSTAR] = L_ASSIGN + 1, [T_AUGINTER] = L_ASSIGN + 1,
-	[T_AUGSLASH] = L_ASSIGN + 1, [T_AUGMOD] = L_ASSIGN + 1, [T_AUGCARET] = L_ASSIGN + 1,
-	[T_AUGNMEQ] = L_ASSIGN + 1, [T_AUGEQUIV] = L_ASSIGN + 1, [T_AUGNMGE] = L_ASSIGN + 1,
-	[T_AUGNMGT] = L_ASSIGN + 1, [T_AUGNMLE] = L_ASSIGN + 1, [T_AUGNMLT] = L_ASSIGN + 1,
-	[T_AUGNMNE] = L_ASSIGN + 1, [T_AUGNEQUIV] = L_ASSIGN + 1, [T_AUGSEQ] = L_ASSIGN + 1,
-	[T_AUGSGE] = L_ASSIGN + 1, [T_AUGSGT] = L_ASSIGN + 1, [T_AUGSLE] = L_ASSIGN + 1,
-	[T_AUGSLT] = L_ASSIGN + 1, [T_AUGSNE] = L_ASSIGN + 1, [T_AUGQMARK] = L_ASSIGN + 1,
-	[T_AUGAND] = L_ASSIGN + 1, [T_AUGAT] = L_ASSIGN + 1,
-	[T_BAR] = L_BAR + 1,
-	[T_SEQ] = L_COMPARE + 1, [T_SGE] = L_COMPARE + 1, [T_SGT] = L_COMPARE + 1,
-	[T_SLE] = L_COMPARE + 1, [T_SLT] = L_COMPARE + 1, [T_SNE] = L_COMPARE + 1,
-	[T_NMEQ] = L_COMPARE + 1, [T_NMGE] = L_COMPARE + 1, [T_NMGT] = L_COMPARE + 1,
-	[T_NMLE] = L_COMPARE + 1, [T_NMLT] = L_COMPARE + 1, [T_NMNE] = L_COMPARE + 1,
-	[T_EQUIV] = L_COMPARE + 1, [T_NEQUIV] = L_COMPARE + 1,
-	[T_CONCAT] = L_CONCAT + 1, [T_LCONCAT] = L_CONCAT + 1,
-	[T_PLUS] = L_ADD + 1, [T_DIFF] = L_ADD + 1, [T_UNION] = L_ADD + 1, [T_MINUS] = L_ADD + 1,
-	[T_STAR] = L_MUL + 1, [T_INTER] = L_MUL + 1, [T_SLASH] = L_MUL + 1, [T_MOD] = L_MUL + 1,
-	[T_CARET] = L_CARET + 1,
-	[T_BACKSLASH] = L_LIMIT + 1, [T_AT] = L_LIMIT + 1, [T_BANG] = L_LIMIT + 1,
-};
-
-static bool atlevel(TokKind k, int lv) { return binlevel[k] == lv + 1; }
-
-/* The prefix operators of expr10. */
-static bool isunary(TokKind k) {
-	switch (k) {
-	case T_AT: case T_NOT: case T_BAR: case T_CONCAT: case T_LCONCAT: case T_DOT:
-	case T_BANG: case T_DIFF: case T_PLUS: case T_STAR: case T_SLASH: case T_CARET:
-	case T_INTER: case T_TILDE: case T_MINUS: case T_NMEQ: case T_NMNE: case T_SEQ:
-	case T_SNE: case T_EQUIV: case T_UNION: case T_QMARK: case T_NEQUIV:
-	case T_BACKSLASH:
-		return true;
-	default:
-		return false;
-	}
-}
-
-static Node *binary(Parser *p, int lv);
-static Node *unary(Parser *p);
-
-static Node *expr(Parser *p) { return binary(p, 0); }
-
-/* operand parses the right operand of a binary operator at level lv. */
-static Node *operand(Parser *p, int lv) {
-	if (!canstart(kind(p))) {
-		errfound(p, "expected expression, found ");
-		return NULL;
-	}
-	return binary(p, lv);
-}
-
-static Node *mkbinary(Node *x, Token *op, Node *y) {
-	Node *n = newnode(N_BINARY);
-	n->binary.x = x;
-	n->binary.op = op;
-	n->binary.y = y;
-	return n;
-}
-
-static Node *binary(Parser *p, int lv) {
-	if (lv == NLEVELS)
-		return unary(p);
-	Node *x = binary(p, lv + 1);
-	if (lv == L_TO) {
-		while (kind(p) == T_TO) {
-			Node *n = newnode(N_TOBY);
-			n->toby.x = x;
-			n->toby.to = next(p);
-			n->toby.y = operand(p, lv + 1);
-			if ((n->toby.by = got(p, T_BY)))
-				n->toby.z = operand(p, lv + 1);
-			x = n;
-		}
-	} else if (rightassoc[lv]) {
-		if (atlevel(kind(p), lv)) {
-			Token *op = next(p);
-			return mkbinary(x, op, operand(p, lv));
-		}
-	} else {
-		while (atlevel(kind(p), lv)) {
-			Token *op = next(p);
-			x = mkbinary(x, op, operand(p, lv + 1));
-		}
-	}
-	return x;
-}
-
-static Node *primary(Parser *p);
-static Node *postfix(Parser *p, Node *x);
-
-static Node *unary(Parser *p) {
-	if (isunary(kind(p))) {
-		Node *n = newnode(N_UNARY);
-		n->unary.op = next(p);
-		if (!canstart(kind(p))) {
-			errfound(p, "expected expression, found ");
-			return n;
-		}
-		n->unary.x = unary(p);
-		return n;
-	}
-	return postfix(p, primary(p));
-}
-
-static NodeList exprlist(Parser *p, TokKind closer);
-static NodeList exprlistfrom(Parser *p, Node *first, TokKind closer);
-static NodeList compound(Parser *p);
-static Node *caseexpr(Parser *p);
-
-static Node *group(Parser *p, NodeKind k, TokKind closer) {
-	Node *n = newnode(k);
-	n->group.open = next(p);
-	n->group.list = k == N_BLOCK ? compound(p) : exprlist(p, closer);
-	n->group.close = expect(p, closer);
-	return n;
-}
-
-/* primary parses the non-postfix forms of expr11. */
-static Node *primary(Parser *p) {
-	Node *n;
-	switch (kind(p)) {
-	case T_IDENT:
-		n = newnode(N_IDENT);
-		n->ident.name = next(p);
-		return n;
-	case T_INTLIT: case T_REALLIT: case T_STRINGLIT: case T_CSETLIT:
-		n = newnode(N_LITERAL);
-		n->literal.tok = next(p);
-		return n;
-	case T_AND:
-		n = newnode(N_KEYWORD);
-		n->keyword.amp = next(p);
-		if (kind(p) == T_IDENT || kind(p) == T_FAIL)
-			n->keyword.name = next(p);
-		else
-			errfound(p, "expected keyword name after \"&\", found ");
-		return n;
-	case T_LPAREN:
-		return group(p, N_PAREN, T_RPAREN);
-	case T_LBRACE:
-		return group(p, N_BLOCK, T_RBRACE);
-	case T_LBRACK:
-		return group(p, N_LISTLIT, T_RBRACK);
-	case T_CREATE:
-		n = newnode(N_CREATE);
-		n->create.create = next(p);
-		n->create.x = exprrequired(p);
-		return n;
-	case T_NEXT:
-		n = newnode(N_NEXT);
-		n->next.next = next(p);
-		return n;
-	case T_BREAK:
-		n = newnode(N_BREAK);
-		n->break_.break_ = next(p);
-		n->break_.x = nexpr(p);
-		return n;
-	case T_FAIL:
-		n = newnode(N_RETURN);
-		n->ret.keyword = next(p);
-		return n;
-	case T_RETURN:
-		n = newnode(N_RETURN);
-		n->ret.keyword = next(p);
-		n->ret.x = nexpr(p);
-		return n;
-	case T_SUSPEND:
-		n = newnode(N_RETURN);
-		n->ret.keyword = next(p);
-		n->ret.x = nexpr(p);
-		if ((n->ret.do_ = got(p, T_DO)))
-			n->ret.body = exprrequired(p);
-		return n;
-	case T_IF:
-		n = newnode(N_IF);
-		n->if_.if_ = next(p);
-		n->if_.cond = exprrequired(p);
-		n->if_.then = expect(p, T_THEN);
-		n->if_.body = exprrequired(p);
-		if ((n->if_.else_ = got(p, T_ELSE)))
-			n->if_.alt = exprrequired(p);
-		return n;
-	case T_WHILE: case T_UNTIL: case T_EVERY:
-		n = newnode(N_LOOP);
-		n->loop.keyword = next(p);
-		n->loop.cond = exprrequired(p);
-		if ((n->loop.do_ = got(p, T_DO)))
-			n->loop.body = exprrequired(p);
-		return n;
-	case T_REPEAT:
-		n = newnode(N_LOOP);
-		n->loop.keyword = next(p);
-		n->loop.body = exprrequired(p);
-		return n;
-	case T_CASE:
-		return caseexpr(p);
-	default:
-		/* Not reached for tokens satisfying canstart. */
-		errfound(p, "expected expression, found ");
-		return NULL;
-	}
-}
-
-/* postfix parses the postfix forms of expr11 applied to x. */
-static Node *postfix(Parser *p, Node *x) {
-	if (!x)
-		return NULL;
-	for (;;) {
-		Node *n;
-		switch (kind(p)) {
-		case T_LBRACK: {
-			Token *lb = next(p);
-			Node *first = nexpr(p);
-			TokKind k = kind(p);
-			if (k == T_COLON || k == T_PCOLON || k == T_MCOLON) {
-				if (!first && errat(p)) {
-					Buf b = {0};
-					bufputs(&b, "expected expression before ");
-					goquote(&b, p->f->src + tok(p)->offset, tok(p)->len);
-					adderr(p, &b);
-				}
-				n = newnode(N_SECTION);
-				n->section.x = x;
-				n->section.lbrack = lb;
-				n->section.lo = first;
-				n->section.op = next(p);
-				n->section.hi = exprrequired(p);
-				n->section.rbrack = expect(p, T_RBRACK);
-			} else {
-				n = newnode(N_INDEX);
-				n->index.x = x;
-				n->index.lbrack = lb;
-				n->index.list = exprlistfrom(p, first, T_RBRACK);
-				n->index.rbrack = expect(p, T_RBRACK);
-			}
-			break;
-		}
-		case T_LPAREN:
-		case T_LBRACE: {
-			TokKind closer = kind(p) == T_LPAREN ? T_RPAREN : T_RBRACE;
-			n = newnode(closer == T_RPAREN ? N_CALL : N_PDCO);
-			n->call.fun = x;
-			n->call.open = next(p);
-			n->call.args = exprlist(p, closer);
-			n->call.close = expect(p, closer);
-			break;
-		}
-		case T_DOT:
-			n = newnode(N_FIELD);
-			n->field.x = x;
-			n->field.dot = next(p);
-			n->field.name = expect(p, T_IDENT);
-			break;
-		default:
-			return x;
-		}
-		x = n;
-	}
-}
-
-/* exprlist parses nexpr {, nexpr}, followed by the closer (not
- * consumed). */
-static NodeList exprlist(Parser *p, TokKind closer) { return exprlistfrom(p, nexpr(p), closer); }
-
-static NodeList exprlistfrom(Parser *p, Node *first, TokKind closer) {
-	NodeList l = {0};
-	VPUSH(l.elems, first);
-	for (;;) {
-		Token *c = got(p, T_COMMA);
-		if (!c)
-			break;
-		VPUSH(l.seps, c);
-		VPUSH(l.elems, nexpr(p));
-	}
-	if (l.elems.n == 1 && !l.elems.v[0])
-		l.elems.n = 0;
-	if (kind(p) != closer && errat(p)) {
-		Buf b = {0};
-		bufputs(&b, "expected \",\" or ");
-		quotez(&b, tok_name(closer));
-		bufputs(&b, ", found ");
-		describe(p, &b, tok(p));
-		adderr(p, &b);
-	}
-	return l;
-}
-
-/* compound parses nexpr {; nexpr} inside braces. */
-static NodeList compound(Parser *p) {
-	NodeList l = {0};
-	for (;;) {
-		VPUSH(l.elems, statement(p, T_SEMICOL));
-		Token *c = got(p, T_SEMICOL);
-		if (!c)
-			break;
-		VPUSH(l.seps, c);
-	}
-	if (l.elems.n == 1 && !l.elems.v[0])
-		l.elems.n = 0;
-	return l;
-}
-
-static Node *caseexpr(Parser *p) {
-	Node *n = newnode(N_CASE);
-	n->case_.case_ = next(p);
-	n->case_.x = exprrequired(p);
-	n->case_.of = expect(p, T_OF);
-	n->case_.lbrace = expect(p, T_LBRACE);
-	if (!n->case_.lbrace)
-		return n;
-	for (;;) {
-		Node *cl = newnode(N_CASECLAUSE);
-		if (!(cl->clause.default_ = got(p, T_DEFAULT)))
-			cl->clause.label = exprrequired(p);
-		cl->clause.colon = expect(p, T_COLON);
-		cl->clause.body = exprrequired(p);
-		VPUSH(n->case_.clauses.elems, cl);
-		Token *c = got(p, T_SEMICOL);
-		if (!c)
-			break;
-		VPUSH(n->case_.clauses.seps, c);
-	}
-	n->case_.rbrace = expect(p, T_RBRACE);
-	return n;
-}
-
 /* ------------------------------------------------------------------ */
 
 File *syn_parse(const char *src, size_t n) {
@@ -725,6 +952,7 @@ File *syn_parse(const char *src, size_t n) {
 	Parser p = {.f = f, .toks = f->toks.v};
 	decls(&p);
 	f->eof = next(&p);
+	free(p.stk.v);
 	return f;
 }
 
@@ -935,4 +1163,32 @@ void syn_file_children(File *file, SynVisit *f, void *ctx) {
 		f(ctx, NULL, file->decls.v[i]);
 	if (file->eof)
 		f(ctx, file->eof, NULL);
+}
+
+static void collect(void *ctx, Token *t, Node *n) {
+	Elem e = {t, n};
+	VPUSH(*(ElemVec *)ctx, e);
+}
+
+/* syn_tokens visits every token of the file in source order, without
+ * recursion: an explicit stack of pending children. */
+void syn_tokens(File *file, void (*f)(void *ctx, Token *t), void *ctx) {
+	ElemVec stk = {0}, kids = {0};
+	for (size_t i = file->decls.n; i-- > 0;)
+		elemnode(&stk, file->decls.v[i]);
+	while (stk.n) {
+		Elem e = stk.v[--stk.n];
+		if (e.tok) {
+			f(ctx, e.tok);
+			continue;
+		}
+		kids.n = 0;
+		syn_children(e.node, collect, &kids);
+		for (size_t i = kids.n; i-- > 0;)
+			VPUSH(stk, kids.v[i]);
+	}
+	if (file->eof)
+		f(ctx, file->eof);
+	free(stk.v);
+	free(kids.v);
 }

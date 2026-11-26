@@ -6,6 +6,8 @@
  * every token (with its comments and whitespace as leading trivia), so
  * the source can be reproduced exactly; syn_children visits a node's
  * tokens and child nodes in source order, each token of the file once.
+ * Nothing here recurses, so nesting has no ceiling but memory; passes
+ * over the tree should walk it iteratively too.
  * syn_parse never fails: errors are collected in File.errs, and
  * recovery produces bad-declaration and bad-expression nodes and NULL
  * fields for missing parts, so an incomplete file (as a language server
@@ -156,5 +158,9 @@ File *syn_parse(const char *src, size_t n);
 typedef void SynVisit(void *ctx, Token *t, Node *n);
 void syn_children(Node *n, SynVisit *f, void *ctx);
 void syn_file_children(File *file, SynVisit *f, void *ctx);
+
+/* syn_tokens calls f for every token of the file, in source order (the
+ * Go's syntax.Tokens), without recursion. */
+void syn_tokens(File *file, void (*f)(void *ctx, Token *t), void *ctx);
 
 #endif

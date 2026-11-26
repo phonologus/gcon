@@ -79,6 +79,37 @@ tests. gcon-vm checks its runs against recorded results
 icontools stays as it is, standalone (above); gcon's formatter and
 language server are ported from gcon's own fork.
 
+**Two oracles (2026-11-26, after the parser's port).** Checking the C
+only against the Go would make the port C to Go to C, with Icon itself
+reached only through the Go. So the authorities are:
+
+1. *Arizona Icon* (icont, iconx, their C sources) for everything Icon
+   defines: syntax, semantics, error messages, program results. Where
+   it has well-made C for a job, the port starts from that C, not from
+   the Go (Icon's sources are public domain; reused code is identified
+   as modified).
+2. *The Go reference* only for what Icon has no counterpart for: the
+   Unicode extensions (cset ranges, string units), the graphics
+   protocol, gcon's program format, and the tooling (the lossless tree,
+   error recovery for an editor, the formatter, the language server).
+3. Where the two disagree on something Icon defines, icont wins and the
+   Go is fixed.
+
+The differential tests against the Go stay (they are what proves the
+Go can go), and the icont oracle tests are ported to run directly on
+the C.
+
+The first consequence is in the parser. icont's (yacc's `tparse.c`)
+keeps its parse stack on the heap and grows it, so it has no nesting
+ceiling; the Go recurses on goroutine stacks, which fail at 1 GB (a
+million nested parentheses); a recursive C parser fails at a few
+thousand. icont's code cannot be taken whole (it keeps no tokens or
+trivia, and its recovery, three `error` rules, is a compiler's, not an
+editor's), but its design is: the C parser keeps its own stack on the
+heap and does not recurse, and the passes after it walk trees
+iteratively, so nothing in the toolchain has a stack ceiling. Its
+trees and errors are the Go's for every input the Go can parse.
+
 ### Graphics: a separate display server
 
 **Decision (2026-11-25): graphics runs in a separate display server

@@ -17,7 +17,7 @@ identical before the next (`../docs/design.md`, "gcon in C").
 
 ## Testing
 
-    tests/diff.sh [lex|parse]
+    tests/diff.sh [lex|parse|walk]
 
 builds `tests/dump.c` with the address and undefined-behaviour
 sanitizers, and the Go reference's `tools/refdump`, and checks that
@@ -35,7 +35,12 @@ reaches. At the parser's port: 2,784 files identical (and 1,626 more
 mutants with byte runs deleted or duplicated, once, reaching some 50
 distinct error messages).
 
-Known difference: the parser recurses (about a dozen C frames per
-level of nesting), so input nested thousands deep, such as 20,000
-parentheses, overflows the C stack where the Go, and icont (whose yacc
-stack grows), do not. To be settled before the driver is ported.
+The parser does not recurse (`../docs/design.md`, "Two oracles"):
+its expression machine keeps its stack on the heap, as icont's parser
+does, so nesting has no ceiling but memory, where the Go's goroutine
+stack fails at 1 GB (about a million nested parentheses). The `walk`
+form (the token walk and errors, no tree: nothing in either dump
+recursing) checks deep input: 23 shapes of nesting (brackets, prefix
+and right-associative chains, control structures, case, sections,
+mixtures, unclosed) 100,000 deep are identical to the Go's, the full
+trees 3,000 deep, and the C alone parses them 2,000,000 deep.
