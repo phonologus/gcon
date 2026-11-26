@@ -1,0 +1,7 @@
+# invocable all keeps every procedure.
+invocable all
+procedure main()
+end
+procedure unused()
+   z := y
+end

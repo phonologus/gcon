@@ -26,6 +26,27 @@
  *                           on stderr, as icont reports them
  *   oracle ppnorm           a filter: "icont -E" output in the same form,
  *                           the positions from its #line markers
+ *   oracle sema FILE... SYMS
+ *                           the files as one program, preprocessed as
+ *                           in pp (SYMS: the predefined symbols, as one
+ *                           argument separated by spaces), parsed and
+ *                           resolved: icont's diagnostics, one a line,
+ *                           sorted: the translator's errors ("File F;
+ *                           Line N # msg"), then, if there are none, the
+ *                           linker's undeclared identifiers ('F: "x":
+ *                           undeclared identifier, procedure P', F the
+ *                           file linked) in the procedures icont's
+ *                           linker keeps: those reachable from main and
+ *                           invocable declarations; a clash with a
+ *                           declaration in another file is the linker's
+ *                           too ('F: "x": inconsistent redeclaration').
+ *                           Exit 1 on errors; 3 if a file has
+ *                           preprocessing or syntax errors, or links
+ *                           others (not comparable).
+ *   oracle semanorm         a filter: icont's name-resolution messages
+ *                           from its diagnostics, sorted, without those
+ *                           for built-ins this icont lacks (graphics,
+ *                           gcon's own), which it calls undeclared
  *   oracle mutate SEED FILE a token deleted, duplicated or swapped with
  *                           the next, chosen by SEED; the change is
  *                           described on stderr; exit 3 if FILE has
@@ -42,6 +63,7 @@
 #define _POSIX_C_SOURCE 200809L
 #include "../syntax.h"
 #include "../ipp.h"
+#include "../sema.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -600,8 +622,7 @@ static void ppline(const char *file, long line, const char *s, size_t n) {
 	bufputc(&out, '\n');
 }
 
-static int pp(const char *name, int nsyms, char **syms) {
-	Buf src = readfile(name);
+static PPOptions ppopts(int nsyms, char **syms) {
 	PPOptions o = {0};
 	const char **values = xcalloc((size_t)nsyms + 1, sizeof *values);
 	for (int i = 0; i < nsyms; i++)
@@ -624,6 +645,12 @@ static int pp(const char *name, int nsyms, char **syms) {
 	}
 	o.incpath = dirs.v;
 	o.nincpath = dirs.n;
+	return o;
+}
+
+static int pp(const char *name, int nsyms, char **syms) {
+	Buf src = readfile(name);
+	PPOptions o = ppopts(nsyms, syms);
 	PPResult *r = ipp_preprocess(name, src.b, src.n, &o);
 	for (size_t off = 0; off < r->src.n;) {
 		const char *nl = memchr(r->src.b + off, '\n', r->src.n - off);
@@ -660,6 +687,214 @@ static int ppnorm(void) {
 	return 0;
 }
 
+/* ------------------------------------------------------------------ */
+/* Name resolution */
+
+typedef VEC(char *) Lines_;
+
+static int cmpstr(const void *a, const void *b) { return strcmp(*(char *const *)a, *(char *const *)b); }
+
+/* firsttok gives a declaration's first token. */
+static Token *firsttok(Node *d) {
+	switch (d->kind) {
+	case N_LINK: return d->link.link;
+	case N_GLOBAL: return d->global.global;
+	case N_RECORD: return d->record.record;
+	case N_INVOCABLE: return d->invocable.invocable;
+	case N_PROC: return d->proc.procedure;
+	default: return d->bad.elems.n ? d->bad.elems.v[0].tok : NULL;
+	}
+}
+
+/* procrange gives the token indexes [lo, hi) of declaration k of f:
+ * every token belongs to one declaration, in order, so they run from
+ * its first token to the next declaration's (or the end of file). */
+static void procrange(File *f, size_t k, size_t *lo, size_t *hi) {
+	*lo = (size_t)(firsttok(f->decls.v[k]) - f->toks.v);
+	*hi = f->toks.n - 1;
+	for (size_t j = k + 1; j < f->decls.n; j++) {
+		Token *t = firsttok(f->decls.v[j]);
+		if (t) {
+			*hi = (size_t)(t - f->toks.v);
+			break;
+		}
+	}
+}
+
+static int semacheck(int n, char **names, char *symstr) {
+	int nsyms = 0;
+	char *syms[256];
+	for (char *t = strtok(symstr, " \n"); t && nsyms < 256; t = strtok(NULL, " \n"))
+		syms[nsyms++] = t;
+	PPOptions o = ppopts(nsyms, syms);
+	SemaFile **files = xcalloc((size_t)n, sizeof *files);
+	PPResult **pps = xcalloc((size_t)n, sizeof *pps);
+	for (int i = 0; i < n; i++) {
+		Buf b = readfile(names[i]);
+		pps[i] = ipp_preprocess(names[i], b.b, b.n, &o);
+		files[i] = xcalloc(1, sizeof *files[i]);
+		files[i]->path = names[i];
+		files[i]->preprocessed = true;
+		files[i]->syn = syn_parse(pps[i]->src.b, pps[i]->src.n);
+	}
+	Program *p = sema_program(files, (size_t)n, true);
+	SemaInfo **infos = xcalloc((size_t)n, sizeof *infos);
+	Lines_ errs = {0}, warns = {0};
+	for (int i = 0; i < n; i++) {
+		if (pps[i]->errs.n || files[i]->syn->errs.n)
+			return 3; /* not comparable: preprocessing or syntax errors */
+		for (size_t k = 0; k < files[i]->syn->decls.n; k++)
+			if (files[i]->syn->decls.v[k]->kind == N_LINK)
+				return 3; /* not comparable alone */
+	}
+	for (int i = 0; i < n; i++) {
+		infos[i] = sema_resolve(p, files[i]);
+		for (size_t k = 0; k < infos[i]->diags.n; k++) {
+			Diagnostic *d = &infos[i]->diags.v[k];
+			if (d->severity != SEV_ERROR)
+				continue;
+			Buf b = {0};
+			if (d->related && d->related->file && d->related->file != files[i])
+				/* with a declaration in another file: the linker's */
+				bufprintf(&b, "%s: %s", names[i], d->msg);
+			else {
+				const char *file;
+				long line;
+				ipp_locate(&pps[i]->map, d->offset, &file, &line);
+				bufprintf(&b, "File %s; Line %ld # %s", file, line, d->msg);
+			}
+			VPUSH(*(b.b[0] == 'F' ? &errs : &warns), b.b);
+		}
+	}
+	bool linkerrs = warns.n > 0;
+	if (!errs.n) {
+		/* reachability: from main and invocable names, along
+		 * references to procedures; everything with invocable all */
+		StrMap live = {0};
+		NodeVec work = {0};
+		bool all = false;
+		for (int i = 0; i < n; i++)
+			for (size_t k = 0; k < files[i]->syn->decls.n; k++) {
+				Node *d = files[i]->syn->decls.v[k];
+				if (d->kind != N_INVOCABLE)
+					continue;
+				for (size_t j = 0; j < d->invocable.items.elems.n; j++) {
+					Token *t = d->invocable.items.elems.v[j]->invitem.name;
+					if (!t)
+						continue;
+					const char *s = files[i]->syn->src + t->offset;
+					size_t len = t->len;
+					if (len >= 2 && s[0] == '"')
+						s++, len -= 2;
+					if (len == 3 && !memcmp(s, "all", 3))
+						all = true;
+					Symbol *g = sema_global(p, s, len);
+					if (g && g->kind == S_PROCEDURE)
+						VPUSH(work, g->node);
+				}
+			}
+		Symbol *m = sema_global(p, "main", 4);
+		if (m && m->kind == S_PROCEDURE)
+			VPUSH(work, m->node);
+		for (int i = 0; all && i < n; i++)
+			for (size_t k = 0; k < files[i]->syn->decls.n; k++)
+				if (files[i]->syn->decls.v[k]->kind == N_PROC)
+					VPUSH(work, files[i]->syn->decls.v[k]);
+		while (work.n) {
+			Node *d = work.v[--work.n];
+			char key[sizeof d];
+			memcpy(key, &d, sizeof d);
+			if (strmap_get(&live, key, sizeof key))
+				continue;
+			strmap_put(&live, key, sizeof key, d);
+			int fi = 0;
+			size_t dk = 0;
+			for (; fi < n; fi++) {
+				for (dk = 0; dk < files[fi]->syn->decls.n; dk++)
+					if (files[fi]->syn->decls.v[dk] == d)
+						break;
+				if (dk < files[fi]->syn->decls.n)
+					break;
+			}
+			size_t lo, hi;
+			procrange(files[fi]->syn, dk, &lo, &hi);
+			for (size_t k = lo; k < hi; k++) {
+				Symbol *s = infos[fi]->uses[k];
+				if (s && s->kind == S_PROCEDURE)
+					VPUSH(work, s->node);
+			}
+			/* this procedure's undeclared identifiers */
+			ProcLocals *pl = sema_locals(infos[fi], d);
+			for (size_t k = 0; pl && k < pl->syms.n; k++) {
+				Symbol *s = pl->syms.v[k];
+				if (s->kind != S_IMPLICIT)
+					continue;
+				/* the file as icont's linker names it: where the
+				 * procedure's code came from (its "filen", which
+				 * follows #line and $include, lcode.c) */
+				const char *file;
+				long line;
+				ipp_locate(&pps[fi]->map, d->proc.procedure->offset, &file, &line);
+				Buf b = {0};
+				bufprintf(&b, "%s: \"%s\": undeclared identifier, procedure %.*s", file, s->name,
+					(int)d->proc.name->len, files[fi]->syn->src + d->proc.name->offset);
+				VPUSH(warns, b.b);
+			}
+		}
+	}
+	/* icont links only what translates without error */
+	if (errs.n)
+		warns.n = 0;
+	qsort(errs.v, errs.n, sizeof *errs.v, cmpstr);
+	qsort(warns.v, warns.n, sizeof *warns.v, cmpstr);
+	for (size_t i = 0; i < errs.n; i++)
+		printf("%s\n", errs.v[i]);
+	for (size_t i = 0; i < warns.n; i++)
+		printf("%s\n", warns.v[i]);
+	return errs.n || linkerrs ? 1 : 0;
+}
+
+static int semanorm(void) {
+	char *line = NULL;
+	size_t cap = 0;
+	ssize_t n;
+	Lines_ errs = {0}, warns = {0};
+	static const char *const kinds[] = {"redeclared identifier", "inconsistent redeclaration",
+		"invalid keyword", "undeclared identifier, procedure "};
+	while ((n = getline(&line, &cap, stdin)) > 0) {
+		if (line[n - 1] == '\n')
+			line[--n] = 0;
+		/* 'File F; Line N # "x": ...' or 'F: "x": ...' */
+		char *q = !strncmp(line, "File ", 5) ? strstr(line, "# \"") : strstr(line, ": \"");
+		if (!q)
+			continue;
+		char *name = q + 3, *e = strstr(name, "\": ");
+		if (!e)
+			continue;
+		const char *kind = e + 3;
+		bool ok = false;
+		for (size_t i = 0; i < sizeof kinds / sizeof kinds[0]; i++)
+			if (!strncmp(kind, kinds[i], strlen(kinds[i])) &&
+			    (i == 3 || kind[strlen(kinds[i])] == 0))
+				ok = true;
+		if (!ok)
+			continue;
+		const BuiltinFunc *bf;
+		if (!strncmp(kind, "undeclared", 10) && (bf = builtin_function(name, (size_t)(e - name))) &&
+		    (bf->graphics || bf->gcon))
+			continue;
+		char *copy = xstrndup(line, (size_t)n);
+		VPUSH(*(!strncmp(line, "File ", 5) ? &errs : &warns), copy);
+	}
+	qsort(errs.v, errs.n, sizeof *errs.v, cmpstr);
+	qsort(warns.v, warns.n, sizeof *warns.v, cmpstr);
+	for (size_t i = 0; i < errs.n; i++)
+		printf("%s\n", errs.v[i]);
+	for (size_t i = 0; i < warns.n; i++)
+		printf("%s\n", warns.v[i]);
+	return 0;
+}
+
 static _Noreturn void usage(void) {
 	fprintf(stderr, "usage: oracle tokens|trees|linedirs FILE | needspp FILE SYM... | "
 			"pp FILE SYM... | ppnorm | strip tokens|trees | mutate SEED FILE\n");
@@ -675,6 +910,8 @@ int main(int argc, char **argv) {
 	int rc;
 	if (argc == 2 && !strcmp(argv[1], "ppnorm"))
 		return ppnorm();
+	if (argc == 2 && !strcmp(argv[1], "semanorm"))
+		return semanorm();
 	if (argc < 3)
 		usage();
 	const char *mode = argv[1];
@@ -682,6 +919,11 @@ int main(int argc, char **argv) {
 		return strip(!strcmp(argv[2], "trees"));
 	if (!strcmp(mode, "pp"))
 		return pp(argv[2], argc - 3, argv + 3);
+	if (!strcmp(mode, "sema")) {
+		if (argc < 4)
+			usage();
+		return semacheck(argc - 3, argv + 2, argv[argc - 1]);
+	}
 	if (!strcmp(mode, "mutate")) {
 		if (argc != 4)
 			usage();

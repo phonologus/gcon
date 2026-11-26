@@ -1,0 +1,10 @@
+procedure main()
+   x := 1 + undeclared
+   write := 3
+   main := 1
+   f(1)
+end
+procedure f(a)
+   local b
+   b := a + c
+end

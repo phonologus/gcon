@@ -183,11 +183,15 @@ const (
 	Warning
 )
 
-// Diagnostic is a semantic problem in a file.
+// Diagnostic is a semantic problem in a file. Msg is icont's text where
+// icont has the diagnostic; Related, if set, is the other declaration a
+// redeclaration conflicts with (for a language server's related
+// information).
 type Diagnostic struct {
 	Offset, End int
 	Severity    Severity
 	Msg         string
+	Related     *Symbol
 }
 
 // Info is the resolution of one file of a program.
@@ -305,7 +309,8 @@ func (r *resolver) decl(d syntax.Decl) {
 				}
 			}
 			if seen[t.Text] {
-				r.errorf(t, Error, "%q: duplicate field name", t.Text)
+				// As icont, which installs fields as identifiers.
+				r.errorf(t, Error, "%q: redeclared identifier", t.Text)
 			}
 			seen[t.Text] = true
 		}
@@ -348,8 +353,8 @@ func (r *resolver) globalDeclName(t *syntax.Token, k Kind) {
 			continue
 		}
 		if r.p.before(s, mine) {
-			r.errorf(t, Error, "%q: inconsistent redeclaration (also a %s in %s)",
-				t.Text, s.Kind, s.File.Path)
+			r.errorf(t, Error, "%q: inconsistent redeclaration", t.Text)
+			r.info.Diagnostics[len(r.info.Diagnostics)-1].Related = s
 			return
 		}
 	}
@@ -379,9 +384,16 @@ func (r *resolver) procDecl(d *syntax.ProcDecl) {
 		if t == nil || t.Kind != token.IDENT {
 			return
 		}
-		if _, dup := r.locals[t.Text]; dup {
-			r.errorf(t, Error, "%q: redeclared identifier", t.Text)
-			r.info.Uses[t] = r.locals[t.Text]
+		if old, dup := r.locals[t.Text]; dup {
+			// As icont's install: the same kind twice is redeclared,
+			// different kinds inconsistent.
+			if old.Kind == k {
+				r.errorf(t, Error, "%q: redeclared identifier", t.Text)
+			} else {
+				r.errorf(t, Error, "%q: inconsistent redeclaration", t.Text)
+			}
+			r.info.Diagnostics[len(r.info.Diagnostics)-1].Related = old
+			r.info.Uses[t] = old
 			return
 		}
 		s := &Symbol{Name: t.Text, Kind: k, File: r.info.File, Decl: t, Node: d}
@@ -452,7 +464,7 @@ func (r *resolver) expr(x syntax.Expr) {
 		}
 		k, ok := builtin.LookupKeyword(x.Name.Text)
 		if !ok {
-			r.errorf(x.Name, Error, "&%s: invalid keyword", x.Name.Text)
+			r.errorf(x.Name, Error, "%q: invalid keyword", x.Name.Text)
 		}
 		r.info.Keywords[x.Name] = k
 	case *syntax.Binary:

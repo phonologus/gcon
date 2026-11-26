@@ -269,3 +269,61 @@ size_t bignat_bytes(const BigNat *x, uint8_t **out) {
 	*out = p;
 	return n - skip;
 }
+
+/* ------------------------------------------------------------------ */
+/* StrMap */
+
+struct StrEntry {
+	struct StrEntry *next;
+	char *key;
+	size_t n;
+	void *val;
+};
+
+static size_t strhash(const char *key, size_t n) {
+	uint64_t h = 1469598103934665603u; /* FNV-1a */
+	for (size_t i = 0; i < n; i++)
+		h = (h ^ (unsigned char)key[i]) * 1099511628211u;
+	return (size_t)h;
+}
+
+void *strmap_get(const StrMap *m, const char *key, size_t n) {
+	if (!m->nbins)
+		return NULL;
+	for (struct StrEntry *e = m->bins[strhash(key, n) % m->nbins]; e; e = e->next)
+		if (e->n == n && memcmp(e->key, key, n) == 0)
+			return e->val;
+	return NULL;
+}
+
+void strmap_put(StrMap *m, const char *key, size_t n, void *val) {
+	if (m->nbins) {
+		for (struct StrEntry *e = m->bins[strhash(key, n) % m->nbins]; e; e = e->next)
+			if (e->n == n && memcmp(e->key, key, n) == 0) {
+				e->val = val;
+				return;
+			}
+	}
+	if (m->n >= m->nbins) { /* grow: load factor 1 */
+		size_t nb = m->nbins ? 2 * m->nbins : 16;
+		struct StrEntry **bins = xcalloc(nb, sizeof *bins);
+		for (size_t i = 0; i < m->nbins; i++)
+			for (struct StrEntry *e = m->bins[i], *next; e; e = next) {
+				next = e->next;
+				size_t h = strhash(e->key, e->n) % nb;
+				e->next = bins[h];
+				bins[h] = e;
+			}
+		free(m->bins);
+		m->bins = bins;
+		m->nbins = nb;
+	}
+	struct StrEntry *e = xmalloc(sizeof *e);
+	e->key = xstrndup(key, n);
+	e->n = n;
+	e->val = val;
+	size_t h = strhash(key, n) % m->nbins;
+	e->next = m->bins[h];
+	m->bins[h] = e;
+	m->n++;
+}

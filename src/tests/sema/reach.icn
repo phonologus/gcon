@@ -1,0 +1,19 @@
+# Undeclared identifiers: icont -u reports them only in the procedures
+# its linker keeps, those reachable from main and invocable names.
+invocable "viastring"
+procedure main()
+   f(1)
+   x := g
+end
+procedure f(a)
+   b := a + c + f + main
+end
+procedure g()
+   d := 1               # reachable only as a value: kept
+end
+procedure unused()
+   z := 1
+end
+procedure viastring()
+   w := 1
+end

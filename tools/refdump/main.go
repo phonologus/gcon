@@ -11,6 +11,8 @@
 //	refdump pp FILE     the preprocessed text, line by line with the map,
 //	                    and the errors ($PPPATH: the include path)
 //	refdump predef      the names of the predefined symbols
+//	refdump sema FILE...
+//	                    name resolution of the files as one program
 package main
 
 import (
@@ -97,8 +99,12 @@ func main() {
 		predef()
 		return
 	}
+	if len(os.Args) >= 3 && os.Args[1] == "sema" {
+		semaDump(os.Args[2:])
+		return
+	}
 	if len(os.Args) != 3 || (os.Args[1] != "lex" && os.Args[1] != "parse" && os.Args[1] != "walk" && os.Args[1] != "pp") {
-		fmt.Fprintln(os.Stderr, "usage: refdump lex|parse|walk|pp FILE | predef")
+		fmt.Fprintln(os.Stderr, "usage: refdump lex|parse|walk|pp FILE | sema FILE... | predef")
 		os.Exit(2)
 	}
 	b, err := os.ReadFile(os.Args[2])

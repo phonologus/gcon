@@ -41,6 +41,15 @@ void bufprintf(Buf *b, const char *fmt, ...) __attribute__((format(printf, 2, 3)
 		(a).v[(a).n++] = (x);                                        \
 	} while (0)
 
+/* A hash map from byte strings to pointers. The keys are copied. */
+typedef struct StrMap {
+	struct StrEntry **bins;
+	size_t nbins, n;
+} StrMap;
+
+void *strmap_get(const StrMap *m, const char *key, size_t n); /* NULL if absent */
+void strmap_put(StrMap *m, const char *key, size_t n, void *val);
+
 /* UTF-8, as Go's: an invalid sequence decodes as RuneError with width 1
  * (width 0 for no input). */
 enum { RuneError = 0xFFFD, RuneSelf = 0x80, MaxRune = 0x10FFFF };

@@ -1,0 +1,18 @@
+# Redeclarations, as icont's translator reports them (oracle.sh).
+global g, g, p
+record r(f, f, g2)
+record r(x)
+procedure p(a, a, b)
+   local a, c, c
+   static c, d
+   local b
+   x := &nosuch
+   y := undeclared + write + g + p + r
+   return
+end
+procedure p()
+end
+procedure main()
+   local main
+   r := 1
+end

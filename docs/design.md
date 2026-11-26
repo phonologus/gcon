@@ -124,6 +124,22 @@ absolute names too; no cleaning of the path), where the Go joined and
 cleaned the whole name; and a file that opens but cannot be read ends
 at once, where the Go reported "cannot open". 
 
+Name resolution (`src/sema.c`) is the Go's, its diagnostics icont's
+(translator `tsym.c`, linker `lglob.c` and `lsym.c`), and is checked
+against `icont -u`. Its port found the Go's wording not icont's, fixed
+in both: a duplicate record field is `"f": redeclared identifier` (the
+Go said "duplicate field name"); a local declared twice is "redeclared
+identifier" only if both are the same kind (parameter, local, static),
+and "inconsistent redeclaration" otherwise (icont's `install`); an
+unknown keyword is `"x": invalid keyword` (the Go wrote `&x`); and an
+inconsistent redeclaration says no more than icont's text. The other
+declaration it conflicts with, which the Go put in the message ("also
+a record in a.icn"), is now the diagnostic's `Related` symbol, for the
+language server to give as related information. Positions stay gcon's
+(a line for the linker's errors too, which icont gives only the file),
+and undeclared identifiers are flagged in every procedure, where icont
+-u reports only those its linker keeps (an editor wants them all).
+
 **Decision (2026-11-26): the driver and infrastructure are gcon's.**
 What a file *means* is icont's to say; how the toolchain is laid out
 and finds things is not. gcon's distribution layout, the GCONROOT

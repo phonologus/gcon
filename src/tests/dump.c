@@ -8,6 +8,9 @@
  *                    indexes; the token walk; the errors
  *   dump walk FILE   the same without the tree (nothing recursive: for
  *                    deeply nested input)
+ *   dump sema FILE...
+ *                    name resolution of the files as one program,
+ *                    preprocessed and raw (tools/refdump/sema.go)
  *   dump pp FILE     the preprocessed text, line by line with the map,
  *                    and the errors ($PPDEFS: the predefined symbols,
  *                    each "1"; $PPPATH: the include path; both
@@ -17,6 +20,7 @@
 #include "../lit.h"
 #include "../syntax.h"
 #include "../ipp.h"
+#include "../sema.h"
 
 #include <inttypes.h>
 #include <stdio.h>
@@ -426,7 +430,7 @@ static size_t words(const char *var, const char ***out) {
 	return v.n;
 }
 
-static void pp(const char *name, const char *src, size_t n) {
+static PPOptions ppoptions(void) {
 	PPOptions o = {0};
 	const char **names, **values;
 	o.npredef = words("PPDEFS", &names);
@@ -438,6 +442,11 @@ static void pp(const char *name, const char *src, size_t n) {
 	const char **path;
 	o.nincpath = words("PPPATH", &path);
 	o.incpath = path;
+	return o;
+}
+
+static void pp(const char *name, const char *src, size_t n) {
+	PPOptions o = ppoptions();
 	PPResult *r = ipp_preprocess(name, src, n, &o);
 	for (size_t off = 0; off < r->src.n;) {
 		const char *nl = memchr(r->src.b + off, '\n', r->src.n - off);
@@ -462,7 +471,128 @@ static void pp(const char *name, const char *src, size_t n) {
 	fwrite(out.b ? out.b : "", 1, out.n, stdout);
 }
 
+static Buf readall(const char *name);
+
+static SemaFile **sfiles;
+static size_t nsfiles;
+
+static void symstr(Symbol *s) {
+	if (!s) {
+		bufputc(&out, '-');
+		return;
+	}
+	for (const char *k = sym_kind_name(s->kind); *k; k++)
+		bufputc(&out, *k == ' ' ? '_' : *k);
+	bufprintf(&out, " %s ", s->name);
+	if (s->file && s->decl) {
+		size_t fi = 0;
+		while (sfiles[fi] != s->file)
+			fi++;
+		bufprintf(&out, "%zu:%zu", fi, (size_t)(s->decl - s->file->syn->toks.v));
+	} else
+		bufputc(&out, '-');
+}
+
+static void sema(int n, char **names) {
+	PPOptions o = ppoptions();
+	for (int pass = 0; pass < 2; pass++) {
+		bool pre = pass == 0;
+		nsfiles = (size_t)n;
+		sfiles = xcalloc(nsfiles, sizeof *sfiles);
+		for (int i = 0; i < n; i++) {
+			Buf b = readall(names[i]);
+			SemaFile *f = xcalloc(1, sizeof *f);
+			f->path = names[i];
+			f->preprocessed = pre;
+			if (pre) {
+				PPResult *r = ipp_preprocess(names[i], b.b, b.n, &o);
+				f->syn = syn_parse(r->src.b, r->src.n);
+			} else
+				f->syn = syn_parse(b.b, b.n);
+			sfiles[i] = f;
+		}
+		Program *p = sema_program(sfiles, nsfiles, true);
+		bufprintf(&out, "P preprocessed=%s\n", pre ? "true" : "false");
+		for (size_t i = 0; i < nsfiles; i++) {
+			SemaFile *f = sfiles[i];
+			SemaInfo *info = sema_resolve(p, f);
+			bufprintf(&out, "F %zu ", i);
+			escz(f->path);
+			bufputc(&out, '\n');
+			for (size_t k = 0; k < info->diags.n; k++) {
+				Diagnostic *d = &info->diags.v[k];
+				bufprintf(&out, "D %zu %zu %d ", d->offset, d->end, (int)d->severity);
+				escz(d->msg);
+				bufputs(&out, " R ");
+				symstr(d->related);
+				bufputc(&out, '\n');
+			}
+			for (size_t k = 0; k < f->syn->toks.n; k++) {
+				if (info->uses[k]) {
+					bufprintf(&out, "U %zu ", k);
+					symstr(info->uses[k]);
+					bufputc(&out, '\n');
+				}
+				if (info->fielduses[k]) {
+					SymVec *v = info->fielduses[k];
+					bufprintf(&out, "FU %zu %zu", k, v->n);
+					for (size_t j = 0; j < v->n; j++) {
+						bufputs(&out, " [");
+						symstr(v->v[j]);
+						bufputc(&out, ']');
+					}
+					bufputc(&out, '\n');
+				}
+				if (info->iskeyword[k])
+					bufprintf(&out, "K %zu %s\n", k, info->keywords[k] ? info->keywords[k]->name : "-");
+			}
+			for (size_t k = 0; k < info->locals.n; k++) {
+				ProcLocals *pl = info->locals.v[k];
+				/* sorted by name, as the Go's dump */
+				size_t m = pl->syms.n;
+				Symbol **v = xcalloc(m + 1, sizeof *v);
+				memcpy(v, pl->syms.v, m * sizeof *v);
+				for (size_t a = 1; a < m; a++)
+					for (size_t c = a; c > 0 && strcmp(v[c - 1]->name, v[c]->name) > 0; c--) {
+						Symbol *t = v[c];
+						v[c] = v[c - 1];
+						v[c - 1] = t;
+					}
+				bufprintf(&out, "L %zu", (size_t)(pl->proc->proc.procedure - f->syn->toks.v));
+				for (size_t j = 0; j < m; j++) {
+					bufputs(&out, " [");
+					symstr(v[j]);
+					bufputc(&out, ']');
+				}
+				bufputc(&out, '\n');
+			}
+		}
+	}
+	fwrite(out.b ? out.b : "", 1, out.n, stdout);
+}
+
+static Buf readall(const char *name) {
+	FILE *f = fopen(name, "rb");
+	if (!f) {
+		perror(name);
+		exit(1);
+	}
+	Buf b = {0};
+	char chunk[65536];
+	size_t k;
+	while ((k = fread(chunk, 1, sizeof chunk, f)) > 0)
+		bufadd(&b, chunk, k);
+	fclose(f);
+	if (!b.b)
+		bufputs(&b, "");
+	return b;
+}
+
 int main(int argc, char **argv) {
+	if (argc >= 3 && !strcmp(argv[1], "sema")) {
+		sema(argc - 2, argv + 2);
+		return 0;
+	}
 	if (argc != 3 || (strcmp(argv[1], "lex") && strcmp(argv[1], "parse") && strcmp(argv[1], "walk") &&
 			    strcmp(argv[1], "pp"))) {
 		fprintf(stderr, "usage: dump lex|parse|walk|pp FILE\n");

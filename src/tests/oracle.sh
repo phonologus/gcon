@@ -10,7 +10,13 @@
 # preprocessor: for every file of the Icon tree and the edge cases in
 # src/tests/pp, the C's output and "icont -E"'s must have the same lines
 # that are not blank, each from the same file and line (icont's from its
-# #line markers), and the same errors.
+# #line markers), and the same errors. And name resolution: for every
+# file of the Icon tree that stands alone (no link) and translates, and
+# the programs in src/tests/sema (each file alone, each directory one
+# program), the C's diagnostics must be icont -u's: its translator's
+# redeclarations and invalid keywords, with their lines, and its
+# linker's redeclarations across files and undeclared identifiers in
+# the procedures it keeps.
 #
 #   src/tests/oracle.sh [MUTANTS]     (default 300)
 #
@@ -29,7 +35,8 @@ trap 'rm -rf "$tmp"' EXIT
 CC=${CC:-cc}
 $CC -std=c11 -g -O1 -Wall -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all \
 	-o "$tmp/oracle" "$here"/src/tests/oracle.c "$here"/src/util.c "$here"/src/token.c \
-	"$here"/src/lexer.c "$here"/src/lit.c "$here"/src/syntax.c "$here"/src/ipp.c || exit 2
+	"$here"/src/lexer.c "$here"/src/lit.c "$here"/src/syntax.c "$here"/src/ipp.c \
+	"$here"/src/builtin.c "$here"/src/sema.c || exit 2
 icontok=$("$here/tools/icontok/build.sh" "$root") || exit 2
 icont=$(dirname "$icontok")/../../bin/icont
 [ -x "$icont" ] || { echo "oracle.sh: no icont beside $icontok" >&2; exit 2; }
@@ -145,5 +152,26 @@ while read -r f; do
 	fi
 done <"$tmp/pplist"
 echo "preprocessor: $npp files identical ($nlines lines with their positions, $nerr errors)"
+# Name resolution
+semaone() { # dir, files...: one program
+	d=$1; shift
+	(cd "$d" && "$icont" -s -u -o "$tmp/x" "$@") >"$tmp/i" 2>&1
+	$C semanorm <"$tmp/i" >"$tmp/in"
+	(cd "$d" && LPATH=$CLPATH $C sema "$@" "$defined") >"$tmp/c" 2>&1; cs=$?
+	[ $cs = 3 ] && { nsskip=$((nsskip + 1)); return; }
+	if cmp -s "$tmp/in" "$tmp/c"; then
+		nsema=$((nsema + 1)); nsd=$((nsd + $(wc -l <"$tmp/c")))
+	else
+		say "SEMA ${d#$root/}: $*"; show "$tmp/in" "$tmp/c"
+	fi
+}
+nsema=0 nsd=0 nsskip=0
+while read -r f; do
+	semaone "$(dirname "$f")" "$(basename "$f")"
+done <"$tmp/list"
+for f in "$here"/src/tests/sema/*.icn; do semaone "$(dirname "$f")" "$(basename "$f")"; done
+for d in "$here"/src/tests/sema/*/; do (cd "$d" && ls *.icn) >"$tmp/progfiles"; semaone "$d" $(cat "$tmp/progfiles"); done
+echo "name resolution: $nsema programs identical ($nsd diagnostics); $nsskip not comparable (links, or errors before resolution)"
+
 [ $fail -eq 0 ] && echo "oracle: no differences" || echo "oracle: $fail differences"
 [ $fail -eq 0 ]

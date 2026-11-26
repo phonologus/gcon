@@ -12,13 +12,16 @@ identical before the next (`../docs/design.md`, "gcon in C").
 | `lit.c` | `internal/lit` | done |
 | `syntax.c` | `internal/syntax` | done |
 | `ipp.c` | icont's `src/common/ipp.c` (output as `internal/ipp`) | done |
+| `builtin.c`, `builtin.inc` | `internal/builtin` | done |
+| `sema.c` | `internal/sema` (diagnostics icont's `tsym.c`, `lglob.c`, `lsym.c`) | done |
 
 `tokens.inc` is generated from the Go's token table by
-`tests/gentoken.py` (while the Go is the reference).
+`tests/gentoken.py`, and `builtin.inc` from its catalogue of built-ins
+by `tests/genbuiltin.py` (while the Go is the reference).
 
 ## Testing
 
-    tests/diff.sh [lex|parse|walk|pp]
+    tests/diff.sh [lex|parse|walk|pp|sema]
 
 builds `tests/dump.c` with the address and undefined-behaviour
 sanitizers, and the Go reference's `tools/refdump`, and checks that
@@ -76,3 +79,19 @@ files identical); the port found three places where the Go was not
 icont's, fixed in both (`../docs/design.md`). Deep nesting (a million
 `$if`s, or a chain of a million definitions) has no ceiling; the chain
 is slow, as icont's 256-bin definition table makes it.
+
+Name resolution (`sema.c`) is checked against icont's own diagnostics
+by `oracle.sh`: for each file of the Icon tree that stands alone and
+translates, and the programs in `tests/sema` (single files, and each
+directory linked as one program), the C's diagnostics must be `icont
+-u`'s, text, file and line: its translator's redeclarations and
+invalid keywords, and its linker's redeclarations across files and
+undeclared identifiers in the procedures it keeps (those reachable from
+main and invocable names; the file named as icont's linker names it,
+by where the procedure's code came from). At its port: 568 programs
+identical, 438 diagnostics; files that link others (642) are not
+compared there. `diff.sh sema` checks it against the Go (each file
+resolved preprocessed and raw: 2,809 identical), and whole directories
+as one program (the IPL's procs, gprocs and progs, the reference tests,
+`../icn`) are identical too. The port found the Go's wording of five
+diagnostics not icont's, fixed in both (`../docs/design.md`).
