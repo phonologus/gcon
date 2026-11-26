@@ -1,0 +1,10 @@
+Usage: textcvt [-options] -<output format> textfile...
+  options:
+    f <file name>  output file name if different from input
+    o <dir name>   output filename prefix (e.g. directory)
+    c              copy first file to second file
+  <output format>:
+    u: UNIX
+    d: MS-DOS
+    m: Macintosh
+status 1

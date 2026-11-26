@@ -1,0 +1,2 @@
+usage: ./mszip [-n] [-v] [-i] root-directory zip-file
+status 1

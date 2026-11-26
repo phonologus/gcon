@@ -1,0 +1,3 @@
+
+usage:  iiencode [infile] [-x] remote-filename [-o output-filename]
+status 2

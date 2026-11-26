@@ -63,11 +63,14 @@ builds the IPL's C functions (`../icon/ipl/cfuncs`) against
 `include/icall.h` and checks them through `loadfunc`, and compares with
 iconx when it can.
 
-    tests/vs-go.sh ../icon/tests/general ../icon/ipl/progs
+    tests/expected.sh
 
-runs each program on gcon's Go VM and on gcon-vm and compares output,
-messages and exit status. `tests/bench.sh` times gcon's VM
-micro-benchmarks on both.
+runs the reference tests and the IPL's programs (`../icon/tests/general`,
+`../icon/ipl/progs`) and compares output, messages and exit status with
+their recorded runs in `tests/expected/` (recorded from gcon's Go VM
+while it was the reference; see `tests/expected/README`). `tests/vs-go.sh`
+does the same against the Go VM itself, while it lasts. `tests/bench.sh`
+times gcon's VM micro-benchmarks on both.
 
 `src/gen_tables.c` is generated from gcon's sources by
 `tools/gentables.sh`: the names of gcon's builtins, and which characters

@@ -1,0 +1,31 @@
+
+Usage:
+      Compress: press -c <archive file> [<options>] [<file to compress>...]
+      Archive:  press -a <archive file> [<options>] [<file to archive>...]
+      Extract:  press -x <archive file> [<options>] [<file to extract>...]
+      Print:    press -p <archive file> [<options>] [<file to print>...]
+      List:     press -l <archive file> [<options>] [<file to list>...]
+      Delete:   press -d <archive file> [<options>] <file to delete>...
+
+      Help:     press         (prints this message)
+      More help:press -h      (prints more details)
+
+      -c  perform compression into <archive file>
+      -a  add file(s) to <archive file> in uncompressed format
+      -x  extract (& decompress) file(s) from <archive file>
+      -p  extract (& decompress) from <archive file> to standard output
+      -l  list file names in <archive file>
+      -d  delete file(s) from <archive file>
+          (produces new file -- old file saved with ".bak" suffix)
+
+      Options:
+      -q  work quietly
+      -t  text file(s) (retrieves with correct line end format)
+	-n  process all files in archive *except* specified files
+
+      LZW Experimentor Options:
+      -T  produce detailed compression trace info (to standard error file)
+      -S  maximum compression string table size
+          (for -c only -- default = 1024)
+
+status 1

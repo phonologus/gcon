@@ -1,0 +1,9 @@
+
+Run-time error 105
+File filecnvt.icn; Line 83
+file expected
+offending value: &null
+Traceback:
+main(list_1 = [])
+close(&null) from line 83 in filecnvt.icn
+status 1

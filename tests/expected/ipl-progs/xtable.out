@@ -1,0 +1,7 @@
+Usage: xtable -<option>
+Options:
+	a: ASCII table
+	c: ASCII control char table
+	e: EBCDIC table
+	d: decimal numbers
+	e: octal numbers

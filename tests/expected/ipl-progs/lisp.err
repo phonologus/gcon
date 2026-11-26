@@ -1,0 +1,11 @@
+
+Run-time error 103
+File lisp.icn; Line 332
+string expected
+offending value: &null
+Traceback:
+main(list_1 = [])
+getbs() from line 70 in lisp.icn
+checkbal(&null) from line 319 in lisp.icn
+{&null ? ..} from line 332 in lisp.icn
+status 1

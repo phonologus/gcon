@@ -647,3 +647,27 @@ identical and four differ, all as expected: `envelope` (its pipe, as
 before), `gftrace` and `ifncsgen` (`function()` now generates the
 graphics functions, as a graphics iconx's does) and `irunerr` (which
 lists the error texts, now with 140 to 147).
+
+## Retiring gcon's Go VM, step 1: recorded runs (2026-11-26)
+
+Sean's decision: gcon's Go VM is to be retired, gcon + gcon-vm being the
+sole implementation, since keeping two implementations of the semantics
+now forks behaviour at every new feature (`loadfunc`, graphics,
+`&features`). The steps: (1) record the Go VM's runs as expected
+results; (2) `gcon run` always uses gcon-vm, and gcon's tests that run
+programs use it; (3) split gcon's `internal/vm` into the program format,
+which the compiler needs, and the interpreter, which goes; (4) the
+consequences: predefined symbols for gcon-vm's features, gcon's
+`keywords` test, the READMEs and design notes.
+
+Step 1: `tests/expected.sh` runs the reference tests and the IPL's
+programs and compares each with its recorded run (`tests/expected/`),
+taking the place of `tests/vs-go.sh`. Recorded from the Go VM, each
+program run twice: 351 recorded, 23 skipped (11 not built, 9 too slow,
+3 nondeterministic). Reading the recordings and the programs then
+moved 33 more to skipped: three whose output carries the machine (host
+name, user, environment: they must not be committed either) and 30
+whose output depends on the clock (dates in their output, `randomize`,
+`saytime`), which two runs a second apart cannot reveal. Four are
+recorded from gcon-vm by decision (`tests/expected/ACCEPTED`: graphics
+functions and errors, and `&features`). Result: 318 pass, 56 skipped.

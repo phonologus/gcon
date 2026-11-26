@@ -1,0 +1,2 @@
+usage:  mtf inputfile [-r reportfile] [-e .extensions] [-x exceptions]
+status 1
