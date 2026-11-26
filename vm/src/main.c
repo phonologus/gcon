@@ -3,8 +3,10 @@
  * It loads a built program and runs it, or lists it.
  */
 #include "vm.h"
+#include "gfx.h"
 
 #include <errno.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -63,6 +65,26 @@ static Program *load(const char *path) {
 	return p; /* data stays: the program's strings point into it */
 }
 
+/* fpath_root appends the root's lib (gcon-vm is ROOT/libexec/gcon-vm)
+ * to FPATH, where the IPL's cfunc.icn finds libcfunc.so, as iconx
+ * appends its own bin (imain.r). */
+static void fpath_root(void) {
+	char self[PATH_MAX];
+	if (!selfexe(self))
+		return;
+	char *s = strrchr(self, '/');
+	if (!s)
+		return;
+	*s = 0; /* ROOT/libexec */
+	if (!(s = strrchr(self, '/')))
+		return;
+	strcpy(s, "/lib"); /* ROOT/lib */
+	const char *p = getenv("FPATH");
+	Buf b = {0};
+	bufprintf(&b, "%s %s", p ? p : ".", self);
+	setenv("FPATH", b.b, 1);
+}
+
 int main(int argc, char **argv) {
 	if (argc == 2 && strcmp(argv[1], "-version") == 0) {
 		printf("gcon-vm %s\n", GCONVM_VERSION);
@@ -86,6 +108,7 @@ int main(int argc, char **argv) {
 		i = 3;
 	}
 	if (i < argc && argv[i][0] != '-') {
+		fpath_root();
 		Program *p = load(argv[i]);
 		builtins_init();
 		link_program(p);

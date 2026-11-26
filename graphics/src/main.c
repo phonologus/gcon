@@ -12,6 +12,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <poll.h>
+#include <sys/socket.h>
 #include <unistd.h>
 #include "sdlgfx.h"
 
@@ -693,6 +695,20 @@ static uint32_t winid(void *win)
    return 0;
 }
 
+/* client_gone: the client has closed the connection. While the server
+ * waits for events in WAIT the client sends nothing (it reads the
+ * reply first), so the socket becoming readable means it has gone. */
+static int client_gone(void)
+{
+   struct pollfd p = { fd, POLLIN, 0 };
+   char c;
+   if (poll(&p, 1, 0) <= 0)
+      return 0;
+   if (p.revents & (POLLHUP | POLLERR))
+      return 1;
+   return (p.revents & POLLIN) && recv(fd, &c, 1, MSG_PEEK) == 0;
+}
+
 static void do_wait(void)
 {
    int timeout = i32();
@@ -717,7 +733,18 @@ static void do_wait(void)
       }
       if (n > 0 || waited || timeout == 0)
          break;
-      pl_wait(timeout);
+      /* wait in slices, so that a client gone while it waited (killed,
+       * say, while waiting for an event) ends the server: else it
+       * would wait for ever */
+      for (int left = timeout;;) {
+         int slice = left < 0 || left > 100 ? 100 : left;
+         if (pl_wait(slice))
+            break;
+         if (client_gone())
+            exit(0);
+         if (left >= 0 && (left -= slice) <= 0)
+            break;
+      }
    }
    setu32(5, n);
    end();

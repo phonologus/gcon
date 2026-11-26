@@ -781,3 +781,29 @@ feature; icon-sdl changes it, and `tests/conformance.sh` makes the same
 change to its copy (checked, as `patch.sh`'s changes are). With this,
 `dlog` and `tgrmap` (icon-sdl's) match iconx too: every deterministic
 program of `gprogs` and `gpacks` does.
+
+## What gcon ships of the IPL (2026-11-26)
+
+**Decision (Sean): gcon is a replacement for using Icon, not a copy
+of its distribution.** It ships the IPL's library (`procs`, `gprocs`,
+`incl`, `gincl`), the programs Arizona's `ipl/BuildBin` builds into its
+`bin` (`colrbook`, `colrpick`, `fontpick`, `palette`, `wevents`,
+`xgamma`, and `vib`, the interface builder), and the C functions
+Arizona builds into its `bin` (`cfuncs`, as `libcfunc.so`): whatever
+it takes to build them. The rest (the other programs and packages,
+data and documents) is of historical and educational interest, and in
+Arizona Icon's repository, where gcon's tests read it.
+
+`tools/ipl/update.sh` copies them into `lib/ipl` and makes
+`procs/cfunc.icn`, the C functions' Icon interface, with the IPL's own
+`cfuncs/mkfunc.sh`. `build.sh` builds the programs into the root's
+`bin` with gcon, and the C functions into the root's `lib/libcfunc.so`
+against gcon's `icall.h`; gcon-vm appends the root's `lib` to `FPATH`,
+where `cfunc.icn`'s `pathload` finds the library, as iconx appends its
+own `bin`; with it Icon's own `cfuncs` and `extlvals` tests pass
+(86 of the suite's 89 now). `tests/iconx.sh` compares the shipped programs with
+icon-sdl's iconx, pixel for pixel: all seven the same.
+
+Testing them found that the display server, waiting for events for a
+client that was killed while it waited, never noticed and ran for
+ever; it now looks at the connection while it waits, and exits.

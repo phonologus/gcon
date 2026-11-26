@@ -171,7 +171,9 @@ platform layer gives them (X conventions): 1 a key giving a character
 3), 4 button release, 5 motion (code: button mask), 6 resize (x, y the
 new size), 7 move (x, y the new position), 8 expose, 9 state (code 0
 normal, 1 iconic, 2 maximal), 10 close (the user closed the window).
-mods: X modifier masks. ms: the time in milliseconds.
+mods: X modifier masks. ms: the time in milliseconds. If the client
+closes the connection while the server waits (killed while waiting for
+an event, say), the server exits.
 
 The client sends `WAIT 0` periodically while a program draws without
 pausing, so windows are shown and events collected.

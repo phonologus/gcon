@@ -89,6 +89,13 @@ program's output with the expected (`tests/window/`).
 runs icon-sdl's reference drawing programs and compares their images
 with unmodified Icon's under X11 (`tests/ref/expected`), within the
 tolerances of the SDL backend (`tests/ref/tolerance`).
+
+    tests/iconx.sh [prog.icn ...]
+
+runs graphics programs (by default the ones gcon ships, `../lib/ipl`)
+under gcon and under icon-sdl's iconx, built beside gcon's checkout, and
+compares their output and every canvas pixel for pixel; without
+icon-sdl it does nothing.
 `tests/bench.sh` times micro-benchmarks on gcon-vm and iconx.
 
 `src/gen_tables.c` holds the names of gcon's operations and built-ins;

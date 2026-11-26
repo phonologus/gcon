@@ -1,14 +1,16 @@
 /*
- * timeout SECONDS COMMAND [ARG ...]: run COMMAND, killing it (SIGKILL)
- * if it runs longer than SECONDS; exit with its status (128 plus the
- * signal if a signal ended it), or 142 (as for SIGALRM) if it was
- * killed. A signal to the command itself is not enough: Go's runtime
- * does not die of SIGALRM. Built by the tests that use it.
+ * timeout [-term] SECONDS COMMAND [ARG ...]: run COMMAND, killing it
+ * (SIGKILL) if it runs longer than SECONDS; exit with its status (128
+ * plus the signal if a signal ended it), or 142 (as for SIGALRM) if it
+ * was killed. With -term it is first sent SIGTERM, and SIGKILL only if
+ * it is still running 5 seconds later (tests/iconx.sh: iconx writes its
+ * canvases when stopped so). Built by the tests that use it.
  */
 #define _POSIX_C_SOURCE 200809L
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -20,8 +22,11 @@ static void alarmed(int sig) {
 }
 
 int main(int argc, char **argv) {
+	int term = argc > 1 && strcmp(argv[1], "-term") == 0;
+	argv += term;
+	argc -= term;
 	if (argc < 3) {
-		fprintf(stderr, "usage: timeout SECONDS COMMAND [ARG ...]\n");
+		fprintf(stderr, "usage: timeout [-term] SECONDS COMMAND [ARG ...]\n");
 		return 2;
 	}
 	unsigned secs = (unsigned)strtoul(argv[1], NULL, 10);
@@ -43,6 +48,16 @@ int main(int argc, char **argv) {
 	int st;
 	while (waitpid(pid, &st, 0) < 0) {
 		if (expired) {
+			if (term) {
+				kill(pid, SIGTERM);
+				expired = 0;
+				alarm(5);
+				while (waitpid(pid, &st, 0) < 0)
+					if (expired)
+						break;
+				if (!expired)
+					return 142;
+			}
 			kill(pid, SIGKILL);
 			waitpid(pid, &st, 0);
 			return 142;

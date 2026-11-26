@@ -6,6 +6,7 @@ augment
 btrees
 case
 center
+cfuncs
 checkfpc
 ck
 coerce
@@ -20,6 +21,7 @@ errkwds
 errors
 evalx
 every
+extlvals
 fncs
 fncs1
 gc1

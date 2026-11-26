@@ -31,6 +31,7 @@ enum {
 };
 
 bool gp_connect(void);
+bool selfexe(char *self); /* gcon-vm's executable's path, PATH_MAX bytes */
 void gp_close(void);
 void gp_begin(int op);
 void gp_u8(int v);

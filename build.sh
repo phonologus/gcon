@@ -6,6 +6,10 @@
 #                          CMake; skipped without them, and then programs
 #                          cannot open windows)
 #   bin/gcon               the command (src/)
+#   bin/colrbook ... bin/vib  the programs Arizona builds into its bin
+#                          (colrbook colrpick fontpick palette wevents
+#                          xgamma vib), built by gcon from lib/ipl
+#   lib/libcfunc.so        the IPL's C functions (lib/ipl/cfuncs)
 #
 # Builds never use the network. $CC and $CFLAGS are passed on.
 set -eu
@@ -42,3 +46,28 @@ ${CC:-cc} -std=c11 -O2 -Wall -Wextra ${CFLAGS:-} -DGCON_VERSION="\"$version\"" -
 	-o bin/gcon.new src/*.c vm/src/gen_tables.c
 mv bin/gcon.new bin/gcon
 echo "built bin/gcon ($version)"
+
+# The C functions of the IPL (lib/ipl/cfuncs), as Arizona builds them
+# into its bin, into lib/libcfunc.so, against gcon's icall.h; gcon-vm
+# puts the root's lib on FPATH, where the IPL's cfunc.icn finds it.
+cfuncs="bitcount external files fpoll internal lgconv osf pack ppm process tconnect"
+ctmp=$(mktemp -d)
+for f in $cfuncs; do
+	${CC:-cc} -O2 -fPIC -w ${CFLAGS:-} -Ivm/include -c -o "$ctmp/$f.o" lib/ipl/cfuncs/$f.c
+done
+case "$(uname -s)" in
+Darwin*) ${CC:-cc} -bundle -undefined dynamic_lookup -o lib/libcfunc.so.new "$ctmp"/*.o ;;
+*) ${CC:-cc} -shared -fPIC -o lib/libcfunc.so.new "$ctmp"/*.o ;;
+esac
+rm -rf "$ctmp"
+mv lib/libcfunc.so.new lib/libcfunc.so
+echo "built lib/libcfunc.so"
+
+# The programs Arizona's ipl/BuildBin builds into its bin: built by gcon
+# from lib/ipl into the root's bin.
+top=$(pwd)
+for p in colrbook colrpick fontpick palette wevents xgamma; do
+	GCONROOT=$top bin/gcon build -o bin/$p lib/ipl/gprogs/$p.icn
+done
+(cd lib/ipl/gpacks/vib && GCONROOT=$top "$top/bin/gcon" build -o "$top/bin/vib" vib.icn)
+echo "built bin/colrbook bin/colrpick bin/fontpick bin/palette bin/wevents bin/xgamma bin/vib"

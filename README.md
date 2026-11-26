@@ -25,7 +25,7 @@ and [docs/development.md](docs/development.md).
 | `vm/` | gcon-vm, the runtime: the VM in C, run on every program ([vm/README.md](vm/README.md)) |
 | `graphics/` | gcon-graphics, the display server (SDL3 + Blend2D, vendored and pinned in `graphics/deps`) ([graphics/README.md](graphics/README.md)) |
 | `src/` | the `gcon` command: translator, driver, `gcon fmt`, `gcon lsp`, `gcon vet` ([src/README.md](src/README.md)) |
-| `lib/ipl` | the Icon Program Library, as source (with a few changes for gcon's graphics, `tools/ipl/patch.sh`) |
+| `lib/ipl` | the Icon Program Library as gcon ships it: the procedures and include files, the programs Arizona builds into its `bin`, and the C functions (with a few changes for gcon's graphics, `tools/ipl/patch.sh`); the rest is in Arizona Icon's repository |
 | `experiments/` | experiments: Go-style channels on co-expressions, a Tcl/Tk binding |
 | `bin/`, `libexec/` | what `build.sh` builds: the checkout is a gcon root |
 
@@ -36,8 +36,11 @@ and [docs/development.md](docs/development.md).
 builds into the checkout, which is then a gcon root, as a Go checkout is
 a GOROOT: `bin/gcon` and `libexec/gcon-vm` (need a C compiler) and
 `libexec/gcon-graphics` (needs C++ and CMake; without them, programs
-cannot open windows). Builds never use the network. Put the root's
-`bin` on your `PATH`.
+cannot open windows), and the programs Arizona Icon builds into its
+`bin`: `colrbook`, `colrpick`, `fontpick`, `palette`, `wevents`,
+`xgamma` and `vib`, the interface builder, with `lib/libcfunc.so`,
+the IPL's C functions (`link cfunc`). Builds never use the network.
+Put the root's `bin` on your `PATH`.
 
 The root holds the Icon Program Library as source, in `lib/ipl`.
 `link foo` finds `foo.icn` in the current directory, then in the

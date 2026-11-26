@@ -1,8 +1,10 @@
-# The Icon Program Library's procedures and include files, copied
+# The Icon Program Library's procedures and include files, the
+# programs Arizona builds into bin, and the C functions, copied
 # from github.com/gtownsend/icon by tools/ipl/update.sh, with gcon's
 # changes made by tools/ipl/patch.sh (the files listed as patched; the
-# hashes are upstream's). Do not edit: to change a file, copy it to a
-# directory on IPATH (or LPATH), or add a change to patch.sh.
+# hashes are upstream's). procs/cfunc.icn is made by cfuncs/mkfunc.sh.
+# Do not edit: to change a file, copy it to a directory on IPATH (or
+# LPATH), or add a change to patch.sh.
 commit 8434b6e33dc20e0f31406ecf6d56f527e392cec3
 date 2025-10-04
 sha256 e3de12e085036e4ac03fedb08727aebce2d0e4f96c5da986c69187b36ddb08b3  procs/abkform.icn
@@ -33,6 +35,7 @@ sha256 125a62395d86f6e2bfcacfc195c058a9cef0f213f216080f2cdf0df9a9b42625  procs/c
 sha256 f153e53f016244221af66a8c172f79d26e67cba9e2f44873efa055aa00b6b272  procs/capture.icn
 sha256 b3eba63667644101d17e52dbaaed8de396666386120c00faaeb6138c67b2a6c1  procs/cartog.icn
 sha256 cee40bd76d3ac2c77937cac4a35719bee3be86ae12379dd3fc04b87c96067d3c  procs/caseless.icn
+sha256 233b73119af49859d236d9a96625ac24c4b950a6167ab5a9664700f6bec8d956  procs/cfunc.icn
 sha256 966006eaccf27d83c40876a0bc5b5d2283424a5052b46dfdad2221c471da6705  procs/codeobj.icn
 sha256 1243b7080e83954f25bb90b58fcb49fc18e06089f6293a52875f6211a3e356ad  procs/colmize.icn
 sha256 af60fa96596a1378c4e3d381f1ace63eeb97f5d7af5846fc171324446e1fbf9c  procs/complete.icn
@@ -404,5 +407,42 @@ sha256 fdcac19d9091b68956135ef2e7c5cad5cd6eb81ac4b390bcc668678b323c0fdd  gincl/m
 sha256 403b410b23b02d8bf724f5d8a9431150ae83beb2d1c83f0f77fa233eec8a577a  gincl/vdefns.icn
 sha256 9a2b76e7d4216831abd68aa47b1295eaa3d0ba6a79a028f8631a88ea4854ac46  gincl/xcolors.icn
 sha256 57abb08a0969d0bc9a85079677901aadea606b1096979e0aceee95056aecda7c  gincl/xnames.icn
+sha256 88df89892a9618de4bf1060109de98a947ecf8b24f8e2526ac5c869e16e512df  gprogs/colrbook.icn
+sha256 a4c6fe4d0b85346c97b9451a4b416a1f4edc899fd21137a60a0dc591ef0b53f5  gprogs/colrpick.icn
+sha256 aebd8807780ac748414d91505176fbdc63f7469ecaae76e3ffc56df8ac16e56e  gprogs/fontpick.icn
+sha256 8627f4cfa9834028bbba87a78ea9b84b9f786df74428309b6aecd7ce41153af1  gprogs/palette.icn
+sha256 dd1896c93b8852db9acc91949434662067dc851a750a3f0cc1cbc0d08a171571  gprogs/wevents.icn
+sha256 35aeb845c657519d635740728f909dd1a425333f58b7b27242b3b8fa2f7c78f6  gprogs/xgamma.icn
+sha256 df32cf129dd4cf5d2a30498b3a62015f464389ade63c6386a86aef1c35ac522f  gpacks/vib/busy.icn
+sha256 0c71524ecd606ee305994a05f23d8958c457661cf036b410b8c0480d2ec4f242  gpacks/vib/dlog.icn
+sha256 20f06ef3f8f89fb30a61742f3156f85fadd6554f2da8c2703764587902438d1f  gpacks/vib/vib.icn
+sha256 7d4bf688322d2f14f47cb21570b660e2070ba038f91ff1feb4ac2c455191a987  gpacks/vib/vibbttn.icn
+sha256 1283da41ed7fd88d9870b2dd893d34e8f36104f5f947d94234054fe0a0193288  gpacks/vib/vibdefn.icn
+sha256 982df70b25324a371db557b244481a3179e31b44a4fb224ac155054b48225ee6  gpacks/vib/vibedit.icn
+sha256 ed7a6baadc256cde1e985b231c4bf00b82fd84e1e20504b844cae8160f671155  gpacks/vib/vibfile.icn
+sha256 ae4ab976b1daa677491f2f5beb8af7d3e3605db517483b06d047c0dccbc52787  gpacks/vib/vibglbl.icn
+sha256 748e4a34211e6dac3f17c90eef4dc12eda3c0841e6b29ffb2d6a07afee0b51ca  gpacks/vib/viblabel.icn
+sha256 3feab900f1047b5c5b16fa3ada359dd6a2d33654fd61d617c0174ff17730bf78  gpacks/vib/vibline.icn
+sha256 829941af7276e153d60d1ed662f15063a7f808b75653c2bd2787c5e0e0518c94  gpacks/vib/viblist.icn
+sha256 0bd82c6b87e8655268f808d474e18c807a9f6cac5b265a2bfb6de918256f6932  gpacks/vib/vibmenu.icn
+sha256 9c84666a2e77f6a6b6d48a7162e40c30c5db3d139569d68f01def7dccdbeb54c  gpacks/vib/vibradio.icn
+sha256 4456766b87fac5523652ac619c54324eeb3ce0bf62e5cebcabc8e17624a4fd86  gpacks/vib/vibrect.icn
+sha256 8b62b08d82ea0046bdf4620ecaccdd0fcf599938e29bf2a276edaa0958e36c0d  gpacks/vib/vibsizer.icn
+sha256 9712c0ab5d970081f9b809c0438bb714b2b5f086b4171b8e5edb60d48b549a43  gpacks/vib/vibslidr.icn
+sha256 76b6e9149b1fd7dc5a48b1cf42d4b3b63b52f4eb83c8a906e3246d28b7be3383  gpacks/vib/vibtalk.icn
+sha256 e2460558d395bccfb378832aec6d1f87168b9ac037bf321ea8cd6d87b3f6d257  gpacks/vib/vibtext.icn
+sha256 6c67e09236352d54f5e8ef567fd705ee1daf9cf86fbba66a2822bce3a693144f  cfuncs/bitcount.c
+sha256 08fabba77d59af25524322c36fbdf0f7dcff9fee02bfc0c3997b95570e09ca49  cfuncs/external.c
+sha256 f1ba26e61c317e62d20aedbae7f15d2125469b211442658178bcfbd9398a397e  cfuncs/files.c
+sha256 fa8cb1f524dac532d0c0a71a36f5b4a6e9febb45004a68dfd7d038009f5011e4  cfuncs/fpoll.c
+sha256 34199f9098d5ba17a5a41781720607a8b66748f7e2993ce805f42e7e52a50e98  cfuncs/internal.c
+sha256 46f17e6749be0d39eb37103617a7ca0b37046877d036d5fb7d4131604e11f4f4  cfuncs/lgconv.c
+sha256 ca6efc451b5710d18816967e73e2b1a8f46f6ea96500482d31fa69151b63bfa8  cfuncs/mkfunc.sh
+sha256 b52efd82b34c74741aaaf50b85c054326464707e4cab2ddc3de5a712311b1493  cfuncs/osf.c
+sha256 360b07cce40d98b7ed5bba674692c99e9f766415733c536899ee8d24a9e21418  cfuncs/pack.c
+sha256 3fb593bb539bb8fd8df034508fa4a78f710aaea55c6d47aaf319a5b26bd81f4c  cfuncs/ppm.c
+sha256 89148e11d97e754cb9ed047fd870393dcb2becf02eb3ec0898a69c4141170b88  cfuncs/process.c
+sha256 c9c350c9881f6266e68b52c65211402d5f22e6a18f7e2a87cd07108f99003c76  cfuncs/README
+sha256 e2f731a405a617fdaa0d3d911a51125e6b88bee67503934211ce56a1ecca5ad7  cfuncs/tconnect.c
 patched gincl/keysyms.icn
 patched gprocs/vtext.icn

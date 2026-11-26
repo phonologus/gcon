@@ -39,26 +39,28 @@ _Noreturn static void lost(const char *why) {
 	exit(1);
 }
 
+/* selfexe gives gcon-vm's own executable's path (PATH_MAX bytes). */
+bool selfexe(char *self) {
+#ifdef __APPLE__
+	uint32_t n = PATH_MAX;
+	char raw[PATH_MAX];
+	return _NSGetExecutablePath(raw, &n) == 0 && realpath(raw, self);
+#else
+	ssize_t k = readlink("/proc/self/exe", self, PATH_MAX - 1);
+	if (k <= 0)
+		return false;
+	self[k] = 0;
+	return true;
+#endif
+}
+
 /* serverpath finds the display server's executable. */
 static char *serverpath(void) {
 	const char *e = getenv("GCONGRAPHICS");
 	if (e && *e)
 		return strdup(e);
 	char self[PATH_MAX];
-	bool have = false;
-#ifdef __APPLE__
-	uint32_t n = sizeof self;
-	char raw[PATH_MAX];
-	if (_NSGetExecutablePath(raw, &n) == 0 && realpath(raw, self))
-		have = true;
-#else
-	ssize_t k = readlink("/proc/self/exe", self, sizeof self - 1);
-	if (k > 0) {
-		self[k] = 0;
-		have = true;
-	}
-#endif
-	if (have) {
+	if (selfexe(self)) {
 		char *slash = strrchr(self, '/');
 		if (slash) {
 			strcpy(slash + 1, "gcon-graphics");

@@ -1,11 +1,30 @@
-The Icon Program Library (IPL): its procedure libraries (procs, gprocs)
-and include files (incl, gincl), copied unmodified from the reference
-implementation, github.com/gtownsend/icon, by tools/ipl/update.sh.
-UPSTREAM records the commit and each file's SHA-256.
+The Icon Program Library (IPL), as gcon ships it, copied from the
+reference implementation, github.com/gtownsend/icon, by
+tools/ipl/update.sh:
 
-gcon searches these directories after IPATH (for link) and LPATH (for
-$include). To change a file, copy it to a directory on IPATH or LPATH
-rather than editing it here.
+  procs, gprocs   the procedure libraries, which link finds
+  incl, gincl     the include files, which $include finds
+  gprogs, gpacks  the programs Arizona's ipl/BuildBin builds into its bin
+                  (colrbook, colrpick, fontpick, palette, wevents,
+                  xgamma; vib), which gcon's build.sh builds into the
+                  root's bin
+  cfuncs          the C functions, which build.sh builds into the
+                  root's lib/libcfunc.so; procs/cfunc.icn, their Icon
+                  interface, is made by cfuncs/mkfunc.sh
+
+The rest of the IPL (its other programs, packages, data and documents)
+is in Arizona Icon's repository. UPSTREAM records the commit and each
+file's SHA-256.
+
+A few files are changed for gcon, whose display server is icon-sdl's
+SDL backend (gcon predefines _SDL_GRAPHICS, not _X_WINDOW_SYSTEM): the
+changes are icon-sdl's, made by tools/ipl/patch.sh, marked "# gcon:" in
+the files, and listed in UPSTREAM.
+
+gcon searches procs and gprocs after IPATH (for link), and incl and
+gincl after LPATH (for $include). To change a file, copy it to a
+directory on IPATH or LPATH rather than editing it here, or add a
+change to tools/ipl/patch.sh.
 
 These files are in the public domain, as the reference implementation's
 README says of its material: "You may use and copy this material freely.

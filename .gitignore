@@ -3,3 +3,5 @@
 *.out
 /bin/
 /libexec/
+/lib/libcfunc.so
+/lib/libcfunc.so.new
