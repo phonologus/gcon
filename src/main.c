@@ -6,6 +6,8 @@
  *	gcon dis file                  list the VM code of source or a built program
  *	gcon fmt [-l] [-w] [-d] [path ...]
  *	                               format Icon source
+ *	gcon lsp [-log file] [-docs dir]
+ *	                               the language server
  *	gcon env                       print gcon's root and library search paths
  *	gcon version                   print gcon's version
  *
@@ -13,6 +15,7 @@
  */
 #include "driver.h"
 #include "format.h"
+#include "lsp.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -24,6 +27,7 @@ static _Noreturn void usage(void) {
 	      "\tgcon build [-o out] file.icn\n"
 	      "\tgcon dis file\n"
 	      "\tgcon fmt [-l] [-w] [-d] [path ...]\n"
+	      "\tgcon lsp [-log file] [-docs dir]\n"
 	      "\tgcon env\n"
 	      "\tgcon version\n",
 		stderr);
@@ -168,6 +172,8 @@ int main(int argc, char **argv) {
 			usage();
 		return execvm(vm(), argv[2], NULL, 0, true, &c);
 	}
+	if (!strcmp(cmd, "lsp"))
+		return lsp_main(argc - 1, argv + 1);
 	if (!strcmp(cmd, "fmt"))
 		return format_main(argc - 1, argv + 1);
 	if (!strcmp(cmd, "env")) {
