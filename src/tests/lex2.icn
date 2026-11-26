@@ -1,0 +1,7 @@
+$define X 1
+  $include "y"
+$( $)
+$ifdef X
+write(1)
+$endif
+#comment only

@@ -1,0 +1,36 @@
+# lex.icn: edge cases for the C front end's differential tests
+# (src/tests/diff.sh), beyond what the corpus holds. Not a program.
+procedure main()
+   # integers: decimal, radix, beyond int64, bad digits and radices
+   x := 0 + 9223372036854775807 + 9223372036854775808 + 18446744073709551616
+   x := 1267650600228229401496703205376 + 2r1011 + 16rFF + 16rff + 36rZZZZZZZZZZZZZZZZZZ
+   x := 8r777777777777777777777777 + 37r1 + 1r0 + 0r0 + 2r2 + 16rG + 10r + 999r5
+   x := 0000000000000000000000000000000001 + 07 + 1000000000000000000000
+   # reals: rounding, the extremes, overflow and underflow, malformed
+   y := 0.1 + .5 + 5. + 1e10 + 1E-10 + 1.5e+3 + 1e308 + 1.7976931348623157e308
+   y := 1e309 + 1e-400 + 4.9e-324 + 2.2250738585072011e-308 + 2.2250738585072014e-308
+   y := 123456789012345678901234567890.123456789e-5 + 1e + 1e+ + 1.e5 + 3e9999
+   y := 0.30000000000000004 + 9007199254740993.0 + 9007199254740995.0 + .
+   # strings: escapes, octal, hex, control, \u and \U, bad ones
+   s := "\b\d\e\f\l\n\r\t\v\'\"\\\8\9\q\101\1012\777\x41\x4\xg\X7a\^a\^@\^?"
+   s := "é€\U1F600\U10FFFF\U110000\uD800\u12\UA\x80\xff\377"
+   s := "a_
+         b" || "c _
+         d" || "_  
+   e" || "unterminated
+   s := "héllo wörld ✓ \xe9 mixed" || "ÿ" || "\é"
+   # csets: ranges, dots, errors
+   c := 'a..z' ++ 'A..Z0..9' ++ 'a...z' ++ '..a' ++ 'a..' ++ 'z..a' ++ 'a\..z'
+   c := 'à..ÿ' ++ 'é..ü' ++ '\x80..\xff' ++ 'a..\xff' ++ '\xe9..é' ++ '.'
+   c := '' ++ '..' ++ 'a..b..c' ++ 'x\.\.y'
+   # operators, digraphs, the longest match, illegal characters
+   z := a || b ||| c ** d -- e ++ f ~=== g ~== h ~= i === j == k <<= l >>= m <-> n
+   z := a %:= b ||:= c |||:= d ~===:= e <<=:= f $( g $) $< h $> i +: j -: k
+   z := a ` b @ c ^ d \ e ! f ? g . h ; i : j ;; k €
+   # semicolon insertion across lines
+   z := a
+   (b)
+   z := c
+   -d
+   return
+   end
