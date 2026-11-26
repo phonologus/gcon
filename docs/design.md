@@ -99,8 +99,22 @@ table exactly). The program tests
 moved to `vm/tests/programs`, and the Go's conformance test (Icon's
 own suite against iconx's output) became `vm/tests/conformance.sh`,
 the Arizona oracle run directly: 84 of the 89 pass, `prepro` now among
-them. `src/tests/fmt.sh` and `lsp.sh` still need Go, to build
-icontools' icfmt and iconls, their oracles.
+them.
+
+### Decision (2026-11-26): gcon is its own oracle for fmt and lsp
+
+The C gcon is now gospel for gcon (Sean): `gcon fmt` and `gcon lsp` are
+no longer checked against icontools' icfmt and iconls, which are
+entirely independent of gcon and may go their own way. Their tests
+check gcon against itself: golden files recorded from it
+(`src/tests/fmt/`, `src/tests/lsp/`; `-update` rewrites them, to be
+read before committing), and properties that need no oracle over the
+whole corpus: formatting never crashes, keeps every token and changes
+nothing the second time; the language server answers every request
+without a word on standard error. Hovers with reference pages are
+checked on fixtures in the pages' formats (`src/tests/lsp/ref`, written
+for icontools' tests), since the pages themselves are not
+redistributable. No gcon test needs Go.
 
 icontools stays as it is, standalone (above); gcon's formatter and
 language server are ported from gcon's own fork.
@@ -228,14 +242,14 @@ header's name of the gcon that built it.
 
 The formatter is ported (`src/format.c`, `gcon fmt`), from icontools'
 `internal/format` and `icfmt`: gcon's front end is icontools' fork, so
-the trees are the same and `icfmt` is its oracle (`src/tests/fmt.sh`:
-identical over the corpus and its damaged variants, every formatted
+the trees are the same and `icfmt` was its oracle while it was ported
+(identical over the corpus and its damaged variants, every formatted
 file's tokens kept). gcon's additions to the language are lexical (the
 literal escapes `\u` and `\U`, cset ranges) and pass through it as
 written.
 
 The language server is ported (`src/lsp.c`, `gcon lsp`), from
-icontools' `iconls`, which is its oracle (`src/tests/lsp.sh`) but for
+icontools' `iconls`, which was its oracle while it was ported but for
 what gcon defines: files are found through gcon's root (no ucode),
 diagnostics are icont's, and hovers and completions include gcon's
 built-ins and keywords (marked as not in Icon 9.5). The Icon

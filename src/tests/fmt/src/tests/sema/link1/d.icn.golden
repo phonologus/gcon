@@ -1,0 +1,4 @@
+global x
+record main(a)
+procedure f(); end
+status 0

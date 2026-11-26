@@ -1,0 +1,12 @@
+#STDERR
+procedure main()
+   every a(1)
+end
+procedure a(n)
+   suspend b(n) | b(n + 1)
+end
+procedure b(m)
+   suspend m
+   m +:= "x"
+end
+status 0

@@ -1,0 +1,11 @@
+# break expressions are resumed when their loop is resumed.
+procedure main()
+   local i
+   every write(while 1 do break 1 to 3)
+   every write(repeat break "a" | "b")
+   every i := (every 1 do break 4 to 6) do writes(i, " ")
+   write()
+   every write(every (1 to 3) do break (10 | 20))
+   write(image(while 1 do break) | "break with no value")
+end
+status 0

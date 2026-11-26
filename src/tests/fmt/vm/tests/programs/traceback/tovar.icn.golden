@@ -1,0 +1,7 @@
+#STDERR
+procedure main()
+   local a, b
+   a := 1; b := "z"
+   every a to b
+end
+status 0

@@ -1,0 +1,63 @@
+# Tables and sets. Iteration order is not printed directly: gcon uses
+# insertion order where iconx uses its hash order (see docs/design.md).
+record r(a, b)
+
+procedure main()
+   local t, s, u, x, L, words, w, n
+   t := table(0)
+   t["a"] +:= 1; t["b"] +:= 2; t["a"] +:= 10; t[1] := "one"; t[1.0] := "real one"
+   write(image(t), " ", type(t), " ", *t, " ", t["a"], " ", t["zz"], " ", *t, " ", t[1], " ", t[1.0])
+   write(image(member(t, "a")), " ", image(member(t, "q")) | "no q", " ", image(insert(t, "c", 3)), " ", t["c"],
+      " ", image(delete(t, "b")), " ", *t, " ", image(delete(t, "nope")), " ", *t)
+   L := []; every put(L, key(t)); every writes(image(!sort(L)), " ")
+   write()
+   every !t := 7
+   every x := !sort(t) do writes(image(x[1]), "=", x[2], " ")
+   write()
+   # keys are compared as === compares
+   t := table()
+   t["x"] := 1; t['x'] := 2; t[2] := 3; t[2.0] := 4; t[&null] := 5; t[L := []] := 6; t[[]] := 7
+   write(*t, " ", t["x"], " ", t['x'], " ", t[2], " ", t[2.0], " ", t[&null], " ", t[L], " ", image(t[[]]))
+   # sets
+   s := set([3, 1, "x", 1, 2])
+   write(image(s), " ", type(s), " ", *s, " ", image(member(s, 1)), " ", image(member(s, 9)) | "no 9")
+   write(image(insert(s, 5)), " ", *s, " ", image(delete(s, 3)), " ", *s, " ", image(set()), " ", *set())
+   u := set([1, 2, 99])
+   every writes(image(!sort(s ++ u)), " "); write()
+   every writes(image(!sort(s ** u)), " "); write()
+   every writes(image(!sort(s -- u)), " "); write()
+   every writes(image(!sort(s)), " "); write()
+   s ++:= set(["new"])
+   write(*s)
+   # sorting across types
+   L := [3, "b", 2.5, &null, 'cs', "a", 1, [], r(1, 2), set(), table(), main, write, r, 1.0, -1, "B", 'ab']
+   every writes(image(!sort(L)), " "); write()
+   t := table(); t["x"] := 3; t["y"] := 1; t["z"] := 2
+   every x := !sort(t) do writes(x[1], "=", x[2], " "); write()
+   every x := !sort(t, 2) do writes(x[1], "=", x[2], " "); write()
+   every writes(!sort(t, 3), " "); write()
+   every writes(!sort(t, 4), " "); write()
+   every writes(!sort(r(3, 1)), " "); write()
+   L := [r(3, "c"), r(1, "a"), r(2, "b")]
+   every writes(image(!sortf(L, 1)), " "); write()
+   every x := !sortf(L, 2) do writes(x.b, " "); write()
+   every x := !sortf([[3, 1], [1, 2], [2, 0], [], "s"], 2) do writes(image(x), " "); write()
+   every x := !sortf(L, -1) do writes(x.b, " "); write()
+   # copy, serial
+   x := copy(L); write(image(x), " ", image(L), " ", image(x[1] === L[1]), " ", image(copy(t)), " ", image(copy(s)), " ", image(copy("str")))
+   x := copy(r(1, 2)); write(image(x), " ", x.a, " ", x.b)
+   write(serial(L), " ", serial(t), " ", serial(s), " ", serial(r(1, 2)), " ", image(serial(1)) | "no serial")
+   # limitation and seq
+   every writes(seq(5) \ 3, " "); every writes(seq(1, 3) \ 3, " "); write()
+   every writes((1 to 10) \ (1 | 2 | 3), " "); write()
+   every writes((1 to 10) \ 0, " "); write("none")
+   # a word count
+   words := table(0)
+   "the cat and the hat and the bat" ? while tab(upto(&letters)) do words[tab(many(&letters))] +:= 1
+   every x := !sort(words, 3) do writes(x, " ")
+   write()
+   n := 0
+   every w := key(words) do n +:= words[w]
+   write(n, " ", *words)
+end
+status 0

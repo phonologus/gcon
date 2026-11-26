@@ -1,0 +1,24 @@
+# Csets (ASCII and bytes; Unicode csets are tested in unicode_test.go).
+procedure main()
+   local c
+   write(image('cab'), " ", image('\'"\\'), " ", image(''), " ", *'abca', " ", type('a'))
+   write(image(&digits), " ", image(&lcase), " ", image(&ucase), " ", image(&letters))
+   write(image(&ascii), " ", image(&cset))
+   write(image('0123456789'), " ", image(&lcase ++ &ucase), " ", image(&lcase ++ &digits))
+   write(*&cset, " ", *&ascii, " ", *&letters)
+   write(&lcase -- 'aeiou', " ", 'abc' ** 'bcd', " ", 'ab' ++ 'cd', " ", 'abc' ++ "d")
+   write(image(cset("hello")), " ", image(cset(123)), " ", image(string('ba')))
+   write('abc' === 'cba', " ", image('a' === "a") | "cset ~=== string")
+   write(image('\x00\x01\x7f'), " ", image('\200\377\x80'), " ", *'\x80\xff')
+   write(image(&cset -- &ascii -- '\x80'))
+   every writes(!'zyx', " ")
+   write()
+   write('xyz'[2], " ", 'hello'[2:4], " ", *string(&ascii))
+   c := 'abc'
+   c ++:= 'xyz'
+   write(c)
+   c --:= 'a'
+   write(c, " ", 'cba' == "abc")
+   write(image(cset(&cset)) == image(&cset))
+end
+status 0

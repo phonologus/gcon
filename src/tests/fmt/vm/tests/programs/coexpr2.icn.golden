@@ -1,0 +1,78 @@
+# More co-expressions: recursion, nesting, symmetric transfer, counts.
+procedure main()
+   local c, d, i, L, n, total
+
+   # deep recursion inside a co-expression
+   c := create depth(5000)
+   write(@c)
+
+   # generators inside a co-expression, resumed across activations
+   c := create (1 to 3) * (10 | 20)
+   L := []
+   while put(L, @c)
+   every writes(!L, " ")
+   write()
+
+   # a co-expression that creates and activates others
+   c := create {
+      d := create ("inner" | "again")
+      @d || "/" || @d
+   }
+   write(@c)
+
+   # ping-pong: values transmitted in both directions
+   c := create pong()
+   @c
+   every i := 1 to 4 do write("main sent ", i, ", got ", i @ c)
+
+   # *C counts results, not transfers
+   c := create producer()
+   every 1 to 3 do @c
+   write("results: ", *c)
+   c := create 1 to 5
+   every 1 to 3 do @c
+   write("results: ", *c)
+
+   # co-expressions as generators of generators
+   L := [create (1 to 3), create ("a" | "b"), create &null]
+   every c := !L do {
+      while writes(image(@c), " ")
+      write("| ", *c)
+   }
+
+   # many co-expressions
+   total := 0
+   every i := 1 to 10000 do total +:= @(create i * 2)
+   write(total)
+
+   # refresh restores the creator's locals at creation time
+   n := 5
+   c := create (n +:= 1) | (n +:= 10)
+   n := 0
+   write(@c, " ", @c, " ", image(@c) | "exhausted", " ", n)
+   d := ^c
+   write(@d, " ", @d)
+
+   # &source and &current inside a co-expression
+   c := create image(&current) || " from " || image(&source)
+   write(@c)
+   write(image(&current), " ", image(&source))
+end
+
+procedure depth(n)
+   if n = 0 then return 0
+   return depth(n - 1) + 1
+end
+
+procedure pong()
+   local v
+   v := @&source
+   repeat v := (v * 100) @ &source
+end
+
+procedure producer()
+   local n
+   n := 0
+   repeat (n +:= 1) @ &source
+end
+status 0

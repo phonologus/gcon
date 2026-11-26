@@ -1,0 +1,5 @@
+#STDERR
+procedure main()
+   &subject := []
+end
+status 0

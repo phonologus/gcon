@@ -1,0 +1,12 @@
+# break with a loop in its expression, then next: next must be the
+# enclosing loop's (gcon's compiler once used the inner one).
+procedure main()
+   i := 0
+   while (i +:= 1) < 6 do {
+      if i = 4 then break (every j := 1 to 2 do writes(j, " "))
+      if i % 2 = 1 then next
+      write("even ", i)
+   }
+   write("i = ", i)
+end
+status 0

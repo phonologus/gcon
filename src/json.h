@@ -2,8 +2,7 @@
  * JSON for the language server: a reader into a tree, and a writer
  * that writes as Go's encoding/json does (compact; strings escaped as
  * Go escapes them, HTML characters included; invalid UTF-8 replaced
- * by U+FFFD), so that replies can be compared with icontools' iconls
- * byte for byte.
+ * by U+FFFD), as iconls, which it was ported from, writes it.
  */
 #ifndef GCON_JSON_H
 #define GCON_JSON_H

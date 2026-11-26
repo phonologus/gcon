@@ -1,0 +1,33 @@
+# ring: a token passed m times round a ring of n tasks, each receiving
+# from its left and sending one more to its right: n * m hand-offs, each
+# a blocking send and receive on an unbuffered channel.
+#
+#    ring [n [m]]   default 1000 tasks, 1000 laps
+link chan
+
+procedure relay(left, right)
+   repeat send(right, recv(left) + 1)
+end
+
+procedure main(args)
+   local n, m, first, left, right, x, t
+   n := integer(args[1]) | 1000
+   m := integer(args[2]) | 1000
+   t := &time
+   first := left := chan()
+   every 1 to n do {
+      right := chan()
+      go(create relay(left, right))
+      left := right
+   }
+   x := 0
+   every 1 to m do {
+      send(first, x)
+      x := recv(left)
+   }
+   t := &time - t
+   write("token: ", x)
+   write(&errout, "ring ", n, " x ", m, ": ", t, " ms, ",
+      (1000000 * t) / (n * m), " ns per hand-off")
+end
+status 0

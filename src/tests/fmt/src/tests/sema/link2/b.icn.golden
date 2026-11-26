@@ -1,0 +1,6 @@
+record q(x)
+global p
+procedure r(v)
+   return v + local1
+end
+status 0

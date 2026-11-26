@@ -1,0 +1,18 @@
+src/tests/lex.icn:
+	7:38: invalid radix for integer literal
+	7:45: invalid radix for integer literal
+	7:51: invalid radix for integer literal
+	7:51: invalid integer literal
+	7:57: invalid integer literal
+	7:63: invalid integer literal
+	7:70: invalid integer literal
+	7:76: invalid radix for integer literal
+	12:55: invalid real literal
+	12:60: invalid real literal
+	20:10: unclosed quote
+	29:11: invalid character
+	29:52: invalid character
+	7:53: unexpected integer-literal
+	28:65: unexpected identifier i
+	29:43: unexpected ":"
+status 2

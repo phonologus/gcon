@@ -1,0 +1,34 @@
+# Deleting from a table while traversing it: every key is visited once
+# (deleted slots are reclaimed, in place when no traversal holds them).
+procedure main()
+   local T, n, sum, k, i
+   T := table()
+   every i := 1 to 100 do T[i] := i * i
+   n := sum := 0
+   every k := key(T) do {
+      n +:= 1
+      sum +:= k
+      delete(T, k)
+   }
+   write(n, " ", sum, " ", *T)
+   # insert and delete repeatedly, then traverse
+   every i := 1 to 1000 do {
+      insert(T, i, i)
+      if i % 3 ~= 0 then delete(T, i)
+   }
+   n := sum := 0
+   every k := key(T) do {
+      n +:= 1
+      sum +:= T[k]
+   }
+   write(n, " ", sum, " ", *T)
+   # delete half during a traversal of a large table
+   every i := 1 to 200 do T[-i] := i
+   n := 0
+   every k := key(T) do {
+      n +:= 1
+      if k < 0 & k % 2 = 0 then delete(T, k)
+   }
+   write(n, " ", *T)
+end
+status 0

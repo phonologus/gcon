@@ -9,7 +9,8 @@
  *	as basic, then for every STEPth identifier or keyword name: hover,
  *	definition, references (with and without declarations), highlights,
  *	signature help, completion, prepare rename and rename (to "zzz");
- *	then workspace symbols
+ *	then workspace symbols ($LSPCOMPLETE=n: completion at every nth of
+ *	those positions only)
  *   lspsession split
  *	a filter: a server's output, each message's JSON on a line
  *   lspsession diags
@@ -168,7 +169,9 @@ int main(int argc, char **argv) {
 		 * an ASCII line (non-ASCII lines are skipped) */
 		Tokens ts = lex_tokenize(src.b, src.n);
 		Lines lines = lines_new(src.b, src.n);
-		int count = 0;
+		int count = 0, npos = 0;
+		const char *ce = getenv("LSPCOMPLETE"); /* completion at every nth position */
+		int cevery = ce ? atoi(ce) : 1;
 		for (size_t i = 0; i < ts.n; i++) {
 			Token *t = &ts.v[i];
 			if (t->kind != T_IDENT && t->kind != T_FAIL)
@@ -200,7 +203,9 @@ int main(int argc, char **argv) {
 			bufprintf(&r, "%s}", q.b);
 			request("textDocument/documentHighlight", r.b);
 			request("textDocument/signatureHelp", r.b);
-			request("textDocument/completion", r.b);
+			if (cevery > 0 && npos % cevery == 0)
+				request("textDocument/completion", r.b);
+			npos++;
 			request("textDocument/prepareRename", r.b);
 			r.n = 0;
 			bufprintf(&r, "%s,\"newName\":\"zzz\"}", q.b);

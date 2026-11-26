@@ -1,0 +1,8 @@
+#STDERR
+record pt(x, y)
+procedure main()
+   local p
+   p := pt(1, "a long string of more than sixteen")
+   p.x + p
+end
+status 0

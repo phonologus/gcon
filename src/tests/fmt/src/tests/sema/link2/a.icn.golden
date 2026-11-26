@@ -1,0 +1,7 @@
+global shared, p
+procedure main()
+   p(); q(); r(shared)
+end
+procedure p()
+end
+status 0

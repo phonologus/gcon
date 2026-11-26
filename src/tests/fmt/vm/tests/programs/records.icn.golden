@@ -1,0 +1,60 @@
+# Records.
+record point(x, y)
+record empty()
+record node(value, left, right)
+
+procedure main()
+   local p, q, e, t, f
+   p := point(1, 2)
+   write(image(p), " ", type(p), " ", *p, " ", p.x, " ", p.y, " ", image(point), " ", type(point))
+   q := point(3)
+   write(image(q), " ", image(q.y), " ", image(point(1, 2, 3)))
+   p.x := 10
+   write(p.x, " ", p[1], " ", p[-1], " ", image(p[3]) | "p[3] fails", " ", p["y"], " ", image(p["z"]) | "no z")
+   every writes(!p, " ")
+   write()
+   every !p := 0
+   write(p.x, p.y)
+   p.x +:= 5
+   write(p.x)
+   p["y"] := "why"
+   write(p.y)
+   e := empty()
+   write(image(e), " ", *e, " ", type(e))
+   # a binary tree
+   t := &null
+   every t := insert(t, 5 | 3 | 8 | 1 | 4 | 9 | 7)
+   every writes(walk(t), " ")
+   write()
+   write(depth(t))
+   # records are shared, not copied
+   q := p
+   q.x := "shared"
+   write(p.x)
+   write(image(p === q), " ", image(point(1, 2) === point(1, 2)) | "different records")
+   f := point
+   write(image(f(5, 6)))
+   # field references are resolved by name at run time
+   every write(image((node(1) | node(2, 3)).value))
+end
+
+procedure insert(t, v)
+   if /t then return node(v)
+   if v < t.value then t.left := insert(t.left, v)
+   else t.right := insert(t.right, v)
+   return t
+end
+
+procedure walk(t)
+   if \t then {
+      suspend walk(t.left)
+      suspend t.value
+      suspend walk(t.right)
+   }
+end
+
+procedure depth(t)
+   if /t then return 0
+   return 1 + (depth(t.left) < depth(t.right) | depth(t.left))
+end
+status 0

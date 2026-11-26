@@ -1,0 +1,18 @@
+# Linked by linka.icn; declares the global counter, used undeclared in
+# link.icn, and a record.
+link linka
+global counter
+record pt(x, y)
+
+procedure b()
+   return counter
+end
+
+procedure b2()
+   return 1
+end
+
+procedure hidden()
+   return "hidden"
+end
+status 0

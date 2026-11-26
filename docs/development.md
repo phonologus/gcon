@@ -53,9 +53,13 @@ semantic diagnostics (`icont -u`) and translation errors (`icont -c`)
 with icont's over the corpus.
 
 `src/tests/fmt.sh` and `src/tests/lsp.sh` check `gcon fmt` and `gcon
-lsp` against icontools' `icfmt` and `iconls` (built from
-`../icontools`, which needs Go). `src/tests/lit/` holds probes of gcon's
-literals, whose diagnostics must be the errors `gcon build` reports.
+lsp` against themselves: golden files recorded from gcon
+(`src/tests/fmt/`, `src/tests/lsp/`; rewrite them with `-update`, and
+read the difference before committing), and, over the whole corpus,
+properties that need no oracle (no crash; formatting keeps the tokens
+and is idempotent; every request answered). `src/tests/lit/` holds
+probes of gcon's literals, whose diagnostics must be the errors `gcon
+build` reports.
 
 ## The runtime against iconx
 

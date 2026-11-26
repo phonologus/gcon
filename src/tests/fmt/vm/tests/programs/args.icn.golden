@@ -1,0 +1,5 @@
+procedure main(args)
+   write(*args)
+   every write(image(!args))
+end
+status 0

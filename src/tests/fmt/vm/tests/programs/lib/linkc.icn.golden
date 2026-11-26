@@ -1,0 +1,12 @@
+# Linked by link.icn as link "linkc"; shown is invocable, so string
+# invocation finds it though nothing calls it.
+invocable "shown"
+
+procedure c(s)
+   return s || s
+end
+
+procedure shown()
+   return "shown"
+end
+status 0

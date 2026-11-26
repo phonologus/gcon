@@ -1,0 +1,5 @@
+#STDERR
+procedure main()
+   every 1 \ -1
+end
+status 0

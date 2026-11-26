@@ -1,0 +1,5 @@
+# A procedure redeclared by a linked file: an inconsistent redeclaration,
+# found when the files are linked together.
+procedure a()
+end
+status 0

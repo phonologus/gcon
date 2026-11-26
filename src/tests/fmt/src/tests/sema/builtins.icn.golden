@@ -1,0 +1,10 @@
+# Built-ins, assigned and shadowed; keywords.
+procedure main()
+   local write
+   pos := 1
+   name :=: other
+   tab <- 3
+   write := 2
+   x := &fail | &null | &features | &bogus
+end
+status 0

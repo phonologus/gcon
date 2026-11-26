@@ -1,0 +1,12 @@
+#STDERR
+procedure main()
+   p(1, "x")
+end
+procedure p(a, b)
+   a := 7
+   q([1, 2])
+end
+procedure q(L)
+   return 1 + L
+end
+status 0

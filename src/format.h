@@ -1,6 +1,6 @@
 /*
- * The formatter (gcon fmt): icontools' internal/format, the oracle its
- * output is checked against (icfmt), on gcon's C front end.
+ * The formatter (gcon fmt): icontools' internal/format (icfmt), on
+ * gcon's C front end.
  *
  * Indentation and spacing in the style of the Icon Program Library,
  * brace placement and alignment in the style of gofmt. Line breaks are

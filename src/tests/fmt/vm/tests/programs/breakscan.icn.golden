@@ -1,0 +1,13 @@
+# break leaving a scan, with a scan in the break's expression: the
+# swap that leaves must be the enclosing scan's (gcon's compiler once
+# swapped the inner one's).
+procedure main()
+   &subject := "outer"
+   every i := 1 to 3 do
+      "abc" ? {
+         if i = 2 then break ("xyz" ? move(1))
+         write(i, " ", &subject)
+      }
+   write("after: ", &subject)
+end
+status 0

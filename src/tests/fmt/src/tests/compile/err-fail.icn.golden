@@ -1,0 +1,4 @@
+procedure main()
+   x := create fail
+end
+status 0

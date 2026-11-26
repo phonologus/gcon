@@ -1,0 +1,10 @@
+# link: a linked file redeclaring a procedure is an error (exit 1).
+link linkdupa
+
+procedure main()
+   write("not reached")
+end
+
+procedure a()
+end
+status 0

@@ -1,0 +1,97 @@
+# Control structures and goal-directed evaluation.
+procedure main()
+   local i, x, y, L
+
+   # if, with and without else; if as a value
+   if 1 < 2 then write("then") else write("else")
+   if 2 < 1 then write("wrong") else write("else")
+   if 2 < 1 then write("no else")
+   write(if 1 = 1 then "yes" else "no")
+   every write(if 1 < 2 then 1 to 3 else 10)
+
+   # while, until, repeat, break, next
+   i := 0
+   while (i +:= 1) < 5 do writes(i, " ")
+   write()
+   i := 0
+   until (i +:= 1) > 4 do writes(i, " ")
+   write()
+   i := 0
+   repeat {
+      i +:= 1
+      if i % 2 = 0 then next
+      if i > 7 then break
+      writes(i, " ")
+   }
+   write()
+   write(image(while 1 do break))
+   write(while 1 do break "broke")
+   every i := 1 to 10 do {
+      if i = 3 then next
+      if i = 6 then break
+      writes(i, " ")
+   }
+   write()
+
+   # every and generators
+   every writes((1 to 3) * (10 | 100), " ")
+   write()
+   every writes(1 to 10 by 3, " ")
+   write()
+   every writes(10 to 1 by -4, " ")
+   write()
+   every writes(1 to 0, "|")
+   write("empty")
+
+   # conjunction, alternation, not
+   write(1 < 2 & 3)
+   every write("a" | "b" | "c")
+   write(not (1 > 2))
+   write(image(not 1))
+   x := 3
+   every writes(x = (1 | 2 | 3 | 4), " ")
+   write()
+
+   # goal-directed search
+   every i := 1 to 20 do
+      if i % 3 = 0 & i % 5 = 0 then write("found ", i)
+   write((1 to 10) > 7)
+
+   # case
+   every x := 1 to 5 do
+      write(x, ": ", case x of {
+         1:       "one"
+         2 | 3:   "two or three"
+         "4":     "string four"
+         4:       "four"
+         default: "other"
+      })
+   write(case "z" of { "a": 1 })
+   write("after failed case")
+
+   # block values
+   write({ 1; 2; 3 })
+   every writes({ "x"; 1 to 3 }, " ")
+   write()
+
+   # mutual evaluation
+   write((1, 2, 3))
+   every writes((1 to 2, 3 to 4), " ")
+   write()
+
+   # loop values
+   write(image(every 1))
+   loops2()
+   write("done")
+end
+
+procedure loops2()
+   local i
+   write(image(while break))
+   write(image(repeat break))
+   write(image(until break))
+   i := 0
+   write(every i := 1 to 5 do if i = 3 then break i * 10)
+   write(image(every break 7))
+end
+status 0

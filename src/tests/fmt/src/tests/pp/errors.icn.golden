@@ -1,0 +1,3 @@
+src/tests/pp/errors.icn:
+	39:1: expected declaration, found "$("
+status 2

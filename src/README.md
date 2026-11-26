@@ -30,8 +30,9 @@ and catalogue of built-ins, and are maintained by hand.
 ## Testing
 
 The tests now are `tests/oracle.sh` (against icont), `tests/fmt.sh`
-and `tests/lsp.sh` (against icontools' icfmt and iconls), and gcon-vm's
-(`../vm/tests`), which run what gcon builds. `tests/dump.c` prints the
+and `tests/lsp.sh` (gcon against itself: golden files and properties
+over the corpus), and gcon-vm's (`../vm/tests`), which run what gcon
+builds. `tests/dump.c` prints the
 front end's view of a file (`dump lex|parse|walk|pp|sema|build FILE`),
 for debugging.
 
@@ -142,28 +143,34 @@ sanitizers, it builds the 476 programs of the IPL and `../icn` cleanly.
 
 The formatter (`format.c`, `gcon fmt`) is icontools' (`icfmt`),
 whose tree is gcon's (gcon's front end is icontools' fork), on gcon's
-front end, iterative like the rest. `tests/fmt.sh` checks it against
-icfmt (built from `../icontools`): the same output, messages and exit
-status for every file of the corpus and its damaged variants (2,822,
-1,838 of them changed by formatting), the token sequence of every
-formatted file kept (inserted semicolons included), and the flags
-(`-l`, `-w`, `-d`, standard input, errors). gcon's literals (`\u`,
-`\U`, cset ranges) are tokens like any other, kept byte for byte.
+front end, iterative like the rest. While it was ported, `tests/fmt.sh`
+checked it against icfmt (built from `../icontools`): the same output,
+messages and exit status for every file of the corpus and its damaged
+variants (2,822, 1,838 of them changed by formatting), the token
+sequence of every formatted file kept (inserted semicolons included),
+and the flags (`-l`, `-w`, `-d`, standard input, errors). gcon's
+literals (`\u`, `\U`, cset ranges) are tokens like any other, kept
+byte for byte. Now gcon is its own oracle (`../docs/design.md`):
+`tests/fmt.sh` checks golden output for the repository's own sources
+and the flags (`tests/fmt/`), and, over the corpus and its variants,
+that formatting never crashes, keeps every token and is idempotent.
 
 The language server (`lsp.c`, `gcon lsp`) is icontools' `iconls` on
 gcon's front end, finding linked and included files through gcon's
 root, its diagnostics gcon's (icont's wording, the other declaration
 as related information). `json.c` writes JSON as Go does, so replies
-compare byte for byte. `tests/lsp.sh basic|features` runs sessions made
-by `tests/lspsession.c` on both servers (iconls built from
-`../icontools`), in parallel: basic (symbols, formatting, diagnostics)
-for every file of the corpus, 1,933 sessions identical; features (hover,
-definition, references, highlights, completion, signature help, rename,
-workspace symbols at every seventh identifier) for every tenth file,
-170 sessions and 32,069 messages identical, with or without the
-reference pages (`DOCS`). Differences by design are normalised: the
-wording of diagnostics, and gcon's built-ins in completions. `FULL=1`
-runs every file and variant, `SANITIZE=1` the sanitizers.
+compared byte for byte. While it was ported, `tests/lsp.sh` ran
+sessions made by `tests/lspsession.c` on both servers (iconls built
+from `../icontools`), in parallel: basic (symbols, formatting,
+diagnostics) for every file of the corpus, 1,933 sessions identical;
+features (hover, definition, references, highlights, completion,
+signature help, rename, workspace symbols at every seventh
+identifier) for every tenth file, 170 sessions and 32,069 messages
+identical, with or without the reference pages. Now it checks gcon
+against itself: golden replies for probes in the repository
+(`tests/lsp/`, hovers on reference-page fixtures in `tests/lsp/ref`),
+and a reply to every request in sessions over the whole corpus
+(`FULL=1`: every file and variant; `SANITIZE=1`: the sanitizers).
 
 gcon's additions to the language are checked against gcon itself:
 `tests/lsp.sh` also checks that the language server's diagnostics for

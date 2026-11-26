@@ -1,0 +1,5 @@
+#STDERR
+procedure main()
+   every 1 to 5 by 0
+end
+status 0

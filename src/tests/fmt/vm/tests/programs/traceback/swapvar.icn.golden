@@ -1,0 +1,7 @@
+#STDERR
+procedure main()
+   local x
+   x := 1
+   x :=: 2
+end
+status 0

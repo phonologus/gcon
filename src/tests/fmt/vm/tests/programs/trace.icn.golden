@@ -1,0 +1,49 @@
+#STDERR
+# &trace: calls, returns, failures, suspensions and resumptions of
+# procedures, co-expression switches, &level, and outimage's forms of
+# values (long strings and lists cut short, records with their fields).
+record pt(x, y)
+
+procedure main()
+   local c, L
+   write("level ", &level)
+   &trace := -1
+   write(fact(3))
+   every write(gen(2))
+   write(f("a very long string indeed, longer than sixteen", [1, 2, 3, 4, 5, 6, 7, 8],
+      pt(1, [2]), [], 'aeiou', &lcase, 2 ^ 100, 1.5, table(), main, write))
+   L := ["x"]
+   write(f([L, pt(), [], [pt(1, 2)]]) | "f failed")
+   c := create (1 to 2)
+   every write(@c | "exhausted")
+   c := create g()
+   write(@c)
+   write(@c | "c failed")
+   (h() & &fail) | write("h done")
+   &trace := 2
+   write(fact(2))
+   write("trace now ", &trace)
+end
+
+procedure fact(n)
+   if n <= 1 then return 1
+   return n * fact(n - 1)
+end
+
+procedure gen(n)
+   suspend 1 to n
+end
+
+procedure f(a[])
+   if *a = 1 then fail
+   return a[1]
+end
+
+procedure g()
+   return &level
+end
+
+procedure h()
+   suspend 1 | 2
+end
+status 0

@@ -1,0 +1,5 @@
+#STDERR
+procedure main()
+   1 <- 2
+end
+status 0

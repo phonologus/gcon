@@ -1,0 +1,7 @@
+#STDERR
+procedure main()
+   local f
+   f := 3
+   f.x
+end
+status 0

@@ -1,0 +1,48 @@
+#STDERR
+# Keywords: the forms of the date and time keywords, &progname, &host,
+# the storage keywords and collect(), the event constants, the graphics
+# keywords that fail without graphics, the event variables, and &dump's
+# termination dump.
+global g
+
+procedure main()
+   local x
+   static s
+   write(map(&clock, &digits, repl("n", 10)))
+   write(map(&date, &digits, repl("n", 10)))
+   write(&dateline ? (tab(upto(',')) & =", " & tab(many(&letters)) & =" " &
+      tab(many(&digits)) & =", " & tab(many(&digits)) & ="  " & tab(many(&digits)) &
+      =":" & move(2) & =" " & ="am" | ="pm") & "dateline ok")
+   write(type(&time), " ", &time >= 0)
+   write(*&host > 0)
+   write(&progname[-8:0]) # the path differs between iconx and gcon runs
+   &progname := 12
+   write(image(&progname))
+   every writes(" ", &collections | &regions) # not &storage, &allocated: gcon has 0s
+   write()
+   collect(); collect(2); collect(3, 100); collect(1)
+   every writes(" ", &collections)
+   write()
+   every writes(" ", &lpress | &mpress | &rpress | &lrelease | &mrelease |
+      &rrelease | &ldrag | &mdrag | &rdrag | &resize)
+   write()
+   write(image(&column) | "&column fails") # graphics keywords: gcon-vm's tests
+   write(image(&eventcode), image(&eventvalue), image(&eventsource))
+   &eventcode := 7
+   write(&eventcode)
+   &error := -1
+   write(collect(4) | "collect(4): error " || &errornumber)
+   write((&dump := "x") | "&dump := \"x\": error " || &errornumber)
+   &error := 0
+   g := [1, 2]
+   x := "local"
+   s := "static"
+   &dump := 1
+   p(3)
+end
+
+procedure p(n)
+   if n = 0 then exit(0)
+   p(n - 1)
+end
+status 0

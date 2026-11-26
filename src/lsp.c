@@ -1,8 +1,8 @@
 /*
  * The language server (lsp.h): icontools' internal/lsp (server.go,
  * workspace.go, features.go, jsonrpc.go, position.go) and cmd/iconls,
- * on gcon's front end. Its replies are iconls's, byte for byte, where
- * only Icon is concerned (src/tests/lsp.sh); gcon's own parts are its
+ * on gcon's front end. Its replies were iconls's, byte for byte, where
+ * only Icon was concerned, when it was ported; gcon's own parts are its
  * infrastructure (the root's library searched for linked and included
  * files; no ucode), the diagnostics of gcon's name resolution (icont's
  * wording, with the related declaration) and its literals, and its

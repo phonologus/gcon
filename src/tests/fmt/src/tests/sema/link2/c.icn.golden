@@ -1,0 +1,6 @@
+procedure q()
+end
+record r(y)
+procedure shared()
+end
+status 0

@@ -1,0 +1,6 @@
+procedure main()
+   write("out")
+   stop("stopping")
+   write("not reached")
+end
+status 0

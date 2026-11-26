@@ -1,0 +1,5 @@
+#STDERR
+procedure main()
+   "a" || []
+end
+status 0

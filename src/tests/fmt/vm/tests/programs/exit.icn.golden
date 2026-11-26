@@ -1,0 +1,5 @@
+procedure main()
+   write("out")
+   exit(3)
+end
+status 0

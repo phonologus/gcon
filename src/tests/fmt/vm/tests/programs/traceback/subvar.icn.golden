@@ -1,0 +1,7 @@
+#STDERR
+procedure main()
+   local L, i
+   L := [1]; i := "x"
+   L[i]
+end
+status 0

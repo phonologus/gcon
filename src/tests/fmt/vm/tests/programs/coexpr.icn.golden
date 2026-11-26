@@ -1,0 +1,40 @@
+procedure main()
+   local c, d, x, i
+   c := create 1 to 3
+   write(image(c), " ", type(c), " ", *c)
+   while write(@c)
+   write(image(@c) | "exhausted", " ", *c, " ", image(c))
+   d := ^c
+   write(@d, " ", image(d), " ", image(c))
+   write(image(&main), " ", image(&current), " ", image(&source))
+   x := 10
+   c := create x + (1 to 2)
+   x := 100
+   write(@c, " ", @c, " ", x)
+   # transmission: the value goes to the @ that transferred out
+   c := create echo()
+   @c
+   write("got ", "a" @ c)
+   write("got ", "b" @ c)
+   # producer/consumer via &source
+   c := create producer()
+   every i := 1 to 3 do write("consumer got ", @c)
+   # refresh restores initial locals
+   x := 1
+   c := create (x +:= 1)
+   write(@c, " ", @c | "done", " ", @^c, " ", x)
+   write(image(&main) == image(&current))
+   c := create @&main
+   write(image(@c) | "c failed?")
+end
+procedure echo()
+   local v
+   v := @&source
+   repeat v := ("echo:" || v) @ &source
+end
+procedure producer()
+   local n
+   n := 0
+   repeat (n +:= 1) @ &source
+end
+status 0

@@ -1,0 +1,10 @@
+# Includes: nested, quoted with a directory, circular, from the path.
+$include inc1
+$include "sub/inc2.icn"
+$include "pp/../inc1.icn"
+$include circ1
+$define FROM_MAIN main
+procedure main()
+   write(INC1, INC2, FROM_MAIN)
+end
+status 0

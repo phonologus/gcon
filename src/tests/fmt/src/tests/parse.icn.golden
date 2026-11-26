@@ -1,0 +1,27 @@
+src/tests/parse.icn:
+	3:27: expected "integer-literal", found identifier x
+	4:11: expected name or string, found integer-literal
+	6:1: expected file name, found "link"
+	6:9: expected file name, found ","
+	8:1: expected ")", found "global"
+	8:11: expected "identifier", found ","
+	9:19: expected ")", found ","
+	10:4: unexpected "local"
+	10:13: unexpected "static"
+	11:4: unexpected "initial"
+	12:6: expected expression before ":"
+	12:13: expected expression before "+:"
+	12:23: expected expression, found "]"
+	12:54: expected "identifier", found ";"
+	12:57: expected keyword name after "&", found ";"
+	12:67: expected keyword name after "&", found integer-literal
+	13:57: expected expression, found ";"
+	15:36: expected ":", found "}"
+	15:49: expected "{", found identifier z
+	15:64: expected "of", found newline
+	18:4: expected ";" or newline, found "}"
+	20:1: expected expression, found "end"
+	22:6: expected ";", found "]"
+	23:1: missing "end" of procedure
+	24:1: expected "identifier", found end of file
+status 2

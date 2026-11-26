@@ -1,0 +1,9 @@
+src/tests/pp/expand.icn:
+	17:29: invalid real literal
+	17:42: invalid real literal
+	17:48: invalid integer literal
+	19:10: unclosed quote
+	17:32: expected "," or ")", found identifier FF
+	19:25: expected "," or ")", found newline
+	21:13: unexpected ","
+status 2

@@ -1,0 +1,10 @@
+#STDERR
+procedure main()
+   local c
+   c := create g(2)
+   @c
+end
+procedure g(n)
+   suspend n + []
+end
+status 0

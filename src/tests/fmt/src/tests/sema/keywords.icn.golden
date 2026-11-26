@@ -1,0 +1,5 @@
+procedure main()
+   write(&nosuch, &fail, &pos)
+   &line := 1
+end
+status 0

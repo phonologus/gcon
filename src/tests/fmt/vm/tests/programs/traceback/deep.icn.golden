@@ -1,0 +1,8 @@
+#STDERR
+procedure main()
+   p(1)
+end
+procedure p(n)
+   if n < 4 then p(n + 1) else n + []
+end
+status 0

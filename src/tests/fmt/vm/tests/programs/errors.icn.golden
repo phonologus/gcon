@@ -1,0 +1,8 @@
+# A run-time error: output before it is kept, and the exit status is 1.
+procedure main()
+   write("before")
+   writes("partial")
+   x := "abc" + 1
+   write("not reached")
+end
+status 0

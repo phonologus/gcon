@@ -1,0 +1,56 @@
+# graphics: the graphics functions on a hidden canvas, so that no display
+# is needed: attributes, colours, fonts, drawing read back with Pixel,
+# Clone, patterns, the event list, &window, errors (tests/graphics.sh).
+procedure main()
+   local w, c
+   w := open("test", "g", "canvas=hidden", "size=200,100") | stop("open failed")
+   write(image(w), " ", type(w))
+   &window := w
+   write("size ", WAttrib("size"), " canvas ", WAttrib("canvas"), " font ", WAttrib("font"))
+   every writes(" ", WAttrib("ascent" | "descent" | "fwidth" | "fheight" | "leading" | "rows" | "columns"))
+   write()
+   write("fg ", Fg(), " bg ", Bg())
+   write("Fg red ", Fg("red"), " light blue ", Fg("light blue"), " #0f0 ", Fg("#0f0"))
+   write("X name ", Fg("LightSlateGray"), " again ", Fg("light slate gray"))
+   write("bad colour ", Fg("no such colour") | "fails")
+   Fg("red")
+   FillRectangle(10, 10, 20, 20)
+   Fg("blue")
+   DrawLine(0, 50, 199, 50)
+   every writes(" ", Pixel(15, 15, 1, 1) | Pixel(100, 50, 1, 1) | Pixel(150, 80, 1, 1))
+   write()
+   n := 0; every Pixel(9, 9, 3, 2) do n +:= 1; write("pixels in 3x2: ", n)
+   write("drawop ", WAttrib("drawop=reverse", "drawop"), " linewidth ", WAttrib("linewidth=3", "linewidth"))
+   every write("query ", WAttrib("fg", "bg", "dx", "linestyle"))
+   write("TextWidth ", TextWidth("Hello"))
+   write("Font ", Font("sans,14"), " ", WAttrib("fheight"), " width ", TextWidth("Hello"))
+   c := Clone(w, "fg=green")
+   write("clone ", image(c), " fg ", Fg(c), " orig fg ", Fg(w))
+   FillRectangle(c, 100, 0, 10, 10)
+   write("clone drew ", Pixel(w, 105, 5, 1, 1))
+   write("&window ", image(&window))
+   # patterns, and events put on the list by the program (Pending)
+   WAttrib("drawop=copy", "fg=blue")
+   write("pattern ", WAttrib("pattern=checkers", "fillstyle=textured", "pattern"))
+   FillRectangle(0, 60, 8, 8)
+   every writes(" ", Pixel(0, 60, 8, 1) | Pixel(0, 64, 8, 1))
+   write()
+   WAttrib("fillstyle=solid")
+   Pending(w, "a", 1, 2)
+   write("pending ", *Pending(w), " event ", image(Event(w)), " &x ", &x, " &y ", &y)
+   Pending(w, &lpress, 65536 + 10, 20 + 3 * 65536)
+   write("event ", Event(w), " &x ", &x, " &y ", &y, " &interval ", &interval,
+      " &control ", (&control & "on") | "off")
+   &x := 21
+   write("&col after &x := 21: ", &col)
+   &error := -1
+   WAttrib("nosuch") | write("error ", &errornumber, " ", &errortext)
+   WAttrib("ascent=3") | write("error ", &errornumber, " ", &errortext)
+   &x | write("error ", &errornumber)
+   &error := 0
+   close(w)
+   write("closed; ", image(w))
+   &error := -1
+   DrawLine(w, 0, 0, 1, 1) | write("error ", &errornumber, " ", &errortext)
+end
+status 0

@@ -1,0 +1,23 @@
+# String invocation: icont discards procedures that main does not reach
+# and that are not declared invocable, so calling one by name is error
+# 106. r is reached through s, which main calls.
+procedure main()
+   &error := 2
+   write("q"(1) | "q is not invocable: " || &errornumber)
+   write("p"(3) | "p is not invocable: " || &errornumber)
+   write(image(s()), " ", "r"(4))
+   write("p"(3))
+end
+procedure p(x)
+   return x * 10
+end
+procedure q(x)
+   return p(x)
+end
+procedure r(x)
+   return x + 1
+end
+procedure s()
+   return r
+end
+status 0

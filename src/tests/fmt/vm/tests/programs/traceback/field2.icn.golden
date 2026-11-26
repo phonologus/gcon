@@ -1,0 +1,9 @@
+#STDERR
+record r(a, b)
+record s(c)
+procedure main()
+   local x
+   x := s(1)
+   x.b
+end
+status 0

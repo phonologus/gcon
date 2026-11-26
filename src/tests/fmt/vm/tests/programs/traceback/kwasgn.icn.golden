@@ -1,0 +1,5 @@
+#STDERR
+procedure main()
+   &pos := "x"
+end
+status 0

@@ -1,0 +1,119 @@
+== -l
+a/broken.icn:
+	2:1: expected ")", found "end"
+a/expand.icn:
+	17:29: invalid real literal
+	17:42: invalid real literal
+	17:48: invalid integer literal
+	19:10: unclosed quote
+	17:32: expected "," or ")", found identifier FF
+	19:25: expected "," or ")", found newline
+	21:13: unexpected ","
+status 2
+== -d
+status 0
+== stdin
+# Integer arithmetic and numeric conversion.
+procedure main()
+   write(7 + 3, " ", 7 - 3, " ", 7 * 3, " ", 7 / 3, " ", 7 % 3, " ", 7 ^ 3)
+   write(-7 / 3, " ", -7 % 3, " ", 7 / -3, " ", 7 % -3)
+   write(2 ^ 0, " ", 2 ^ -1, " ", 1 ^ -5, " ", (-1) ^ -3, " ", (-1) ^ -4, " ", (-2) ^ 3)
+   write(-(3), " ", +"4", " ", - -5)
+   write("10" + 5, " ", " 7 " * 2, " ", "16rff" + 0, " ", "2r1010" - 0, " ", "-3" + 0)
+   write(16rFF, " ", 36rZZ, " ", 8r777, " ", 2r1111)
+   write(3 < 5, " ", 5 > 3, " ", 3 <= 3, " ", 3 >= 3, " ", 3 = 3, " ", 3 ~= 4)
+   write(image(3 > 5) | "3 > 5 fails")
+   write(1 < 2 < 3, " ", image(1 < 3 < 2) | "chain fails")
+   write(9223372036854775807, " ", -9223372036854775807 - 1)
+   write(type(1), " ", image(42), " ", image(-42))
+   x := 10
+   x +:= 5; write(x)
+   x -:= 3; write(x)
+   x *:= 2; write(x)
+   x /:= 5; write(x)
+   x %:= 3; write(x)
+   x ^:= 4; write(x)
+   write(x < 100)
+end
+status 0
+== -w with stdin
+gcon fmt: cannot use -w with standard input
+status 2
+== missing
+stat nosuch.icn: no such file or directory
+status 2
+== broken
+a/broken.icn:
+	2:1: expected ")", found "end"
+status 2
+== flag
+flag provided but not defined: -x
+usage: gcon fmt [-l] [-w] [-d] [path ...]
+  -d	display diffs instead of rewriting files
+  -l	list files whose formatting differs from gcon fmt's
+  -w	write result to (source) file instead of stdout
+status 2
+== -w
+w/broken.icn:
+	2:1: expected ")", found "end"
+w/expand.icn:
+	17:29: invalid real literal
+	17:42: invalid real literal
+	17:48: invalid integer literal
+	19:10: unclosed quote
+	17:32: expected "," or ")", found identifier FF
+	19:25: expected "," or ")", found newline
+	21:13: unexpected ","
+# Integer arithmetic and numeric conversion.
+procedure main()
+   write(7 + 3, " ", 7 - 3, " ", 7 * 3, " ", 7 / 3, " ", 7 % 3, " ", 7 ^ 3)
+   write(-7 / 3, " ", -7 % 3, " ", 7 / -3, " ", 7 % -3)
+   write(2 ^ 0, " ", 2 ^ -1, " ", 1 ^ -5, " ", (-1) ^ -3, " ", (-1) ^ -4, " ", (-2) ^ 3)
+   write(-(3), " ", +"4", " ", - -5)
+   write("10" + 5, " ", " 7 " * 2, " ", "16rff" + 0, " ", "2r1010" - 0, " ", "-3" + 0)
+   write(16rFF, " ", 36rZZ, " ", 8r777, " ", 2r1111)
+   write(3 < 5, " ", 5 > 3, " ", 3 <= 3, " ", 3 >= 3, " ", 3 = 3, " ", 3 ~= 4)
+   write(image(3 > 5) | "3 > 5 fails")
+   write(1 < 2 < 3, " ", image(1 < 3 < 2) | "chain fails")
+   write(9223372036854775807, " ", -9223372036854775807 - 1)
+   write(type(1), " ", image(42), " ", image(-42))
+   x := 10
+   x +:= 5; write(x)
+   x -:= 3; write(x)
+   x *:= 2; write(x)
+   x /:= 5; write(x)
+   x %:= 3; write(x)
+   x ^:= 4; write(x)
+   write(x < 100)
+end
+# Preprocessor edge cases: expansion (src/tests/diff.sh pp, oracle.sh).
+$define A B
+$define B A
+$define C C + 1
+$define D (E * 2)
+$define E 3
+$define F "quoted # not a comment" # but this is
+$define G 'cset\'s'
+$define EMPTY
+$define FF 99
+$define e7 bad
+$define rFF bad
+$define X_Y xy
+procedure main()
+   write(A, B, C, D, E)            # A B C D E in a comment
+   write("A B C", 'D E', F, G)
+   write(16rFF, 1e7, 2.5e7, 1e+FF, 3.FF, 7e-E, 12rFF.E)
+   write(X_Y, X_YZ, _A, A_, EMPTY, FF)
+   write("unterminated A
+   write(A, "esc \" A", B)
+   x := $( A, B $)
+end
+$undef A
+$undef NOTDEFINED
+$define B A
+$define B  A   
+$define TAB	tabbed	
+procedure q()
+   return A + B + TAB
+end
+status 0

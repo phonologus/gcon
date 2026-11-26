@@ -1,0 +1,4 @@
+invocable foo
+procedure main()
+end
+status 0

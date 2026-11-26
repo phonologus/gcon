@@ -1,0 +1,8 @@
+#STDERR
+procedure main()
+   v(1, 2, 3)
+end
+procedure v(a, b[])
+   return b + 1
+end
+status 0

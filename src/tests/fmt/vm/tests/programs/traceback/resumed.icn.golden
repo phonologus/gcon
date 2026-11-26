@@ -1,0 +1,10 @@
+#STDERR
+procedure main()
+   every write(gen(3))
+end
+procedure gen(n)
+   suspend 1 | 2
+   n := "z"
+   suspend n + 1
+end
+status 0

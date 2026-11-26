@@ -1,0 +1,5 @@
+#STDERR
+procedure main(args)
+   1 + args
+end
+status 0

@@ -1,0 +1,58 @@
+# ?x and &random. iconx's generator is reproduced, so the sequences
+# match. Tables and sets choose in a different order from iconx (its
+# hash order), so only single-entry ones are checked here.
+record pt(x, y, z)
+
+procedure main()
+   local L, r, t, s, i
+   write(&random)
+   every 1 to 5 do writes(" ", ?100)
+   write()
+   write(&random)
+   &random := 12345
+   every 1 to 5 do writes(" ", ?1000000)
+   write()
+   every 1 to 3 do writes(" ", ?0)
+   write()
+   every 1 to 8 do writes(" ", ?"abcdefgh")
+   write()
+   every 1 to 8 do writes(" ", ?'xyz')
+   write()
+   L := [10, 20, 30, 40]
+   every 1 to 6 do writes(" ", ?L)
+   write()
+   ?L := 99
+   every writes(" ", !L)
+   write()
+   r := pt(1, 2, 3)
+   every 1 to 6 do writes(" ", ?r)
+   write()
+   ?r := 0
+   write(" ", r.x, r.y, r.z)
+   t := table()
+   t["k"] := "v"
+   write(" ", ?t)
+   ?t := "w"
+   write(" ", t["k"])
+   s := set(["only"])
+   write(" ", ?s)
+   every 1 to 3 do writes(" ", ?(2 ^ 100))
+   write()
+   every 1 to 3 do writes(" ", ?(-(2 ^ 70)))
+   write()
+   every 1 to 3 do writes(" ", ?"7", " ", ?7.9)
+   write()
+   write(image(?"" | "empty string fails"))
+   write(image(?[] | "empty list fails"))
+   write(image(?table() | "empty table fails"))
+   &error := 3
+   write(?-1 | "?-1: error " || &errornumber)
+   write(?&null | "?&null: error " || &errornumber)
+   write((&random := "x") | "&random := \"x\": error " || &errornumber)
+   &random := 2 ^ 31 + 7
+   write(&random, " ", ?10, " ", &random)
+   &random := -5
+   write(?10, " ", &random)
+   write("?"(10), " ", &random)
+end
+status 0

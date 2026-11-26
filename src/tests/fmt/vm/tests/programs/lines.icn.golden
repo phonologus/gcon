@@ -1,0 +1,19 @@
+# read: line endings, and open modes.
+procedure main()
+   local f, s
+   while s := read() do write(image(s))
+   f := open("t.txt", "w"); writes(f, "ab\ncd\r\nef\rgh"); close(f)
+   f := open("t.txt", "u")
+   while write(image(read(f)))
+   close(f)
+   f := open("t.txt", "w"); write(f, "first line"); write(f, "second line"); close(f)
+   f := open("t.txt", "rw"); writes(f, "FIRST"); close(f)
+   f := open("t.txt"); while write(read(f)); close(f)
+   f := open("t.txt", "b"); write(read(f)); writes(f, "X"); close(f)
+   f := open("t.txt"); while write(read(f)); close(f)
+   f := open("t.txt", "a"); write(f, "appended"); close(f)
+   f := open("t.txt"); while write(read(f)); close(f)
+   write(image(open("missing.txt", "rw")) | "rw needs the file", " ", image(open("new.txt", "c")))
+   write(image(open("x", "z")) | "bad mode")
+end
+status 0

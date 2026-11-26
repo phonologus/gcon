@@ -1,0 +1,4 @@
+procedure main()
+   x := create suspend 1
+end
+status 0

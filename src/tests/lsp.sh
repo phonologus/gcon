@@ -1,39 +1,37 @@
 #!/bin/sh
-# The language server's test: gcon lsp (built here with the address and
-# undefined-behaviour sanitizers) against iconls, the server it is
-# ported from (icontools, beside the checkout: ../icontools, or
-# $ICONTOOLS; gcon never imports it, it only runs it), on sessions made
-# by tests/lspsession.c for each .icn file of the corpus: the replies
-# and notifications must be the same, message for message, but for the
-# differences that are gcon's by design, normalised here: the server's
-# name and version and the diagnostics' source; gcon's related
-# information on a redeclaration; and the wording of name resolution's
-# diagnostics, which is icont's in gcon (docs/design.md).
+# The language server's test: gcon lsp is its own oracle. Sessions are
+# made by tests/lspsession.c: basic (initialize, open a file, document
+# symbols in both forms, formatting, shutdown) and features (also hover,
+# definition, references, highlights, signature help, completion,
+# prepare rename and rename at every STEPth identifier, then workspace
+# symbols).
 #
-#   src/tests/lsp.sh [basic|features] [file ...]
+#   - Golden: features sessions on probes in the repository (listed
+#     below, each with its STEP; completion at every fifth position),
+#     whose replies are recorded in src/tests/lsp/PATH.golden (the
+#     repository's path written as ROOT); src/tests/lsp/docs.icn with
+#     the reference-page fixtures in src/tests/lsp/ref.
+#   - For every .icn file of the corpus (the Icon tree beside the
+#     checkout, gcon's library and tests, ../icn): a basic session, and
+#     for every tenth file a features session (FULL=1: every file, and
+#     basic sessions in both symbol forms), must get a reply to every
+#     request, with nothing on standard error and exit status 0.
+#   - gcon's literals: the diagnostics for the probes in src/tests/lit
+#     must be the errors gcon build reports.
 #
-# basic (the default): open, diagnostics, document symbols (both
-# forms), formatting. features: also hover, definition, references,
-# highlights, signature help, completion and rename at identifiers
-# (every STEPth, default 7), and workspace symbols. Both servers search
-# gcon's library for linked files (iconls through its ipath option, gcon
-# through its root, iconls also given the include directories, which gcon
-# finds in its root). VERBOSE=n shows the first n lines of a difference.
+#   src/tests/lsp.sh            check
+#   src/tests/lsp.sh -update    rewrite the golden files
 #
-# The files are shared among $JOBS workers (default: one per CPU). gcon
-# is built optimised, or with the sanitizers if SANITIZE=1. The flat
-# form of document symbols is checked on every tenth file, or on all if
-# FULL=1.
+# JOBS workers share the corpus (default: one per CPU); SANITIZE=1
+# builds gcon with the address and undefined-behaviour sanitizers.
 set -u
 here=$(cd "$(dirname "$0")/../.." && pwd)
-tools=${ICONTOOLS:-$here/../icontools}
-[ -d "$tools/cmd/iconls" ] || { echo "lsp.sh: no icontools at $tools" >&2; exit 2; }
-mode=basic
-case "${1:-}" in basic|features) mode=$1; shift ;; esac
+gold=$here/src/tests/lsp
+update=
+[ "${1:-}" = -update ] && update=1
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 CC=${CC:-cc}
-(cd "$tools" && go build -o "$tmp/iconls" ./cmd/iconls) || exit 2
 if [ "${SANITIZE:-}" = 1 ]; then
 	flags="-g -O1 -fsanitize=address,undefined -fno-sanitize-recover=all"
 else
@@ -47,111 +45,94 @@ GCONROOT=$here
 LC_ALL=C
 export GCONROOT LC_ALL
 unset IPATH LPATH
-# The reference pages both servers read for hovers (DOCS; default none).
-docs=${DOCS:-$tmp/nodocs}
-lib="$here/lib/ipl/procs $here/lib/ipl/gprocs $here/lib/ipl/incl $here/lib/ipl/gincl"
+mkdir "$tmp/nodocs"
+fail=0
 
-named=
-if [ $# -gt 0 ]; then
-	named=1
-	for f; do echo "$f"; done >"$tmp/list"
+# Golden sessions: FILE STEP [DOCS].
+gn=0 gfail=0
+while read -r rel step docs; do
+	gn=$((gn + 1))
+	d=$tmp/nodocs
+	[ -n "$docs" ] && d=$here/$docs
+	LSPCOMPLETE=5 "$tmp/lspsession" features "$here/$rel" "$step" >"$tmp/g.sess"
+	"$tmp/gcon" lsp -docs "$d" <"$tmp/g.sess" 2>&1 | "$tmp/lspsession" split |
+		sed "s|$here|ROOT|g" >"$tmp/g.out"
+	want=$gold/$rel.golden
+	if [ "$update" ]; then
+		mkdir -p "$(dirname "$want")"
+		cp "$tmp/g.out" "$want"
+	elif ! cmp -s "$want" "$tmp/g.out"; then
+		gfail=$((gfail + 1))
+		echo "GOLDEN $rel"
+		diff "$want" "$tmp/g.out" | cut -c1-300 | head -6
+	fi
+done <<'EOF'
+src/tests/lsp/docs.icn 1 src/tests/lsp/ref
+src/tests/lit/literals.icn 3
+src/tests/sema/builtins.icn 4
+src/tests/sema/keywords.icn 3
+src/tests/sema/redecl.icn 3
+src/tests/sema/reach.icn 4
+src/tests/sema/link2/a.icn 2
+vm/tests/programs/link.icn 2
+EOF
+if [ "$update" ]; then
+	echo "lsp: $gn golden sessions rewritten"
 else
-	{
-		[ -d "$here/../icon" ] && find "$here/../icon" -name '*.icn' -not -path '*/.git/*'
-		find "$here/lib" "$here/experiments" "$here/vm/tests" "$here/src/tests" -name '*.icn'
-		[ -d "$here/../icn" ] && find "$here/../icn" -name '*.icn'
-	} | sort >"$tmp/list"
+	echo "lsp: $gn golden sessions, $gfail differ"
 fi
+fail=$((fail + gfail))
 
-# normalise: the differences by design
-norm() {
-	sed -e 's/"serverInfo":{"name":"iconls","version":"[^"]*"}/"serverInfo":SERVER/' \
-	    -e 's/"serverInfo":{"name":"gcon","version":"[^"]*"}/"serverInfo":SERVER/' \
-	    -e 's/"source":"iconls"/"source":"SRC"/g; s/"source":"gcon"/"source":"SRC"/g' \
-	    -e 's/,"relatedInformation":\[{"location":{"uri":"[^"]*","range":{"start":{"line":[0-9]*,"character":[0-9]*},"end":{"line":[0-9]*,"character":[0-9]*}}},"message":"[^"]*"}\]//g' \
-	    -e 's/: duplicate field name"/: redeclared identifier"/g' \
-	    -e 's/: inconsistent redeclaration (also a [a-z ]* in [^)]*)"/: inconsistent redeclaration"/g' \
-	    -e 's/"message":"\\u0026\([A-Za-z_0-9]*\): invalid keyword"/"message":"\\"\1\\": invalid keyword"/g' |
-	# gcon's built-ins and keywords that Icon 9.5 lacks, in completions
-	sed -E -e 's/,\{"label":"(bytes|len|runes|uchar|utf8valid)","kind":3,"detail":"[^"]*","documentation":\{"kind":"markdown","value":"[^"]*"\},"sortText":"2[a-z0-9]*"\}//g' \
-	    -e 's/,\{"label":"uset","kind":21,"detail":"\\u0026uset","documentation":\{"kind":"markdown","value":"[^"]*"\}\}//g'
+# The corpus.
+{
+	[ -d "$here/../icon" ] && find "$here/../icon" -name '*.icn' -not -path '*/.git/*'
+	find "$here/lib" "$here/experiments" "$here/vm/tests" "$here/src/tests" -name '*.icn'
+	[ -d "$here/../icn" ] && find "$here/../icn" -name '*.icn'
+} | sort >"$tmp/list"
+
+# check SESSION: run it, writing "ok N" (N requests answered) or a problem.
+check() {
+	"$tmp/gcon" lsp -docs "$tmp/nodocs" <"$1" 2>"$w.err" | "$tmp/lspsession" split >"$w.out"
+	s=$?
+	want=$(grep -o '"jsonrpc":"2.0","id":' "$1" | wc -l | tr -d ' ')
+	got=$(grep -c '^{"jsonrpc":"2.0","id":' "$w.out")
+	if [ "$s" != 0 ] || [ -s "$w.err" ] || [ "$want" != "$got" ]; then
+		echo "PROBLEM $f ($2): status $s, $got of $want requests answered, $(head -1 "$w.err")"
+	else
+		echo "ok $got"
+	fi
 }
 
-# Files whose remaining differences are by design and cannot be
-# normalised: src/tests/sema/redecl.icn declares locals of different
-# kinds under one name, which icont (and gcon) call an inconsistent
-# redeclaration, and iconls a redeclared identifier; src/tests/lit/*.icn
-# use gcon's literals, which iconls does not know (checked below).
-known="src/tests/sema/redecl.icn src/tests/lit/literals.icn"
-
-# firstdiff A B: for each message that differs, its number and the text
-# of both around the first differing byte.
-firstdiff() {
-	awk 'NR == FNR { a[FNR] = $0; n = FNR; next }
-	{
-		if (a[FNR] == $0) next
-		x = a[FNR]; i = 1
-		while (i <= length(x) && substr(x, i, 1024) == substr($0, i, 1024)) i += 1024
-		while (i <= length(x) && substr(x, i, 1) == substr($0, i, 1)) i++
-		s = i > 60 ? i - 60 : 1
-		print "message " FNR " at byte " i ":"
-		print "< " substr(x, s, 200)
-		print "> " substr($0, s, 200)
-	}
-	END { if (FNR != n) print "message counts " n " and " FNR }' "$1" "$2"
-}
-
-# work LIST OUT: compare the sessions of LIST's files, writing "same N"
-# (N messages) or "diff FILE" lines, and any differences, to OUT.
+# work LIST OUT: run the sessions for LIST's files, results to OUT.
 work() {
 	w=$2.tmp
 	n=0
 	while read -r f; do
 		n=$((n + 1))
-		for k in $known; do
-			case "$f" in *"$k") echo "known $f"; continue 2 ;; esac
-		done
-		for h in 1 0; do
-			if [ $mode = basic ]; then
-				[ $h = 0 ] && [ "${FULL:-}" != 1 ] && [ $((n % 10)) != 0 ] && continue
-				"$tmp/lspsession" basic "$f" $h $lib >"$w.sess" || continue
-			else
-				[ $h = 0 ] && continue
-				[ "${FULL:-}" != 1 ] && [ -z "$named" ] && [ $((n % 10)) != 0 ] && continue
-				"$tmp/lspsession" features "$f" "${STEP:-7}" $lib >"$w.sess" || continue
-			fi
-			"$tmp/iconls" -docs "$docs" <"$w.sess" 2>/dev/null | "$tmp/lspsession" split | norm >"$w.i"
-			"$tmp/gcon" lsp -docs "$docs" <"$w.sess" 2>"$w.err" | "$tmp/lspsession" split | norm >"$w.c"
-			if cmp -s "$w.i" "$w.c" && ! [ -s "$w.err" ]; then
-				echo "same $(wc -l <"$w.c")"
-			else
-				echo "diff $f (hierarchical $h)"
-				if [ "${VERBOSE:-}" ]; then
-					firstdiff "$w.i" "$w.c" | head -"$VERBOSE" | sed 's/^/| /'
-					head -3 "$w.err" | sed 's/^/| /'
-				fi
-			fi
-		done
+		"$tmp/lspsession" basic "$f" 1 >"$w.sess" || continue
+		check "$w.sess" basic
+		if [ "${FULL:-}" = 1 ]; then
+			"$tmp/lspsession" basic "$f" 0 >"$w.sess" && check "$w.sess" "basic, flat symbols"
+		fi
+		if [ "${FULL:-}" = 1 ] || [ $((n % 10)) = 0 ]; then
+			"$tmp/lspsession" features "$f" "${STEP:-7}" >"$w.sess" && check "$w.sess" features
+		fi
 	done <"$1" >"$2"
 }
-
 jobs=${JOBS:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)}
 awk -v n="$jobs" -v d="$tmp" '{ print > (d "/part" (NR % n)) }' "$tmp/list"
 for part in "$tmp"/part*; do
-	work "$part" "$part.out" &
+	work "$part" "$part.res" &
 done
 wait
-cat "$tmp"/part*.out >"$tmp/results"
-grep '^| ' "$tmp/results" | sed 's/^| //'
-grep '^diff ' "$tmp/results" | sed 's/^diff /DIFF /'
-same=$(grep -c '^same ' "$tmp/results")
-msgs=$(awk '/^same / { n += $2 } END { print n + 0 }' "$tmp/results")
-fail=$(grep -c '^diff ' "$tmp/results")
-nknown=$(grep -c '^known ' "$tmp/results")
-echo "lsp $mode: $same sessions identical ($msgs messages), $fail differ; $nknown known by design"
+cat "$tmp"/part*.res >"$tmp/results"
+grep '^PROBLEM' "$tmp/results"
+problems=$(grep -c '^PROBLEM' "$tmp/results")
+echo "lsp: $(grep -c '^ok' "$tmp/results") corpus sessions," \
+	"$(awk '/^ok / { n += $2 } END { print n + 0 }' "$tmp/results") requests answered; $problems problems"
+fail=$((fail + problems))
 
-# gcon's additions, whose oracle is gcon itself: the diagnostics for
-# the literal probes are the errors gcon build reports.
+# gcon's literals: the diagnostics are gcon build's errors.
 lfail=0
 for f in "$here"/src/tests/lit/*.icn; do
 	(cd "$(dirname "$f")" && "$tmp/gcon" build -o /dev/null "$(basename "$f")") 2>&1 |
@@ -163,5 +144,6 @@ for f in "$here"/src/tests/lit/*.icn; do
 		lfail=$((lfail + 1))
 	fi
 done
-echo "lsp literals: $(ls "$here"/src/tests/lit/*.icn | wc -l | tr -d ' ') probes, $lfail differ from gcon build"
-[ "$fail" -eq 0 ] && [ "$lfail" -eq 0 ]
+echo "lsp: $(ls "$here"/src/tests/lit/*.icn | wc -l | tr -d ' ') literal probes, $lfail differ from gcon build"
+fail=$((fail + lfail))
+[ $fail -eq 0 ]

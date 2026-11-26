@@ -1,0 +1,88 @@
+# String scanning.
+procedure main()
+   local s, words, w
+   "hello world" ? {
+      write(tab(upto(' ')), "|", &pos, "|", move(1), "|", tab(0), "|", &pos)
+   }
+   s := "abc"
+   s ? write(image(&subject), " ", &pos)
+   write(image(&subject), " ", &pos)
+   "xyz" ? { &pos := 2; write(&pos); write(image(&pos := 10) | "pos fails", " ", &pos) }
+   "xyz" ? { &pos := 0; write(&pos); &pos := -1; write(&pos) }
+   "abcdef" ? { tab(3) & write(move(10)) | write("backtracked to ", &pos) }
+   "abcdef" ? every write(tab(2 | 4) || "@" || &pos)
+   "abcabc" ? write(find("bc"), " ", match("ab"), " ", many('ab'), " ", any('a'), " ", upto('c'))
+   every writes(find("bc", "abcabc"), " ")
+   write()
+   every writes(find("", "abc"), " ")
+   write()
+   every writes(upto('ac', "abcabc", 2, 6), " ")
+   write()
+   write(match("ab", "xab", 2), " ", image(match("zz", "xab")) | "nomatch", " ", match("", "x"))
+   write(many(' ', "   x"), " ", image(many('x', "abc")) | "no many", " ", image(any('a', "")) | "no any")
+   "abcde" ? while move(1) do writes(&pos, " ")
+   write()
+   "abcde" ? { tab(0); while move(-1) do writes(&pos, " ") }
+   write()
+   "aaab" ? write(=("aa"), " ", &pos, " ", =("a"), " ", image(="z") | "no")
+   "hello" ? { write(pos(1), " ", image(pos(2)) | "not 2"); move(5); write(pos(0)) }
+   write(("abc" ? move(1)) || ("def" ? tab(0)))
+   &subject := "new"
+   write(&subject, " ", &pos)
+   write(image(&subject ? &subject))
+   "x" ? ("y" ? write(&subject)) & write(&subject)
+   every write(image("ab" ? tab(1 to 3)))
+   write(("abc" ? &pos := 3) | "?")
+   # bal
+   every writes(bal(&cset, '(', ')', "a(b)c(d(e))f"), " ")
+   write()
+   every writes(bal('+',,, "x+(y+z)+w"), " ")
+   write()
+   write(image(bal(,,, ")x")) | "unbalanced")
+   # words
+   words := []
+   "  the quick  brown fox " ? while tab(upto(&letters)) do put(words, tab(many(&letters)))
+   every writes(!words, ",")
+   write()
+   # ?:=
+   s := "hello world"
+   s ?:= (tab(upto(' ')) & move(1) & tab(0))
+   write(s)
+   # scanning environments across procedures
+   "outer" ? {
+      move(2)
+      write(r(), " ", &subject, " ", &pos)
+      write(image(f()) | "failed", " ", &subject, " ", &pos)
+      every write(h(), " ", &subject, " ", &pos)
+   }
+   every write("xyz" ? suspender())
+   every write("98765" ? repeat break upto(&digits))
+   every write("98765" ? { every 1 do { "mnbv" ? next }; write(move(2)) })
+   "qwerty" ? every write(foo()) do write(move(1))
+   # scanning in co-expressions: &subject and &pos are global
+   w := create ("inner" ? (move(2) & @&source & &pos))
+   "outer" ? { move(1); write(@w, " ", &subject, " ", &pos); write(@w, " ", &pos) }
+end
+
+procedure r()
+   "inner" ? { move(3); return &subject }
+end
+
+procedure f()
+   "inner" ? { move(3); fail }
+end
+
+procedure h()
+   "inner" ? { move(1); suspend &pos; move(1); suspend &pos }
+end
+
+procedure suspender()
+   suspend tab(2 | 3)
+end
+
+procedure foo()
+   suspend move(1)
+   "zxc" ? suspend upto(&lcase)
+   suspend upto(&lcase)
+end
+status 0

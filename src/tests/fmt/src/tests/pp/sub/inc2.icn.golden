@@ -1,0 +1,3 @@
+src/tests/pp/sub/inc2.icn:
+	4:1: expected declaration, found identifier y
+status 2

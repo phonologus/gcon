@@ -1,0 +1,189 @@
+############################################################################
+#
+#	File:     chan.icn
+#
+#	Subject:  Tasks and channels, Go style, on co-expressions
+#
+#	Author:   Sean Jensen
+#
+#	Licence:  MIT
+#
+############################################################################
+#
+#  Cooperative tasks ("goroutines") and channels in plain Icon 9.5.
+#
+#  A task is a co-expression run by a scheduler. go(create e) starts one;
+#  main is a task too. A task runs until it blocks on a channel, calls
+#  yield(), or ends; then the scheduler switches to the next ready task.
+#  As in Go, the program ends when main does, and if every task is
+#  blocked the scheduler stops with "deadlock".
+#
+#    c := chan()          unbuffered channel
+#    c := chan(n)         buffered, holding up to n values
+#    send(c, x)           send x; blocks until received (or buffered)
+#    recv(c)              receive a value; fails once c is closed and empty
+#    close(c)             no more sends; receivers drain, then fail (on a
+#                         file, the built-in close)
+#    !c is not Icon, so:  every x := items(c) do ...   (Go's range)
+#    select(c1, c2, ...)  receive from whichever is ready first; produces
+#                         the value and sets chan_which to the channel
+#    yield()              let the other ready tasks run
+#
+#  recv() failing on a closed channel makes Go's loops Icon expressions:
+#
+#    while x := recv(c) do ...
+#
+#  Switching tasks is one co-expression transfer each way, so the cost
+#  of a blocking send/receive pair is a few transfers: cheap where
+#  co-expressions are cheap (gcon), dear where they are not (iconx).
+#
+############################################################################
+
+record chan_(buf, cap, recvq, sendq, closed)
+record chan_waiter(task, value, ok, done, chan)
+
+global chan_ready # runnable tasks, first to run first
+global chan_sched # the scheduler's co-expression
+global chan_cur   # the running task
+global chan_PARK  # what a parking task sends the scheduler
+global chan_which # the channel select() received from
+
+procedure chan(n)
+   return chan_([], \n | 0, [], [])
+end
+
+# go starts the task C (a co-expression), which runs when the current
+# task next blocks or yields.
+procedure go(C)
+   chan_init()
+   put(chan_ready, C)
+   return C
+end
+
+procedure yield()
+   chan_init()
+   put(chan_ready, chan_cur)
+   chan_park()
+end
+
+procedure send(c, x)
+   local w
+   chan_init()
+   if \c.closed then runerr(500, c) # send on closed channel
+   while w := get(c.recvq) do       # a waiting receiver takes x
+      if /w.done then {
+         w.done := 1
+         w.value := x
+         w.ok := 1
+         w.chan := c
+         put(chan_ready, w.task)
+         return
+      }
+   if *c.buf < c.cap then { # room in the buffer
+      put(c.buf, x)
+      return
+   }
+   w := chan_waiter(chan_cur, x) # block until received
+   put(c.sendq, w)
+   chan_park()
+   if /w.ok then runerr(500, c) # closed while we waited
+   return
+end
+
+procedure recv(c)
+   local w, x
+   chan_init()
+   if *c.buf > 0 then {
+      x := get(c.buf)
+      if w := get(c.sendq) then { # a blocked sender refills
+         put(c.buf, w.value)
+         w.ok := 1
+         put(chan_ready, w.task)
+      }
+      return x
+   }
+   if w := get(c.sendq) then { # unbuffered: take from a sender
+      w.ok := 1
+      put(chan_ready, w.task)
+      return w.value
+   }
+   if \c.closed then fail
+   w := chan_waiter(chan_cur)
+   w.chan := c
+   put(c.recvq, w)
+   chan_park()
+   if \w.ok then return w.value
+end
+
+procedure close(c)
+   local w
+   if type(c) ~== "chan_" then # a file: the built-in close
+      return proc("close", 0)(c)
+   c.closed := 1
+   while w := get(c.recvq) do # receivers fail
+      if /w.done then {
+         w.done := 1
+         put(chan_ready, w.task)
+      }
+   while w := get(c.sendq) do # senders get an error
+      put(chan_ready, w.task)
+   return c
+end
+
+# items generates the values received from c until it is closed.
+procedure items(c)
+   suspend |recv(c)
+end
+
+# select receives from the first of its channels that has a value,
+# blocking until one does; it fails once they are all closed and empty.
+procedure select(cs[])
+   local c, w, x, open
+   chan_init()
+   every c := !cs do
+      if *c.buf > 0 | *c.sendq > 0 then {
+         chan_which := c
+         return recv(c)
+      }
+   open := 0
+   w := chan_waiter(chan_cur)
+   every c := !cs do
+      if /c.closed then {
+         put(c.recvq, w)
+         open +:= 1
+      }
+   if open = 0 then fail
+   chan_park()
+   chan_which := w.chan
+   if \w.ok then return w.value
+   # A channel closed: retry with the rest, which close() left as they were.
+   return select ! cs
+end
+
+# ---- The scheduler ----
+
+procedure chan_init()
+   if /chan_sched then {
+      chan_ready := []
+      chan_PARK := []
+      chan_cur := &main
+      chan_sched := create chan_loop()
+   }
+end
+
+# chan_park gives up the processor until someone readies chan_cur.
+procedure chan_park()
+   chan_PARK @ chan_sched
+end
+
+procedure chan_loop()
+   local t
+   repeat {
+      t := get(chan_ready) | stop("chan: all tasks are asleep - deadlock!")
+      chan_cur := t
+      # The task runs until it parks (sending chan_PARK) or ends (any
+      # other result, or failure); an ended task is simply dropped.
+      @t
+   }
+end
+status 0
