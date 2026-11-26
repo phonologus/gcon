@@ -143,11 +143,22 @@ pausing, so windows are shown and events collected.
 `SHOW` (18): `u8 full`. Shows what has changed (everything if full)
 without collecting events: `WFlush`, `WSync`.
 
-### Fonts and text *(later)*
+### Fonts and text
 
-`FONT`, `TEXT`, `WIDTH`: opening a font replies with its metrics and the
-advances of its first 256 characters, so most text widths need no round
-trip.
+`FONT` (19) **reply**: `u32 id, str family, u8 bold, u8 italic, i32
+size`. Opens a font: family is one of Icon's portable families (`mono`,
+`typewriter`, `sans`, `serif`), X's default `fixed`, or a name the
+platform's font lookup knows; size in pixels. Reply: `i32 ok, i32
+ascent, i32 descent, i32 maxwidth`.
+
+`TEXT` (20): `u32 canvas, u32 gc, u32 font, i32 x, i32 y, u8 image, str
+s`. Draws s (bytes, as Latin-1) with its baseline at y. image 1: the
+text's cell is first filled with the gc's bg (X's XDrawImageString, for
+`write` to a window); 0: only the glyphs (`DrawString`).
+
+`WIDTH` (21) **reply**: `u32 font, str s`. Reply: `i32 width`, of s as
+`TEXT` would draw it (shaped, so not always the sum of its characters'
+widths).
 
 ### Image files *(later)*
 

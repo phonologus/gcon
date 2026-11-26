@@ -20,7 +20,7 @@ enum { VERSION = 1 };
 enum {
    HELLO, CANVAS, FREE, RESIZE, GC, POINTS, LINES, FILLPOLY, SEGMENTS,
    RECTS, FILLRECTS, ARCS, ERASE, COPY, WRITE, READ, COLOR, WAIT, SHOW,
-   NOPS
+   FONT, TEXT, WIDTH, NOPS
 };
 
 static int fd = -1;
@@ -206,8 +206,15 @@ typedef struct Gc {
    struct Gc *next;
 } Gc;
 
+typedef struct Fnt {
+   uint32_t id;
+   void *f;
+   struct Fnt *next;
+} Fnt;
+
 static Canvas *canvases;
 static Gc *gcs;
+static Fnt *fonts;
 
 static Canvas *canvas(uint32_t id)
 {
@@ -224,6 +231,15 @@ static Gc *gc(uint32_t id)
       if (g->id == id)
          return g;
    fatal("unknown gc");
+   return NULL;
+}
+
+static Fnt *font(uint32_t id)
+{
+   for (Fnt *f = fonts; f; f = f->next)
+      if (f->id == id)
+         return f;
+   fatal("unknown font");
    return NULL;
 }
 
@@ -462,6 +478,59 @@ static void do_color(void)
    end();
 }
 
+static void do_font(void)
+{
+   uint32_t id = u32();
+   char *family = str(NULL);
+   int bold = u8(), italic = u8(), size = i32();
+   void *f = ft_open(family, bold, italic, size);
+   int a = 0, d = 0, m = 0;
+   free(family);
+   if (f) {
+      for (Fnt *o = fonts; o; o = o->next)
+         if (o->id == id)
+            fatal("font id in use");
+      Fnt *n = calloc(1, sizeof *n);
+      if (!n)
+         fatal("out of memory");
+      n->id = id;
+      n->f = f;
+      n->next = fonts;
+      fonts = n;
+      ft_metrics(f, &a, &d, &m);
+   }
+   begin(FONT);
+   putu32(f != NULL);
+   putu32(a);
+   putu32(d);
+   putu32(m);
+   end();
+}
+
+static void do_text(void)
+{
+   Canvas *c = canvas(u32());
+   Gc *g = gc(u32());
+   Fnt *f = font(u32());
+   int x = i32(), y = i32(), image = u8();
+   size_t n;
+   char *s = str(&n);
+   cv_text(c->cv, &g->g, f->f, x, y, s, (int)n, image);
+   free(s);
+}
+
+static void do_width(void)
+{
+   Fnt *f = font(u32());
+   size_t n;
+   char *s = str(&n);
+   int w = ft_width(f->f, s, (int)n);
+   free(s);
+   begin(WIDTH);
+   putu32(w);
+   end();
+}
+
 static uint32_t winid(void *win)
 {
    for (Canvas *c = canvases; c; c = c->next)
@@ -531,6 +600,9 @@ static int serve(int argc, char **argv)
       case COLOR: do_color(); break;
       case WAIT: do_wait(); break;
       case SHOW: present(u8()); break;
+      case FONT: do_font(); break;
+      case TEXT: do_text(); break;
+      case WIDTH: do_width(); break;
       default:
          fatal("unknown request");
       }
