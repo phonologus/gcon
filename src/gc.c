@@ -12,6 +12,7 @@
  * of a frame) finds the object and how to trace it.
  */
 #include "vm.h"
+#include "gfx.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -424,6 +425,7 @@ void gc_collect(void) {
 	markvalue(vm.eventcode);
 	markvalue(vm.eventsource);
 	markvalue(vm.eventvalue);
+	gfx_mark();
 	markptr(vm.maptab);
 	markptr(vm.input);
 	markptr(vm.output);

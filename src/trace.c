@@ -4,6 +4,7 @@
  * (gcon's ops.go Image, trace.go, names.go, substr.go).
  */
 #include "vm.h"
+#include "gfx.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -65,6 +66,10 @@ void image(Buf *b, Value v) {
 		return;
 	case KFile: {
 		File *f = v.w.p;
+		if (f->gfx) {
+			gfx_image(b, f);
+			return;
+		}
 		if (f->keyword)
 			bufadd(b, f->name.s, (size_t)f->name.n);
 		else {

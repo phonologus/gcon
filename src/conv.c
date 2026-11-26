@@ -3,6 +3,7 @@
  * substr.go, ops.go (conversions) and real.go (strToNum, CvNum).
  */
 #include "vm.h"
+#include "gfx.h"
 
 #include <errno.h>
 #include <math.h>
@@ -238,6 +239,8 @@ static Value var_get(Var *v) {
 		return intval(vm.dump);
 	case VValue:
 		return *v->p;
+	case VGraphics:
+		return gfx_kwget((int)v->k.w.i);
 	case VTableElem: {
 		Value x;
 		if (omap_get(&v->t->m, v->k, &x))
@@ -279,6 +282,8 @@ static bool var_set(Var *v, Value x) {
 	case VValue:
 		*v->p = x;
 		return true;
+	case VGraphics:
+		return gfx_kwset((int)v->k.w.i, x);
 	case VTableElem:
 		omap_put(&v->t->m, v->k, x);
 		return true;
@@ -607,7 +612,7 @@ const char *typename_(Value v) {
 		Record *r = v.w.p;
 		return cstr(mkstr(r->t->name.s, (int64_t)r->t->name.n, TextUnit));
 	}
-	case KFile: return "file";
+	case KFile: return ((File *)v.w.p)->gfx ? "window" : "file";
 	case KTable: return "table";
 	case KSet: return "set";
 	}

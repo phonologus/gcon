@@ -120,7 +120,8 @@ typedef struct Substr {
 
 /* KVar: the variables a Value cannot hold directly. */
 enum VarKind {
-	VSubject, VPos, VRandom, VTrace, VError, VProgname, VDump, VValue, VTableElem
+	VSubject, VPos, VRandom, VTrace, VError, VProgname, VDump, VValue, VTableElem,
+	VGraphics, /* a graphics keyword (graphics.c): k its index */
 };
 typedef struct Var {
 	int kind;
@@ -149,6 +150,7 @@ typedef struct File {
 	char **dir; /* a directory's entries not yet read */
 	int ndir, idir;
 	int peeked; /* a byte read ahead (kbhit, \r\n), or -1 */
+	void *gfx;  /* a window: its binding (graphics.c) */
 } File;
 
 /* ---- Generators ---- */
@@ -459,6 +461,7 @@ void emit(File *f, const char *b, size_t n, bool end);
 void flush_output(void);
 File *mustfile(Value v);
 int file_lend(File *f, int *stat);
+File *file_window(String name, void *binding);
 File *file_adopt(FILE *fp, int stat, String name);
 
 /* ---- C functions (cfunc.c) ---- */

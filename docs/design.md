@@ -564,3 +564,86 @@ function.
   does not yet ship the built library or `cfunc.icn`, so a program that
   `link cfunc`s needs both made (as `tests/cfuncs.sh` does) and `$FPATH`
   set.
+
+## Graphics, first part (2026-11-26)
+
+gcon's design puts graphics in a separate display server (gcon's
+`docs/design.md`, "Graphics: a separate display server"); with the VM
+now in C, gcon-vm takes the part that design gives "gconx": it owns
+Icon's graphics semantics, and gcon-graphics (icon-sdl's SDL3 + Blend2D
+backend) owns windows, canvases and drawing, behind the protocol in
+gcon-graphics's `docs/protocol.md`. Of the reasons for the split, only
+"gcon stays pure Go" has gone; gcon-vm still builds with nothing but a
+C compiler (the server needs C++, CMake and SDL3), the macOS main-thread
+rule stays in the server, a server crash cannot corrupt the
+interpreter, and remote display stays possible.
+
+- **`src/graphics.c`** is iconx's device-independent layer (fwindow.r,
+  rwindow.r, rcolor.r) and icon-sdl's backend (rsdlwin.ri,
+  rsdlrsc.ri), ported, with protocol requests where icon-sdl called its
+  canvas and platform layers. Window states, contexts and bindings are
+  iconx's (`wstate`, `wcontext`, `wbinding`), so `Clone` and `Couple`
+  share canvases and contexts as there. A window is a `File` whose
+  `gfx` is its binding (`type` "window", `image` "window_n:m(label)").
+  Colours are allocated as icon-sdl's are, X's way (16-bit X colours
+  remembered per device colour, the first name per X colour), so
+  `Pixel` and `Fg` answer as the X backend does.
+- **`src/gfxproto.c`** starts the server on the first graphics request
+  (`$GCONGRAPHICS`, else gcon-graphics beside gcon-vm, else on `$PATH`),
+  as a child on a socketpair, and buffers requests: they go when a reply
+  is needed, when the program waits or flushes, and at exit, when
+  closing the socket makes the server close the windows and exit.
+- **gcs** are sent lazily: each context has a server gc, and a drawing
+  request sends the gc first only if the drawing state differs from
+  what was last sent; a call that draws with a variant (CopyArea's copy
+  mode) uses a scratch gc.
+- **Events** are fetched (`WAIT`), as the protocol has it: `Event`,
+  `Pending` and `wattrib` ask, and while a program draws without
+  pausing, every 64th drawing request checks whether 100 ms have passed
+  since windows were last shown, and if so shows them and collects
+  events (iconx's `pollevent`, which runs every few hundred
+  instructions in any graphics build; here non-graphics programs pay
+  nothing). Events go onto each window's Icon list in iconx's encoding
+  (`qevent`), which programs see and may change through `Pending`.
+- **Keywords.** gcon now compiles the graphics keywords as keyword
+  operations; gcon's Go VM fails them, as an Icon without graphics
+  does. Here `&x`, `&y`, `&row`, `&col` and `&interval` are variables
+  (`VGraphics`) with iconx's side effects (`&x` sets `&col` ...), error
+  140 before any event; `&window` accepts a window or &null.
+- `open` takes attributes (its arity is -3 here, as in a graphics
+  iconx), and `&features` now includes "dynamic loading", "external
+  values" and "graphics".
+
+**Done in this part:** open and close, the attributes (all of
+`wattrib`'s, but `image=` and `iconimage=`, which wait for images),
+colours (names, phrases, X names, hex, gamma), fonts and `TextWidth`,
+lines, points, segments, rectangles, polygons, arcs and circles,
+`DrawString`, `EraseArea`, `CopyArea`, `Pixel`, patterns, `Clip`,
+`Clone`, `Couple`, `Uncouple`, `Event`, `Pending`, `WAttrib`, `WFlush`,
+`WSync`, `Raise`, `Lower`, `Alert`, `GotoRC`, `GotoXY`, `QueryPointer`,
+`ColorValue`, `WDefault`, and mutable colours as icon-sdl has them (not
+supported). phwbi opens its window and lays out its vidgets.
+**Still to do:** `DrawImage`, `DrawCurve`, the palette functions,
+`ReadImage`/`WriteImage` (image files), `write` and `read` on a
+window, the text cursor, icons.
+
+**Tests.** `tests/graphics.sh` runs `tests/graphics.icn` on a hidden
+canvas (no display needed): attributes, colours, fonts, drawing read
+back with `Pixel`, patterns, `Clone`, the event list's encoding through
+`Pending` and `Event`, keywords, errors. Against gcon's Go VM
+(`tests/vs-go.sh`) three reference tests now differ, all through
+`&features` (`env`, `features`, `prepro`: the last two also check that
+each feature has a predefined preprocessor symbol, which gcon does not
+yet define), and gcon's program test `keywords` expects the graphics
+keywords to fail, as without graphics.
+
+**A correction to the comparisons.** `tests/vs-go.sh` ran its
+reference programs with `gcon run`, which, since gcon-vm was installed
+in gcon's root, handed them to that gcon-vm rather than the Go VM; the
+"identical to the Go VM" counts since then compared gcon-vm with its
+installed self. It now sets `GCONVM=go`; rerun so, the reference tests
+are identical but for the three above. In the IPL, 257 programs are
+identical and four differ, all as expected: `envelope` (its pipe, as
+before), `gftrace` and `ifncsgen` (`function()` now generates the
+graphics functions, as a graphics iconx's does) and `irunerr` (which
+lists the error texts, now with 140 to 147).

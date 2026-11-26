@@ -15,6 +15,8 @@
 #include <termios.h>
 #include <unistd.h>
 
+#include "gfx.h"
+
 #define FN(f) static bool f(Builtin *b, Value *a, int n, Value *out)
 
 /* The buffers: File.r and File.w are unused as FILE*; we keep our own. */
@@ -391,6 +393,14 @@ FN(f_open) {
 	String mode = textc("r");
 	if (!ISNULL(ARG(1)))
 		mode = muststr(a[1]);
+	if (memchr(mode.s, 'g', (size_t)mode.n) || memchr(mode.s, 'G', (size_t)mode.n)) {
+		/* a window: the other arguments are its attributes */
+		File *w = gfx_open(muststr(ARG(0)), a + 2, n > 2 ? n - 2 : 0);
+		if (!w)
+			return false;
+		*out = ptrval(KFile, w);
+		return true;
+	}
 	File *f;
 	if (!openfile(muststr(ARG(0)), mode, &f))
 		return false;
@@ -404,6 +414,11 @@ FN(f_close) {
 	*out = ptrval(KFile, f);
 	if (f->closed)
 		return true;
+	if (f->gfx) {
+		gfx_close(f);
+		f->closed = true;
+		return true;
+	}
 	if (f->w)
 		wflush(WB(f));
 	if (f->keyword)
@@ -654,5 +669,15 @@ File *file_adopt(FILE *fp, int stat, String name) {
 	}
 	if (f->pipe)
 		((IOBuf *)(f->w ? f->w : f->r))->popen = fp;
+	return f;
+}
+
+/* file_window makes the file value of a window (graphics.c): neither
+ * read nor written through file.c's buffers. */
+File *file_window(String name, void *binding) {
+	File *f = newfile("", false);
+	f->name = name;
+	f->unit = TextUnit;
+	f->gfx = binding;
 	return f;
 }

@@ -52,7 +52,7 @@ procedure main()
 end
 EOF
 	(cd "$tmp" && "$GCON" build -o b b.icn) || exit 2
-	g=$(best "$GCON" run "$tmp/b")
+	g=$(GCONVM=go best "$GCON" run "$tmp/b")
 	c=$(best "$vm" "$tmp/b")
 	i=0
 	if [ "$ICONBIN" ]; then

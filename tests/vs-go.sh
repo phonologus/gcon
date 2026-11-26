@@ -8,6 +8,9 @@
 #
 #   tests/vs-go.sh ../icon/tests/general ../icon/ipl/progs
 #
+# The Go VM is chosen explicitly (GCONVM=go): otherwise gcon run hands
+# programs to the gcon-vm installed in gcon's root.
+#
 # Needs gcon, as tests/dis.sh. TIMEOUT (seconds, default 10) limits each
 # run; a program the Go VM does not finish in time is skipped.
 set -u
@@ -38,7 +41,7 @@ while read -r f; do
 	fi
 	for k in a b; do
 		cp "$w/prog" "$w/$k/$name"
-		(cd "$w/$k" && "$here/tests/timeout" "$t" "$GCON" run "./$name" <"$in" >out 2>err)
+		(cd "$w/$k" && GCONVM=go "$here/tests/timeout" "$t" "$GCON" run "./$name" <"$in" >out 2>err)
 		echo "status $?" >>"$w/$k/err"
 	done
 	if grep -q "^status 142" "$w/a/err"; then

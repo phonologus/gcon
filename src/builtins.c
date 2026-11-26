@@ -5,6 +5,7 @@
  * assignment markers, stubs).
  */
 #include "vm.h"
+#include "gfx.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -172,7 +173,7 @@ static const struct {
 	{"getenv", 1}, {"iand", 2}, {"icom", 1}, {"image", 1}, {"insert", 3}, {"integer", 1},
 	{"ior", 2}, {"ishift", 2}, {"ixor", 2}, {"kbhit", 0}, {"key", 1}, {"left", 3},
 	{"list", 2}, {"loadfunc", 2}, {"log", 2}, {"many", 4}, {"map", 3}, {"match", 4},
-	{"member", 2}, {"move", 1}, {"name", 1}, {"numeric", 1}, {"open", 2}, {"ord", 1},
+	{"member", 2}, {"move", 1}, {"name", 1}, {"numeric", 1}, {"open", -3}, {"ord", 1},
 	{"pop", 1}, {"pos", 1}, {"proc", 2}, {"pull", 1}, {"push", -2}, {"put", -2},
 	{"read", 1}, {"reads", 2}, {"real", 1}, {"remove", 1}, {"rename", 2}, {"repl", 2},
 	{"reverse", 1}, {"right", 3}, {"rtod", 1}, {"runerr", -2}, {"seek", 2}, {"seq", 2},
@@ -613,8 +614,9 @@ static const char *const features[] = {
 #ifdef __APPLE__
 	"Macintosh",
 #endif
-	"ASCII", "co-expressions", "environment variables", "keyboard functions",
-	"large integers", "pipes", "system function",
+	"ASCII", "co-expressions", "dynamic loading", "environment variables",
+	"external values", "keyboard functions", "large integers", "pipes",
+	"system function", "graphics",
 };
 
 GENFN(k_features) {
@@ -752,6 +754,7 @@ void builtins_init(void) {
 	scan_init();
 	strfn_init();
 	file_fns_init();
+	graphics_init();
 	ops_init();
 	cfunc_init();
 	for (size_t i = 0; i < sizeof ops / sizeof ops[0]; i++)

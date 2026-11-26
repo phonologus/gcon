@@ -1,0 +1,28 @@
+window_1:1(test) window
+size 200,100 canvas hidden font fixed
+ 11 3 7 14 14 7 28
+fg black bg white
+Fg red red light blue light blue #0f0 #0f0
+X name LightSlateGray again LightSlateGray
+bad colour fails
+ 65535,0,0 0,0,65535 65535,65535,65535
+pixels in 3x2: 6
+drawop reverse linewidth 3
+query blue
+query white
+query 0
+query solid
+TextWidth 33
+Font sans,14 15 width 32
+clone window_1:2(test) fg #0f0 orig fg blue
+clone drew 0,65535,0
+&window window_1:1(test)
+pattern checkers
+ 65535,65535,65535 65535,65535,65535 65535,65535,65535 65535,65535,65535 0,0,65535 0,0,65535 0,0,65535 0,0,65535 0,0,65535 0,0,65535 0,0,65535 0,0,65535 65535,65535,65535 65535,65535,65535 65535,65535,65535 65535,65535,65535
+pending 3 event "a" &x 1 &y 2
+event -1 &x 10 &y 20 &interval 3 &control on
+&col after &x := 21: 2
+error 145 bad window attribute
+error 147 window attribute cannot be read or written as requested
+closed; window_1:1(test)
+error 142 attempt to read/write on closed window
