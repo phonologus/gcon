@@ -1,0 +1,88 @@
+############################################################################
+#
+#	File:     tk.icn
+#
+#	Subject:  Tcl/Tk from Icon, through loadfunc (experiment)
+#
+#	Author:   Sean Jensen
+#
+#	Licence:  MIT
+#
+############################################################################
+#
+#  The C functions of icontk.c (libicontk.so, found on $FPATH), and
+#  helpers for writing Tcl from Icon:
+#
+#    tk_init()            start Tcl and Tk
+#    tk_eval(s)           evaluate Tcl script s; its result (a Tcl error
+#                         is run-time error 500, the message its value)
+#    tk(w1, w2, ...)      one Tcl command of the words given, each quoted:
+#                           tk("button", ".b", "-text", "Hi there")
+#    tk_event([msec])     the next event's name; fails on time-out or when
+#                         every window is gone
+#    tk_args()            the words of the last event, as a list
+#    tclq(s)              s quoted as one Tcl word
+#
+#  Widget callbacks queue events with the Tcl command "icon":
+#
+#    tk("button", ".q", "-text", "Quit", "-command", "icon quit")
+#    tk_eval("bind .c <Button-1> {icon click %x %y}")
+#    while e := tk_event() do case e of { "quit": break  ... }
+#
+#  Closing the main window is the event "close".
+#
+############################################################################
+
+link io
+
+$define LIB "libicontk.so"
+
+procedure tk_init(a[])
+   return (tk_init := pathload(LIB, "tk_init")) ! a
+end
+
+procedure tk_eval(a[])
+   return (tk_eval := pathload(LIB, "tk_eval")) ! a
+end
+
+procedure tk_event(a[])
+   return (tk_event := pathload(LIB, "tk_event")) ! a
+end
+
+procedure tk(words[])
+   local s, w
+   s := ""
+   every w := !words do
+      s ||:= (if *s > 0 then " " else "") || tclq(w)
+   return tk_eval(s)
+end
+
+procedure tk_args()
+   local L
+   L := []
+   every put(L, tk_eval("lindex $icon_event " || (0 to tk_eval("llength $icon_event") - 1)))
+   return L
+end
+
+# tclq quotes s as one Tcl word: braces when that is safe, else
+# backslashes.
+procedure tclq(s)
+   local t, c, depth
+   s := string(s)
+   if *s > 0 & not upto(' \t\n;"[]{}$\\', s) then
+      return s
+   depth := 0
+   every c := !s do
+      if c == "{" then depth +:= 1
+      else if c == "}" then (depth -:= 1) < 0 & break
+   if depth = 0 & not find("\\", s) then
+      return "{" || s || "}"
+   t := ""
+   every c := !s do
+      t ||:= case c of {
+         "\n": "\\n"
+         "\t": "\\t"
+         default: (if any(' ;"[]{}$\\', c) then "\\" else "") || c
+         }
+   return t
+end

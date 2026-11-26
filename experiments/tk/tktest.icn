@@ -1,0 +1,56 @@
+# tktest: the binding without a person: the main window is transparent,
+# and Tk itself makes the events (button invocations, a synthetic click,
+# a timer, closing the window).
+link tk
+
+procedure main()
+   local e, a
+   tk_init()
+   tk_eval("wm attributes . -alpha 0.0")   # mapped (events need it), unseen
+   write("tk ", tk_eval("info patchlevel"), " on ", tk_eval("tk windowingsystem"))
+
+   # Quoting: awkward strings survive as one Tcl word each.
+   every s := ("plain" | "two words" | "{braces} and $dollar" | "[cmd]" |
+               "back\\slash" | "un{balanced" | "new\nline" | "" | "héllo wörld") do
+      write(image(s), " -> ", image(tk("set", "x", s)),
+         if tk("set", "x", s) == s then " ok" else " WRONG")
+
+   # Widgets, and events from their callbacks.
+   tk("entry", ".e", "-textvariable", "name")
+   tk("button", ".b", "-text", "Greet", "-command", "icon greet")
+   tk("canvas", ".c", "-width", 100, "-height", 100)
+   tk_eval("pack .e .b .c")
+   tk_eval("bind .c <Button-1> {icon click %x %y}")
+   tk("set", "name", "gcon")
+   tk_eval("after 10 {.b invoke}")
+   tk_eval("after 20 {update; event generate .c <Button-1> -x 12 -y 34 -warp 0}")
+   tk_eval("after 30 {icon tick {a list} 3}")
+   tk_eval("after 50 {icon done}")
+   while e := tk_event() do {
+      a := tk_args()
+      writes("event ", e, " args ", *a, ":")
+      every writes(" ", image(!a))
+      write()
+      case e of {
+         "greet": write("  Hello, ", tk_eval("set name"), "!")
+         "click": write("  oval ", tk(".c", "create", "oval", a[2] - 5, a[3] - 5, a[2] + 5, a[3] + 5))
+         "done": break
+         }
+      }
+
+   # Time-outs: nothing is pending.
+   write("timeout 0: ", image(tk_event(0)) | "fails")
+   write("timeout 50: ", image(tk_event(50)) | "fails")
+
+   # A Tcl error is run-time error 500, the message its value.
+   &error := 1
+   tk_eval("no_such_command 1 2") | write("error ", &errornumber, " ", image(&errorvalue))
+   &error := 0
+
+   # Closing the window is "close"; once it is gone, tk_event fails.
+   tk_eval("after 10 {wm protocol . WM_DELETE_WINDOW}")
+   tk_eval("after 10 {icon close}")
+   write("event ", tk_event())
+   tk_eval("destroy .")
+   write("after destroy: ", image(tk_event(0)) | "fails")
+end

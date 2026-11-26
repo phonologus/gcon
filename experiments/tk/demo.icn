@@ -1,0 +1,66 @@
+# demo: a small Tk program in Icon. Type a name and greet it; click the
+# canvas to drop dots; a ball moves while the program waits for events
+# (tk_event with a time-out lets Icon work between them). Quit, or close
+# the window, to end.
+#
+#    FPATH=. gcon run demo.icn
+link tk
+
+procedure main(args)
+   local e, a, x, dx, ball, dots, tick
+
+   tk_init()
+   tk("wm", "title", ".", "gcon + Tk")
+   tk_eval("ttk::style theme use aqua") | &null   # native look where there is one
+
+   tk("ttk::frame", ".f", "-padding", 10)
+   tk("ttk::label", ".f.l", "-text", "Your name:")
+   tk("ttk::entry", ".f.e", "-textvariable", "name", "-width", 20)
+   tk("ttk::button", ".f.greet", "-text", "Greet", "-command", "icon greet")
+   tk("ttk::label", ".f.out", "-text", " ")
+   tk("canvas", ".f.c", "-width", 320, "-height", 160, "-background", "white",
+      "-highlightthickness", 1, "-highlightbackground", "gray")
+   tk("ttk::label", ".f.status", "-text", "Click the canvas.")
+   tk("ttk::button", ".f.quit", "-text", "Quit", "-command", "icon quit")
+   tk_eval("grid .f -sticky nsew")
+   tk_eval("grid .f.l .f.e .f.greet -padx 4 -pady 4")
+   tk_eval("grid .f.out -columnspan 3 -pady 4")
+   tk_eval("grid .f.c -columnspan 3 -pady 4")
+   tk_eval("grid .f.status - .f.quit -pady 4")
+   tk_eval("bind .f.e <Return> {icon greet}")
+   tk_eval("bind .f.c <Button-1> {icon click %x %y}")
+   tk_eval("focus .f.e")
+
+   ball := tk(".f.c", "create", "oval", 0, 70, 20, 90, "-fill", "steelblue", "-outline", "")
+   x := 0; dx := 3; dots := 0; tick := 0
+
+   if args[1] == "-smoke" then   # a quick self-test: greet, click, quit
+      tk_eval("after 300 {set name Sean; .f.greet invoke; _
+         event generate .f.c <Button-1> -x 100 -y 50; after 300 {icon quit}}")
+
+   repeat {
+      if e := tk_event(20) then {
+         a := tk_args()
+         case e of {
+            "greet":
+               tk(".f.out", "configure", "-text",
+                  "Hello, " || (("" ~== tk_eval("set name")) | "stranger") || "!")
+            "click": {
+               dots +:= 1
+               tk(".f.c", "create", "oval", a[2] - 4, a[3] - 4, a[2] + 4, a[3] + 4,
+                  "-fill", "tomato", "-outline", "")
+               tk(".f.status", "configure", "-text", dots || " dot" ||
+                  (if dots = 1 then "" else "s") || ", last at (" || a[2] || "," || a[3] || ")")
+               }
+            "quit" | "close": break
+            }
+         }
+      else {   # no event for 20 ms: Icon's turn
+         tick +:= 1
+         if not (0 <= x + dx <= 300) then dx := -dx
+         x +:= dx
+         tk(".f.c", "moveto", ball, x, 70)
+         }
+      }
+   write("dots: ", dots, ", ticks: ", tick)
+end
