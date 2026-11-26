@@ -12,6 +12,9 @@
  *	then workspace symbols
  *   lspsession split
  *	a filter: a server's output, each message's JSON on a line
+ *   lspsession diags
+ *	a filter: the diagnostics in a server's output, as gcon build reports
+ *	errors ("LINE # MESSAGE")
  */
 #include "../json.h"
 #include "../lexer.h"
@@ -64,11 +67,48 @@ static int split(void) {
 	}
 }
 
+/* diags: the diagnostics a server published, one a line, as gcon build
+ * reports errors: "LINE # MESSAGE" (LINE from 1). */
+static int diags(void) {
+	char line[4096];
+	for (;;) {
+		long len = -1;
+		bool any = false;
+		while (fgets(line, sizeof line, stdin)) {
+			any = true;
+			if (!strcmp(line, "\r\n") || !strcmp(line, "\n"))
+				break;
+			if (!strncasecmp(line, "Content-Length:", 15))
+				len = strtol(line + 15, NULL, 10);
+		}
+		if (!any || len < 0)
+			return 0;
+		char *b = malloc((size_t)len + 1);
+		if (fread(b, 1, (size_t)len, stdin) != (size_t)len)
+			return 1;
+		const char *err;
+		JVal *v = json_parse(b, (size_t)len, &err);
+		if (v && !strcmp(json_str(v, "method"), "textDocument/publishDiagnostics")) {
+			JVal *ds = json_get(v, "params.diagnostics");
+			for (size_t i = 0; ds && i < ds->items.n; i++) {
+				JVal *msg = json_get(ds->items.v[i], "message");
+				printf("%ld # ", json_int(ds->items.v[i], "range.start.line") + 1);
+				if (msg)
+					fwrite(msg->s, 1, msg->n, stdout);
+				putchar('\n');
+			}
+		}
+		free(b);
+	}
+}
+
 int main(int argc, char **argv) {
+	if (argc == 2 && !strcmp(argv[1], "diags"))
+		return diags();
 	if (argc == 2 && !strcmp(argv[1], "split"))
 		return split();
 	if (argc < 4) {
-		fprintf(stderr, "usage: lspsession basic|features FILE N [DIR ...] | split\n");
+		fprintf(stderr, "usage: lspsession basic|features FILE N [DIR ...] | split | diags\n");
 		return 2;
 	}
 	const char *mode = argv[1];

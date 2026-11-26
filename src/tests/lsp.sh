@@ -80,8 +80,9 @@ norm() {
 # Files whose remaining differences are by design and cannot be
 # normalised: src/tests/sema/redecl.icn declares locals of different
 # kinds under one name, which icont (and gcon) call an inconsistent
-# redeclaration, and iconls a redeclared identifier.
-known="src/tests/sema/redecl.icn"
+# redeclaration, and iconls a redeclared identifier; src/tests/lit/*.icn
+# use gcon's literals, which iconls does not know (checked below).
+known="src/tests/sema/redecl.icn src/tests/lit/literals.icn"
 
 # firstdiff A B: for each message that differs, its number and the text
 # of both around the first differing byte.
@@ -148,4 +149,19 @@ msgs=$(awk '/^same / { n += $2 } END { print n + 0 }' "$tmp/results")
 fail=$(grep -c '^diff ' "$tmp/results")
 nknown=$(grep -c '^known ' "$tmp/results")
 echo "lsp $mode: $same sessions identical ($msgs messages), $fail differ; $nknown known by design"
-[ "$fail" -eq 0 ]
+
+# gcon's additions, whose oracle is gcon itself: the diagnostics for
+# the literal probes are the errors gcon build reports.
+lfail=0
+for f in "$here"/src/tests/lit/*.icn; do
+	(cd "$(dirname "$f")" && "$tmp/gcon" build -o /dev/null "$(basename "$f")") 2>&1 |
+		sed 's/^File [^;]*; Line //' >"$tmp/lit.build"
+	"$tmp/lspsession" basic "$f" 1 | "$tmp/gcon" lsp 2>/dev/null | "$tmp/lspsession" diags >"$tmp/lit.lsp"
+	if ! cmp -s "$tmp/lit.build" "$tmp/lit.lsp"; then
+		echo "DIFF $f (diagnostics and gcon build)"
+		diff "$tmp/lit.build" "$tmp/lit.lsp"
+		lfail=$((lfail + 1))
+	fi
+done
+echo "lsp literals: $(ls "$here"/src/tests/lit/*.icn | wc -l | tr -d ' ') probes, $lfail differ from gcon build"
+[ "$fail" -eq 0 ] && [ "$lfail" -eq 0 ]

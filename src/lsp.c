@@ -778,6 +778,33 @@ static void diagnostics(Server *s, Doc *d, Buf *b) {
 			}
 			bufputc(b, '}');
 		}
+		/* gcon: string and cset literals gcon build would reject (\u and
+		 * \U escapes, cset ranges), with its messages */
+		for (size_t i = 0; i < d->file->toks.n; i++) {
+			Token *t = &d->file->toks.v[i];
+			if (t->implicit || (t->kind != T_STRINGLIT && t->kind != T_CSETLIT))
+				continue;
+			LitError *err;
+			if (t->kind == T_STRINGLIT) {
+				char *s;
+				size_t n;
+				LitUnit u;
+				err = lit_string(d->text + t->offset, t->len, &s, &n, &u);
+			} else {
+				LitCset lc;
+				err = lit_cset(d->text + t->offset, t->len, &lc);
+			}
+			if (!err)
+				continue;
+			if (!first)
+				bufputc(b, ',');
+			first = false;
+			bufputs(b, "{\"range\":");
+			jrange(b, &d->m, t->offset, t->offset + t->len);
+			bufputs(b, ",\"severity\":1,\"source\":\"gcon\",\"message\":");
+			json_string(b, err->msg, err->len);
+			bufputc(b, '}');
+		}
 		bufputc(b, ']');
 		return;
 	}
