@@ -1,0 +1,12 @@
+# Field references: z is no record's field (reported); x is point's;
+# w is in a procedure nothing calls, which the linker discards (not
+# reported).
+record point(x, y)
+procedure main()
+   p := point(1, 2)
+   write(p.x, p.z)
+end
+procedure unused(p)
+   return p.w
+end
+status 0

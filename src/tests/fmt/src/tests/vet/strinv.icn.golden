@@ -1,0 +1,22 @@
+# String invocation of procedures the linker discards.
+invocable "inv"
+procedure main()
+   kept()
+   "kept"()     # reached from main: fine
+   "gone"()     # reported
+   "inv"()      # declared invocable: fine
+   "write"("x") # a built-in: fine
+   "rec"(1)     # reported: a record constructor
+   "chain"()    # reached through kept: fine
+end
+procedure kept()
+   chain
+end
+procedure chain()
+end
+procedure gone()
+end
+procedure inv()
+end
+record rec(a)
+status 0

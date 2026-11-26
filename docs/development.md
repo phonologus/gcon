@@ -59,7 +59,9 @@ read the difference before committing), and, over the whole corpus,
 properties that need no oracle (no crash; formatting keeps the tokens
 and is idempotent; every request answered). `src/tests/lit/` holds
 probes of gcon's literals, whose diagnostics must be the errors `gcon
-build` reports.
+build` reports. `src/tests/vet.sh` checks `gcon vet` the same way
+(golden findings for its probes and for the programs it was tuned on;
+no crash over the corpus).
 
 ## The runtime against iconx
 

@@ -329,7 +329,7 @@ static StrVec findlink(const char *name, const StrVec *libpath) {
 	return c;
 }
 
-Prog *translate(const char *path, const char *src, size_t n, const Config *c, StrVec *errs) {
+Front *front_end(const char *path, const char *src, size_t n, const Config *c, StrVec *errs) {
 	StrVec libpath = cfg_libpath(c), incpath = cfg_includepath(c);
 	VEC(Unit *) units = {0};
 	VPUSH(units, load(path, path, src, n, &incpath));
@@ -425,7 +425,19 @@ Prog *translate(const char *path, const char *src, size_t n, const Config *c, St
 	}
 	if (errs->n)
 		return NULL;
-	Prog *prog = compile_program(p, cfs, units.n, errs);
+	Front *f = xcalloc(1, sizeof *f);
+	f->prog = p, f->files = cfs, f->n = units.n;
+	f->paths = xcalloc(units.n, sizeof *f->paths);
+	for (size_t i = 0; i < units.n; i++)
+		f->paths[i] = units.v[i]->path;
+	return f;
+}
+
+Prog *translate(const char *path, const char *src, size_t n, const Config *c, StrVec *errs) {
+	Front *f = front_end(path, src, n, c, errs);
+	if (!f)
+		return NULL;
+	Prog *prog = compile_program(f->prog, f->files, f->n, errs);
 	return errs->n ? NULL : prog;
 }
 

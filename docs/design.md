@@ -101,6 +101,50 @@ own suite against iconx's output) became `vm/tests/conformance.sh`,
 the Arizona oracle run directly: 84 of the 89 pass, `prepro` now among
 them.
 
+### gcon vet (2026-11-26)
+
+`gcon vet [-icon95] file.icn ...` (`src/vet.c`), as Go's vet, reports
+only what is almost certainly a mistake, as "file:line: message" (exit
+status 1 if there are findings, 2 if a program does not translate);
+the language server shows the same findings as warnings (source
+`gcon vet`; the Icon 9.5 checks when the client sets
+`initializationOptions.icon95`). Each file is vetted as a program,
+with the files it links, and findings are reported in the files
+outside the root's library. The first checks find code that fails at
+run time:
+
+- a field reference that no record declares (error 207), in a
+  procedure the program reaches from main or a name declared
+  invocable: a procedure only `invocable all` keeps, or none, almost
+  certainly never runs, and a library's records may be its callers';
+- a numeric comparison with a string or cset literal that has no
+  digit (102);
+- a call of a local or static that shadows a procedure, record
+  constructor or built-in function and is never assigned (106);
+  parameters are passed values, so are not reported;
+- string invocation of a procedure or record constructor that
+  icont's linker (and gcon's) discards (106).
+
+The checks of the whole program are made only for a complete program
+(every link found) that declares main. With `-icon95`, also what Icon
+9.5 lacks: `\u` and `\U` escapes, cset ranges, gcon's built-ins and
+keywords. File mode `"u"`, first planned as a check, is 9.5's too
+("untranslated"), and the IPL uses it, so it is not reported.
+
+Tuned on the IPL's programs and packages, Icon's tests and `icn/`
+(809 programs), every finding read: ten, all real. Seven are
+deliberate, in `tests/general/errors.icn`, which tests run-time
+errors. Two are a bug in the IPL: `progs/strpsgml.icn` declares
+locals `readtbl` and `stripunb`, hiding the procedures it links, so
+it fails with error 106 on any input (iconx too). One is
+`packs/ibpag2/ibpag2.icn`, which its Makefile links with
+`ibreader.u1` on icont's command line, not by `link`; as gcon builds
+it (one file and what it links), the field is no record's. With
+`-icon95` there are no findings in the IPL or Icon's tests.
+`src/tests/vet.sh` keeps the probes (`src/tests/vet/`) and these
+findings as golden files, checks that the language server reports
+the probes' findings, and that vet never crashes on the corpus.
+
 ### Decision (2026-11-26): gcon is its own oracle for fmt and lsp
 
 The C gcon is now gospel for gcon (Sean): `gcon fmt` and `gcon lsp` are
@@ -1653,16 +1697,8 @@ a procedure, `$line`, the predefined symbols and digraphs against iconx.
 11. gcon in C (see "Decision: gcon in C"). Done: the front end
     (lexer, preprocessor, parser, name resolution, compiler and
     encoder), the driver, `gcon fmt` and the language server; then the
-    Go removed, all at once ("Done: the Go removed"). Next, in order
-    (Sean, 2026-11-26): `gcon vet`; then graphics again (a bug Sean has
-    found).
-12. `gcon vet` (decided 2026-11-26): as Go's vet, it reports only what
-    is almost certainly a mistake, as "file:line: message", exit status
-    1 if any, and the language server shows the same findings. The first
-    set is the checks whose code fails at run time: field references
-    that no record declares (error 207); numeric comparisons with a
-    literal that is not a number (102); calls of a local that shadows a
-    procedure or built-in (106); string invocation of a procedure the
-    linker discards (106); and, opt-in, portability to Icon 9.5 (gcon's
-    `\u`, `\U` and cset ranges, its new built-ins and keyword, file mode
-    "u"). Each is tuned on the IPL, every finding read, before it stays.
+    Go removed, all at once ("Done: the Go removed"). Then `gcon vet`;
+    then graphics again (a bug Sean has found).
+12. `gcon vet`. Done ("gcon vet"), with the first set of checks; more
+    as mistakes are found. Next (Sean, 2026-11-26): graphics again (a
+    bug Sean has found).

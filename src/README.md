@@ -23,6 +23,7 @@ for what Icon defines, and gcon's own recorded results for what it adds.
 | `format.c` | icontools' `internal/format` and `cmd/icfmt` (`gcon fmt`) |
 | `json.c` | (Go's `encoding/json`: reading, and writing as it writes) |
 | `lsp.c`, `refdocs.c` | icontools' `internal/lsp`, `internal/builtin/docs.go`, `cmd/iconls` (`gcon lsp`) |
+| `vet.c` | (new in C: `gcon vet`) |
 
 `tokens.inc` and `builtin.inc` were generated from the Go's token table
 and catalogue of built-ins, and are maintained by hand.
@@ -176,3 +177,9 @@ gcon's additions to the language are checked against gcon itself:
 `tests/lsp.sh` also checks that the language server's diagnostics for
 the probes in `tests/lit` (every literal error, and good literals) are
 the errors `gcon build` reports.
+
+`gcon vet` (`vet.c`; `../docs/design.md`, "gcon vet") is checked by
+`tests/vet.sh`: golden findings for the probes in `tests/vet` and for
+the programs of the Icon tree and `../icn` it was tuned on, the
+language server reporting the probes' findings, and no crash over the
+corpus.

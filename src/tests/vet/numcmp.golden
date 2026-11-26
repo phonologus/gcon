@@ -1,0 +1,4 @@
+numcmp.icn:4: numeric comparison with "yes", which is not a number: run-time error 102
+numcmp.icn:8: numeric comparison with '', which is not a number: run-time error 102
+numcmp.icn:10: numeric comparison with "abc", which is not a number: run-time error 102
+status 1

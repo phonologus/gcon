@@ -1,0 +1,9 @@
+# What is not Icon 9.5 (reported with -icon95 only).
+procedure main()
+   write("caf\u00e9", "\U0001F600")  # \u, \U
+   write('a..z')                     # a cset range
+   write('a.z', "\\u")               # fine: no range; an escaped backslash
+   write(bytes("x"), *&uset)         # a gcon built-in and keyword
+   f := open("x", "ru")              # fine: "u" is 9.5's (untranslated)
+   g := open("y", "r")               # fine
+end

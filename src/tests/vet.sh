@@ -1,0 +1,118 @@
+#!/bin/sh
+# gcon vet's test (gcon built here with the address and
+# undefined-behaviour sanitizers):
+#
+#   - Golden: for each probe in src/tests/vet (icon95*.icn with
+#     -icon95), the findings and exit status recorded in PROBE.golden;
+#     and the findings over the programs of the Icon tree beside the
+#     checkout and ../icn, each read when vet was tuned on them, in
+#     src/tests/vet/corpus.golden.
+#   - The language server reports each probe's findings too.
+#   - Every .icn file of the corpus: no crash (exit status 0, 1 or 2,
+#     nothing from the sanitizers).
+#
+#   src/tests/vet.sh            check
+#   src/tests/vet.sh -update    rewrite the golden files
+#
+# JOBS workers share the corpus (default: one per CPU).
+set -u
+here=$(cd "$(dirname "$0")/../.." && pwd)
+probes=$here/src/tests/vet
+update=
+[ "${1:-}" = -update ] && update=1
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+CC=${CC:-cc}
+$CC -std=c11 -g -O1 -Wall -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all \
+	-DGCON_VERSION='"test"' -I"$here/vm/src" -o "$tmp/gcon" "$here"/src/*.c "$here/vm/src/gen_tables.c" || exit 2
+$CC -std=c11 -O1 -I"$here/vm/src" -o "$tmp/lspsession" "$here/src/tests/lspsession.c" "$here/src/json.c" \
+	"$here/src/util.c" "$here/src/token.c" "$here/src/lexer.c" || exit 2
+GCONROOT=$here
+LC_ALL=C
+export GCONROOT LC_ALL
+unset IPATH LPATH
+fail=0
+
+# golden NAME FILE: compare FILE with NAME.golden (or record it).
+golden() {
+	if [ "$update" ]; then
+		cp "$2" "$probes/$1.golden"
+	elif ! cmp -s "$probes/$1.golden" "$2"; then
+		fail=$((fail + 1))
+		echo "GOLDEN $1"
+		diff "$probes/$1.golden" "$2" | head -10
+	fi
+}
+
+# The probes, and the language server on them.
+n=0
+for f in "$probes"/*.icn; do
+	name=$(basename "$f" .icn)
+	n=$((n + 1))
+	flag=
+	case $name in icon95*) flag=-icon95 ;; esac
+	(cd "$probes" && "$tmp/gcon" vet $flag "$name.icn") >"$tmp/out" 2>&1
+	echo "status $?" >>"$tmp/out"
+	golden "$name" "$tmp/out"
+	# each finding, as the server reports it ("LINE # MESSAGE")
+	grep -v '^status ' "$tmp/out" | sed 's/^[^:]*:\([0-9]*\): /\1 # /' >"$tmp/cli"
+	if [ "$flag" ]; then
+		LSPICON95=1 "$tmp/lspsession" basic "$f" 1
+	else
+		"$tmp/lspsession" basic "$f" 1
+	fi | "$tmp/gcon" lsp 2>/dev/null | "$tmp/lspsession" diags >"$tmp/lsp"
+	while IFS= read -r l; do
+		if ! grep -qxF "$l" "$tmp/lsp"; then
+			fail=$((fail + 1))
+			echo "LSP $name: not reported: $l"
+		fi
+	done <"$tmp/cli"
+done
+echo "vet: $n probes"
+
+# The programs vet was tuned on.
+if [ -d "$here/../icon" ]; then
+	{
+		for d in icon/ipl/progs icon/ipl/gprogs icon/ipl/mprogs icon/ipl/packs icon/ipl/gpacks \
+			icon/tests/general icon/tests/samples icon/tests/special icn; do
+			[ -d "$here/../$d" ] && (cd "$here/.." && find "$d" -name '*.icn')
+		done
+	} | sort >"$tmp/progs"
+	while read -r rel; do
+		(cd "$here/../$(dirname "$rel")" && "$tmp/gcon" vet "$(basename "$rel")" 2>/dev/null) |
+			sed "s|^|$(dirname "$rel")/|"
+	done <"$tmp/progs" >"$tmp/corpus"
+	golden corpus "$tmp/corpus"
+	echo "vet: $(wc -l <"$tmp/progs" | tr -d ' ') programs, $(wc -l <"$tmp/corpus" | tr -d ' ') findings"
+fi
+
+# Every file of the corpus: no crash.
+{
+	[ -d "$here/../icon" ] && find "$here/../icon" -name '*.icn' -not -path '*/.git/*'
+	find "$here/lib" "$here/experiments" "$here/vm/tests" "$here/src/tests" -name '*.icn'
+	[ -d "$here/../icn" ] && find "$here/../icn" -name '*.icn'
+} | sort >"$tmp/list"
+work() {
+	while read -r f; do
+		(cd "$(dirname "$f")" && "$tmp/gcon" vet -icon95 "$(basename "$f")") >/dev/null 2>"$2.err"
+		s=$?
+		if grep -Eq "Sanitizer|runtime error" "$2.err" || [ $s -gt 2 ]; then
+			echo "CRASH $f (status $s)"
+		else
+			echo ok
+		fi
+	done <"$1" >"$2"
+}
+jobs=${JOBS:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)}
+awk -v n="$jobs" -v d="$tmp" '{ print > (d "/part" (NR % n)) }' "$tmp/list"
+for part in "$tmp"/part*; do
+	work "$part" "$part.res" &
+done
+wait
+cat "$tmp"/part*.res >"$tmp/results"
+grep '^CRASH' "$tmp/results"
+crashes=$(grep -c '^CRASH' "$tmp/results")
+echo "vet: $(wc -l <"$tmp/list" | tr -d ' ') corpus files, $crashes crashes"
+fail=$((fail + crashes))
+[ "$update" ] && echo "vet: golden files rewritten"
+[ $fail -eq 0 ]

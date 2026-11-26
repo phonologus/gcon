@@ -1,0 +1,8 @@
+# invocable all keeps every procedure: nothing reported.
+invocable all
+procedure main()
+   "gone"()
+end
+procedure gone()
+end
+status 0

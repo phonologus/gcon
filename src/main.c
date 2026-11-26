@@ -8,6 +8,9 @@
  *	                               format Icon source
  *	gcon lsp [-log file] [-docs dir]
  *	                               the language server
+ *	gcon vet [-icon95] file.icn ...
+ *	                               report likely mistakes (-icon95: and
+ *	                               what is not Icon 9.5)
  *	gcon env                       print gcon's root and library search paths
  *	gcon version                   print gcon's version
  *
@@ -15,7 +18,11 @@
  */
 #include "driver.h"
 #include "format.h"
+#include "ipp.h"
 #include "lsp.h"
+#include "vet.h"
+
+#include <errno.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -28,6 +35,7 @@ static _Noreturn void usage(void) {
 	      "\tgcon dis file\n"
 	      "\tgcon fmt [-l] [-w] [-d] [path ...]\n"
 	      "\tgcon lsp [-log file] [-docs dir]\n"
+	      "\tgcon vet [-icon95] file.icn ...\n"
 	      "\tgcon env\n"
 	      "\tgcon version\n",
 		stderr);
@@ -106,6 +114,94 @@ static int build(int argc, char **argv, const char *argv0) {
 	return 0;
 }
 
+/* frontinfo is vet's resolver for a program the driver translated. */
+static SemaInfo *frontinfo(void *ctx, SemaFile *f) {
+	Front *fe = ctx;
+	for (size_t i = 0; i < fe->n; i++)
+		if (fe->files[i].info->file == f)
+			return fe->files[i].info;
+	return NULL;
+}
+
+/* inlib reports whether path is in the root's library. */
+static bool inlib(const char *path) {
+	if (!root.dir)
+		return false;
+	char *lib = pathjoin(root.dir, "lib");
+	char *ap = pathabs(path);
+	size_t n = strlen(lib);
+	return !strncmp(ap, lib, n) && ap[n] == '/';
+}
+
+/* vet: gcon vet [-icon95] file.icn ...: each file as a program, with
+ * the files it links; findings in files outside the root's library are
+ * reported as "file:line: message". Exit status 1 if there are any, 2
+ * if a program cannot be translated. */
+static int vet(int argc, char **argv) {
+	VetOptions opts = {0};
+	int i = 0;
+	for (; i < argc; i++) {
+		char *a = argv[i];
+		if (a[0] != '-' || !a[1])
+			break;
+		if (!strcmp(a, "--")) {
+			i++;
+			break;
+		}
+		char *name = a + 1 + (a[1] == '-');
+		if (!strcmp(name, "h") || !strcmp(name, "help"))
+			usage();
+		if (strcmp(name, "icon95")) {
+			fprintf(stderr, "flag provided but not defined: -%s\n", name);
+			usage();
+		}
+		opts.icon95 = true;
+	}
+	if (i == argc)
+		usage();
+	Config c = config();
+	int status = 0;
+	bool found = false;
+	for (; i < argc; i++) {
+		const char *path = argv[i];
+		FILE *fp = fopen(path, "rb");
+		if (!fp) {
+			fprintf(stderr, "gcon vet: open %s: %s\n", path, strerror(errno));
+			status = 2;
+			continue;
+		}
+		Buf src = {0};
+		char chunk[65536];
+		size_t k;
+		while ((k = fread(chunk, 1, sizeof chunk, fp)) > 0)
+			bufadd(&src, chunk, k);
+		fclose(fp);
+		StrVec errs = {0};
+		Front *fe = front_end(path, src.b ? src.b : "", src.n, &c, &errs);
+		if (!fe) {
+			report(&errs, &c);
+			status = 2;
+			continue;
+		}
+		for (size_t j = 0; j < fe->n; j++) {
+			if (inlib(fe->paths[j]))
+				continue;
+			VetFindings out = {0};
+			vet_file(fe->prog, fe->files[j].info, frontinfo, fe, opts, &out);
+			for (size_t m = 0; m < out.n; m++) {
+				const char *file;
+				long line;
+				ipp_locate(fe->files[j].map, out.v[m].offset, &file, &line);
+				printf("%s:%ld: %s\n", file, line, out.v[m].msg);
+				found = true;
+			}
+		}
+	}
+	if (status)
+		return status;
+	return found ? 1 : 0;
+}
+
 /* sq quotes s for sh. */
 static void sq(const char *s) {
 	putchar('\'');
@@ -171,6 +267,8 @@ int main(int argc, char **argv) {
 	}
 	if (!strcmp(cmd, "lsp"))
 		return lsp_main(argc - 1, argv + 1);
+	if (!strcmp(cmd, "vet"))
+		return vet(argc - 2, argv + 2);
 	if (!strcmp(cmd, "fmt"))
 		return format_main(argc - 1, argv + 1);
 	if (!strcmp(cmd, "env")) {

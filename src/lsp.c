@@ -21,6 +21,7 @@
 #include "json.h"
 #include "lit.h"
 #include "refdocs.h"
+#include "vet.h"
 #include "sema.h"
 
 #include <dirent.h>
@@ -626,6 +627,7 @@ typedef struct Server {
 	StrMap docs; /* uri -> Doc *, open */
 	Workspace ws;
 	bool initialized, shutdown, utf8, hierarchical;
+	bool icon95; /* initializationOptions.icon95: vet for Icon 9.5 too */
 	const char *docsdir; /* reference pages, or NULL */
 	RefDocs *refdocs;
 } Server;
@@ -748,6 +750,9 @@ static void diagnostic(Buf *b, const Mapper *m, size_t a, size_t z, int sev, con
 	json_stringz(b, msg);
 }
 
+/* vetresolve resolves another file of the program, for vet. */
+static SemaInfo *vetresolve(void *ctx, SemaFile *f) { return sema_resolve(ctx, f); }
+
 /* diagnostics returns d's syntax errors or, if it has none, the semantic
  * problems found by resolving its names in its program. */
 static void diagnostics(Server *s, Doc *d, Buf *b) {
@@ -803,6 +808,20 @@ static void diagnostics(Server *s, Doc *d, Buf *b) {
 			jrange(b, &d->m, t->offset, t->offset + t->len);
 			bufputs(b, ",\"severity\":1,\"source\":\"gcon\",\"message\":");
 			json_string(b, err->msg, err->len);
+			bufputc(b, '}');
+		}
+		/* gcon vet's findings, as warnings */
+		VetFindings vf = {0};
+		VetOptions vo = {s->icon95};
+		vet_file(p, info, vetresolve, p, vo, &vf);
+		for (size_t i = 0; i < vf.n; i++) {
+			if (!first)
+				bufputc(b, ',');
+			first = false;
+			bufputs(b, "{\"range\":");
+			jrange(b, &d->m, vf.v[i].offset, vf.v[i].end);
+			bufputs(b, ",\"severity\":2,\"source\":\"gcon vet\",\"message\":");
+			json_stringz(b, vf.v[i].msg);
 			bufputc(b, '}');
 		}
 		bufputc(b, ']');
@@ -1127,6 +1146,7 @@ static void initialize(Server *s, JVal *p, Buf *b) {
 		if (encs->items.v[i]->kind == J_STR && !strcmp(encs->items.v[i]->s, "utf-8"))
 			s->utf8 = true;
 	s->ws.utf8 = s->utf8;
+	s->icon95 = json_bool(p, "initializationOptions.icon95");
 	JVal *ip = json_get(p, "initializationOptions.ipath");
 	s->ws.ipath.n = 0;
 	for (size_t i = 0; ip && ip->kind == J_ARR && i < ip->items.n; i++)

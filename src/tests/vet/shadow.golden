@@ -1,0 +1,3 @@
+shadow.icn:6: call of local "write", which shadows the built-in function and is never assigned: run-time error 106
+shadow.icn:22: call of static "r", which shadows the record constructor and is never assigned: run-time error 106
+status 1

@@ -11,6 +11,7 @@
  *	signature help, completion, prepare rename and rename (to "zzz");
  *	then workspace symbols ($LSPCOMPLETE=n: completion at every nth of
  *	those positions only)
+ *   ($LSPICON95 set: the client asks for vet's Icon 9.5 checks)
  *   lspsession split
  *	a filter: a server's output, each message's JSON on a line
  *   lspsession diags
@@ -139,8 +140,9 @@ int main(int argc, char **argv) {
 	}
 	Buf p = {0};
 	bufprintf(&p, "{\"processId\":null,\"rootUri\":null,\"capabilities\":{\"textDocument\":{\"documentSymbol\":"
-		      "{\"hierarchicalDocumentSymbolSupport\":%s}}},\"initializationOptions\":{\"ipath\":[",
-		!strcmp(mode, "basic") && n == 1 ? "true" : !strcmp(mode, "basic") ? "false" : "true");
+		      "{\"hierarchicalDocumentSymbolSupport\":%s}}},\"initializationOptions\":{%s\"ipath\":[",
+		!strcmp(mode, "basic") && n == 1 ? "true" : !strcmp(mode, "basic") ? "false" : "true",
+		getenv("LSPICON95") ? "\"icon95\":true," : "");
 	for (int i = 4; i < argc; i++) {
 		if (i > 4)
 			bufputc(&p, ',');

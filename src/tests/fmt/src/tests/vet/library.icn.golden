@@ -1,0 +1,6 @@
+# A library (no main): its records may be its callers', so no field is
+# reported.
+procedure getz(p)
+   return p.z
+end
+status 0

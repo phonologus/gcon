@@ -1,0 +1,12 @@
+# Numeric comparisons with literals that are not numbers.
+procedure main()
+   x := read()
+   if x = "yes" then write(1)    # reported
+   if x == "yes" then write(2)   # string comparison: fine
+   if x = "12" then write(3)     # a number: fine
+   if x ~= " 1.5 " then write(4) # a number, with blanks: fine
+   if '' < x then write(5)       # reported: an empty cset
+   if x >= '0..9' then write(6)  # digits: fine
+   x <:= "abc"                   # reported
+end
+status 0

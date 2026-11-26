@@ -1,0 +1,3 @@
+strinv.icn:6: string invocation of procedure "gone", which the linker discards: run-time error 106 (declare it invocable)
+strinv.icn:9: string invocation of record constructor "rec", which the linker discards: run-time error 106 (declare it invocable)
+status 1

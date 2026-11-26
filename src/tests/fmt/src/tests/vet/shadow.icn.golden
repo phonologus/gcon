@@ -1,0 +1,29 @@
+# Calling a local that shadows a procedure, record constructor or
+# built-in function, and is never assigned.
+record r(a)
+procedure main()
+   local write
+   write("hi") # reported: never assigned
+   tidy()
+   p2(1)
+   p3()
+   p4()
+end
+procedure tidy()
+   local helper
+   helper := tidy
+   helper() # assigned: fine
+end
+procedure p2(write)
+   write("x") # a parameter: fine
+end
+procedure p3()
+   static r
+   r(1) # reported: record constructor
+end
+procedure p4()
+   local main, other
+   main :=: other
+   main() # swapped: fine
+end
+status 0

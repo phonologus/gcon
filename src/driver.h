@@ -6,6 +6,7 @@
 #ifndef GCON_DRIVER_H
 #define GCON_DRIVER_H
 
+#include "compile.h"
 #include "prog.h"
 
 /* gcon's version, stamped by build.sh as the Go's module version is: a
@@ -41,6 +42,18 @@ typedef struct Config {
  * directory: IPATH (LPATH), then the root's library (include files). */
 StrVec cfg_libpath(const Config *c);
 StrVec cfg_includepath(const Config *c);
+
+/* front_end reads, preprocesses, parses and resolves the program whose
+ * main file is path (n bytes of source src) and the files it links,
+ * transitively: its program and, for each file, its resolution and
+ * preprocessor map; NULL, with errors in errs, if there are some. */
+typedef struct Front {
+	Program *prog;
+	CompileFile *files;
+	char **paths; /* where each file was read from */
+	size_t n;
+} Front;
+Front *front_end(const char *path, const char *src, size_t n, const Config *c, StrVec *errs);
 
 /* translate translates the program whose main file is path (n bytes of
  * source src) and the files it links, transitively; NULL, with errors

@@ -1,0 +1,10 @@
+icon/ipl/packs/ibpag2/ibpag2.icn:181: no record has a field "tbl": run-time error 207
+icon/ipl/progs/strpsgml.icn:73: call of local "readtbl", which shadows the procedure and is never assigned: run-time error 106
+icon/ipl/progs/strpsgml.icn:82: call of local "stripunb", which shadows the procedure and is never assigned: run-time error 106
+icon/tests/general/errors.icn:67: numeric comparison with 'abc', which is not a number: run-time error 102
+icon/tests/general/errors.icn:109: numeric comparison with 'abc', which is not a number: run-time error 102
+icon/tests/general/errors.icn:153: numeric comparison with "a", which is not a number: run-time error 102
+icon/tests/general/errors.icn:157: numeric comparison with "a", which is not a number: run-time error 102
+icon/tests/general/errors.icn:159: numeric comparison with "a", which is not a number: run-time error 102
+icon/tests/general/errors.icn:161: numeric comparison with "a", which is not a number: run-time error 102
+icon/tests/general/errors.icn:163: numeric comparison with "a", which is not a number: run-time error 102
