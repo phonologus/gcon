@@ -1,0 +1,37 @@
+# sieve: the concurrent prime sieve of Newsqueak and Go, on chan.icn.
+# A generator task feeds 2, 3, 4, ... into a chain of filter tasks, one
+# per prime found; each prime costs a new task.
+#
+#    sieve [n]      the first n primes (default 1000); writes the last
+link chan
+
+procedure generate(ch)
+   local i
+   i := 2
+   repeat {
+      send(ch, i)
+      i +:= 1
+      }
+end
+
+procedure filter(in, out, p)
+   local i
+   repeat
+      if (i := recv(in)) % p ~= 0 then send(out, i)
+end
+
+procedure main(args)
+   local n, ch, ch1, p, t
+   n := integer(args[1]) | 1000
+   t := &time
+   ch := chan()
+   go(create generate(ch))
+   every 1 to n do {
+      p := recv(ch)
+      ch1 := chan()
+      go(create filter(ch, ch1, p))
+      ch := ch1
+      }
+   write("prime ", n, ": ", p)
+   write(&errout, "sieve ", n, ": ", &time - t, " ms")
+end

@@ -1,0 +1,66 @@
+# chantest: each feature of chan.icn, with output to compare across VMs.
+link chan
+
+procedure producer(c, name, n)
+   every i := 1 to n do send(c, name || i)
+   close(c)
+end
+
+procedure worker(id, jobs, results)
+   while j := recv(jobs) do send(results, id || ":" || j * j)
+end
+
+procedure pinger(c, n)
+   every 1 to n do { send(c, "ping"); yield() }
+   close(c)
+end
+
+procedure main()
+   # Unbuffered, closed by the sender; Go's range as while/recv.
+   c := chan()
+   go(create producer(c, "a", 3))
+   while write("got ", recv(c))
+   write("closed: ", image(recv(c)) | "fails")
+
+   # items(): the range loop as a generator.
+   c := chan()
+   go(create producer(c, "b", 3))
+   every write("item ", items(c))
+
+   # Buffered: sends do not block until it is full.
+   c := chan(2)
+   send(c, 1); send(c, 2)
+   write("buffered ", *c.buf)
+   go(create send(c, 3))
+   every 1 to 3 do write("buf ", recv(c))
+
+   # A worker pool: jobs fanned out, results fanned in.
+   jobs := chan(); results := chan(10)
+   every id := 1 to 3 do go(create worker(id, jobs, results))
+   go(create { every send(jobs, 1 to 6); close(jobs) })
+   L := []
+   every 1 to 6 do put(L, recv(results))
+   every write("result ", !sort(L))
+
+   # select over two channels, one closing early.
+   a := chan(); b := chan()
+   go(create producer(a, "x", 2))
+   go(create producer(b, "y", 4))
+   while v := select(a, b) do
+      write("select ", v, " from ", if chan_which === a then "a" else "b")
+
+   # yield interleaves tasks.
+   c := chan(5)
+   go(create pinger(c, 3))
+   every 1 to 3 do { yield(); write("main sees ", *c.buf) }
+   every write("drain ", items(c))
+
+   # close() still closes files.
+   f := open("chantest.icn") | stop("no file")
+   write("file closed: ", type(close(f)))
+
+   # Every task blocked: deadlock.
+   write("now deadlock:")
+   recv(chan())
+   write("not reached")
+end

@@ -1,0 +1,32 @@
+got a1
+got a2
+got a3
+closed: fails
+item b1
+item b2
+item b3
+buffered 2
+buf 1
+buf 2
+buf 3
+result 1:1
+result 1:16
+result 1:25
+result 2:36
+result 2:4
+result 3:9
+select x1 from a
+select x2 from a
+select y1 from b
+select y2 from b
+select y3 from b
+select y4 from b
+main sees 1
+main sees 2
+main sees 3
+drain ping
+drain ping
+drain ping
+file closed: file
+now deadlock:
+chan: all tasks are asleep - deadlock!
