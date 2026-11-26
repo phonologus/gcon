@@ -1714,9 +1714,12 @@ a procedure, `$line`, the predefined symbols and digraphs against iconx.
    program's format"), with `gcon dis`.
 6. The IPL in a gcon root, found as Go finds GOROOT. Done (see
    "Decision: a gcon root, as GOROOT"), with `gcon env`.
-7. A differential test of IPL programs against iconx.
-8. `&allocated`, `&storage`, `&regions` and `&collections` from Go's
-   memory statistics; record that `loadfunc` is not supported.
+7. A differential test of IPL programs against iconx. Done: the IPL's
+   programs against recorded runs (`vm/tests/expected.sh`), and its
+   graphics programs against icon-sdl's iconx (`vm/tests/iconx.sh`).
+8. The memory keywords. Done in C: `&collections` and `&allocated`
+   count, `&regions` and `&storage` are fixed ("Deliberate
+   simplifications"); `loadfunc` is supported (`lib/libcfunc.so`).
 9. A distribution section, with packaging when graphics arrives.
 10. gcon-vm, the VM in C (see "Decision: the VM in C"), reading the
     built-program format; the Go VM stays as the reference meanwhile.
@@ -1728,3 +1731,23 @@ a procedure, `$line`, the predefined symbols and digraphs against iconx.
 12. `gcon vet`. Done ("gcon vet"), with the first set of checks; more
     as mistakes are found. Next (Sean, 2026-11-26): graphics again (a
     bug Sean has found).
+13. Graphics, the IPL's bin programs, editor support. Done: the key
+    bug fixed, the IPL's graphics programs matching icon-sdl's iconx,
+    Arizona's bin programs and C functions shipped, the Zed and VS Code
+    extensions and the tree-sitter grammar ("Decision: editor support
+    is forked into gcon"). Released as v0.1.0 (2026-11-26).
+
+Next, after v0.1.0 (Sean, 2026-11-26):
+
+- Bugs found in real use, toward v0.1.1.
+- Linux: the display server has package lists, but gcon has not been
+  built or tested there.
+- Unicode classes: csets for categories and scripts (names to be
+  settled; see "Csets").
+- Built-in documentation, the modern man page: a `gcon doc`, as `go
+  doc` is for Go. `gcon doc len` or `gcon doc &subject` shows what the
+  language server's hover shows (the catalogue, the reference pages
+  `gcon lsp fetch-docs` caches, `src/gcondoc.inc`); `gcon doc graphics`
+  lists the procedures of an IPL file from its header comments, and
+  `gcon doc WOpen` one of them; with no argument, the program at hand.
+  Most of the parts are already in `gcon lsp`.
