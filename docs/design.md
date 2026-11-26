@@ -1602,3 +1602,18 @@ a procedure, `$line`, the predefined symbols and digraphs against iconx.
 9. A distribution section, with packaging when graphics arrives.
 10. gcon-vm, the VM in C (see "Decision: the VM in C"), reading the
     built-program format; the Go VM stays as the reference meanwhile.
+11. gcon in C (see "Decision: gcon in C"). Done: the front end
+    (lexer, preprocessor, parser, name resolution, compiler and
+    encoder), the driver and `gcon fmt`. Next, in order (Sean,
+    2026-11-26): the language server; then the Go removed, all at once;
+    then `gcon vet`; then graphics again (a bug Sean has found).
+12. `gcon vet` (decided 2026-11-26): as Go's vet, it reports only what
+    is almost certainly a mistake, as "file:line: message", exit status
+    1 if any, and the language server shows the same findings. The first
+    set is the checks whose code fails at run time: field references
+    that no record declares (error 207); numeric comparisons with a
+    literal that is not a number (102); calls of a local that shadows a
+    procedure or built-in (106); string invocation of a procedure the
+    linker discards (106); and, opt-in, portability to Icon 9.5 (gcon's
+    `\u`, `\U` and cset ranges, its new built-ins and keyword, file mode
+    "u"). Each is tuned on the IPL, every finding read, before it stays.
