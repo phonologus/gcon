@@ -44,3 +44,19 @@ recursing) checks deep input: 23 shapes of nesting (brackets, prefix
 and right-associative chains, control structures, case, sections,
 mixtures, unclosed) 100,000 deep are identical to the Go's, the full
 trees 3,000 deep, and the C alone parses them 2,000,000 deep.
+
+    tests/oracle.sh [MUTANTS]
+
+checks the C against icont itself, the authority on Icon's syntax
+(`../docs/design.md`, "Two oracles"), with no Go involved:
+`tests/oracle.c` writes the C front end's view in the forms of
+`../tools/icontok` (icont's own lexer and parser, linked from a scratch
+build of the Icon tree), the token stream and a tree per procedure as
+icont's grammar actions build it, and the two must agree on every file
+of the Icon tree (on its `icont -E` expansion where it needs the
+preprocessor), then on mutants (a token deleted, duplicated or swapped).
+At its port: tokens identical in 1,188 files (162 preprocessed), trees
+in 1,177 (7,750 procedures), 10 rejected by both, 1 with only
+non-syntax errors (skipped), 15 not preprocessable by icont; 300
+mutants, no disagreement. A planted bug (`^` made left-associative) is
+caught, in `tests/general/parse.icn`.
