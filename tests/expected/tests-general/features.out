@@ -3,10 +3,10 @@ Features found:
    Macintosh
    ASCII
    co-expressions
-   dynamic loading (WITHOUT PREPROCESSOR SYMBOL)
-   external values (WITHOUT PREPROCESSOR SYMBOL)
+   dynamic loading
+   external values
    keyboard functions
    large integers
    pipes
    system function
-   graphics (WITHOUT PREPROCESSOR SYMBOL)
+   graphics
