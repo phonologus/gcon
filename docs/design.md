@@ -124,7 +124,16 @@ for byte, so each frame makes its side effects (labels, temporaries,
 constants, globals, instructions) in exactly the Go's order. (Measuring
 this found the Go's compiler quadratic in nesting depth, 17 s for
 20,000 nested calls, finding each expression's line by collecting all
-its tokens; fixed, with identical output.)
+its tokens; fixed, with identical output.) The C compiler is done:
+byte for byte the Go's over the corpus, linked programs and deep
+nesting, and a million levels deep compiles in seconds. Its stacks of
+enclosing loops and scans are linked lists (break truncates them, create
+empties them, in constant time, by pointing at an earlier node), which
+showed the Go's to alias: break's expression, compiled with the stacks
+resliced, could append over the enclosing loop or scan, so that a later
+next went to the wrong loop, or leaving the break swapped the wrong
+scanning environment. Fixed in the Go (copies), with tests
+(`internal/run/testdata/breakloop.icn`, `breakscan.icn`).
 
 The preprocessor is the first part ported from icont's code itself
 (`src/ipp.c` is icont's `ipp.c`, its output in gcon's form), checked

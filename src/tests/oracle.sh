@@ -16,7 +16,8 @@
 # program), the C's diagnostics must be icont -u's: its translator's
 # redeclarations and invalid keywords, with their lines, and its
 # linker's redeclarations across files and undeclared identifiers in
-# the procedures it keeps.
+# the procedures it keeps. Last, the compiler's errors: for the files of
+# src/tests/compile/err-*.icn, the C's must be icont -c's.
 #
 #   src/tests/oracle.sh [MUTANTS]     (default 300)
 #
@@ -36,7 +37,8 @@ CC=${CC:-cc}
 $CC -std=c11 -g -O1 -Wall -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all \
 	-o "$tmp/oracle" "$here"/src/tests/oracle.c "$here"/src/util.c "$here"/src/token.c \
 	"$here"/src/lexer.c "$here"/src/lit.c "$here"/src/syntax.c "$here"/src/ipp.c \
-	"$here"/src/builtin.c "$here"/src/sema.c || exit 2
+	"$here"/src/builtin.c "$here"/src/sema.c "$here"/src/prog.c "$here"/src/compile.c \
+	"$here"/vm/src/gen_tables.c -I"$here"/vm/src || exit 2
 icontok=$("$here/tools/icontok/build.sh" "$root") || exit 2
 icont=$(dirname "$icontok")/../../bin/icont
 [ -x "$icont" ] || { echo "oracle.sh: no icont beside $icontok" >&2; exit 2; }
@@ -172,6 +174,15 @@ done <"$tmp/list"
 for f in "$here"/src/tests/sema/*.icn; do semaone "$(dirname "$f")" "$(basename "$f")"; done
 for d in "$here"/src/tests/sema/*/; do (cd "$d" && ls *.icn) >"$tmp/progfiles"; semaone "$d" $(cat "$tmp/progfiles"); done
 echo "name resolution: $nsema programs identical ($nsd diagnostics); $nsskip not comparable (links, or errors before resolution)"
+
+# The compiler's errors
+ncerr=0
+for f in "$here"/src/tests/compile/err-*.icn; do
+	(cd "$(dirname "$f")" && "$icont" -s -c "$(basename "$f")") 2>&1 | grep '^File ' >"$tmp/ie"
+	(cd "$(dirname "$f")" && LPATH=$CLPATH $C build "$(basename "$f")" "$defined") | grep '^File ' >"$tmp/ce"
+	if cmp -s "$tmp/ie" "$tmp/ce"; then ncerr=$((ncerr + 1)); else say "COMPILE ERRORS ${f#$here/}"; show "$tmp/ie" "$tmp/ce"; fi
+done
+echo "compiler errors: $ncerr files identical"
 
 [ $fail -eq 0 ] && echo "oracle: no differences" || echo "oracle: $fail differences"
 [ $fail -eq 0 ]

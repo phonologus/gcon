@@ -327,3 +327,9 @@ void strmap_put(StrMap *m, const char *key, size_t n, void *val) {
 	m->bins[h] = e;
 	m->n++;
 }
+
+void strmap_each(const StrMap *m, void (*f)(void *ctx, const char *key, size_t n, void *val), void *ctx) {
+	for (size_t i = 0; i < m->nbins; i++)
+		for (struct StrEntry *e = m->bins[i]; e; e = e->next)
+			f(ctx, e->key, e->n, e->val);
+}

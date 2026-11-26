@@ -4,7 +4,7 @@
 # sanitizers) and the Go (tools/refdump) write the same canonical form of
 # each file, and the two must be identical, file for file.
 #
-#   src/tests/diff.sh [lex|parse|walk|pp|sema] [file ...]
+#   src/tests/diff.sh [lex|parse|walk|pp|sema|build] [file ...]
 #
 # The files are, by default, the corpus: every .icn file of the Icon tree
 # beside the checkout (../icon), of gcon's library, test data and
@@ -15,14 +15,15 @@
 set -u
 here=$(cd "$(dirname "$0")/../.." && pwd)
 what=lex
-case "${1:-}" in lex|parse|walk|pp|sema) what=$1; shift ;; esac
+case "${1:-}" in lex|parse|walk|pp|sema|build) what=$1; shift ;; esac
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 CC=${CC:-cc}
 $CC -std=c11 -g -O1 -Wall -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all \
 	-o "$tmp/dump" "$here"/src/tests/dump.c "$here"/src/util.c "$here"/src/token.c \
 	"$here"/src/lexer.c "$here"/src/lit.c "$here"/src/syntax.c "$here"/src/ipp.c \
-	"$here"/src/builtin.c "$here"/src/sema.c || exit 2
+	"$here"/src/builtin.c "$here"/src/sema.c "$here"/src/prog.c "$here"/src/compile.c \
+	"$here"/vm/src/gen_tables.c -I"$here"/vm/src || exit 2
 (cd "$here" && go build -o "$tmp/refdump" ./tools/refdump) || exit 2
 
 if [ $# -gt 0 ]; then
@@ -45,7 +46,7 @@ fi
 # pp: each file is preprocessed in its own directory, by its own name,
 # with the predefined symbols of the Go, and the IPL's include
 # directories on the path.
-if [ $what = pp ] || [ $what = sema ]; then
+if [ $what = pp ] || [ $what = sema ] || [ $what = build ]; then
 	PPDEFS=$("$tmp/refdump" predef)
 	PPPATH="$here/../icon/ipl/incl $here/../icon/ipl/gincl"
 	export PPDEFS PPPATH
@@ -53,7 +54,7 @@ fi
 
 pass=0 fail=0
 while read -r f; do
-	if [ $what = pp ] || [ $what = sema ]; then
+	if [ $what = pp ] || [ $what = sema ] || [ $what = build ]; then
 		(cd "$(dirname "$f")" && "$tmp/refdump" $what "$(basename "$f")") >"$tmp/go" 2>&1
 		(cd "$(dirname "$f")" && "$tmp/dump" $what "$(basename "$f")") >"$tmp/c" 2>&1
 	else

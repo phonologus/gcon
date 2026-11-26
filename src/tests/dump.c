@@ -11,6 +11,10 @@
  *   dump sema FILE...
  *                    name resolution of the files as one program,
  *                    preprocessed and raw (tools/refdump/sema.go)
+ *   dump build FILE...
+ *                    the files compiled as one program: the encoding
+ *                    (build information test=1), or the errors
+ *                    (tools/refdump/build.go)
  *   dump pp FILE     the preprocessed text, line by line with the map,
  *                    and the errors ($PPDEFS: the predefined symbols,
  *                    each "1"; $PPPATH: the include path; both
@@ -21,6 +25,7 @@
 #include "../syntax.h"
 #include "../ipp.h"
 #include "../sema.h"
+#include "../compile.h"
 
 #include <inttypes.h>
 #include <stdio.h>
@@ -588,7 +593,77 @@ static Buf readall(const char *name) {
 	return b;
 }
 
+static void errline(Buf *b, const char *file, long line, const char *msg) {
+	bufprintf(b, "File %s; Line %ld # %s", file, line, msg);
+}
+
+static int build(int n, char **names) {
+	PPOptions o = ppoptions();
+	StrVec errs = {0};
+	SemaFile **files = xcalloc((size_t)n, sizeof *files);
+	PPResult **pps = xcalloc((size_t)n, sizeof *pps);
+	for (int i = 0; i < n; i++) {
+		Buf src = readall(names[i]);
+		pps[i] = ipp_preprocess(names[i], src.b, src.n, &o);
+		for (size_t k = 0; k < pps[i]->errs.n; k++)
+			VPUSH(errs, ipp_error(&pps[i]->errs.v[k]));
+		File *f = syn_parse(pps[i]->src.b, pps[i]->src.n);
+		for (size_t k = 0; k < f->errs.n; k++) {
+			const char *file;
+			long line;
+			ipp_locate(&pps[i]->map, f->errs.v[k].offset, &file, &line);
+			Buf b = {0};
+			errline(&b, file, line, f->errs.v[k].msg);
+			VPUSH(errs, b.b);
+		}
+		files[i] = xcalloc(1, sizeof *files[i]);
+		files[i]->path = names[i];
+		files[i]->syn = f;
+		files[i]->preprocessed = true;
+	}
+	if (!errs.n) {
+		Program *p = sema_program(files, (size_t)n, true);
+		CompileFile *cfs = xcalloc((size_t)n, sizeof *cfs);
+		for (int i = 0; i < n; i++) {
+			cfs[i].info = sema_resolve(p, files[i]);
+			cfs[i].map = &pps[i]->map;
+			for (size_t k = 0; k < cfs[i].info->diags.n; k++) {
+				Diagnostic *d = &cfs[i].info->diags.v[k];
+				if (d->severity != SEV_ERROR)
+					continue;
+				const char *file;
+				long line;
+				ipp_locate(&pps[i]->map, d->offset, &file, &line);
+				Buf b = {0};
+				errline(&b, file, line, d->msg);
+				VPUSH(errs, b.b);
+			}
+		}
+		if (!errs.n) {
+			Prog *prog = compile_program(p, cfs, (size_t)n, &errs);
+			if (!errs.n) {
+				static const char *const k[] = {"test"}, *const v[] = {"1"};
+				Buf enc = {0};
+				const char *err = encode(prog, k, v, 1, &enc);
+				if (!err) {
+					fwrite(enc.b, 1, enc.n, stdout);
+					return 0;
+				}
+				VPUSH(errs, err);
+			}
+		}
+	}
+	for (size_t i = 0; i < errs.n; i++) {
+		escz(errs.v[i]);
+		bufputc(&out, '\n');
+	}
+	fwrite(out.b ? out.b : "", 1, out.n, stdout);
+	return 1;
+}
+
 int main(int argc, char **argv) {
+	if (argc >= 3 && !strcmp(argv[1], "build"))
+		return build(argc - 2, argv + 2);
 	if (argc >= 3 && !strcmp(argv[1], "sema")) {
 		sema(argc - 2, argv + 2);
 		return 0;

@@ -13,6 +13,9 @@
 //	refdump predef      the names of the predefined symbols
 //	refdump sema FILE...
 //	                    name resolution of the files as one program
+//	refdump build FILE...
+//	                    the files compiled as one program: the encoding,
+//	                    or the errors
 package main
 
 import (
@@ -103,8 +106,12 @@ func main() {
 		semaDump(os.Args[2:])
 		return
 	}
+	if len(os.Args) >= 3 && os.Args[1] == "build" {
+		build(os.Args[2:])
+		return
+	}
 	if len(os.Args) != 3 || (os.Args[1] != "lex" && os.Args[1] != "parse" && os.Args[1] != "walk" && os.Args[1] != "pp") {
-		fmt.Fprintln(os.Stderr, "usage: refdump lex|parse|walk|pp FILE | sema FILE... | predef")
+		fmt.Fprintln(os.Stderr, "usage: refdump lex|parse|walk|pp FILE | sema|build FILE... | predef")
 		os.Exit(2)
 	}
 	b, err := os.ReadFile(os.Args[2])

@@ -14,6 +14,8 @@ identical before the next (`../docs/design.md`, "gcon in C").
 | `ipp.c` | icont's `src/common/ipp.c` (output as `internal/ipp`) | done |
 | `builtin.c`, `builtin.inc` | `internal/builtin` | done |
 | `sema.c` | `internal/sema` (diagnostics icont's `tsym.c`, `lglob.c`, `lsym.c`) | done |
+| `prog.c` | `internal/vm`: the program, its constants (csets as `cset.go`), `encode.go` | done |
+| `compile.c` | `internal/compile`, iterative | done |
 
 `tokens.inc` is generated from the Go's token table by
 `tests/gentoken.sh`, and `builtin.inc` from its catalogue of built-ins
@@ -21,7 +23,7 @@ by `tests/genbuiltin.sh` (while the Go is the reference).
 
 ## Testing
 
-    tests/diff.sh [lex|parse|walk|pp|sema]
+    tests/diff.sh [lex|parse|walk|pp|sema|build]
 
 builds `tests/dump.c` with the address and undefined-behaviour
 sanitizers, and the Go reference's `tools/refdump`, and checks that
@@ -95,3 +97,22 @@ resolved preprocessed and raw: 2,809 identical), and whole directories
 as one program (the IPL's procs, gprocs and progs, the reference tests,
 `../icn`) are identical too. The port found the Go's wording of five
 diagnostics not icont's, fixed in both (`../docs/design.md`).
+
+The compiler (`compile.c`) keeps its own stack of frames, one kind for
+each function of the Go's recursive compiler, each making its side
+effects (labels, temporaries, constants, globals, instructions) in the
+Go's order, so that its output is the Go's byte for byte; the format's
+definitions are shared with gcon-vm's loader (`../vm/src/format.h`), and
+its tables of operators and functions are gcon-vm's
+(`../vm/src/gen_tables.c`). `diff.sh build` compiles each file as a
+program (`dump build`, `refdump build`: the encoding, with the build
+information test=1, or the errors) and compares them byte for byte: at
+its port 2,811 identical, 1,714 of them compiled programs (6.8 MB). Also
+identical: the 310 programs of the IPL's progs and gprocs with the files
+they link (4,207 files); and 19 shapes of nesting 20,000 deep, which the
+C also compiles a million deep (where the Go's stack gives out) in
+seconds. `oracle.sh` checks the compiler's errors against icont's
+(`tests/compile/err-*.icn`). The port found two bugs in the Go, fixed:
+compiling deep nesting took time quadratic in the depth, and break's
+expression could overwrite the enclosing loop or scan
+(`../internal/run/testdata/break*.icn`).

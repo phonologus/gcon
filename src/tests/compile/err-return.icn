@@ -1,0 +1,3 @@
+procedure main()
+   x := create return 1
+end

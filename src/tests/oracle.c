@@ -47,6 +47,9 @@
  *                           from its diagnostics, sorted, without those
  *                           for built-ins this icont lacks (graphics,
  *                           gcon's own), which it calls undeclared
+ *   oracle build FILE SYMS  the file preprocessed (as in sema), parsed,
+ *                           resolved and compiled: its errors, one a
+ *                           line, as icont reports them
  *   oracle mutate SEED FILE a token deleted, duplicated or swapped with
  *                           the next, chosen by SEED; the change is
  *                           described on stderr; exit 3 if FILE has
@@ -64,6 +67,7 @@
 #include "../syntax.h"
 #include "../ipp.h"
 #include "../sema.h"
+#include "../compile.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -895,6 +899,49 @@ static int semanorm(void) {
 	return 0;
 }
 
+static int buildcheck(const char *name, char *symstr) {
+	int nsyms = 0;
+	char *syms[256];
+	for (char *t = strtok(symstr, " \n"); t && nsyms < 256; t = strtok(NULL, " \n"))
+		syms[nsyms++] = t;
+	PPOptions o = ppopts(nsyms, syms);
+	Buf src = readfile(name);
+	PPResult *r = ipp_preprocess(name, src.b, src.n, &o);
+	int nerr = 0;
+	for (size_t k = 0; k < r->errs.n; k++, nerr++)
+		printf("%s\n", ipp_error(&r->errs.v[k]));
+	File *f = syn_parse(r->src.b, r->src.n);
+	for (size_t k = 0; k < f->errs.n; k++, nerr++) {
+		const char *file;
+		long line;
+		ipp_locate(&r->map, f->errs.v[k].offset, &file, &line);
+		printf("File %s; Line %ld # %s\n", file, line, f->errs.v[k].msg);
+	}
+	if (nerr)
+		return 1;
+	SemaFile *sf = xcalloc(1, sizeof *sf);
+	sf->path = name, sf->syn = f, sf->preprocessed = true;
+	Program *p = sema_program(&sf, 1, true);
+	CompileFile cf = {sema_resolve(p, sf), &r->map};
+	for (size_t k = 0; k < cf.info->diags.n; k++) {
+		Diagnostic *d = &cf.info->diags.v[k];
+		if (d->severity != SEV_ERROR)
+			continue;
+		const char *file;
+		long line;
+		ipp_locate(&r->map, d->offset, &file, &line);
+		printf("File %s; Line %ld # %s\n", file, line, d->msg);
+		nerr++;
+	}
+	if (nerr)
+		return 1;
+	StrVec errs = {0};
+	compile_program(p, &cf, 1, &errs);
+	for (size_t k = 0; k < errs.n; k++)
+		printf("%s\n", errs.v[k]);
+	return errs.n ? 1 : 0;
+}
+
 static _Noreturn void usage(void) {
 	fprintf(stderr, "usage: oracle tokens|trees|linedirs FILE | needspp FILE SYM... | "
 			"pp FILE SYM... | ppnorm | strip tokens|trees | mutate SEED FILE\n");
@@ -919,6 +966,11 @@ int main(int argc, char **argv) {
 		return strip(!strcmp(argv[2], "trees"));
 	if (!strcmp(mode, "pp"))
 		return pp(argv[2], argc - 3, argv + 3);
+	if (!strcmp(mode, "build")) {
+		if (argc != 4)
+			usage();
+		return buildcheck(argv[2], argv[3]);
+	}
 	if (!strcmp(mode, "sema")) {
 		if (argc < 4)
 			usage();
