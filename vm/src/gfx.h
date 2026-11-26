@@ -153,6 +153,7 @@ void gfx_image(Buf *b, File *f);
 void gfx_mark(void);
 void gfx_exit(void);
 void gfx_write(File *f, const char *s, size_t n); /* write() to a window */
+bool gfx_read(File *f, int64_t k, String *out); /* read() (k < 0), reads(): with echo */
 Value gfx_kwget(int k);
 bool gfx_kwset(int k, Value x);
 void graphics_init(void);

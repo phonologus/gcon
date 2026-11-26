@@ -12,3 +12,7 @@ tests-general/features   &features includes "dynamic loading",
 tests-general/prepro     the same symbols: its output is now iconx's
                          prepro.std exactly (the Go VM, lacking the
                          features, reports "unexpected predefined symbol")
+tests-general/features   gcon predefines _X_WINDOW_SYSTEM (its events use X
+                         keysyms, which the IPL's keysyms.icn names under
+                         it), so &features includes "X Windows", as in
+                         icon-sdl's iconx

@@ -938,6 +938,128 @@ static void text(WBinding *w, int x, int y, const char *s, size_t n, bool image)
 	drawing();
 }
 
+/* ---- Writing to a window (rwindow.r's wputstr, rsdlwin.ri's wputc
+ * and xdis) ---- */
+
+/* xdis draws text at the text position with its background, and
+ * advances the position. */
+static void xdis(WBinding *w, const char *s, size_t n) {
+	WState *ws = w->window;
+	text(w, ws->x, ws->y, s, n, true);
+	ws->x += textWidth(w, s, n);
+}
+
+/* rawgc is w's context as a gc in copy mode without clipping, for
+ * scrolling and clearing to the end of the line. */
+static uint32_t rawgc(WBinding *w) {
+	GcState g;
+	mkgc(w, &g);
+	g.drawop = DRAWOP_COPY;
+	g.reverse = 0;
+	g.fillstyle = FS_SOLID;
+	g.clipw = -1;
+	return usegc(TempGc, &g);
+}
+
+/* evquesub is the keystroke i places back (i < 0) from the newest. */
+static char *evquesub(WState *ws, int i) {
+	int j = ws->eQback + i;
+	if (j < 0)
+		j += EQUEUELEN;
+	else if (j >= EQUEUELEN)
+		j -= EQUEUELEN;
+	return &ws->eventQueue[j];
+}
+
+/* wputc writes a character that is not printable: newline (with
+ * scrolling), return, tab, and backspace and delete, which erase the
+ * last character typed. */
+static void wputc(WBinding *w, char c) {
+	WState *ws = w->window;
+	WContext *wc = w->context;
+	int lh = wc->leading, width = ws->width, height = ws->height;
+	switch (c) {
+	case '\r':
+		ws->x = wc->dx;
+		break;
+	case '\n': {
+		if (ISCEOLON(w) && ws->id) /* clear to the end of the line */
+			erase_gc(ws, rawgc(w), ws->x, ws->y - ASCENT(w), width - ws->x, lh);
+		ws->y += lh;
+		ws->x = wc->dx;
+		int over = ws->y + DESCENT(w) - height;
+		if (over > 0) { /* scroll */
+			ws->y -= over;
+			if (ws->id) {
+				uint32_t gc = rawgc(w);
+				gp_begin(P_COPY);
+				gp_u32(ws->id);
+				gp_u32(ws->id);
+				gp_u32(gc);
+				gp_i32(0);
+				gp_i32(over);
+				gp_i32(width);
+				gp_i32(height - over);
+				gp_i32(0);
+				gp_i32(0);
+				gp_end();
+				erase_gc(ws, gc, 0, height - over, width, over);
+			}
+		}
+		drawing();
+		break;
+	}
+	case '\t':
+		xdis(w, "        ", (size_t)(8 - (XTOCOL(w, ws->x) & 7)));
+		break;
+	case '\177':
+	case '\010': {
+		int i = -1;
+		while (i > -EQUEUELEN && *evquesub(ws, i) != c)
+			i--;
+		if (i == -EQUEUELEN)
+			break;
+		i--;
+		while (i > -EQUEUELEN && !isprint((unsigned char)*evquesub(ws, i)))
+			i--;
+		if (i == -EQUEUELEN)
+			break;
+		char prev = *evquesub(ws, i);
+		int prex = ws->x;
+		ws->x -= textWidth(w, &prev, 1);
+		*evquesub(ws, i) = '\010';
+		int x = ws->x;
+		while (ws->x < prex)
+			xdis(w, " ", 1);
+		ws->x = x;
+		break;
+	}
+	default:
+		xdis(w, &c, 1);
+	}
+}
+
+/* gfx_write writes s to window f at its text position, as write()
+ * does (wputstr): runs of printable characters drawn as text, the
+ * others interpreted. */
+void gfx_write(File *f, const char *s, size_t n) {
+	WBinding *w = f->gfx;
+	const char *p = s;
+	while (n > 0) {
+		/* printable: ASCII graphic characters, and any non-ASCII byte
+		 * (part of a UTF-8 text character) */
+		while (n > 0 && (isprint((unsigned char)*p) || (unsigned char)*p >= 0x80))
+			p++, n--;
+		if (p != s)
+			xdis(w, s, (size_t)(p - s));
+		if (n > 0) {
+			wputc(w, *p++);
+			n--;
+		}
+		s = p;
+	}
+}
+
 /* ---- Showing, and events (rsdlwin.ri, rwindow.r) ---- */
 
 static void show(bool full) {
@@ -1046,7 +1168,8 @@ static int process_events(int timeout) {
 		case PL_KEYCHAR: {
 			char c = (char)(code & 0xFF);
 			ws->pointerx = x, ws->pointery = y;
-			qevent(ws, strval(mkstr(&c, 1, (uint8_t)c < 0x80 ? TextUnit : BytesUnit)), x, y, ms, mods);
+			/* copied: mkstr would keep a pointer to c, on the stack */
+			qevent(ws, strval(strcopy(&c, 1, (uint8_t)c < 0x80 ? TextUnit : BytesUnit)), x, y, ms, mods);
 			break;
 		}
 		case PL_KEYSYM:
@@ -1211,6 +1334,64 @@ static int wgetevent(WBinding *w, Value *res) {
 	i <<= 4 * ((((uint64_t)yd.w.i) >> 28) & 0x7);
 	amperInterval = (int64_t)i;
 	return 0;
+}
+
+/* ---- Reading from a window (rwindow.r's wgetchne, wgetche,
+ * wgetstrg, wlongread) ---- */
+
+/* wgetchne waits for a keystroke of w, dropping other events: 1, or
+ * wgetevent's -1 (window gone) or -2 (malformed queue). */
+static int wgetchne(WBinding *w, Value *res) {
+	for (;;) {
+		int i = wgetevent(w, res);
+		if (i != 0)
+			return i;
+		if (VKIND(*res) == KString && VN(*res) > 0)
+			return 1;
+	}
+}
+
+/* wgetche is wgetchne, echoing the keystroke if echo is on (a return
+ * as return and newline). */
+static int wgetche(WBinding *w, Value *res) {
+	int i = wgetchne(w, res);
+	if (i != 1)
+		return i;
+	unsigned char c = (unsigned char)*vstr(*res).s;
+	if (c <= 127 && ISECHOON(w)) {
+		wputc(w, (char)c);
+		if (c == '\r')
+			wputc(w, '\n');
+	}
+	return 1;
+}
+
+/* gfx_read reads from window f, with echo: a line (k < 0: up to a
+ * return or newline, as read()), or k characters (as reads()); a
+ * backspace or delete takes back the last character. */
+bool gfx_read(File *f, int64_t k, String *out) {
+	WBinding *w = f->gfx;
+	Buf b = {0};
+	while (k < 0 || (int64_t)b.n < k) {
+		Value e;
+		int i = wgetche(w, &e);
+		if (i == -1)
+			runerr(141);
+		if (i < 0)
+			runerr(143);
+		char c = *vstr(e).s;
+		if (c == '\177' || c == '\010') {
+			if (b.n > 0)
+				b.n--;
+			continue;
+		}
+		if (k < 0 && (c == '\r' || c == '\n'))
+			break;
+		bufputc(&b, c);
+	}
+	*out = strcopy(b.b ? b.b : "", (int64_t)b.n, TextUnit);
+	free(b.b);
+	return true;
 }
 
 /* ---- Windows: opening, mapping, geometry (rsdlwin.ri) ---- */

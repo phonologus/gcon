@@ -242,11 +242,13 @@ static const char *const predefined[] = {
 #endif
 	"_ASCII", "_CO_EXPRESSIONS", "_DYNAMIC_LOADING", "_EXTERNAL_VALUES",
 	"_KEYBOARD_FUNCTIONS", "_LARGE_INTEGERS", "_PIPES", "_SYSTEM_FUNCTION", "_GRAPHICS",
+	/* events use X keysyms (the IPL's keysyms.icn names them under this) */
+	"_X_WINDOW_SYSTEM",
 };
 enum { NPredefined = sizeof predefined / sizeof predefined[0] };
 
 static const char *const ones[NPredefined] = {
-	"1", "1", "1", "1", "1", "1", "1", "1", "1", "1", "1",
+	"1", "1", "1", "1", "1", "1", "1", "1", "1", "1", "1", "1",
 #if defined(__APPLE__)
 	"1",
 #endif

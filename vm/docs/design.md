@@ -671,3 +671,38 @@ whose output depends on the clock (dates in their output, `randomize`,
 `saytime`), which two runs a second apart cannot reveal. Four are
 recorded from gcon-vm by decision (`tests/expected/ACCEPTED`: graphics
 functions and errors, and `&features`). Result: 318 pass, 56 skipped.
+
+## Graphics: keystrokes, and write and read on a window (2026-11-26)
+
+Sean found that phwbi (`icn/phwbi.icn`) ignored every key. The server
+delivered keystrokes correctly; gcon-vm made each one's string with
+`mkstr`, which keeps a pointer, to a `char` on the C stack, so by the
+time the program looked the string held whatever the stack held next
+("\e" for "a", say), and `case e of { "v": ... }` never matched. It is
+copied now (`strcopy`). And gcon did not predefine `_X_WINDOW_SYSTEM`,
+under which the IPL's `keysyms.icn` names the special keys (phwbi's
+`Key_Home`): its events use X keysyms, so it does now, and `&features`
+includes "X Windows", as icon-sdl's iconx does (`features` accepted
+anew, `preproc`'s expected output updated).
+
+Testing this against icon-sdl's window tests found that `write` and
+`read` on a window, listed above as still to do, had never been
+written: `write(w, ...)` raised error 213 and `read(w)` error 212. They
+are now iconx's, ported from rwindow.r (`wputstr`, `wgetstrg`,
+`wlongread`, `wgetche`) and icon-sdl's rsdlwin.ri (`wputc`, `xdis`):
+text drawn at the text position with its background, return, newline
+(with scrolling, and clearing to the end of the line under `ceol`),
+tab, and backspace taking back the last character typed; reading
+echoes (under `echo`) and takes back a character on backspace.
+
+**Tests.** `tests/window.sh` runs real windows (briefly; it needs a
+display) with keystrokes and clicks scripted through the server's
+`ICONSDL_TEST_EVENTS`, comparing each program's output with the
+expected: icon-sdl's window tests (`close`, `coexp`, `events`,
+`window`, and `misc` without its window icons, which need
+`WriteImage`), whose expected output is iconx's, and `read` and `keys`
+(keystrokes matched as phwbi matches them). With the old `mkstr` it
+fails, as it should.
+
+**Still to do:** `DrawImage`, `DrawCurve`, the palette functions,
+`ReadImage`/`WriteImage` (image files), icons.

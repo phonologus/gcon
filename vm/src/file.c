@@ -185,6 +185,8 @@ static bool nextentry(File *f, int64_t n, String *out) {
 /* readline_ reads a line: it ends at "\n", "\r\n" or a lone "\r", except
  * in an untranslated file, where only "\n" ends it. */
 bool readline_(File *f, String *out) {
+	if (f->gfx && !f->closed)
+		return gfx_read(f, -1, out);
 	IOBuf *r = reader(f);
 	if (f->isdir)
 		return nextentry(f, -1, out);
@@ -212,6 +214,8 @@ bool readline_(File *f, String *out) {
 }
 
 static bool readchars(File *f, int64_t k, String *out) {
+	if (f->gfx && !f->closed)
+		return gfx_read(f, k, out);
 	IOBuf *r = reader(f);
 	if (f->isdir)
 		return nextentry(f, k, out);
@@ -239,6 +243,10 @@ static bool readchars(File *f, int64_t k, String *out) {
 }
 
 void emit(File *f, const char *b, size_t n, bool end) {
+	if (f->gfx && !f->closed) { /* a window: drawn, at its text position */
+		gfx_write(f, b, n);
+		return;
+	}
 	IOBuf *w = writer(f);
 	if (f->pipe)
 		wflush(WB(vm.output));
@@ -265,8 +273,9 @@ static Value writeargs(File *f, Value *a, int n, bool nl) {
 		} else if (VKIND(v) != KNull) {
 			String s;
 			if (!cvstr(v, &s)) {
-				writer(f);
-				if (f->errout)
+				if (!f->gfx)
+					writer(f);
+				if (f->errout || f->gfx)
 					emit(f, buf.b, buf.n, true);
 				else {
 					vm.partial = buf;

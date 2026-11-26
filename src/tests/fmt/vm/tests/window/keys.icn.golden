@@ -1,0 +1,19 @@
+# Window test: keystrokes matched as the IPL's vidget programs match
+# them (case on strings, and the keysyms.icn names, which need
+# _X_WINDOW_SYSTEM predefined).
+link graphics
+$include "keysyms.icn"
+procedure main()
+   WOpen("size=200,100") | stop("no window")
+   repeat {
+      e := Event()
+      case e of {
+         "v":            write("v: small view")
+         "V":            write("V: large view")
+         "g" | Key_Home: write(image(e), ": home")
+         "q":            break
+         default:        write("other: ", image(e))
+      }
+   }
+end
+status 0

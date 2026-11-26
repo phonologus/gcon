@@ -1,0 +1,18 @@
+# Window test: the text cursor, and Lower/Raise/Alert. (icon-sdl's also
+# tests window icons, which need WriteImage, not yet in gcon-vm.)
+procedure main()
+   w := open("misc", "g", "size=200,100", "bg=white") | stop("cannot open window")
+   &window := w
+   WAttrib("cursor=on")
+   writes(w, "abc")
+   x := WAttrib("x"); y := WAttrib("y")
+   e := Event() # waits (scripted key), cursor shown
+   write("event: ", image(e))
+   write("canvas under the cursor unchanged: ",
+      if Pixel(x, y, 1, 1) == "65535,65535,65535" then "yes" else "NO")
+   write("lower: ", if Lower() then "ok" else "FAILED")
+   write("raise: ", if Raise() then "ok" else "FAILED")
+   write("alert: ", if Alert() then "ok" else "FAILED")
+   close(w)
+end
+status 0

@@ -1,0 +1,10 @@
+# Window test: read() and reads() on a window, with echo and backspace.
+link graphics
+procedure main()
+   WOpen("size=200,100") | stop("no window")
+   writes(&window, "name? ")
+   s := read(&window)
+   write("read: ", image(s))
+   c := reads(&window, 2)
+   write("reads: ", image(c))
+end

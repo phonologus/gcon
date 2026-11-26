@@ -76,8 +76,14 @@ iconx when it can.
     tests/graphics.sh
 
 draws on a hidden canvas through the display server and compares with
-`tests/graphics.std`. `tests/bench.sh` times micro-benchmarks on
-gcon-vm and iconx.
+`tests/graphics.std`.
+
+    tests/window.sh
+
+opens real windows (briefly; it needs a display), with keystrokes and
+clicks scripted through the display server, and compares each
+program's output with the expected (`tests/window/`).
+`tests/bench.sh` times micro-benchmarks on gcon-vm and iconx.
 
 `src/gen_tables.c` holds the names of gcon's operations and built-ins;
 it was generated from the Go reference and is maintained by hand.

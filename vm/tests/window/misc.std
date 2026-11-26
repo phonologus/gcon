@@ -1,0 +1,5 @@
+event: "z"
+canvas under the cursor unchanged: yes
+lower: ok
+raise: ok
+alert: ok
