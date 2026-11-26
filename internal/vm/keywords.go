@@ -125,6 +125,13 @@ func init() {
 	kw("eventcode", func(vm *VM) Value { return varVal(valueVar{&vm.eventcode}) })
 	kw("eventsource", func(vm *VM) Value { return varVal(valueVar{&vm.eventsource}) })
 	kw("eventvalue", func(vm *VM) Value { return varVal(valueVar{&vm.eventvalue}) })
+	// The graphics keywords fail, as in an Icon without graphics: gcon's
+	// VM has none (gcon-vm, which runs gcon's programs, does).
+	for _, name := range []string{"col", "row", "x", "y", "interval", "control", "shift", "meta", "window"} {
+		Ops["&"+name] = &Builtin{Name: "&" + name, Fn: func(vm *VM, a []Value) (Value, bool) {
+			return Value{}, false
+		}}
+	}
 	Ops["&collections"] = &Builtin{Name: "&collections", Gen: func(vm *VM, a []Value) Generator {
 		return &intsGen{append([]Int(nil), vm.collections[:]...)}
 	}}

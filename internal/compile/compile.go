@@ -797,7 +797,10 @@ func (p *pcomp) keyword(e *syntax.Keyword, fail, succ label) (label, label, vm.O
 	case "current", "source", "main", "subject", "pos", "input", "output", "errout",
 		"error", "errornumber", "errortext", "errorvalue", "line", "file", "random",
 		"trace", "level", "clock", "date", "dateline", "time", "host", "version",
-		"progname", "dump", "eventcode", "eventsource", "eventvalue":
+		"progname", "dump", "eventcode", "eventsource", "eventvalue",
+		// The graphics keywords: gcon-vm has graphics; gcon's VM
+		// does not, and its keywords fail, as in an Icon without them.
+		"col", "row", "x", "y", "interval", "control", "shift", "meta", "window":
 		s := p.newLabel()
 		p.place(s)
 		t := p.temp()
@@ -807,9 +810,8 @@ func (p *pcomp) keyword(e *syntax.Keyword, fail, succ label) (label, label, vm.O
 	switch e.Name.Text {
 	case "features", "collections", "regions", "storage", "allocated":
 		return p.genOp(vm.Ops["&"+e.Name.Text], nil, fail, succ)
-	case "col", "row", "x", "y", "interval", "control", "shift", "meta", "window", "column":
-		// Graphics keywords (and &column), which fail in an Icon
-		// without graphics.
+	case "column":
+		// &column fails in iconx.
 		return fail, fail, p.null()
 	}
 	if n, ok := vm.MouseEvents[e.Name.Text]; ok {
