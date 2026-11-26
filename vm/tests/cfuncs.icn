@@ -1,0 +1,45 @@
+# cfuncs: the IPL's C functions (ipl/cfuncs), built against gcon-vm's
+# include/icall.h and called through loadfunc (tests/cfuncs.sh).
+# Output to stdout only: loadfunc's diagnostics name addresses.
+link cfunc
+
+procedure main()
+   local x, y, z, L, f, p
+
+   # integers, strings, bytes
+   write("bitcount ", bitcount(255), " ", bitcount(-1), " ", bitcount("7"))
+   x := pack(258, "b", 4)
+   write("pack ", image(x), " ", *x)
+   write("unpack ", unpack(x, "b"), " ", unpack(pack(-3, "l", 2)), " ", unpack(pack(-3, "l", 2), "u"), " ", unpack(pack(1.5, "r", 8), "r"))
+   write("lgconv ", lgconv(2^100), " ", lgconv(-(2^70) - 1), " ", lgconv(12345))
+   write("getpid ", type(getpid()))
+
+   # externals: type, image, copy, ===, sorting
+   x := extxmin(); y := extxstr("hello"); z := extxreal(2.5)
+   write("types ", type(x), " ", type(y), " ", type(z))
+   write("images ", image(x), " ", image(y), " ", image(z))
+   write("copy ", image(copy(y)), " same ", (copy(x) === x & "yes") | "no")
+   L := sort([z, y, x, extxstr("abc"), extxreal(-1.0), 3])
+   every writes(image(!L), " "); write()
+   write("ident ", (x === x & "yes") | "no", " ", (x === extxmin() & "yes") | "no")
+   T := table(); T[y] := 1; T[x] := 2; write("table ", T[y], T[x])
+
+   f := open("cfuncs.icn")
+   # files: lent to C
+   write("fpoll ", type(fpoll(f, 0)) | "timeout")
+   close(f)
+
+   # the function values
+   p := loadfunc("./libcfunc.so", "bitcount")
+   write(image(p), " ", type(p), " args ", args(p), " ", p(7))
+
+   # errors from C, converted to failure
+   &error := -1
+   bitcount("x") | write("error ", &errornumber, " ", image(&errorvalue))
+   unpack(3) | write("error ", &errornumber, " ", image(&errorvalue))
+   loadfunc("nosuchlib.so", "f") | write("error ", &errornumber)
+   loadfunc("./libcfunc.so", "nosuchfn") | write("error ", &errornumber)
+   &error := 0
+   ppmwidth("not a ppm") | write("ppmwidth fails")
+   write("done")
+end

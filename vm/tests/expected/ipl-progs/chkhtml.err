@@ -1,0 +1,6 @@
+Usage: ChkHTML -options file...
+  -u     supress warnings for unreferenced anchor names
+  -q     supress errors for "\"" (quote) character in open text
+  -g     supress errors for ">" character in open text
+  -l n   level of HTML (default 2)
+status 1

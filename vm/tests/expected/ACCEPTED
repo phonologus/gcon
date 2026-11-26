@@ -1,0 +1,14 @@
+Programs whose recorded run is gcon-vm's, not gcon's Go VM's (recorded
+with tests/expected.sh -accept), and why.
+
+ipl-progs/ifncsgen       function() generates the graphics functions,
+                         as a graphics iconx's does (the Go VM has none)
+ipl-progs/irunerr        the error texts include 140-147 (graphics)
+tests-general/features   &features includes "dynamic loading",
+                         "external values" and "graphics", each with its
+                         predefined symbol (gcon now predefines the
+                         runtime's: _DYNAMIC_LOADING, _EXTERNAL_VALUES,
+                         _GRAPHICS)
+tests-general/prepro     the same symbols: its output is now iconx's
+                         prepro.std exactly (the Go VM, lacking the
+                         features, reports "unexpected predefined symbol")

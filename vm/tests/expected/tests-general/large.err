@@ -1,0 +1,10 @@
+large.icn    :   28  | foo(1024)
+large.icn    :   37  | foo failed
+large.icn    :   28  | foo(1073741824)
+large.icn    :   37  | foo failed
+large.icn    :   28  | foo(1180591620717411303424)
+large.icn    :   37  | foo failed
+large.icn    :   28  | foo(integer(~10^30))
+large.icn    :   37  | foo failed
+large.icn    :   30  main failed
+status 0

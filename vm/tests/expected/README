@@ -1,0 +1,12 @@
+The recorded runs that tests/expected.sh checks gcon-vm against: for
+each program, NAME.out (standard output) and NAME.err (standard error,
+then "status N"), or NAME.skip with the reason it is not checked.
+
+They were recorded from gcon's Go VM on 2026-11-26 (tests/expected.sh
+-record-go), while it was the reference implementation, before its
+retirement; ACCEPTED lists the programs recorded from gcon-vm instead,
+by decision. A program is skipped if gcon cannot build it, if it does
+not finish within 10 seconds, if two runs differed, or if its output
+depends on the machine (host name, user, environment) or the clock
+(dates, times, randomize): those were found by reading the programs
+and their output, not only by running them twice.

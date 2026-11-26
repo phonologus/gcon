@@ -1,0 +1,10 @@
+sh: /dev/tty: Device not configured
+
+Run-time error 103
+File reply.icn; Line 111
+string expected
+offending value: &null
+Traceback:
+main(list_1 = [])
+{"mail " || &null} from line 111 in reply.icn
+status 1

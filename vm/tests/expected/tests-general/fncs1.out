@@ -1,0 +1,5 @@
+ ----> &null
+f := open("foo.baz","w") ----> file(foo.baz)
+write(f,"hello world") ----> "hello world"
+close(f) ----> file(foo.baz)
+F := open("gc1.icn") ----> none

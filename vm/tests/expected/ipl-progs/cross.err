@@ -1,0 +1,11 @@
+
+Run-time error 114
+File cross.icn; Line 192
+invalid type to subscript operation
+offending value: &null
+Traceback:
+main()
+kross(list_1 = []) from line 63 in cross.icn
+Print(&null) from line 82 in cross.icn
+{(variable = &null)[1]} from line 192 in cross.icn
+status 1

@@ -1,0 +1,2 @@
+usage: loadmap [-t -d -b -u -a -c -l] file
+status 1

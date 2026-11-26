@@ -1,0 +1,2 @@
+usage: fixpath filename oldpath newpath
+status 1

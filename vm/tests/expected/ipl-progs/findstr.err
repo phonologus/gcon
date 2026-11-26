@@ -1,0 +1,7 @@
+Usage: findstr -options file...
+
+-l length	minimum string size to be printed (default 3)
+-c chars	a string of characters (besides the standard ASCII
+		printable characters) to be considered part of a string
+
+status 1

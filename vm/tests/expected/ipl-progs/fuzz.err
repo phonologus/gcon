@@ -1,0 +1,9 @@
+
+Run-time error 103
+File fuzz.icn; Line 41
+string expected
+offending value: &null
+Traceback:
+main()
+open(&null,"r") from line 41 in fuzz.icn
+status 1
