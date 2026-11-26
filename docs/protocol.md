@@ -72,9 +72,44 @@ Reply: `i32 ok, i32 scale` (the canvas's pixels per logical pixel).
 `RESIZE` (3): `u32 id, i32 w, i32 h, u32 bg`. Gives the canvas a new
 size, keeping what fits and filling the rest with bg.
 
-*(later)* window requests: title, geometry, position, state, raise,
-lower, cursor, warp, beep, icon, the text-cursor overlay, display size,
-pointer position.
+### Windows
+
+Each names a canvas; on a hidden canvas (no window) they do nothing,
+and those with replies answer as for a window that cannot.
+
+`TITLE` (22): `u32 id, str title`.
+
+`GEOMETRY` (23): `u32 id, i32 x, i32 y, i32 w, i32 h`. Moves the window
+(x, y may be `NOPOS`) and, unless w is 0, resizes it. The canvas is
+resized separately (`RESIZE`).
+
+`STATE` (24): `u32 id, i32 state` (as `CANVAS`).
+
+`MAP` (25) **reply**: `u32 id, i32 x, i32 y, i32 state, u8 resizable,
+str title`. Gives a hidden canvas a window (the canvas keeps its scale).
+Reply: `i32 ok`.
+
+`RESIZABLE` (26): `u32 id, u8 on`.
+
+`POSITION` (27) **reply**: `u32 id`. Reply: `i32 ok, i32 x, i32 y`.
+
+`RAISE` (28), `LOWER` (29): `u32 id`.
+
+`CURSOR` (30): `u32 id, i32 shape` (SDL's system cursors, as
+`sdlgfx.h`'s `PLC_*`).
+
+`WARP` (31): `u32 id, i32 x, i32 y`: moves the pointer.
+
+`BEEP` (32): `i32 volume` (no canvas).
+
+`DISPLAYSIZE` (33) **reply**: `u32 id`. Reply: `i32 w, i32 h`.
+
+`GLOBALMOUSE` (34) **reply**: no body. Reply: `i32 ok, i32 x, i32 y`,
+the pointer on the screen.
+
+`OVERLAY` (35): `u32 id, i32 x, y, w, h, u32 rgb`: shows a rectangle
+over the window without drawing it on the canvas (the text cursor);
+the next showing of that area removes it.
 
 ### Graphics contexts
 

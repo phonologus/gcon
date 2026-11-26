@@ -20,7 +20,8 @@ enum { VERSION = 1 };
 enum {
    HELLO, CANVAS, FREE, RESIZE, GC, POINTS, LINES, FILLPOLY, SEGMENTS,
    RECTS, FILLRECTS, ARCS, ERASE, COPY, WRITE, READ, COLOR, WAIT, SHOW,
-   FONT, TEXT, WIDTH, NOPS
+   FONT, TEXT, WIDTH, TITLE, GEOMETRY, STATE, MAP, RESIZABLE, POSITION,
+   RAISE, LOWER, CURSOR, WARP, BEEP, DISPLAYSIZE, GLOBALMOUSE, OVERLAY, NOPS
 };
 
 static int fd = -1;
@@ -531,6 +532,102 @@ static void do_width(void)
    end();
 }
 
+/* window management: requests on a canvas's window (none for a hidden
+ * canvas, so these do nothing there) */
+static void do_window(int op)
+{
+   Canvas *c = canvas(u32());
+   switch (op) {
+   case TITLE: {
+      char *t = str(NULL);
+      if (c->win)
+         pl_title(c->win, t);
+      free(t);
+      break;
+   }
+   case GEOMETRY: {
+      int x = i32(), y = i32(), w = i32(), h = i32();
+      if (c->win) {
+         pl_geometry(c->win, x, y, w, h);
+         pl_present(c->win, c->cv, c->w, c->h, 1);
+      }
+      break;
+   }
+   case STATE: {
+      int s = i32();
+      if (c->win)
+         pl_state(c->win, s);
+      break;
+   }
+   case RESIZABLE: {
+      int on = u8();
+      if (c->win)
+         pl_resizable(c->win, on);
+      break;
+   }
+   case POSITION: {
+      int x = 0, y = 0, ok = c->win && pl_position(c->win, &x, &y);
+      begin(POSITION);
+      putu32(ok);
+      putu32(x);
+      putu32(y);
+      end();
+      break;
+   }
+   case RAISE: if (c->win) pl_raise(c->win); break;
+   case LOWER: if (c->win) pl_lower(c->win); break;
+   case CURSOR: {
+      int k = i32();
+      if (c->win)
+         pl_cursor(c->win, k);
+      break;
+   }
+   case WARP: {
+      int x = i32(), y = i32();
+      if (c->win)
+         pl_warp(c->win, x, y);
+      break;
+   }
+   case DISPLAYSIZE: {
+      int w = 0, h = 0;
+      pl_display_size(c->win, &w, &h);
+      begin(DISPLAYSIZE);
+      putu32(w);
+      putu32(h);
+      end();
+      break;
+   }
+   case OVERLAY: {
+      int x = i32(), y = i32(), w = i32(), h = i32();
+      unsigned rgb = u32();
+      if (c->win)
+         pl_overlay(c->win, x, y, w, h, rgb, cv_scale(c->cv));
+      break;
+   }
+   }
+}
+
+/* MAP gives a hidden canvas its window (canvas=normal) */
+static void do_map(void)
+{
+   Canvas *c = canvas(u32());
+   int x = i32(), y = i32(), state = i32(), resizable = u8();
+   char *title = str(NULL);
+   int scale = 1, ok = 1;
+   if (!c->win) {
+      c->win = pl_open(title, x, y, c->w, c->h, state, resizable, &scale);
+      ok = c->win != NULL;
+      if (ok) {
+         pl_present(c->win, c->cv, c->w, c->h, 1);
+         pl_state(c->win, state);
+      }
+   }
+   free(title);
+   begin(MAP);
+   putu32(ok);
+   end();
+}
+
 static uint32_t winid(void *win)
 {
    for (Canvas *c = canvases; c; c = c->next)
@@ -603,6 +700,22 @@ static int serve(int argc, char **argv)
       case FONT: do_font(); break;
       case TEXT: do_text(); break;
       case WIDTH: do_width(); break;
+      case TITLE: case GEOMETRY: case STATE: case RESIZABLE: case POSITION:
+      case RAISE: case LOWER: case CURSOR: case WARP: case DISPLAYSIZE:
+      case OVERLAY:
+         do_window(op);
+         break;
+      case MAP: do_map(); break;
+      case BEEP: pl_beep(i32()); break;
+      case GLOBALMOUSE: {
+         int x = 0, y = 0, ok = pl_global_mouse(&x, &y);
+         begin(GLOBALMOUSE);
+         putu32(ok);
+         putu32(x);
+         putu32(y);
+         end();
+         break;
+      }
       default:
          fatal("unknown request");
       }
