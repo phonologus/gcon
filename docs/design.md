@@ -425,3 +425,60 @@ address and undefined-behaviour sanitizers. What is left is spread over
 the loop itself (operand fetch and dispatch, `operint`), the collector
 (about a tenth: 23 collections as the heap grows to some 285 MB of
 records, each tracing it all) and frame set-up in `newframe`.
+
+## Tuning: string scanning, `find` and `upto` (2026-11-26)
+
+The micro-benchmarks `"abcde" ? upto('d')` and `"abcde" ? find("de")`
+were the nearest to iconx (0.96 and 0.95). Profiled, about two fifths
+of the time was allocation and collection, and not chiefly the
+generators': `?` allocated a scanning environment on entry and another
+on each exchange.
+
+- **Scanning environments in place.** A saved environment is held only
+  in its scan's temporary (co-expressions copy locals, never
+  temporaries), so `scanswap` exchanges it with the current one in
+  place, and `scanenter` reuses the block the same scan's previous run
+  left in its temporary (that run has ended when the scan is entered
+  again). Entering a scan in a loop allocates nothing after the first
+  time. gcon's Go VM avoids the allocation by packing the environment
+  into the value; gcon-vm's 48-bit count has no room for a length and a
+  position.
+- **A replaced generator reused** (`newgen`): a call of a builtin
+  generator overwrites its handle's slot, the only reference to the
+  generator there, so the call passes that generator to the builtin
+  (`vm.spare`), which reuses it if it is of the same kind (the same
+  `next` function). `find` and `upto` use it. A generator that ends by
+  failing has its handle cleared; keeping the last of those for reuse
+  too, and using `newgen` for `to` and `!x`, made no measurable
+  difference (`every` loops of them), so it was not kept.
+- **`upto` on one-byte characters**: for an ASCII subject, or bytes
+  against a cset of bytes, the test is a bit lookup in the loop rather
+  than a call of `matchat` per character.
+
+30 million `"abcde" ? upto('d')` went from 1.04 s to 0.47 s; without
+the generator reuse, 0.64 s. `tests/bench.sh` after (ns per
+iteration):
+
+| benchmark | iconx | Go VM | gcon-vm | / iconx |
+|---|---:|---:|---:|---:|
+| empty loop | 7.6 | 6.9 | 2.9 | 0.38 |
+| `*"abcde"` | 10.0 | 10.4 | 3.9 | 0.39 |
+| `upto` | 40.3 | 49.6 | 17.0 | 0.42 |
+| `find` | 39.6 | 45.3 | 21.8 | 0.55 |
+| `x + 407` | 15.1 | 10.9 | 4.5 | 0.30 |
+| `p()` | 15.7 | 24.9 | 9.6 | 0.61 |
+| `q(1, 2)` | 31.6 | 46.7 | 14.1 | 0.45 |
+| `L[3]` | 14.9 | 18.7 | 4.5 | 0.30 |
+| `left("a", 10)` | 26.4 | 58.8 | 23.1 | 0.88 |
+| `map(...)` | 27.6 | 44.5 | 23.5 | 0.85 |
+| `move(1)` | 36.6 | 33.1 | 13.6 | 0.37 |
+| table insert/delete | 37.3 | 99.0 | 20.9 | 0.56 |
+| `pop(push(L, 0))` | 27.5 | 28.8 | 14.9 | 0.54 |
+| same, empty list | 27.6 | 29.4 | 15.3 | 0.56 |
+| `@C` | 2570 | 25.3 | 12.8 | 0.005 |
+| `@(create 1)` | 17385 | 121.2 | 41.0 | 0.002 |
+
+(These include the phwbi changes: `L[3]` and `x + 407` gained from the
+inline `deref` and subscript fast path.) The geometric mean over the
+first fourteen is now about 0.48 of iconx's time. `left` and `map` are
+the nearest to parity.

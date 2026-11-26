@@ -295,9 +295,25 @@ typedef struct VM {
 	int nscratch;
 	/* map's last translation table */
 	void *maptab;
+	/* The generator a call of a builtin generator replaces: its handle's
+	 * slot, the only reference to it, is overwritten by the call, so it is
+	 * dead and newgen may reuse it. */
+	Gen *spare;
 } VM;
 
 extern VM vm;
+
+/* newgen makes a builtin generator of the given size and next function,
+ * reusing the one the call replaces if it is of the same kind. The
+ * caller sets every field. */
+static inline void *newgen(size_t size, bool (*next)(Gen *, Value *)) {
+	Gen *s = vm.spare;
+	if (s && s->next == next) {
+		vm.spare = NULL;
+		return s;
+	}
+	return gcnew(size, T_GEN);
+}
 
 _Noreturn void runerr(int num);
 _Noreturn void runerrv(int num, Value v);
@@ -428,7 +444,7 @@ String bufstring(Buf *b, int unit);
 
 /* ---- Scanning and generators (scan.c) ---- */
 
-Value scanenter(Value v);
+void scanenter(Value v, Value *slot);
 void scanswap(Value *e);
 Gen *newrestorer(Value v, int64_t old);
 bool tabto(int64_t p, Value *out, int64_t *old);

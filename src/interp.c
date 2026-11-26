@@ -638,7 +638,7 @@ static void loop(Frame *f) {
 			NEXT;
 		}
 		CASE(OpScanEnter)
-			f->temps[in->dst.index] = scanenter(deref(get(f, in->x)));
+			scanenter(deref(get(f, in->x)), &f->temps[in->dst.index]);
 			f->pc++;
 			NEXT;
 		CASE(OpScanSwap)
@@ -720,7 +720,10 @@ static void loop(Frame *f) {
 						f->pc = in->l2;
 					}
 				} else if (b->gen) {
+					Value old = f->temps[in->h];
+					vm.spare = VKIND(old) == KGen ? old.w.p : NULL;
 					Gen *g = b->gen(b, args, n);
+					vm.spare = NULL;
 					next(f, in, ptrval(KGen, g));
 				} else {
 					f->temps[in->h] = NONE;

@@ -10,25 +10,28 @@
 #define GENFN(f) static Gen *f(Builtin *b, Value *a, int n)
 #define RESTFN(f) static bool f(Builtin *b, Value *a, int n, Value *out, int64_t *old)
 
-Value scanenter(Value v) {
+/* A saved environment is held only in its scan's temporary, slot (it is
+ * never copied: co-expressions copy locals, not temporaries), so it is
+ * exchanged in place, and entering a scan reuses the environment the
+ * scan's last run left there, which ended with it. */
+void scanenter(Value v, Value *slot) {
 	String s;
 	if (!cvstr(v, &s))
 		runerrv(103, v);
-	ScanEnv *e = gcnew(sizeof *e, T_SCANENV);
+	ScanEnv *e = VKIND(*slot) == KScanEnv ? slot->w.p : gcnew(sizeof *e, T_SCANENV);
 	e->subject = vm.subject;
 	e->pos = vm.pos;
 	vm.subject = s;
 	vm.pos = 1;
-	return ptrval(KScanEnv, e);
+	*slot = ptrval(KScanEnv, e);
 }
 
 void scanswap(Value *ev) {
-	ScanEnv *e = ev->w.p, *ne = gcnew(sizeof *ne, T_SCANENV);
-	ne->subject = vm.subject;
-	ne->pos = vm.pos;
-	vm.subject = e->subject;
-	vm.pos = e->pos;
-	*ev = ptrval(KScanEnv, ne);
+	ScanEnv *e = ev->w.p, t = *e;
+	e->subject = vm.subject;
+	e->pos = vm.pos;
+	vm.subject = t.subject;
+	vm.pos = t.pos;
 }
 
 /* ---- Generators used here and elsewhere ---- */
@@ -242,7 +245,7 @@ GENFN(f_find) {
 	int64_t i, j;
 	if (!scanargs(a, n, 1, &s, &i, &j))
 		return &failgen;
-	FindGen *g = gcnew(sizeof *g, T_GEN);
+	FindGen *g = newgen(sizeof *g, findnext);
 	g->g.next = findnext;
 	g->g.mark = findmark;
 	g->t = muststr(ARG(0));
@@ -261,6 +264,21 @@ typedef struct UptoGen {
 
 static bool uptonext(Gen *gg, Value *out) {
 	UptoGen *g = (UptoGen *)gg;
+	/* One byte per character, each tested in the bits: an ASCII string,
+	 * or bytes against a cset of bytes only (as matchat). */
+	if (g->s.ascii == 1 || (g->s.unit == BytesUnit && g->c->nranges == 0)) {
+		const uint64_t *bits = g->c->bits;
+		for (int64_t o = g->off; o < g->end; o++) {
+			uint8_t b = (uint8_t)g->s.s[o];
+			if (bits[b >> 6] >> (b & 63) & 1) {
+				g->off = o + 1;
+				*out = intval(o + 1);
+				return true;
+			}
+		}
+		g->off = g->end;
+		return false;
+	}
 	while (g->off < g->end) {
 		int w;
 		bool in = matchat(g->c, g->s, g->off, &w);
@@ -287,7 +305,7 @@ GENFN(f_upto) {
 	int64_t i, j;
 	if (!scanargs(a, n, 1, &s, &i, &j))
 		return &failgen;
-	UptoGen *g = gcnew(sizeof *g, T_GEN);
+	UptoGen *g = newgen(sizeof *g, uptonext);
 	g->g.next = uptonext;
 	g->g.mark = uptomark;
 	g->c = c;
