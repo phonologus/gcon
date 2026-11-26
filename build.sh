@@ -22,6 +22,7 @@ mv libexec/gcon-vm.new libexec/gcon-vm
 echo "built libexec/gcon-vm"
 
 if command -v cmake >/dev/null 2>&1 && command -v "${CXX:-c++}" >/dev/null 2>&1; then
+	mkdir -p graphics/build
 	graphics/build.sh >graphics/build/build-all.log 2>&1 || {
 		echo "build.sh: the display server did not build: see graphics/build/build-all.log" >&2
 		exit 1
