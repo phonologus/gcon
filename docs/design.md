@@ -90,8 +90,10 @@ reached only through the Go. So the authorities are:
    as modified).
 2. *The Go reference* only for what Icon has no counterpart for: the
    Unicode extensions (cset ranges, string units), the graphics
-   protocol, gcon's program format, and the tooling (the lossless tree,
-   error recovery for an editor, the formatter, the language server).
+   protocol, gcon's program format, the tooling (the lossless tree,
+   error recovery for an editor, the formatter, the language server),
+   and the infrastructure (the distribution layout, GCONROOT, the
+   driver's search paths and commands: below).
 3. Where the two disagree on something Icon defines, icont wins and the
    Go is fixed.
 
@@ -120,10 +122,18 @@ looked for on the path as icont's `pathfind` does (each directory, a
 "/" added if it lacks one, and the *last component* of the name;
 absolute names too; no cleaning of the path), where the Go joined and
 cleaned the whole name; and a file that opens but cannot be read ends
-at once, where the Go reported "cannot open". One question is left for
-the driver's port: icont also searches the source file's own directory
-(`tunix.c`, prepended to LPATH); gcon searches the current directory,
-LPATH and its root.
+at once, where the Go reported "cannot open". 
+
+**Decision (2026-11-26): the driver and infrastructure are gcon's.**
+What a file *means* is icont's to say; how the toolchain is laid out
+and finds things is not. gcon's distribution layout, the GCONROOT
+protocol (Go's GOROOT model), and the search order built on them (the
+current directory, LPATH or IPATH, then the root) stay as the Go
+reference has them, and the Go is their oracle. So the C does not take
+icont's extra search of the source file's own directory (`tunix.c`
+prepends it to LPATH), nor its fallback to a `lib` directory beside
+icont. Within one directory, how a name is turned into a path is still
+icont's (`pathfind`, above).
 
 ### Graphics: a separate display server
 
