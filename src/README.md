@@ -16,8 +16,8 @@ identical before the next (`../docs/design.md`, "gcon in C").
 | `sema.c` | `internal/sema` (diagnostics icont's `tsym.c`, `lglob.c`, `lsym.c`) | done |
 
 `tokens.inc` is generated from the Go's token table by
-`tests/gentoken.py`, and `builtin.inc` from its catalogue of built-ins
-by `tests/genbuiltin.py` (while the Go is the reference).
+`tests/gentoken.sh`, and `builtin.inc` from its catalogue of built-ins
+by `tests/genbuiltin.sh` (while the Go is the reference).
 
 ## Testing
 

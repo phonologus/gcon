@@ -33,34 +33,12 @@ else
 		find "$here/lib" "$here/internal" "$here/experiments" "$here/vm/tests" "$here/src/tests" -name '*.icn'
 		[ -d "$here/../icn" ] && find "$here/../icn" -name '*.icn'
 	} | sort >"$tmp/list"
-	# Variants, deterministic: every 7th file truncated at three points
-	# and with ten bytes changed; and 50 files of random bytes.
+	# Variants, deterministic (tests/variants.c): every 7th file
+	# truncated at three points and with ten bytes changed; and 50 files
+	# of random bytes.
 	mkdir "$tmp/var"
-	perl -e '
-		srand(1);
-		my ($dir, $list) = @ARGV;
-		open my $l, "<", $list or die;
-		my $k = 0;
-		while (my $f = <$l>) {
-			chomp $f;
-			next if $k++ % 7;
-			open my $h, "<:raw", $f or next;
-			local $/; my $s = <$h>; close $h;
-			my $n = length $s;
-			next if $n == 0;
-			for my $c (1 .. 3) {
-				my $at = int(rand($n));
-				open my $o, ">:raw", "$dir/t$k-$c.icn"; print $o substr($s, 0, $at); close $o;
-			}
-			my $m = $s;
-			for (1 .. 10) { substr($m, int(rand($n)), 1) = chr(int(rand(256))) }
-			open my $o, ">:raw", "$dir/m$k.icn"; print $o $m; close $o;
-		}
-		for my $r (1 .. 50) {
-			my $s = join "", map { chr(int(rand(256))) } 1 .. int(rand(2000));
-			open my $o, ">:raw", "$dir/r$r.icn"; print $o $s; close $o;
-		}
-	' "$tmp/var" "$tmp/list"
+	$CC -std=c11 -O1 -Wall -Wextra -o "$tmp/variants" "$here"/src/tests/variants.c || exit 2
+	"$tmp/variants" "$tmp/var" <"$tmp/list" || exit 2
 	find "$tmp/var" -name '*.icn' | sort >>"$tmp/list"
 fi
 

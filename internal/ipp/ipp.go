@@ -183,13 +183,23 @@ func (p *pp) line(f *infile, s string) {
 	switch {
 	case isDirective(t):
 		p.emit(f, lno, "\n")
-		p.directive(t[1:], false)
+		p.directive(cutNUL(t)[1:], false)
 	case strings.HasPrefix(body, "#line "):
 		p.emit(f, lno, "\n")
-		p.directive(body[1:], true)
+		p.directive(cutNUL(body)[1:], true)
 	default:
 		p.emit(f, lno, p.expand(s, nil))
 	}
+}
+
+// cutNUL ends a directive line at a NUL byte, as icont's C strings do.
+// (In other lines a NUL is an ordinary byte: icont would lose the rest
+// of the line and its newline, joining it to the next.)
+func cutNUL(s string) string {
+	if i := strings.IndexByte(s, 0); i >= 0 {
+		return s[:i]
+	}
+	return s
 }
 
 // isDirective reports whether t, a line without leading blanks, is a
@@ -475,7 +485,7 @@ func (p *pp) skip(doElse bool) {
 			return
 		}
 		p.emit(f, f.lno, "\n")
-		body := strings.TrimRight(s, "\n")
+		body := cutNUL(strings.TrimRight(s, "\n"))
 		if strings.HasPrefix(body, "#line ") {
 			p.setLine(wskip(body[len("#line"):]))
 			continue

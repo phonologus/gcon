@@ -122,7 +122,19 @@ looked for on the path as icont's `pathfind` does (each directory, a
 "/" added if it lacks one, and the *last component* of the name;
 absolute names too; no cleaning of the path), where the Go joined and
 cleaned the whole name; and a file that opens but cannot be read ends
-at once, where the Go reported "cannot open". 
+at once, where the Go reported "cannot open". A fourth came later, from
+the differential test's damaged files: a directive line ends at a NUL
+byte, as icont's C strings do (so `$define X "|<NUL>|"` is an
+unterminated literal); the Go read on past it. In other lines gcon
+keeps a NUL as an ordinary byte, departing from icont on purpose:
+icont loses the rest of such a line *and its newline*, joining it to
+the next, a defect rather than a definition.
+
+**Scripts are shell, sed and awk (2026-11-26, Sean).** No Python or
+Perl in the tree: generators (`src/tests/gentoken.sh`,
+`genbuiltin.sh`, `graphics/tools/mkxcolors.sh`) are sh and awk, and a
+job that needs a real program (the damaged files of `diff.sh`, which
+hold arbitrary bytes) is written in C (`src/tests/variants.c`).
 
 Name resolution (`src/sema.c`) is the Go's, its diagnostics icont's
 (translator `tsym.c`, linker `lglob.c` and `lsym.c`), and is checked
