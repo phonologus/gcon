@@ -54,11 +54,25 @@ child), or a named socket.
 
 ## To do
 
-1. Write the protocol specification (`docs/protocol.md`): message
-   layout, ids, the handshake, the request and event set.
+1. ~~Write the protocol specification~~ (`docs/protocol.md`, version 1;
+   events are fetched by the client with `WAIT` rather than sent
+   unsolicited: see below). Fonts, text, window requests, image files.
 2. A headless Go server in gcon, drawing into `image.RGBA` or recording
    requests, for gcon's tests; a conformance suite over the protocol that
    both servers pass.
 3. The protocol reader here, replacing `pl_main`'s interpreter thread.
 4. Bring over icon-sdl's reference and window tests in a form that
    drives the server through the protocol.
+
+## Events: fetched, not pushed (2026-11-26)
+
+The plan was for events to flow back unsolicited. Version 1 has the
+client fetch them instead: `WAIT(timeout)` shows what has changed,
+waits for an event or the time-out, and replies with the events that
+have arrived. Icon's model needs nothing more: the client wants events
+only when the program asks for them (`Event`, `Pending`) or when it
+polls while drawing, and in each case it is the client that is waiting.
+So the reader stays one thread that only ever answers, the client never
+has to read the socket asynchronously, and the order of replies is
+simply the order of requests. Pushed events can be added later (a
+second message direction) if a client needs them.
