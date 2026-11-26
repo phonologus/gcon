@@ -186,7 +186,20 @@ reference has them, and the Go is their oracle. So the C does not take
 icont's extra search of the source file's own directory (`tunix.c`
 prepends it to LPATH), nor its fallback to a `lib` directory beside
 icont. Within one directory, how a name is turned into a path is still
-icont's (`pathfind`, above).
+icont's (`pathfind`, above), for link as for `$include`.
+
+The driver is ported (`src/driver.c`, `src/main.c`, built by
+`build.sh` as `bin/gcon-c` until the Go goes and it becomes
+`bin/gcon`). It does as the Go does, but for what was Go's own: the root
+is $GCONROOT, the directory above the executable, or one named at
+build time (`-DGCON_DEFAULT_ROOT=`), Go's module cache (for a gcon
+installed by `go install`) no longer being a place to look; programs
+run on gcon-vm only (`GCONVM=go` is refused: there is no Go VM);
+`gcon dis` is gcon-vm's listing (`gcon-vm -dis`, which the loader tests
+prove identical to the Go's); and the version, as the Go stamps its
+own, is a pseudo-version naming the commit, stamped by `build.sh`. Its
+`gcon build` writes what the Go's writes, byte for byte but for the
+header's name of the gcon that built it.
 
 ### Graphics: a separate display server
 

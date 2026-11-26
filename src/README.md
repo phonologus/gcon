@@ -16,6 +16,7 @@ identical before the next (`../docs/design.md`, "gcon in C").
 | `sema.c` | `internal/sema` (diagnostics icont's `tsym.c`, `lglob.c`, `lsym.c`) | done |
 | `prog.c` | `internal/vm`: the program, its constants (csets as `cset.go`), `encode.go` | done |
 | `compile.c` | `internal/compile`, iterative | done |
+| `driver.c`, `main.c` | `internal/run`, `internal/root`, `cmd/gcon` | done |
 
 `tokens.inc` is generated from the Go's token table by
 `tests/gentoken.sh`, and `builtin.inc` from its catalogue of built-ins
@@ -116,3 +117,15 @@ seconds. `oracle.sh` checks the compiler's errors against icont's
 compiling deep nesting took time quadratic in the depth, and break's
 expression could overwrite the enclosing loop or scan
 (`../internal/run/testdata/break*.icn`).
+
+The driver (`driver.c`, `main.c`; `build.sh` makes `bin/gcon-c`) is
+checked end to end against the Go's `gcon`: `gcon env` in several
+environments; `gcon build` and `gcon dis` of the 618 files of the
+reference tests, the IPL's progs and gprogs, gcon's test data and
+`../icn` (604 built files identical, 36.6 MB, but for the header's
+`GCBIN=` line naming each gcon; messages and listings identical); `gcon
+run` of source and of built programs, with arguments, and each error
+path (missing files, unresolved links with and without a root, syntax
+errors, flags); and gcon-vm's tests run with it as `$GCON`
+(`../vm/tests/expected.sh`, `programs.sh`, `dis.sh`). Under the
+sanitizers, it builds the 476 programs of the IPL and `../icn` cleanly.

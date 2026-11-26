@@ -6,8 +6,11 @@ go vet ./...
 gofmt -l .
 ```
 
-`go build -o bin/gcon ./cmd/gcon` builds gcon into the repository, which
-is a gcon root (`lib/ipl`), so that gcon finds the library (`gcon env`).
+`./build.sh` builds gcon into the repository, which is a gcon root
+(`lib/ipl`), so that gcon finds the library (`gcon env`): gcon-vm and
+the display server into `libexec`, the C gcon as `bin/gcon-c`, and
+(with Go) the Go reference as `bin/gcon` (`go build -o bin/gcon
+./cmd/gcon` alone builds that).
 `tools/ipl/update.sh` refreshes `lib/ipl` from the reference clone.
 
 ## Layout
