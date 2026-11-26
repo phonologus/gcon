@@ -27,6 +27,58 @@ two evolve independently. Syntax facts are in [syntax.md](syntax.md).
 Dependencies: the core (front end, translator, VM, and tools that work on
 source) uses only the standard library.
 
+### Decision (2026-11-26): gcon in C; the Go implementation is the reference
+
+**gcon becomes a C program**, with the Go implementation frozen as the
+reference it is ported against. "Go showed it can be done. C is how it
+*is* done." What carries over from the Go is the design, not the
+language: the root layout (`bin`, `lib`, `libexec`, as GOROOT), the
+`gcon` command ensemble (run, build, fmt, the language server, ...), and
+one repository with one `build.sh` whose only requirement is a C
+compiler (and C++ for the display server).
+
+**Why.** gcon-vm, the runtime, is already C (see "the VM in C" below),
+and keeping a second runtime in Go forked behaviour at every feature
+(`loadfunc`, graphics, `&features`); retiring the Go VM alone would have
+left gcon a Go translator in front of a C runtime, two toolchains to
+build one program. The front end and tools are small (about 6,200 lines
+of Go here, and the formatter and language server about 3,200 in
+icontools' fork of the same front end), use little beyond `strings`,
+`fmt`, `sort`, `strconv` and `utf8`, and gcon-vm already has the C they
+need (buffers, maps, UTF-8 and the Unicode tables, large integers,
+iconx-exact real conversion, the program format's decoder, which the
+encoder mirrors).
+
+**How: a differential port.** Each part is ported to C and proved
+identical to the Go before the next: `gcon build` must produce the same
+built program, byte for byte, for every file of the corpus (the
+reference tests, the IPL, `icn/`, gcon's test data); `gcon fmt` the same
+output; the language server the same replies to recorded sessions; and
+the icont oracle tests carry over. Order: lexer and literals, parser,
+preprocessor, name resolution, compiler and encoder (`gcon build`
+complete), the driver (run, env, the root), the formatter, the language
+server. Then the Go goes, all at once. What C makes harder is planned
+for: a JSON reader and writer for the language server, `curl` for
+fetching the documentation, the generated tables kept as files with
+their generators as scripts, the sanitizers throughout and a fuzzer on
+the lexer and parser (the language server parses whatever is in the
+editor). Windows waits.
+
+**The reference.** The Go implementation is frozen at the commit that
+records this decision, tagged `go-reference`: no new features, fixes
+only where the port finds that the Go was wrong (and then in both). Its
+Go VM is not removed piecemeal; it goes with the rest. Before freezing,
+the predefined symbols became the runtime's (gcon-vm's `&features`:
+`_DYNAMIC_LOADING`, `_EXTERNAL_VALUES`, `_GRAPHICS`), so the reference
+builds what gcon-vm runs; `prepro` is therefore no longer in the Go
+VM's conformance list (it passes on gcon-vm, its output iconx's), and
+the `keywords` program test leaves the graphics keywords to gcon-vm's
+tests. gcon-vm checks its runs against recorded results
+(`tests/expected/` there), first recorded from the Go VM.
+
+icontools stays as it is, standalone (above); gcon's formatter and
+language server are ported from gcon's own fork.
+
 ### Graphics: a separate display server
 
 **Decision (2026-11-25): graphics runs in a separate display server

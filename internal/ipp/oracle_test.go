@@ -18,11 +18,11 @@ import (
 // markers. It needs $ICONTOK (see tools/icontok/build.sh).
 func TestOracle(t *testing.T) {
 	o := oracle.New(t)
-	// gcon's predefined symbols, and the two of the reference icont's
-	// features that gcon lacks (both need C), so that the comparison is
-	// of the preprocessing, not of the feature sets.
+	// gcon's predefined symbols, less _GRAPHICS, which the reference
+	// icont (built without graphics) lacks, so that the comparison is of
+	// the preprocessing, not of the feature sets.
 	predef := run.Predefined()
-	predef["_DYNAMIC_LOADING"], predef["_EXTERNAL_VALUES"] = "1", "1"
+	delete(predef, "_GRAPHICS")
 	var n, compared int
 	for _, file := range corpus.IconFiles(t) {
 		n++

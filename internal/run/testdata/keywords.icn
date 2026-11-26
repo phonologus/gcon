@@ -26,8 +26,7 @@ procedure main()
    every writes(" ", &lpress | &mpress | &rpress | &lrelease | &mrelease |
       &rrelease | &ldrag | &mdrag | &rdrag | &resize)
    write()
-   write(image(&x | &y | &row | &col | &interval | &control | &shift | &meta |
-      &window | &column) | "graphics keywords fail")
+   write(image(&column) | "&column fails")  # graphics keywords: gcon-vm's tests
    write(image(&eventcode), image(&eventvalue), image(&eventsource))
    &eventcode := 7
    write(&eventcode)

@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -48,14 +49,29 @@ var featureSymbols = map[string]string{
 	"UNIX": "_UNIX", "Macintosh": "_MACINTOSH", "MS Windows": "_MS_WINDOWS", "ASCII": "_ASCII",
 	"co-expressions": "_CO_EXPRESSIONS", "keyboard functions": "_KEYBOARD_FUNCTIONS",
 	"large integers": "_LARGE_INTEGERS", "pipes": "_PIPES",
-	"system function": "_SYSTEM_FUNCTION",
+	"system function": "_SYSTEM_FUNCTION", "dynamic loading": "_DYNAMIC_LOADING",
+	"external values": "_EXTERNAL_VALUES", "graphics": "_GRAPHICS",
 }
 
+// runtimeFeatures is &features in gcon-vm, the runtime gcon's programs
+// run on (gcon-vm's src/builtins.c), in iconx's order. gcon's own VM,
+// being retired, lacks dynamic loading, external values and graphics
+// (vm.Features).
+var runtimeFeatures = func() []string {
+	f := []string{"UNIX"}
+	if runtime.GOOS == "darwin" {
+		f = append(f, "Macintosh")
+	}
+	return append(f, "ASCII", "co-expressions", "dynamic loading", "environment variables",
+		"external values", "keyboard functions", "large integers", "pipes",
+		"system function", "graphics")
+}()
+
 // Predefined returns the preprocessor's predefined symbols: _V9, and one
-// for each of gcon's &features, each defined as 1, as icont's are.
+// for each of the runtime's &features, each defined as 1, as icont's are.
 func Predefined() map[string]string {
 	m := map[string]string{"_V9": "1"}
-	for _, f := range vm.Features {
+	for _, f := range runtimeFeatures {
 		if s := featureSymbols[f]; s != "" {
 			m[s] = "1"
 		}
