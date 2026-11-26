@@ -79,9 +79,12 @@ draws on a hidden canvas through the display server and compares with
 `tests/graphics.std`. `tests/bench.sh` times micro-benchmarks on
 gcon-vm and iconx.
 
-`src/gen_tables.c` holds the names of gcon's operations and built-ins,
-and which characters are printable (for images); it was generated from
-the Go reference and is maintained by hand.
+`src/gen_tables.c` holds the names of gcon's operations and built-ins;
+it was generated from the Go reference and is maintained by hand.
+`src/unicode.c`, which characters are printable (for images), is
+generated from the Unicode Character Database by `tools/mkunicode.sh
+VERSION` (with `tools/mkunicode.c`), run when moving to a new Unicode
+version.
 
 ## Licence
 
