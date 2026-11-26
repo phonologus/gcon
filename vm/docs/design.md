@@ -682,11 +682,9 @@ time the program looked the string held whatever the stack held next
 copied now (`strcopy`). And gcon did not predefine `_X_WINDOW_SYSTEM`,
 under which the IPL's `keysyms.icn` names the special keys (phwbi's
 `Key_Home`): its events use X keysyms, so it does now, and `&features`
-includes "X Windows" (`features` accepted anew, `preproc`'s expected
-output updated). (Not as icon-sdl does it, as was first written here:
-icon-sdl defines `_SDL_GRAPHICS` ("SDL graphics") and modifies three
-IPL files to name the keys under a new `_X_KEYSYMS`; see "Graphics: the
-IPL's programs" below.)
+includes "X Windows". (Not as icon-sdl does it, as was first written
+here; and since replaced by icon-sdl's way: see "Graphics: the IPL's
+programs" below.)
 
 Testing this against icon-sdl's window tests found that `write` and
 `read` on a window, listed above as still to do, had never been
@@ -766,5 +764,20 @@ X font names (`viface.icn`) and `tgrmap` takes the X keypad keys.
 icon-sdl instead predefines `_SDL_GRAPHICS` ("SDL graphics" in
 `&features`) and changes three IPL files: `keysyms.icn` names the
 keys under a new `_X_KEYSYMS`, defined by either symbol, and
-`vtext.icn` and `tgrmap.icn` test `_X_KEYSYMS`. Which gcon should do
-is open.
+`vtext.icn` and `tgrmap.icn` test `_X_KEYSYMS`.
+
+**Decision (Sean, 2026-11-26): `_SDL_GRAPHICS`, as icon-sdl.** gcon's
+backend is a different beast from Icon's X11 one, so it should not
+claim to be X. gcon predefines `_SDL_GRAPHICS` ("SDL graphics" in
+`&features`) and carries icon-sdl's changes in its own lightly
+modified IPL: `tools/ipl/patch.sh` makes them (`gincl/keysyms.icn`,
+`gprocs/vtext.icn`; `tgrmap` is in `gpacks`, which gcon does not
+ship), run by `tools/ipl/update.sh` after each refresh, and stops if
+upstream has changed a line it replaces; `lib/ipl/UPSTREAM` lists the
+patched files. Arizona Icon is feature-complete, so this should cost
+little. `features` and `preproc` are back to their first recordings.
+`kwds` (Icon's suite) does not know "SDL graphics" as an optional
+feature; icon-sdl changes it, and `tests/conformance.sh` makes the same
+change to its copy (checked, as `patch.sh`'s changes are). With this,
+`dlog` and `tgrmap` (icon-sdl's) match iconx too: every deterministic
+program of `gprogs` and `gpacks` does.

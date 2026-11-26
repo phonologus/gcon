@@ -10,7 +10,9 @@ the display server into `libexec`. The C is C11 with the GCC and Clang
 extensions already used (computed goto), `-Wall -Wextra` clean, and
 uses libc only; test under the address and undefined-behaviour
 sanitizers. Scripts are sh, sed and awk.
-`tools/ipl/update.sh` refreshes `lib/ipl` from the reference clone.
+`tools/ipl/update.sh` refreshes `lib/ipl` from the reference clone, and
+`tools/ipl/patch.sh` then makes gcon's few changes to it (icon-sdl's, for
+the SDL backend; it stops if upstream has changed a line it replaces).
 
 ## Layout
 
@@ -22,7 +24,7 @@ sanitizers. Scripts are sh, sed and awk.
 | `lib/ipl` | the Icon Program Library's source (public domain), searched after `IPATH`/`LPATH` |
 | `tools/icontok` | C driver exposing icont's token stream and parse trees |
 | `tools/iconx` | builds the reference icont and iconx; generates expected test output |
-| `tools/ipl` | copies the IPL into `lib/ipl`, recording `lib/ipl/UPSTREAM` |
+| `tools/ipl` | copies the IPL into `lib/ipl`, recording `lib/ipl/UPSTREAM`, and makes gcon's changes (`patch.sh`) |
 | `experiments/` | measurements behind design decisions; not part of gcon |
 
 gcon was written in Go and ported to C part by part, each part proved

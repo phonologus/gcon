@@ -12,13 +12,13 @@ tests-general/features   &features includes "dynamic loading",
 tests-general/prepro     the same symbols: its output is now iconx's
                          prepro.std exactly (the Go VM, lacking the
                          features, reports "unexpected predefined symbol")
-tests-general/features   gcon predefines _X_WINDOW_SYSTEM (its events use X
-                         keysyms, which the IPL's keysyms.icn names under
-                         it), so &features includes "X Windows" (icon-sdl
-                         defines _SDL_GRAPHICS instead)
 ipl-progs/ifncsgen       function() now generates DrawCurve, DrawImage,
                          PaletteChars, PaletteColor, PaletteKey, ReadImage
                          and WriteImage, and the graphics functions have
                          iconx's arities (args()): identical to icon-sdl's
                          iconx but for gcon's own bytes, len, runes, uchar
                          and utf8valid
+tests-general/kwds       &features includes "SDL graphics" (gcon predefines
+                         _SDL_GRAPHICS, as icon-sdl does), which this copy
+                         of the test does not drop as optional (icon-sdl's
+                         does; tests/conformance.sh makes that change)

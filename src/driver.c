@@ -242,8 +242,10 @@ static const char *const predefined[] = {
 #endif
 	"_ASCII", "_CO_EXPRESSIONS", "_DYNAMIC_LOADING", "_EXTERNAL_VALUES",
 	"_KEYBOARD_FUNCTIONS", "_LARGE_INTEGERS", "_PIPES", "_SYSTEM_FUNCTION", "_GRAPHICS",
-	/* events use X keysyms (the IPL's keysyms.icn names them under this) */
-	"_X_WINDOW_SYSTEM",
+	/* the display server is icon-sdl's SDL backend; its keys are X
+	 * keysyms, which the IPL's keysyms.icn (as tools/ipl/patch.sh
+	 * changes it) names under _X_KEYSYMS, defined by this */
+	"_SDL_GRAPHICS",
 };
 enum { NPredefined = sizeof predefined / sizeof predefined[0] };
 

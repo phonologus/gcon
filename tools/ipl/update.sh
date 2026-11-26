@@ -10,6 +10,7 @@
 # domain, except for the card bitmaps in gprocs/cardbits.icn, whose
 # copyright and permission notices are reproduced in NOTICE, as they ask;
 # a test checks that NOTICE carries them while the file is present.
+# gcon's changes to it are then made by tools/ipl/patch.sh.
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 repo=$(cd "$here/../.." && pwd)
@@ -36,11 +37,14 @@ for f in $exclude; do rm -f "$dst/$f"; done
 
 {
   echo "# The Icon Program Library's procedures and include files, copied"
-  echo "# from github.com/gtownsend/icon by tools/ipl/update.sh. Do not edit:"
-  echo "# to change a file, copy it to a directory on IPATH (or LPATH)."
+  echo "# from github.com/gtownsend/icon by tools/ipl/update.sh, with gcon's"
+  echo "# changes made by tools/ipl/patch.sh (the files listed as patched; the"
+  echo "# hashes are upstream's). Do not edit: to change a file, copy it to a"
+  echo "# directory on IPATH (or LPATH), or add a change to patch.sh."
   echo "commit $commit"
   echo "date $date"
   for f in $exclude; do echo "excluded $f"; done
   (cd "$dst" && for d in $dirs; do $sha "$d"/*.icn; done) | sed 's/^/sha256 /'
 } > "$dst/UPSTREAM"
+"$here/patch.sh"
 echo "lib/ipl: $(grep -c '^sha256 ' "$dst/UPSTREAM") files from $commit"

@@ -245,4 +245,5 @@ static const Predefined predefined[] = {
 	{"_SYSTEM_FUNCTION", "system function"},
 	{"_GRAPHICS", "graphics"},
 	{"_X_WINDOW_SYSTEM", "X Windows"},
+	{"_SDL_GRAPHICS", "SDL graphics"},
 };

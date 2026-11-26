@@ -24,6 +24,7 @@
    &features: large integers
    &features: pipes
    &features: system function
+   &features: SDL graphics
       &input: &input
    &interval: [failed]
       &lcase: &lcase  [size 26]

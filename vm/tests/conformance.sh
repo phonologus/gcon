@@ -34,6 +34,17 @@ GCONROOT=${GCONROOT:-$src}
 export GCONROOT
 unset IPATH LPATH BLKSIZE STRSIZE MSTKSIZE COEXPSIZE QLSIZE
 cp -R "$icon/tests/general" "$tmp/general"
+# icon-sdl's one change to the suite, for gcon's backend: "SDL graphics"
+# is, like "X Windows", a feature that may be absent. The line must occur
+# once, or upstream has changed and this needs looking at again.
+old='   every delete(f, "graphics" | "X Windows")			# may be absent'
+new='   every delete(f, "graphics" | "X Windows" | "SDL graphics")	# may be absent'
+if [ "$(grep -cxF -- "$old" "$tmp/general/kwds.icn")" != 1 ]; then
+	echo "conformance: kwds.icn has changed upstream; look at its change again" >&2
+	exit 2
+fi
+awk -v old="$old" -v new="$new" '$0 == old { print new; next } { print }' "$tmp/general/kwds.icn" >"$tmp/kwds.icn"
+mv "$tmp/kwds.icn" "$tmp/general/kwds.icn"
 cd "$tmp/general" || exit 2
 t=${TIMEOUT:-5}
 pass=0 fail=0 total=0

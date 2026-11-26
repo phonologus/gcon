@@ -1,6 +1,8 @@
 # The Icon Program Library's procedures and include files, copied
-# from github.com/gtownsend/icon by tools/ipl/update.sh. Do not edit:
-# to change a file, copy it to a directory on IPATH (or LPATH).
+# from github.com/gtownsend/icon by tools/ipl/update.sh, with gcon's
+# changes made by tools/ipl/patch.sh (the files listed as patched; the
+# hashes are upstream's). Do not edit: to change a file, copy it to a
+# directory on IPATH (or LPATH), or add a change to patch.sh.
 commit 8434b6e33dc20e0f31406ecf6d56f527e392cec3
 date 2025-10-04
 sha256 e3de12e085036e4ac03fedb08727aebce2d0e4f96c5da986c69187b36ddb08b3  procs/abkform.icn
@@ -402,3 +404,5 @@ sha256 fdcac19d9091b68956135ef2e7c5cad5cd6eb81ac4b390bcc668678b323c0fdd  gincl/m
 sha256 403b410b23b02d8bf724f5d8a9431150ae83beb2d1c83f0f77fa233eec8a577a  gincl/vdefns.icn
 sha256 9a2b76e7d4216831abd68aa47b1295eaa3d0ba6a79a028f8631a88ea4854ac46  gincl/xcolors.icn
 sha256 57abb08a0969d0bc9a85079677901aadea606b1096979e0aceee95056aecda7c  gincl/xnames.icn
+patched gincl/keysyms.icn
+patched gprocs/vtext.icn

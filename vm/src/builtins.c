@@ -628,7 +628,7 @@ static const char *const features[] = {
 #endif
 	"ASCII", "co-expressions", "dynamic loading", "environment variables",
 	"external values", "keyboard functions", "large integers", "pipes",
-	"system function", "graphics", "X Windows",
+	"system function", "graphics", "SDL graphics",
 };
 
 GENFN(k_features) {

@@ -25,7 +25,7 @@ and [docs/development.md](docs/development.md).
 | `vm/` | gcon-vm, the runtime: the VM in C, run on every program ([vm/README.md](vm/README.md)) |
 | `graphics/` | gcon-graphics, the display server (SDL3 + Blend2D, vendored and pinned in `graphics/deps`) ([graphics/README.md](graphics/README.md)) |
 | `src/` | the `gcon` command: translator, driver, `gcon fmt`, `gcon lsp`, `gcon vet` ([src/README.md](src/README.md)) |
-| `lib/ipl` | the Icon Program Library, as source |
+| `lib/ipl` | the Icon Program Library, as source (with a few changes for gcon's graphics, `tools/ipl/patch.sh`) |
 | `experiments/` | experiments: Go-style channels on co-expressions, a Tcl/Tk binding |
 | `bin/`, `libexec/` | what `build.sh` builds: the checkout is a gcon root |
 

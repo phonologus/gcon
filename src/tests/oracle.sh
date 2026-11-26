@@ -45,6 +45,14 @@ icont=$(dirname "$icontok")/../../bin/icont
 C=$tmp/oracle
 LPATH="$root/ipl/incl $root/ipl/gincl"
 export LPATH
+# icont writes ucode (.u1, .u2) into its working directory, so it runs
+# translations and links in a mirror of each source directory here:
+# the Icon tree is read-only, and gcon's own tests stay clean.
+mkdir -p "$tmp/mirror"
+for m in "$root" "$here/src/tests"; do
+	mkdir -p "$tmp/mirror$m"
+	(cd "$m" && tar cf - --exclude .git --exclude '*.u1' --exclude '*.u2' .) | (cd "$tmp/mirror$m" && tar xf -)
+done
 predef=$(sed -n 's/.*Feature([^"]*"\([^"]*\)".*/\1/p' "$root/src/h/features.h")
 
 fail=0
@@ -157,7 +165,7 @@ echo "preprocessor: $npp files identical ($nlines lines with their positions, $n
 # Name resolution
 semaone() { # dir, files...: one program
 	d=$1; shift
-	(cd "$d" && "$icont" -s -u -o "$tmp/x" "$@") >"$tmp/i" 2>&1
+	(cd "$tmp/mirror$d" && "$icont" -s -u -o "$tmp/x" "$@") >"$tmp/i" 2>&1
 	$C semanorm <"$tmp/i" >"$tmp/in"
 	(cd "$d" && LPATH=$CLPATH $C sema "$@" "$defined") >"$tmp/c" 2>&1; cs=$?
 	[ $cs = 3 ] && { nsskip=$((nsskip + 1)); return; }
@@ -178,7 +186,7 @@ echo "name resolution: $nsema programs identical ($nsd diagnostics); $nsskip not
 # The compiler's errors
 ncerr=0
 for f in "$here"/src/tests/compile/err-*.icn; do
-	(cd "$(dirname "$f")" && "$icont" -s -c "$(basename "$f")") 2>&1 | grep '^File ' >"$tmp/ie"
+	(cd "$tmp/mirror$(dirname "$f")" && "$icont" -s -c "$(basename "$f")") 2>&1 | grep '^File ' >"$tmp/ie"
 	(cd "$(dirname "$f")" && LPATH=$CLPATH $C build "$(basename "$f")" "$defined") | grep '^File ' >"$tmp/ce"
 	if cmp -s "$tmp/ie" "$tmp/ce"; then ncerr=$((ncerr + 1)); else say "COMPILE ERRORS ${f#$here/}"; show "$tmp/ie" "$tmp/ce"; fi
 done
