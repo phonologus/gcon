@@ -52,22 +52,38 @@ if [ $what = pp ] || [ $what = sema ] || [ $what = build ]; then
 	export PPDEFS PPPATH
 fi
 
-pass=0 fail=0
-while read -r f; do
-	if [ $what = pp ] || [ $what = sema ] || [ $what = build ]; then
-		(cd "$(dirname "$f")" && "$tmp/refdump" $what "$(basename "$f")") >"$tmp/go" 2>&1
-		(cd "$(dirname "$f")" && "$tmp/dump" $what "$(basename "$f")") >"$tmp/c" 2>&1
-	else
-		"$tmp/refdump" "$what" "$f" >"$tmp/go" 2>&1
-		"$tmp/dump" "$what" "$f" >"$tmp/c" 2>&1
-	fi
-	if cmp -s "$tmp/go" "$tmp/c"; then
-		pass=$((pass + 1))
-	else
-		fail=$((fail + 1))
-		echo "DIFF $f"
-		[ "${VERBOSE:-}" ] && diff "$tmp/go" "$tmp/c" | head -"$VERBOSE"
-	fi
-done <"$tmp/list"
+# work LIST OUT: compare LIST's files, writing "same" or "diff FILE"
+# lines, and any differences (VERBOSE), to OUT.
+work() {
+	w=$2.tmp
+	while read -r f; do
+		if [ $what = pp ] || [ $what = sema ] || [ $what = build ]; then
+			(cd "$(dirname "$f")" && "$tmp/refdump" $what "$(basename "$f")") >"$w.go" 2>&1
+			(cd "$(dirname "$f")" && "$tmp/dump" $what "$(basename "$f")") >"$w.c" 2>&1
+		else
+			"$tmp/refdump" "$what" "$f" >"$w.go" 2>&1
+			"$tmp/dump" "$what" "$f" >"$w.c" 2>&1
+		fi
+		if cmp -s "$w.go" "$w.c"; then
+			echo same
+		else
+			echo "diff $f"
+			[ "${VERBOSE:-}" ] && diff "$w.go" "$w.c" | head -"$VERBOSE" | sed 's/^/| /'
+		fi
+	done <"$1" >"$2"
+}
+
+# The files are shared among $JOBS workers (default: one per CPU).
+jobs=${JOBS:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)}
+awk -v n="$jobs" -v d="$tmp" '{ print > (d "/part" (NR % n)) }' "$tmp/list"
+for part in "$tmp"/part*; do
+	work "$part" "$part.out" &
+done
+wait
+cat "$tmp"/part*.out >"$tmp/results"
+grep '^| ' "$tmp/results" | sed 's/^| //'
+grep '^diff ' "$tmp/results" | sed 's/^diff /DIFF /'
+pass=$(grep -c '^same$' "$tmp/results")
+fail=$(grep -c '^diff ' "$tmp/results")
 echo "$what: $pass identical, $fail differ"
-[ $fail -eq 0 ]
+[ "$fail" -eq 0 ]
