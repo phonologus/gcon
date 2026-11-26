@@ -4,9 +4,12 @@
  * tests (src/tests/diff.sh): the two must be identical.
  *
  *   dump lex FILE    tokens, trivia, decoded literals, lexical errors
+ *   dump parse FILE  the syntax tree, field by field, with tokens as
+ *                    indexes; the token walk; the errors
  */
 #include "../lexer.h"
 #include "../lit.h"
+#include "../syntax.h"
 
 #include <inttypes.h>
 #include <stdio.h>
@@ -109,9 +112,278 @@ static void lex(const char *src, size_t n) {
 	fwrite(out.b ? out.b : "", 1, out.n, stdout);
 }
 
+/* The parse form (tools/refdump/parse.go): one line per field, indented
+ * by depth. A token is its index in the file's tokens, an absent token
+ * or node "-", a node its type name with its fields below it, and a
+ * list "list N M" with each element and the separator after it. Then
+ * the order of the token walk, and the errors. */
+static File *pf;
+
+static void line(int depth, const char *field) {
+	for (int i = 0; i < depth; i++)
+		bufputc(&out, ' ');
+	bufputs(&out, field);
+	bufputc(&out, ' ');
+}
+
+static void tokval(Token *t) {
+	if (t)
+		bufprintf(&out, "%zu", (size_t)(t - pf->toks.v));
+	else
+		bufputc(&out, '-');
+}
+
+static void ptok(int depth, const char *field, Token *t) {
+	line(depth, field);
+	tokval(t);
+	bufputc(&out, '\n');
+}
+
+static void ptoks(int depth, const char *field, TokList *l) {
+	line(depth, field);
+	bufprintf(&out, "list %zu %zu\n", l->elems.n, l->seps.n);
+	for (size_t i = 0; i < l->elems.n; i++) {
+		ptok(depth + 1, "e", l->elems.v[i]);
+		if (i < l->seps.n)
+			ptok(depth + 1, "s", l->seps.v[i]);
+	}
+}
+
+static void pnode(int depth, const char *field, Node *n);
+
+static void pnodes(int depth, const char *field, NodeList *l) {
+	line(depth, field);
+	bufprintf(&out, "list %zu %zu\n", l->elems.n, l->seps.n);
+	for (size_t i = 0; i < l->elems.n; i++) {
+		pnode(depth + 1, "e", l->elems.v[i]);
+		if (i < l->seps.n)
+			ptok(depth + 1, "s", l->seps.v[i]);
+	}
+}
+
+static void pnode(int depth, const char *field, Node *n) {
+	line(depth, field);
+	if (!n) {
+		bufputs(&out, "-\n");
+		return;
+	}
+	bufprintf(&out, "%s\n", node_name(n->kind));
+	int k = depth + 1;
+	switch (n->kind) {
+	case N_LINK:
+		ptok(k, "Link", n->link.link);
+		ptoks(k, "Files", &n->link.files);
+		break;
+	case N_GLOBAL:
+		ptok(k, "Global", n->global.global);
+		ptoks(k, "Names", &n->global.names);
+		break;
+	case N_RECORD:
+		ptok(k, "Record", n->record.record);
+		ptok(k, "Name", n->record.name);
+		ptok(k, "Lparen", n->record.lparen);
+		ptoks(k, "Fields", &n->record.fields);
+		ptok(k, "Rparen", n->record.rparen);
+		break;
+	case N_INVOCABLE:
+		ptok(k, "Invocable", n->invocable.invocable);
+		pnodes(k, "Items", &n->invocable.items);
+		break;
+	case N_INVITEM:
+		ptok(k, "Name", n->invitem.name);
+		ptok(k, "Colon", n->invitem.colon);
+		ptok(k, "Arity", n->invitem.arity);
+		break;
+	case N_PROC:
+		ptok(k, "Procedure", n->proc.procedure);
+		ptok(k, "Name", n->proc.name);
+		ptok(k, "Lparen", n->proc.lparen);
+		ptoks(k, "Params", &n->proc.params);
+		ptok(k, "Lbrack", n->proc.lbrack);
+		ptok(k, "Rbrack", n->proc.rbrack);
+		ptok(k, "Rparen", n->proc.rparen);
+		ptok(k, "Semi", n->proc.semi);
+		line(k, "Locals");
+		bufprintf(&out, "%zu\n", n->proc.locals.n);
+		for (size_t i = 0; i < n->proc.locals.n; i++)
+			pnode(k + 1, "l", n->proc.locals.v[i]);
+		pnode(k, "Initial", n->proc.initial);
+		pnodes(k, "Body", &n->proc.body);
+		ptok(k, "End", n->proc.end);
+		break;
+	case N_LOCAL:
+		ptok(k, "Keyword", n->local.keyword);
+		ptoks(k, "Names", &n->local.names);
+		ptok(k, "Semi", n->local.semi);
+		break;
+	case N_INITIAL:
+		ptok(k, "Initial", n->initial.initial);
+		pnode(k, "X", n->initial.x);
+		ptok(k, "Semi", n->initial.semi);
+		break;
+	case N_BADDECL:
+	case N_BADEXPR:
+		line(k, "elems");
+		bufprintf(&out, "%zu\n", n->bad.elems.n);
+		for (size_t i = 0; i < n->bad.elems.n; i++) {
+			Elem *e = &n->bad.elems.v[i];
+			if (e->tok)
+				ptok(k + 1, "t", e->tok);
+			else
+				pnode(k + 1, "n", e->node);
+		}
+		break;
+	case N_IDENT:
+		ptok(k, "Name", n->ident.name);
+		break;
+	case N_LITERAL:
+		ptok(k, "Tok", n->literal.tok);
+		break;
+	case N_KEYWORD:
+		ptok(k, "Amp", n->keyword.amp);
+		ptok(k, "Name", n->keyword.name);
+		break;
+	case N_UNARY:
+		ptok(k, "Op", n->unary.op);
+		pnode(k, "X", n->unary.x);
+		break;
+	case N_BINARY:
+		pnode(k, "X", n->binary.x);
+		ptok(k, "Op", n->binary.op);
+		pnode(k, "Y", n->binary.y);
+		break;
+	case N_TOBY:
+		pnode(k, "X", n->toby.x);
+		ptok(k, "To", n->toby.to);
+		pnode(k, "Y", n->toby.y);
+		ptok(k, "By", n->toby.by);
+		pnode(k, "Z", n->toby.z);
+		break;
+	case N_PAREN:
+		ptok(k, "Lparen", n->group.open);
+		pnodes(k, "List", &n->group.list);
+		ptok(k, "Rparen", n->group.close);
+		break;
+	case N_BLOCK:
+		ptok(k, "Lbrace", n->group.open);
+		pnodes(k, "List", &n->group.list);
+		ptok(k, "Rbrace", n->group.close);
+		break;
+	case N_LISTLIT:
+		ptok(k, "Lbrack", n->group.open);
+		pnodes(k, "List", &n->group.list);
+		ptok(k, "Rbrack", n->group.close);
+		break;
+	case N_INDEX:
+		pnode(k, "X", n->index.x);
+		ptok(k, "Lbrack", n->index.lbrack);
+		pnodes(k, "List", &n->index.list);
+		ptok(k, "Rbrack", n->index.rbrack);
+		break;
+	case N_SECTION:
+		pnode(k, "X", n->section.x);
+		ptok(k, "Lbrack", n->section.lbrack);
+		pnode(k, "Lo", n->section.lo);
+		ptok(k, "Op", n->section.op);
+		pnode(k, "Hi", n->section.hi);
+		ptok(k, "Rbrack", n->section.rbrack);
+		break;
+	case N_CALL:
+		pnode(k, "Fun", n->call.fun);
+		ptok(k, "Lparen", n->call.open);
+		pnodes(k, "Args", &n->call.args);
+		ptok(k, "Rparen", n->call.close);
+		break;
+	case N_PDCO:
+		pnode(k, "Fun", n->call.fun);
+		ptok(k, "Lbrace", n->call.open);
+		pnodes(k, "Args", &n->call.args);
+		ptok(k, "Rbrace", n->call.close);
+		break;
+	case N_FIELD:
+		pnode(k, "X", n->field.x);
+		ptok(k, "Dot", n->field.dot);
+		ptok(k, "Name", n->field.name);
+		break;
+	case N_CREATE:
+		ptok(k, "Create", n->create.create);
+		pnode(k, "X", n->create.x);
+		break;
+	case N_IF:
+		ptok(k, "If", n->if_.if_);
+		pnode(k, "Cond", n->if_.cond);
+		ptok(k, "Then", n->if_.then);
+		pnode(k, "Body", n->if_.body);
+		ptok(k, "Else", n->if_.else_);
+		pnode(k, "Alt", n->if_.alt);
+		break;
+	case N_LOOP:
+		ptok(k, "Keyword", n->loop.keyword);
+		pnode(k, "Cond", n->loop.cond);
+		ptok(k, "Do", n->loop.do_);
+		pnode(k, "Body", n->loop.body);
+		break;
+	case N_RETURN:
+		ptok(k, "Keyword", n->ret.keyword);
+		pnode(k, "X", n->ret.x);
+		ptok(k, "Do", n->ret.do_);
+		pnode(k, "Body", n->ret.body);
+		break;
+	case N_BREAK:
+		ptok(k, "Break", n->break_.break_);
+		pnode(k, "X", n->break_.x);
+		break;
+	case N_NEXT:
+		ptok(k, "Next", n->next.next);
+		break;
+	case N_CASE:
+		ptok(k, "Case", n->case_.case_);
+		pnode(k, "X", n->case_.x);
+		ptok(k, "Of", n->case_.of);
+		ptok(k, "Lbrace", n->case_.lbrace);
+		pnodes(k, "Clauses", &n->case_.clauses);
+		ptok(k, "Rbrace", n->case_.rbrace);
+		break;
+	case N_CASECLAUSE:
+		ptok(k, "Default", n->clause.default_);
+		pnode(k, "Label", n->clause.label);
+		ptok(k, "Colon", n->clause.colon);
+		pnode(k, "Body", n->clause.body);
+		break;
+	case N_NKINDS:
+		abort();
+	}
+}
+
+static void walk(void *ctx, Token *t, Node *n) {
+	(void)ctx;
+	if (t) {
+		bufputc(&out, ' ');
+		tokval(t);
+	} else
+		syn_children(n, walk, NULL);
+}
+
+static void parse(const char *src, size_t n) {
+	pf = syn_parse(src, n);
+	bufprintf(&out, "File %zu tokens\n", pf->toks.n);
+	for (size_t i = 0; i < pf->decls.n; i++)
+		pnode(1, "d", pf->decls.v[i]);
+	ptok(1, "EOF", pf->eof);
+	bufputc(&out, 'W');
+	syn_file_children(pf, walk, NULL);
+	bufputc(&out, '\n');
+	for (size_t i = 0; i < pf->errs.n; i++) {
+		bufprintf(&out, "E %zu ", pf->errs.v[i].offset);
+		escz(pf->errs.v[i].msg);
+		bufputc(&out, '\n');
+	}
+	fwrite(out.b ? out.b : "", 1, out.n, stdout);
+}
+
 int main(int argc, char **argv) {
-	if (argc != 3 || strcmp(argv[1], "lex")) {
-		fprintf(stderr, "usage: dump lex FILE\n");
+	if (argc != 3 || (strcmp(argv[1], "lex") && strcmp(argv[1], "parse"))) {
+		fprintf(stderr, "usage: dump lex|parse FILE\n");
 		return 2;
 	}
 	FILE *f = fopen(argv[2], "rb");
@@ -125,6 +397,9 @@ int main(int argc, char **argv) {
 	while ((k = fread(chunk, 1, sizeof chunk, f)) > 0)
 		bufadd(&src, chunk, k);
 	fclose(f);
-	lex(src.b ? src.b : "", src.n);
+	if (!strcmp(argv[1], "parse"))
+		parse(src.b ? src.b : "", src.n);
+	else
+		lex(src.b ? src.b : "", src.n);
 	return 0;
 }

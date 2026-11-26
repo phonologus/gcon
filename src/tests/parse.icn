@@ -1,0 +1,23 @@
+# Edge cases for the parser's differential test (diff.sh parse): error
+# paths the corpus and its mutants rarely reach. Not a valid program.
+invocable all, "+":2, "-":x, 3, "write"
+invocable 3
+link
+link a, , "b"
+record r(a, b
+global g, , h
+procedure p(a, b[], c)
+   local x; static y
+   initial { x := 1 }
+   s[:3]; s[+:2]; s[i:]; s[1, 2,]; f(,,); f{a, b}; x.; &; &fail; &5
+   if a then b else c; while d; until e do f; every g do; repeat
+   suspend x do y; suspend; return; fail; break; break next; create
+   case x of { 1: a; default: b; c }; case y of z; case z { a }
+   1 to 2 by 3 to 4; a := b := c; a | b | c; a ^ b ^ c; - - -
+   a \ 1 @ b ! c; not not x; ((((((((((((((((((((x))))))))))))))))))))
+   }
+   x :=
+end
+procedure q(
+   ) ] x
+procedure
