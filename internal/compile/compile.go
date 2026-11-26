@@ -50,6 +50,32 @@ type compiler struct {
 	refs     map[string]map[string]bool
 	invoc    []string
 	invocAll bool
+	starts   map[syntax.Node]int // first-token offsets (see start), -1 for none
+}
+
+// start returns the offset of n's first token, as syntax.Span does, but
+// remembering each node's: Span collects every token under n, which made
+// compiling deeply nested expressions take time quadratic in the depth.
+func (c *compiler) start(n syntax.Node) (int, bool) {
+	if s, ok := c.starts[n]; ok {
+		return s, s >= 0
+	}
+	s := -1
+	for _, ch := range syntax.Children(n) {
+		switch ch := ch.(type) {
+		case *syntax.Token:
+			s = ch.Offset
+		case syntax.Node:
+			if o, ok := c.start(ch); ok {
+				s = o
+			}
+		}
+		if s >= 0 {
+			break
+		}
+	}
+	c.starts[n] = s
+	return s, s >= 0
 }
 
 // Compile compiles a program whose files have been resolved.
@@ -60,6 +86,7 @@ func Compile(p *sema.Program, infos []*sema.Info) (*vm.Program, []error) {
 		consts:  map[string]int{},
 		fields:  map[string]*vm.Builtin{},
 		refs:    map[string]map[string]bool{},
+		starts:  map[syntax.Node]int{},
 	}
 	// Globals, procedures and records, in name order.
 	names := make([]string, 0, len(p.Globals))
@@ -311,7 +338,7 @@ func (c *compiler) proc(d *syntax.ProcDecl, info *sema.Info) *vm.Proc {
 
 func (p *pcomp) errorf(n syntax.Node, format string, args ...any) {
 	file, line := p.file, int(p.line)
-	if s, _, ok := syntax.Span(n); ok {
+	if s, ok := p.c.start(n); ok {
 		file, line = p.loc(s)
 	}
 	p.c.errorf(file, line, format, args...)
@@ -497,7 +524,7 @@ func (p *pcomp) expr(e syntax.Expr, fail, succ label) (start, resume label, v vm
 	if e == nil {
 		return succ, fail, p.null()
 	}
-	if s, _, ok := syntax.Span(e); ok {
+	if s, ok := p.c.start(e); ok {
 		p.setPos(s)
 	}
 	switch e := e.(type) {
