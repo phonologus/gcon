@@ -1027,7 +1027,7 @@ rebuild it, as a newer iconx refuses old icode. (Bundling the linked
 sources instead, translated at each run, was considered and set aside.)
 
 Reconsidered the same day, with measurements: translating at each run
-is cheap. For `phwbi` in `icn/` (seven local libraries and the IPL's
+is cheap. For a real graphics application (seven local libraries and the IPL's
 graphics library, 1167 globals), translation takes 25 ms and `gcon run`
 to its usage message 32 ms, against 8 ms for iconx running the icont-
 built program and 92 ms for icont to build it; a small program
@@ -1107,7 +1107,7 @@ every program test runs again from its built file; every truncation
 and every changed byte of a sample is reported; unknown optional
 sections are skipped and unknown required ones refused.
 
-Measured on `phwbi` (see above): the built file is 342 KB (icont's
+Measured on the same application (see above): the built file is 342 KB (icont's
 icode is 717 KB) and runs to its usage message in 5 to 10 ms, against
 30 ms from source and 8 ms for iconx.
 

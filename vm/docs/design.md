@@ -384,12 +384,12 @@ gcon's root, unless `GCONVM`, `GCON` or a gcon beside the program says
 otherwise), without starting gcon: hello world starts in 6.6 ms, of
 which gcon-vm is 4.2, against 11.2 for icont's output on iconx.
 
-## Tuning on a real program: phwbi (2026-11-26)
+## Tuning on a real program (2026-11-26)
 
-`phwbi` (Sean's prism analyser, in `icn/`) on `test_big.wav` (732,410
-samples) is the first whole-program benchmark: it times its
+A private signal-processing application, on an input of 732,410
+samples, is the first whole-program benchmark: it times its
 initialisation (reading the file into a list of records) and its main
-pass (`prism()`), both before its window opens, so it runs headless.
+pass, both before its window opens, so it runs headless.
 Its inner code is records in a global list, almost every statement of
 the form `mem[a].f := mem[b].g`. Profiled with macOS `sample` on a `-g
 -fno-omit-frame-pointer` build; each change measured alone, A/B.
@@ -420,7 +420,7 @@ the form `mem[a].f := mem[b].g`. Profiled with macOS `sample` on a `-g
 | initialisation | 320 | 245 | 202 | 0.63 |
 | main pass | 2,710 | 2,400 | 1,265 | 0.47 |
 
-Output is identical on `test.wav` and `test_big.wav`, also under the
+Output is identical on a small and the large input, also under the
 address and undefined-behaviour sanitizers. What is left is spread over
 the loop itself (operand fetch and dispatch, `operint`), the collector
 (about a tenth: 23 collections as the heap grows to some 285 MB of
@@ -478,7 +478,7 @@ iteration):
 | `@C` | 2570 | 25.3 | 12.8 | 0.005 |
 | `@(create 1)` | 17385 | 121.2 | 41.0 | 0.002 |
 
-(These include the phwbi changes: `L[3]` and `x + 407` gained from the
+(These include the changes from that application: `L[3]` and `x + 407` gained from the
 inline `deref` and subscript fast path.) The geometric mean over the
 first fourteen is now about 0.48 of iconx's time. `left` and `map` are
 the nearest to parity.
@@ -622,7 +622,8 @@ lines, points, segments, rectangles, polygons, arcs and circles,
 `Clone`, `Couple`, `Uncouple`, `Event`, `Pending`, `WAttrib`, `WFlush`,
 `WSync`, `Raise`, `Lower`, `Alert`, `GotoRC`, `GotoXY`, `QueryPointer`,
 `ColorValue`, `WDefault`, and mutable colours as icon-sdl has them (not
-supported). phwbi opens its window and lays out its vidgets.
+supported). A real vidget application opens its window and lays out its
+vidgets.
 **Still to do:** `DrawImage`, `DrawCurve`, the palette functions,
 `ReadImage`/`WriteImage` (image files), `write` and `read` on a
 window, the text cursor, icons.
@@ -674,13 +675,13 @@ functions and errors, and `&features`). Result: 318 pass, 56 skipped.
 
 ## Graphics: keystrokes, and write and read on a window (2026-11-26)
 
-Sean found that phwbi (`icn/phwbi.icn`) ignored every key. The server
+Sean found that a vidget application ignored every key. The server
 delivered keystrokes correctly; gcon-vm made each one's string with
 `mkstr`, which keeps a pointer, to a `char` on the C stack, so by the
 time the program looked the string held whatever the stack held next
 ("\e" for "a", say), and `case e of { "v": ... }` never matched. It is
 copied now (`strcopy`). And gcon did not predefine `_X_WINDOW_SYSTEM`,
-under which the IPL's `keysyms.icn` names the special keys (phwbi's
+under which the IPL's `keysyms.icn` names the special keys (such as
 `Key_Home`): its events use X keysyms, so it does now, and `&features`
 includes "X Windows". (Not as icon-sdl does it, as was first written
 here; and since replaced by icon-sdl's way: see "Graphics: the IPL's
@@ -702,7 +703,7 @@ display) with keystrokes and clicks scripted through the server's
 expected: icon-sdl's window tests (`close`, `coexp`, `events`,
 `window`, and `misc` without its window icons, which need
 `WriteImage`), whose expected output is iconx's, and `read` and `keys`
-(keystrokes matched as phwbi matches them). With the old `mkstr` it
+(keystrokes matched as a vidget application matches them). With the old `mkstr` it
 fails, as it should.
 
 **Still to do (then):** `DrawImage`, `DrawCurve`, the palette functions,

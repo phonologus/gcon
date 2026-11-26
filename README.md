@@ -177,8 +177,8 @@ switches between them in assembly. gcon's VM is not recursive, so a
 co-expression is just a VM state, and a switch costs about as much as a
 procedure call.
 
-On a whole program, the prism analyser `phwbi` (records in a big list,
-field access in a tight loop) runs its main pass over a file of 730,000
+On a whole program, a signal-processing application (records in a big
+list, field access in a tight loop) runs its main pass over 730,000
 samples in 1,265 ms, against iconx's 2,710 ms (0.47). A built "hello,
 world" starts in 6.6 ms, against iconx's 11.2.
 
