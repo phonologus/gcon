@@ -257,7 +257,7 @@ void markvalue(Value v) {
 		break;
 	case KBig: case KList: case KTable: case KSet: case KRecord: case KCoexp:
 	case KFile: case KRef: case KListElem: case KField: case KSubstr: case KVar:
-	case KFrame: case KGen: case KScanEnv:
+	case KFrame: case KGen: case KScanEnv: case KExternal:
 		markptr(v.w.p);
 		break;
 	}

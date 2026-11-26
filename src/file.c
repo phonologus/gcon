@@ -604,3 +604,55 @@ void file_fns_init(void) {
 	for (size_t i = 0; i < sizeof fns / sizeof fns[0]; i++)
 		reg(&fns[i], BuiltinFunction);
 }
+
+/* ---- Files for C functions (cfunc.c) ---- */
+
+/* file_lend returns the descriptor beneath f for a C function, with how
+ * it is open in iconx's terms (1 read, 2 write, 020 pipe), after
+ * writing out what f has buffered; -1 if f is closed or a directory.
+ * What f has read ahead stays in f's buffer, unseen by C. */
+int file_lend(File *f, int *stat) {
+	*stat = 0;
+	if (f->closed || f->isdir)
+		return -1;
+	if (f->r)
+		*stat |= 1;
+	if (f->w) {
+		*stat |= 2;
+		wflush(WB(f));
+	}
+	if (f->pipe)
+		*stat |= 020;
+	IOBuf *b = f->r ? RB(f) : WB(f);
+	return b ? b->fd : -1;
+}
+
+/* file_adopt makes a file of a stream a C function opened (icall.h's
+ * RetFile): a pipe keeps its stream, for pclose; any other file keeps a
+ * duplicate of its descriptor, and the stream is closed. */
+File *file_adopt(FILE *fp, int stat, String name) {
+	File *f = newfile("", false);
+	f->name = name;
+	f->unit = TextUnit;
+	int fd;
+	fflush(fp);
+	if (stat & 020) {
+		fd = fileno(fp);
+		f->pipe = true;
+	} else {
+		fd = dup(fileno(fp));
+		fclose(fp);
+		f->fd = fd;
+	}
+	if ((stat & 3) == 0)
+		stat |= 1;
+	if (stat & 1)
+		f->r = (void *)newbuf(fd, 65536);
+	if (stat & 2) {
+		f->w = (void *)newbuf(fd, 65536);
+		addfile(f);
+	}
+	if (f->pipe)
+		((IOBuf *)(f->w ? f->w : f->r))->popen = fp;
+	return f;
+}

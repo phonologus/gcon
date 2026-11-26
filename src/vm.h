@@ -215,6 +215,7 @@ struct Builtin {
 	Str field;     /* a field operator's field */
 	int *fidx;     /* its index in each record type, by type number (-2: not yet looked up) */
 	bool swap;     /* an assignment operator that exchanges: :=: or <-> */
+	void *cfunc;   /* a function loadfunc loaded: its C entry point */
 };
 
 void builtins_init(void);
@@ -457,6 +458,15 @@ void files_flush_all(void);
 void emit(File *f, const char *b, size_t n, bool end);
 void flush_output(void);
 File *mustfile(Value v);
+int file_lend(File *f, int *stat);
+File *file_adopt(FILE *fp, int stat, String name);
+
+/* ---- C functions (cfunc.c) ---- */
+
+const char *ext_typename(Value v);
+void ext_image(Buf *b, Value v);
+Value ext_copy(Value v);
+int ext_cmp(Value x, Value y);
 bool readline_(File *f, String *out);
 
 /* ---- Tracing (trace.c) ---- */

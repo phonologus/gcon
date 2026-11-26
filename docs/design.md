@@ -482,3 +482,85 @@ iteration):
 inline `deref` and subscript fast path.) The geometric mean over the
 first fourteen is now about 0.48 of iconx's time. `left` and `map` are
 the nearest to parity.
+
+## loadfunc (2026-11-26)
+
+As planned (above): `loadfunc(file, name)` loads a C function written to
+Icon 9.5's `icall.h`, and existing code recompiles unchanged. The IPL's
+`ipl/cfuncs` (eleven files, 29 functions) build against gcon-vm's
+`include/icall.h`, which is 9.5's file as it is (public domain), and
+`tests/cfuncs.sh` runs them: the same library, loaded by iconx, gives
+the same output except for an iconx bug (below). gcon resolves
+`loadfunc` as a function it lacks; gcon-vm resolves any such reference
+by name to its own functions first, so no format change was needed. On
+gcon's Go VM it stays error 121. `function()` now generates `loadfunc` on
+gcon-vm, as on iconx, so the two IPL programs that list the functions
+(`gftrace`, `ifncsgen`) differ from the Go VM there by that one
+function.
+
+- **loadfunc** follows iconx's `fload.r`: the library's handle is kept
+  for the next call with the same file name; `dlsym` is tried again with
+  an underscore; a missing library or function writes iconx's
+  diagnostic (`loadfunc("f","n"): ` and `dlerror()`) to `&errout` and
+  raises error 216. The result is a function (`image` gives `function
+  name`; `args` gives -1, as iconx's variadic built-ins), a new one each
+  time.
+- **Calls** convert the arguments to descriptors in iconx's layout
+  (`icall.h`'s), with `argv[0]` &null, and treat the status as iconx's
+  glue does: 0 returns `argv[0]`, -1 fails, n raises error n with
+  `argv[0]` as the offending value unless it is &null. A result gcon-vm
+  cannot represent is error 123.
+- **Memory: an arena per call, results copied.** Everything made for a
+  call (string copies, real, file, list and large-integer blocks, and
+  what C allocates with `alcstr`, `alcreal`, `alcfile`) is in an arena
+  freed when the call returns, after the result is converted and copied
+  into the heap. C code never holds a pointer into gcon-vm's heap, so the
+  collector cannot hurt it (iconx's hazard does not arise), and a
+  string argument is a NUL-terminated copy, so `StringVal`'s read of the
+  byte past the end is safe. A pointer C keeps from one call to the next
+  is invalid, as it is in iconx after a collection.
+- **Strings from C** take the unit their contents give them, as a
+  literal's: ASCII, else text if valid UTF-8, else bytes (so a 9.5
+  function giving Latin-1 behaves as in 9.5).
+- **Large integers** are passed as iconx's bignum blocks (half-word
+  digits, most significant first: gcon-vm's digits reversed), and
+  converted back (`lgconv` works).
+- **Values C cannot take apart** (csets, records, lists, sets, tables,
+  procedures, co-expressions) are passed as blocks with iconx's type
+  codes, so `IconType` is right, and convert back to the values they
+  stand for. A list's block begins as iconx's list block, so `ListLen`
+  reads its size, and `cpslots` (iconx's, which `ilists.c` uses) gives
+  its elements.
+- **Files** are lent as stdio streams on a duplicate of the descriptor,
+  closed after the call, with iconx's status bits (read, write, pipe);
+  gcon-vm's own buffered output is written first, and C's stdout and
+  stderr are flushed after. Input gcon-vm has read ahead stays in its
+  buffer, unseen by C (so `fpoll` cannot see it). A file C makes
+  (`RetFile`, as `tconnect` does) becomes a gcon-vm file on its
+  descriptor.
+- **External values** are a new kind, `KExternal`, appended after the
+  kinds gcon shares (it never appears in a built program). The block is
+  iconx's (`alcexternal`: title, size, serial number from 1, function
+  list, data), in gcon-vm's heap, which never moves it. `type`, `image`,
+  `copy` and sorting call the block's `extlname`, `extlimage`,
+  `extlcopy` and `extlcmp`, with iconx's defaults: "external";
+  `name_id(words)`; the value itself; by name, then serial number.
+  Externals sort after records, as iconx's. One difference: iconx's
+  default image of an external with no data comes out garbled
+  (`externalxstr_` for `external_1(0)` in `tests/cfuncs.sh`: it formats
+  into a string it has just allocated, in a region the name's string
+  overlaps); gcon-vm gives the intended `external_1(0)`.
+- **Exporting the callbacks.** A library built as `icall.h`'s are
+  leaves the callbacks unresolved (`mklib.sh`: on macOS `-bundle
+  -undefined ...`, elsewhere `-shared`), so the executable exports them:
+  they are marked used and visible, which keeps them through `-flto`, and
+  `build.sh` links with `-rdynamic` on ELF systems (macOS exports an
+  executable's symbols already). Tested on macOS only so far.
+- **Not provided:** `internal.c`'s `peek` and `spy` read memory at
+  iconx's addresses and mean nothing here (they load, and do what their
+  code does with gcon-vm's descriptors). `cfunc.icn`'s `pathload` finds
+  the library through `$FPATH`; iconx appends its own directory to
+  `$FPATH`, so the library built with iconx is found by default. gcon
+  does not yet ship the built library or `cfunc.icn`, so a program that
+  `link cfunc`s needs both made (as `tests/cfuncs.sh` does) and `$FPATH`
+  set.

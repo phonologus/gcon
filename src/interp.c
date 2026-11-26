@@ -932,6 +932,9 @@ static Builtin *resolve(BuiltinRef *r) {
 	case BuiltinField:
 		return fieldop(r->name);
 	case BuiltinUnsupported:
+		/* A function gcon lacks that gcon-vm has (loadfunc). */
+		if ((b = findfn(r->name.s, r->name.n)))
+			return b;
 		return unsupported(r->name);
 	}
 	if (!b) {

@@ -600,6 +600,7 @@ const char *typename_(Value v) {
 	case KList: return "list";
 	case KProc: case KBuiltin: case KRecordType: return "procedure";
 	case KCoexp: return "co-expression";
+	case KExternal: return ext_typename(v);
 	case KCset: return "cset";
 	case KReal: return "real";
 	case KRecord: {

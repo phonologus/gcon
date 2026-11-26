@@ -38,6 +38,9 @@ void image(Buf *b, Value v) {
 		bufputs(b, "function ");
 		bufputs(b, ((Builtin *)v.w.p)->name);
 		return;
+	case KExternal:
+		ext_image(b, v);
+		return;
 	case KCoexp: {
 		Coexp *c = v.w.p;
 		bufprintf(b, "co-expression_%lld(%lld)", (long long)c->serial, (long long)c->results);

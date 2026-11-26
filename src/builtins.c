@@ -353,7 +353,9 @@ FN(f_args) {
 		return true;
 	case KBuiltin: {
 		Builtin *f = x.w.p;
-		if (f->table == BuiltinFunction)
+		if (f->cfunc) /* a loaded C function: variadic, as iconx's nparam -1 */
+			*out = intval(-1);
+		else if (f->table == BuiltinFunction)
 			*out = intval(f->arity == -1 && f->adjmode == AdjNone ? 0 : f->arity);
 		else if (f->noderef)
 			*out = intval(2);
@@ -740,6 +742,7 @@ static Builtin fns[] = {
 };
 
 void ops_init(void);
+void cfunc_init(void);
 
 void builtins_init(void) {
 	gc_init();
@@ -750,6 +753,7 @@ void builtins_init(void) {
 	strfn_init();
 	file_fns_init();
 	ops_init();
+	cfunc_init();
 	for (size_t i = 0; i < sizeof ops / sizeof ops[0]; i++)
 		reg(&ops[i], BuiltinOp);
 	for (size_t i = 0; i < sizeof fns / sizeof fns[0]; i++)

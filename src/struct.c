@@ -368,6 +368,7 @@ static int order(Value v) {
 	case KSet: return 9;
 	case KTable: return 10;
 	case KRecord: return 11;
+	case KExternal: return 12;
 	}
 	return 12;
 }
@@ -412,6 +413,7 @@ int anycmp(Value x, Value y) {
 		return cmpbytes(a->name.s, a->name.n, b->name.s, b->name.n);
 	}
 	case KCoexp: return cmpi(((Coexp *)x.w.p)->serial, ((Coexp *)y.w.p)->serial);
+	case KExternal: return ext_cmp(x, y);
 	case KList: return cmpi(((List *)x.w.p)->serial, ((List *)y.w.p)->serial);
 	case KSet: return cmpi(((Set *)x.w.p)->serial, ((Set *)y.w.p)->serial);
 	case KTable: return cmpi(((Table *)x.w.p)->serial, ((Table *)y.w.p)->serial);
@@ -730,6 +732,9 @@ FN(f_copy) {
 	(void)b;
 	Value x = ARG(0);
 	switch (VKIND(x)) {
+	case KExternal:
+		*out = ext_copy(x);
+		return true;
 	case KList: {
 		List *l = x.w.p;
 		*out = ptrval(KList, listof(list_at(l, 0), l->n));

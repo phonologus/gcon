@@ -9,7 +9,10 @@ display server: C builds are kept out of the Go repository.
 **Status: running programs.** `gcon-vm prog args...` runs a program gcon
 has built (`gcon build`), with the same results as gcon's Go VM on
 gcon's program tests and the reference tests; `gcon-vm -dis prog` lists
-one. Memory is managed by a precise mark-and-sweep collector. See
+one. Memory is managed by a precise mark-and-sweep collector. It has
+every Icon 9.5 function but the graphics ones, including `loadfunc`:
+C functions written to 9.5's `icall.h` (`include/icall.h`) recompile
+unchanged. See
 [docs/design.md](docs/design.md) for why the VM is in C and how it is built, and `experiments/spike` for the
 measurement behind it.
 
@@ -53,6 +56,12 @@ must report each exactly as gcon does.
     tests/programs.sh
 
 runs gcon's program tests (expected results recorded from iconx).
+
+    tests/cfuncs.sh
+
+builds the IPL's C functions (`../icon/ipl/cfuncs`) against
+`include/icall.h` and checks them through `loadfunc`, and compares with
+iconx when it can.
 
     tests/vs-go.sh ../icon/tests/general ../icon/ipl/progs
 

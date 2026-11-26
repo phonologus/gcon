@@ -47,6 +47,7 @@ enum Kind {
 	KRecord, KProc, KBuiltin, KRecordType, KCoexp, KFile,
 	KRef, KListElem, KField, KSubstr, KVar,
 	KFrame, KGen, KScanEnv, KScanEnvBox,
+	KExternal, /* a C function's external value (cfunc.c): gcon-vm only */
 };
 
 typedef struct Value {

@@ -1,0 +1,18 @@
+bitcount 8 64 3
+pack "\x00\x00\x01\x02" 4
+unpack 258 65533 65533 1.5
+lgconv 1267650600228229401496703205376 -1180591620717411303425 12345
+getpid integer
+types external xstr xreal
+images external_1(0) xstr_2(33712:hello) xreal_3(2.5)
+copy xstr_2(33712:hello) same yes
+3 external_1(0) xreal_5(-1.0) xreal_3(2.5) xstr_2(33712:hello) xstr_4(05446:abc) 
+ident yes no
+table 12
+fpoll file
+function bitcount procedure args -1 3
+error 101 "x"
+error 216
+error 216
+ppmwidth fails
+done
