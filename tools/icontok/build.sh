@@ -5,7 +5,7 @@
 #
 # ICON_SRC defaults to ../icon (relative to the repo root); it is copied,
 # never modified. WORKDIR (default: $TMPDIR/icontok-build) holds the copy.
-# Prints the path of the built binary; point $ICONTOK at it for go test.
+# Prints the path of the built binary (src/tests/oracle.sh uses it).
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 src=${1:-$here/../../../icon}

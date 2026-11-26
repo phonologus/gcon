@@ -1,7 +1,7 @@
 /*
- * dump: the C front end's view of an Icon source file in the canonical
- * text form of the Go reference's tools/refdump, for the differential
- * tests (src/tests/diff.sh): the two must be identical.
+ * dump: the C front end's view of an Icon source file, in the text form
+ * the differential tests against the Go reference used (tag
+ * go-reference: tools/refdump): for debugging, and for src/tests/fmt.sh.
  *
  *   dump lex FILE    tokens, trivia, decoded literals, lexical errors
  *   dump parse FILE  the syntax tree, field by field, with tokens as
@@ -10,11 +10,10 @@
  *                    deeply nested input)
  *   dump sema FILE...
  *                    name resolution of the files as one program,
- *                    preprocessed and raw (tools/refdump/sema.go)
+ *                    preprocessed and raw
  *   dump build FILE...
  *                    the files compiled as one program: the encoding
  *                    (build information test=1), or the errors
- *                    (tools/refdump/build.go)
  *   dump pp FILE     the preprocessed text, line by line with the map,
  *                    and the errors ($PPDEFS: the predefined symbols,
  *                    each "1"; $PPPATH: the include path; both

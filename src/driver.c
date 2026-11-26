@@ -472,13 +472,12 @@ static void shellquote(Buf *b, const char *s) {
 	bufputc(b, '\'');
 }
 
-/* header returns the shell header of a built program (as the Go's run
- * package writes it). It runs the program on gcon-vm directly where it
- * can, so as not to start gcon, and otherwise through gcon run. In
- * order: $GCONVM, if it names a gcon-vm; $GCON (which must then work),
- * or gcon beside the program; vmpath, the gcon-vm of the root of the
- * gcon that built it, unless $GCONVM is set; the gcon that built it,
- * gconpath, and gcon on PATH. */
+/* header returns the shell header of a built program. It runs the
+ * program on gcon-vm directly where it can, so as not to start gcon, and
+ * otherwise through gcon run. In order: $GCONVM, a gcon-vm; $GCON (which
+ * must then work), or gcon beside the program; vmpath, the gcon-vm of the
+ * root of the gcon that built it; the gcon that built it, gconpath; and
+ * gcon on PATH. */
 static void header(Buf *b, const char *gconpath, const char *vmpath) {
 	bufputs(b, "#!/bin/sh\nGCBIN=");
 	shellquote(b, gconpath);
@@ -486,10 +485,10 @@ static void header(Buf *b, const char *gconpath, const char *vmpath) {
 	shellquote(b, vmpath);
 	bufputs(b, "\n"
 		   "case \"$0\" in */*) GCLCL=\"${0%/*}/gcon\" ;; *) GCLCL=gcon ;; esac\n"
-		   "case \"$GCONVM\" in go) ;; ?*) exec \"$GCONVM\" \"$0\" \"$@\" ;; esac\n"
+		   "[ -n \"$GCONVM\" ] && exec \"$GCONVM\" \"$0\" \"$@\"\n"
 		   "[ -n \"$GCON\" ] && exec \"$GCON\" run \"$0\" \"$@\"\n"
 		   "[ -x \"$GCLCL\" ] && exec \"$GCLCL\" run \"$0\" \"$@\"\n"
-		   "[ -z \"$GCONVM\" ] && [ -x \"$GCVM\" ] && exec \"$GCVM\" \"$0\" \"$@\"\n"
+		   "[ -x \"$GCVM\" ] && exec \"$GCVM\" \"$0\" \"$@\"\n"
 		   "[ -x \"$GCBIN\" ] && exec \"$GCBIN\" run \"$0\" \"$@\"\n"
 		   "exec gcon run \"$0\" \"$@\"\n");
 	bufputs(b, marker);
@@ -559,7 +558,7 @@ const char *findvm(const char *root, const char **from) {
 	const char *v = getenv("GCONVM");
 	if (v && *v) {
 		*from = "GCONVM";
-		return strcmp(v, "go") ? v : NULL; /* go: the Go VM, which this gcon has not */
+		return v;
 	}
 	if (root) {
 		char *p = pathjoin(root, "libexec/gcon-vm");

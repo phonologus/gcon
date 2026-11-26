@@ -54,8 +54,9 @@ of procedure calls and two or three co-expression transfers.
   blocking hand-offs).
 - `sieve.icn`: the concurrent prime sieve of Newsqueak and Go: one task
   per prime found.
-- `go/`: the same ring and sieve in Go, for comparison.
-- `bench.sh`: ring and sieve on gcon-vm, gcon's Go VM and iconx.
+- The same ring and sieve in Go, for comparison, and gcon's Go VM, are in
+  the tag `go-reference` (`experiments/chan/go`).
+- `bench.sh`: ring and sieve on gcon-vm and iconx.
 
 ## Results (2026-11-26, Apple M-series)
 

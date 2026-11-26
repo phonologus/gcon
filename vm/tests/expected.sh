@@ -6,20 +6,21 @@
 # program, if present, is its standard input.
 #
 #   tests/expected.sh [file.icn | dir] ...          check (default:
-#                                                   ../../icon/tests/general
+# ../../icon/tests/general
 #                                                   ../../icon/ipl/progs)
-#   tests/expected.sh -record-go [file | dir] ...   record gcon's Go VM
 #   tests/expected.sh -accept file.icn ...          record gcon-vm
 #
 # The recordings were made from gcon's Go VM while it was the reference
-# (-record-go), each program run twice: a program whose two runs differ
-# (table order, times), that does not finish within TIMEOUT seconds
-# (default 10), or that gcon cannot build is marked NAME.skip with the
+# (the tag go-reference), each program run twice: a program whose two
+# runs differ (table order, times), that did not finish within 10
+# seconds, or that gcon cannot build is marked NAME.skip with the
 # reason, and not checked. Where gcon-vm differs from the Go VM by
-# decision (features the Go VM lacks), its run is recorded instead
-# (-accept), and the reason added to tests/expected/ACCEPTED.
+# decision (features the Go VM lacked), its run is recorded instead
+# (-accept), and the reason added to tests/expected/ACCEPTED; new
+# programs are recorded the same way, once their runs are checked
+# against iconx. TIMEOUT (seconds, default 10) limits each run.
 #
-# Needs gcon (as tests/dis.sh).
+# Needs gcon ($GCON, or built from $GCONSRC, default this checkout).
 set -u
 here=$(cd "$(dirname "$0")/.." && pwd)
 vm=${VM:-$here/bin/gcon-vm}
@@ -29,12 +30,11 @@ trap 'rm -rf "$tmp"' EXIT
 ${CC:-cc} -std=c11 -O1 -o "$tmp/timeout" "$here/tests/timeout.c" || exit 2
 mode=check
 case "${1:-}" in
--record-go) mode=record; shift ;;
 -accept) mode=accept; shift ;;
 esac
 if [ -z "${GCON:-}" ]; then
 	src=$(cd "${GCONSRC:-$here/..}" && pwd) || exit 2
-	(cd "$src" && go build -o "$tmp/gcon" ./cmd/gcon) || exit 2
+	${CC:-cc} -std=c11 -O2 -DGCON_VERSION='"test"' -I"$src/vm/src" -o "$tmp/gcon" "$src"/src/*.c "$src/vm/src/gen_tables.c" || exit 2
 	GCON=$tmp/gcon
 	export GCONROOT="${GCONROOT:-$src}"
 fi
@@ -71,27 +71,6 @@ while read -r f; do
 	suite=$(basename "$(dirname "$d")")-$(basename "$d")
 	e=$exp/$suite/$name
 	case $mode in
-	record)
-		mkdir -p "$exp/$suite"
-		rm -f "$e.out" "$e.err" "$e.skip"
-		run "$d" "$name" "$tmp/a" env GCONVM=go "$GCON" run
-		s=$?
-		if [ $s -eq 2 ]; then
-			echo "not built by gcon" >"$e.skip"
-		elif [ $s -eq 142 ]; then
-			echo "does not finish within ${t}s on the Go VM" >"$e.skip"
-		else
-			run "$d" "$name" "$tmp/b" env GCONVM=go "$GCON" run
-			if cmp -s "$tmp/a.out" "$tmp/b.out" && cmp -s "$tmp/a.err" "$tmp/b.err"; then
-				cp "$tmp/a.out" "$e.out"
-				cp "$tmp/a.err" "$e.err"
-				recorded=$((recorded + 1))
-				continue
-			fi
-			echo "nondeterministic: two runs on the Go VM differ" >"$e.skip"
-		fi
-		skip=$((skip + 1))
-		;;
 	accept)
 		mkdir -p "$exp/$suite"
 		if run "$d" "$name" "$tmp/c" "$vm"; then
@@ -131,7 +110,6 @@ while read -r f; do
 done <"$tmp/list"
 
 case $mode in
-record) echo "expected: $recorded recorded from the Go VM, $skip skipped" ;;
 accept) echo "expected: $recorded accepted from gcon-vm" ;;
 check)
 	echo "expected: $pass pass, $fail fail, $skip skipped, $none unrecorded"

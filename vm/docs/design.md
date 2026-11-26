@@ -122,10 +122,10 @@ non-printable ranges (741 ranges, Unicode 17.0.0): gcon's images follow
 the Unicode tables of the Go that built it, so the table is regenerated
 with the builtin names.
 
-**Tests.** `tests/dis.sh` builds programs with gcon and compares
-listings: 483 programs (the reference tests, the IPL programs, gcon's
+**Tests.** `tests/dis.sh` (retired with the Go) built programs with the Go gcon and compared
+its listings with gcon-vm's: 483 programs (the reference tests, the IPL programs, gcon's
 program tests, the samples in `icn/`, and `tests/values.icn`, whose
-constants exercise every image case) are identical. `tests/damage.sh`
+constants exercise every image case) were identical. `tests/damage.sh`
 compares every truncation of a built program and every byte changed
 two ways; after a change it makes the checksum right again, so the
 change reaches the decoder's other checks and the validator instead of
@@ -374,7 +374,7 @@ encoded program to a file deleted at once, and `exec`ing `gcon-vm
 -progname name /dev/fd/N args...`, so that `&progname` is what the Go
 VM gives the source. gcon finds gcon-vm through `$GCONVM`, or in its
 root's `libexec`, where `tools/install.sh` puts it; with neither, or
-`GCONVM=go`, it uses its Go VM. The loader accepts either a built file
+`GCONVM=go`, the Go gcon used its Go VM (both gone with the Go). The loader accepts either a built file
 (the shell header, the marker, the encoding) or the bare encoding.
 
 gcon's `TestExecVM` runs all its program tests from source through the

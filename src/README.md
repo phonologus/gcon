@@ -1,37 +1,44 @@
 # The C front end
 
-gcon's translator and tools in C, ported part by part from the Go
-reference (tag `go-reference`, in `../internal`), each part proved
-identical before the next (`../docs/design.md`, "gcon in C").
+gcon's translator and tools in C, built as `../bin/gcon`. They were
+ported part by part from the Go reference (the tag `go-reference`),
+each part proved identical before the next (`../docs/design.md`, "gcon
+in C"), and the Go then removed, all at once; this file records how
+each part was proved. Going forward the oracles are icont and iconx
+for what Icon defines, and gcon's own recorded results for what it adds.
 
-| File | Ported from | Status |
-|---|---|---|
-| `util.c` | (Go's standard library: buffers, UTF-8, big integers) | |
-| `token.c`, `tokens.inc` | `internal/token` | done |
-| `lexer.c` | `internal/lexer` | done |
-| `lit.c` | `internal/lit` | done |
-| `syntax.c` | `internal/syntax` | done |
-| `ipp.c` | icont's `src/common/ipp.c` (output as `internal/ipp`) | done |
-| `builtin.c`, `builtin.inc` | `internal/builtin` | done |
-| `sema.c` | `internal/sema` (diagnostics icont's `tsym.c`, `lglob.c`, `lsym.c`) | done |
-| `prog.c` | `internal/vm`: the program, its constants (csets as `cset.go`), `encode.go` | done |
-| `compile.c` | `internal/compile`, iterative | done |
-| `driver.c`, `main.c` | `internal/run`, `internal/root`, `cmd/gcon` | done |
-| `format.c` | icontools' `internal/format` and `cmd/icfmt` (`gcon fmt`) | done |
-| `json.c` | (Go's `encoding/json`: reading, and writing as it writes) | done |
-| `lsp.c`, `refdocs.c` | icontools' `internal/lsp`, `internal/builtin/docs.go`, `cmd/iconls` (`gcon lsp`) | done |
+| File | Ported from (in `go-reference`) |
+|---|---|
+| `util.c` | (Go's standard library: buffers, UTF-8, big integers) |
+| `token.c`, `tokens.inc` | `internal/token` |
+| `lexer.c` | `internal/lexer` |
+| `lit.c` | `internal/lit` |
+| `syntax.c` | `internal/syntax` |
+| `ipp.c` | icont's `src/common/ipp.c` (output as `internal/ipp`) |
+| `builtin.c`, `builtin.inc` | `internal/builtin` |
+| `sema.c` | `internal/sema` (diagnostics icont's `tsym.c`, `lglob.c`, `lsym.c`) |
+| `prog.c` | `internal/vm`: the program, its constants (csets as `cset.go`), `encode.go` |
+| `compile.c` | `internal/compile`, iterative |
+| `driver.c`, `main.c` | `internal/run`, `internal/root`, `cmd/gcon` |
+| `format.c` | icontools' `internal/format` and `cmd/icfmt` (`gcon fmt`) |
+| `json.c` | (Go's `encoding/json`: reading, and writing as it writes) |
+| `lsp.c`, `refdocs.c` | icontools' `internal/lsp`, `internal/builtin/docs.go`, `cmd/iconls` (`gcon lsp`) |
 
-`tokens.inc` is generated from the Go's token table by
-`tests/gentoken.sh`, and `builtin.inc` from its catalogue of built-ins
-by `tests/genbuiltin.sh` (while the Go is the reference).
+`tokens.inc` and `builtin.inc` were generated from the Go's token table
+and catalogue of built-ins, and are maintained by hand.
 
 ## Testing
 
-    tests/diff.sh [lex|parse|walk|pp|sema|build]
+The tests now are `tests/oracle.sh` (against icont), `tests/fmt.sh`
+and `tests/lsp.sh` (against icontools' icfmt and iconls), and gcon-vm's
+(`../vm/tests`), which run what gcon builds. `tests/dump.c` prints the
+front end's view of a file (`dump lex|parse|walk|pp|sema|build FILE`),
+for debugging.
 
-builds `tests/dump.c` with the address and undefined-behaviour
-sanitizers, and the Go reference's `tools/refdump`, and checks that
-both write the same canonical form for every file of the corpus: the Icon tree beside the checkout,
+Until the Go went, `tests/diff.sh` (retired with it) built
+`tests/dump.c` with the address and undefined-behaviour
+sanitizers, and the Go reference's `tools/refdump`, and checked that
+both wrote the same canonical form for every file of the corpus: the Icon tree beside the checkout,
 gcon's library, test data and experiments, `../icn`, the edge cases in
 `tests/lex.icn` and `tests/lex2.icn`, and variants made with a fixed
 seed (truncations, changed bytes, random bytes). At the lexer's port:
@@ -80,7 +87,7 @@ icont's `#line` markers), and the same errors, for the Icon tree and
 the edge cases in `tests/pp` (every directive error, includes nested,
 circular, and by icont's rule of the name's last component on the
 path). At its port: 1,208 files identical, 181,001 lines with their
-positions, 101 errors. `diff.sh pp` checks it against the Go (2,795
+positions, 101 errors. `diff.sh pp` checked it against the Go (2,795
 files identical); the port found three places where the Go was not
 icont's, fixed in both (`../docs/design.md`). Deep nesting (a million
 `$if`s, or a chain of a million definitions) has no ceiling; the chain
@@ -96,7 +103,7 @@ undeclared identifiers in the procedures it keeps (those reachable from
 main and invocable names; the file named as icont's linker names it,
 by where the procedure's code came from). At its port: 568 programs
 identical, 438 diagnostics; files that link others (642) are not
-compared there. `diff.sh sema` checks it against the Go (each file
+compared there. `diff.sh sema` checked it against the Go (each file
 resolved preprocessed and raw: 2,809 identical), and whole directories
 as one program (the IPL's procs, gprocs and progs, the reference tests,
 `../icn`) are identical too. The port found the Go's wording of five
@@ -108,9 +115,9 @@ effects (labels, temporaries, constants, globals, instructions) in the
 Go's order, so that its output is the Go's byte for byte; the format's
 definitions are shared with gcon-vm's loader (`../vm/src/format.h`), and
 its tables of operators and functions are gcon-vm's
-(`../vm/src/gen_tables.c`). `diff.sh build` compiles each file as a
+(`../vm/src/gen_tables.c`). `diff.sh build` compiled each file as a
 program (`dump build`, `refdump build`: the encoding, with the build
-information test=1, or the errors) and compares them byte for byte: at
+information test=1, or the errors) and compared them byte for byte: at
 its port 2,811 identical, 1,714 of them compiled programs (6.8 MB). Also
 identical: the 310 programs of the IPL's progs and gprocs with the files
 they link (4,207 files); and 19 shapes of nesting 20,000 deep, which the
@@ -119,9 +126,9 @@ seconds. `oracle.sh` checks the compiler's errors against icont's
 (`tests/compile/err-*.icn`). The port found two bugs in the Go, fixed:
 compiling deep nesting took time quadratic in the depth, and break's
 expression could overwrite the enclosing loop or scan
-(`../internal/run/testdata/break*.icn`).
+(`../vm/tests/programs/break*.icn`).
 
-The driver (`driver.c`, `main.c`; `build.sh` makes `bin/gcon-c`) is
+The driver (`driver.c`, `main.c`) was
 checked end to end against the Go's `gcon`: `gcon env` in several
 environments; `gcon build` and `gcon dis` of the 618 files of the
 reference tests, the IPL's progs and gprogs, gcon's test data and
@@ -130,7 +137,7 @@ reference tests, the IPL's progs and gprogs, gcon's test data and
 run` of source and of built programs, with arguments, and each error
 path (missing files, unresolved links with and without a root, syntax
 errors, flags); and gcon-vm's tests run with it as `$GCON`
-(`../vm/tests/expected.sh`, `programs.sh`, `dis.sh`). Under the
+(`../vm/tests/expected.sh`, `programs.sh`). Under the
 sanitizers, it builds the 476 programs of the IPL and `../icn` cleanly.
 
 The formatter (`format.c`, `gcon fmt`) is icontools' (`icfmt`),
@@ -157,3 +164,8 @@ workspace symbols at every seventh identifier) for every tenth file,
 reference pages (`DOCS`). Differences by design are normalised: the
 wording of diagnostics, and gcon's built-ins in completions. `FULL=1`
 runs every file and variant, `SANITIZE=1` the sanitizers.
+
+gcon's additions to the language are checked against gcon itself:
+`tests/lsp.sh` also checks that the language server's diagnostics for
+the probes in `tests/lit` (every literal error, and good literals) are
+the errors `gcon build` reports.

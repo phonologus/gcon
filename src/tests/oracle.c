@@ -4,7 +4,8 @@
  * src/tests/oracle.sh, which compares the two over the reference
  * corpus. icont is the authority here, not the Go (docs/design.md,
  * "Two oracles"); this is the C of the Go's oracle tests
- * (internal/lexer/oracle_test.go, internal/syntax/icontree_test.go
+ * (tag go-reference: internal/lexer/oracle_test.go,
+ * internal/syntax/icontree_test.go
  * and parser_test.go).
  *
  *   oracle tokens FILE      the token stream, as "icontok FILE"

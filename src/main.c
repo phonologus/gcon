@@ -46,10 +46,7 @@ static const char *vm(void) {
 	const char *from;
 	const char *p = findvm(root.dir, &from);
 	if (!p) {
-		if (!strcmp(from, "GCONVM"))
-			fprintf(stderr, "gcon: GCONVM=go: this gcon has no Go VM; unset GCONVM to use gcon-vm\n");
-		else
-			fprintf(stderr, "gcon: no gcon-vm: none in the root's libexec, and GCONVM is not set; see gcon env\n");
+		fprintf(stderr, "gcon: no gcon-vm: none in the root's libexec, and GCONVM is not set; see gcon env\n");
 		exit(1);
 	}
 	return p;

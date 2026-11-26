@@ -1,20 +1,18 @@
 # gcon-vm
 
-The virtual machine for gcon (Go-based Icon), in C. gcon's toolchain, in
-Go, translates Icon 9.5 programs to gcon's bytecode; this VM runs that
-bytecode. It is the counterpart of iconx to gcon's icont, as
-[gcon-graphics](https://github.com/phonologus/gcon-graphics) is gcon's
-display server: C builds are kept out of the Go repository.
+The virtual machine for gcon, in C. gcon translates Icon 9.5 programs
+to its bytecode; this VM runs that bytecode. It is the counterpart of
+iconx to gcon's icont.
 
 **Status: running programs.** `gcon-vm prog args...` runs a program gcon
-has built (`gcon build`), with the same results as gcon's Go VM on
-gcon's program tests and the reference tests; `gcon-vm -dis prog` lists
-one. Memory is managed by a precise mark-and-sweep collector. It has
-every Icon 9.5 function but the graphics ones, including `loadfunc`:
-C functions written to 9.5's `icall.h` (`include/icall.h`) recompile
-unchanged. See
-[docs/design.md](docs/design.md) for why the VM is in C and how it is built, and `experiments/spike` for the
-measurement behind it.
+has built (`gcon build`), with iconx's results on gcon's program tests
+and Icon's own suite; `gcon-vm -dis prog` lists one (`gcon dis` calls
+it). Memory is managed by a precise mark-and-sweep collector. It has
+every Icon 9.5 function, including `loadfunc`: C functions written to
+9.5's `icall.h` (`include/icall.h`) recompile unchanged. Graphics goes
+to gcon's display server (`../graphics`). See
+[docs/design.md](docs/design.md) for why the VM is in C and how it is
+built.
 
 ## Building
 
@@ -26,40 +24,48 @@ used if set.
 
 ## Using it with gcon
 
-gcon-vm is part of gcon (`vm/` of gcon's repository), and gcon's
-`build.sh` installs it in the root's `libexec`. To install it in another
-root:
+gcon-vm is part of gcon, and gcon's `build.sh` installs it in the
+root's `libexec`. To install it in another root:
 
     tools/install.sh [gcon-root]
 
 copies `bin/gcon-vm` to that root's `libexec` (by default this
-checkout's), where `gcon run`, and so every program
-gcon builds, finds it and hands programs to it. `GCONVM` overrides the
-choice (a path to a gcon-vm, or `go` for gcon's own VM); `gcon env`
-shows it. gcon-vm can also be run directly on a built program:
+checkout's), where `gcon run`, and so every program gcon builds, finds
+it and hands programs to it. `GCONVM` overrides the choice (a path to a
+gcon-vm); `gcon env` shows it. gcon-vm can also be run directly on a
+built program:
 
     gcon-vm [-progname name] program [argument ...]
 
 ## Testing
 
-The tests need gcon (built from this checkout, `..`, while it is Go)
-and the Icon sources beside the checkout (`../../icon`); building
-gcon-vm needs neither.
-
-    tests/dis.sh tests/values.icn ../icon/tests/general ../icon/ipl/progs
-
-builds each program with gcon and checks that gcon-vm's listing is
-identical to gcon's.
-
-    tests/damage.sh tests/values.icn
-
-checks every truncation and every changed byte of a built program:
-gcon-vm, built with the address and undefined-behaviour sanitizers,
-must report each exactly as gcon does.
+The tests need gcon (built from this checkout, `..`, or `$GCON`) and
+the Icon sources beside the checkout (`../../icon`); building gcon-vm
+needs neither.
 
     tests/programs.sh
 
-runs gcon's program tests (expected results recorded from iconx).
+runs gcon's program tests (`tests/programs`, expected results recorded
+from iconx).
+
+    tests/conformance.sh
+
+runs Icon's own suite (`../../icon/tests/general`) as its `Test-icon`
+does and compares with iconx's output; `tests/conformance.txt` lists
+the tests that pass.
+
+    tests/expected.sh
+
+runs the reference tests and the IPL's programs (`../icon/tests/general`,
+`../icon/ipl/progs`) and compares output, messages and exit status with
+their recorded runs in `tests/expected/` (recorded from gcon's Go VM
+while it was the reference; see `tests/expected/README`).
+
+    tests/damage.sh tests/programs/arith.icn
+
+checks every truncation and every changed byte of a built program:
+gcon-vm, built with the address and undefined-behaviour sanitizers,
+must report each exactly as the root's gcon-vm does.
 
     tests/cfuncs.sh
 
@@ -67,18 +73,15 @@ builds the IPL's C functions (`../icon/ipl/cfuncs`) against
 `include/icall.h` and checks them through `loadfunc`, and compares with
 iconx when it can.
 
-    tests/expected.sh
+    tests/graphics.sh
 
-runs the reference tests and the IPL's programs (`../icon/tests/general`,
-`../icon/ipl/progs`) and compares output, messages and exit status with
-their recorded runs in `tests/expected/` (recorded from gcon's Go VM
-while it was the reference; see `tests/expected/README`). `tests/vs-go.sh`
-does the same against the Go VM itself, while it lasts. `tests/bench.sh`
-times gcon's VM micro-benchmarks on both.
+draws on a hidden canvas through the display server and compares with
+`tests/graphics.std`. `tests/bench.sh` times micro-benchmarks on
+gcon-vm and iconx.
 
-`src/gen_tables.c` is generated from gcon's sources by
-`tools/gentables.sh`: the names of gcon's builtins, and which characters
-are printable (for images).
+`src/gen_tables.c` holds the names of gcon's operations and built-ins,
+and which characters are printable (for images); it was generated from
+the Go reference and is maintained by hand.
 
 ## Licence
 

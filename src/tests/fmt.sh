@@ -33,7 +33,7 @@ export LC_ALL
 
 {
 	[ -d "$here/../icon" ] && find "$here/../icon" -name '*.icn' -not -path '*/.git/*'
-	find "$here/lib" "$here/internal" "$here/experiments" "$here/vm/tests" "$here/src/tests" -name '*.icn'
+	find "$here/lib" "$here/experiments" "$here/vm/tests" "$here/src/tests" -name '*.icn'
 	[ -d "$here/../icn" ] && find "$here/../icn" -name '*.icn'
 } | sort >"$tmp/list"
 mkdir "$tmp/var"
@@ -67,7 +67,7 @@ echo "fmt: $same files identical to icfmt ($changed changed by formatting); toke
 # The command's flags, on a small tree.
 mkdir -p "$tmp/cli/a/sub"
 cp "$here/src/tests/pp/expand.icn" "$tmp/cli/a/"
-cp "$here/internal/run/testdata/arith.icn" "$tmp/cli/a/sub/"
+cp "$here/vm/tests/programs/arith.icn" "$tmp/cli/a/sub/"
 printf 'procedure main(\nend\n' >"$tmp/cli/a/broken.icn"
 touch "$tmp/cli/a/notes.txt"
 cli() { # label, command with $I as the formatter

@@ -1,15 +1,16 @@
 #!/bin/sh
-# The program tests: gcon's (internal/run/testdata, testdata/traceback),
+# The program tests: gcon's (tests/programs, tests/programs/traceback),
 # whose expected output, exit status and, for some, standard error were
-# recorded from iconx. As gcon's TestPrograms runs them built, each is
-# built by gcon as FILE in a directory of its own, with testdata/lib
-# beside it, and run there as ./FILE by gcon-vm, with FILE.args as its
-# arguments and FILE.dat as its standard input. Programs gcon cannot
-# build (translation-error tests) are skipped.
+# recorded from iconx. Each is built by gcon as FILE in a directory of
+# its own, with tests/programs/lib beside it, and run there as ./FILE by
+# gcon-vm, with FILE.args as its arguments and FILE.dat as its standard
+# input. Programs gcon cannot build (translation-error tests) are
+# skipped.
 #
 #   tests/programs.sh [name ...]    # default: all
 #
-# Needs gcon, as tests/dis.sh. TIMEOUT (seconds, default 10) limits each.
+# Needs gcon ($GCON, or built from $GCONSRC, default this checkout).
+# TIMEOUT (seconds, default 10) limits each.
 set -u
 here=$(cd "$(dirname "$0")/.." && pwd)
 vm=${VM:-$here/bin/gcon-vm}
@@ -18,11 +19,11 @@ trap 'rm -rf "$tmp"' EXIT
 ${CC:-cc} -std=c11 -O1 -o "$tmp/timeout" "$here/tests/timeout.c" || exit 2
 src=$(cd "${GCONSRC:-$here/..}" && pwd) || exit 2
 if [ -z "${GCON:-}" ]; then
-	(cd "$src" && go build -o "$tmp/gcon" ./cmd/gcon) || exit 2
+	${CC:-cc} -std=c11 -O2 -DGCON_VERSION='"test"' -I"$src/vm/src" -o "$tmp/gcon" "$src"/src/*.c "$src/vm/src/gen_tables.c" || exit 2
 	GCON=$tmp/gcon
 	export GCONROOT="${GCONROOT:-$src}"
 fi
-td=$src/internal/run/testdata
+td=$here/tests/programs
 if [ $# -gt 0 ]; then
 	for n in "$@"; do ls "$td/$n.icn" "$td/traceback/$n.icn" 2>/dev/null; done
 else

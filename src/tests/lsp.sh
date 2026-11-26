@@ -58,7 +58,7 @@ if [ $# -gt 0 ]; then
 else
 	{
 		[ -d "$here/../icon" ] && find "$here/../icon" -name '*.icn' -not -path '*/.git/*'
-		find "$here/lib" "$here/internal" "$here/experiments" "$here/vm/tests" "$here/src/tests" -name '*.icn'
+		find "$here/lib" "$here/experiments" "$here/vm/tests" "$here/src/tests" -name '*.icn'
 		[ -d "$here/../icn" ] && find "$here/../icn" -name '*.icn'
 	} | sort >"$tmp/list"
 fi

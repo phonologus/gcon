@@ -1,8 +1,9 @@
 #!/bin/sh
 # The damage test: from each program given, gcon builds a file, and
 # every variant of it below must give the same output, messages and exit
-# status from gcon-vm -dis (built here with the address and undefined
-# behaviour sanitizers) as from gcon dis:
+# status from gcon-vm -dis built here with the address and undefined
+# behaviour sanitizers as from gcon dis (the root's gcon-vm, built
+# without them):
 #
 #   - the encoded program truncated at each length;
 #   - each byte of it changed (two ways), and the checksum then made
@@ -10,14 +11,14 @@
 #     and the validator rather than stopping at the checksum (and some
 #     variants are valid programs, whose listings are compared).
 #
-# Needs gcon, as tests/dis.sh.
+# Needs gcon ($GCON, or built from $GCONSRC, default this checkout).
 set -u
 here=$(cd "$(dirname "$0")/.." && pwd)
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 if [ -z "${GCON:-}" ]; then
 	src=$(cd "${GCONSRC:-$here/..}" && pwd) || exit 2
-	(cd "$src" && go build -o "$tmp/gcon" ./cmd/gcon) || exit 2
+	${CC:-cc} -std=c11 -O2 -DGCON_VERSION='"test"' -I"$src/vm/src" -o "$tmp/gcon" "$src"/src/*.c "$src/vm/src/gen_tables.c" || exit 2
 	GCON=$tmp/gcon
 	export GCONROOT="${GCONROOT:-$src}"
 fi

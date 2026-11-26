@@ -26,7 +26,6 @@ run() { # label command...: the program's timing line and peak memory
 while read -r prog args; do
 	echo "== $prog $args"
 	run gcon-vm "$vm" "$tmp/$prog" $args
-	run go-vm env GCONVM=go "$tmp/$prog" $args
 	# iconx's collector crashes (bus error) with many co-expressions on
 	# this platform: regions this large keep it from collecting.
 	run iconx env BLKSIZE=400000000 STRSIZE=50000000 "$ICONBIN/iconx" "$tmp/$prog-x" $args

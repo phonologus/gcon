@@ -1,7 +1,5 @@
 # Reference tests (icon/tests/general) that gcon passes.
-# (prepro passes on gcon-vm but not on gcon's Go VM, which lacks the
-# features gcon now predefines symbols for: see run.go's runtimeFeatures.)
-# Maintained by: go test ./internal/run -run Conformance -update
+# Maintained by: tests/conformance.sh -update
 args
 arith
 augment
@@ -54,6 +52,7 @@ overflow
 parse
 pdco
 prefix
+prepro
 primes
 proto
 queens

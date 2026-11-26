@@ -5,11 +5,7 @@
 #   libexec/gcon-graphics  the display server (graphics/; needs C++ and
 #                          CMake; skipped without them, and then programs
 #                          cannot open windows)
-#   bin/gcon-c             the command, in C (src/): it becomes bin/gcon
-#                          when the Go reference goes (docs/design.md,
-#                          "gcon in C")
-#   bin/gcon               the command, the Go reference, built if Go is
-#                          present
+#   bin/gcon               the command (src/)
 #
 # Builds never use the network. $CC and $CFLAGS are passed on.
 set -eu
@@ -33,8 +29,8 @@ else
 	echo "build.sh: no C++ compiler or CMake: the display server is not built"
 fi
 
-# The version, as Go stamps its own: a pseudo-version naming the commit,
-# "+dirty" for uncommitted changes; "(devel)" without git.
+# The version, in the form Go stamps its own: a pseudo-version naming
+# the commit, "+dirty" for uncommitted changes; "(devel)" without git.
 version="(devel)"
 if command -v git >/dev/null 2>&1 && git rev-parse --git-dir >/dev/null 2>&1; then
 	when=$(TZ=UTC git log -1 --format=%cd --date=format-local:%Y%m%d%H%M%S)
@@ -43,13 +39,6 @@ if command -v git >/dev/null 2>&1 && git rev-parse --git-dir >/dev/null 2>&1; th
 	[ -n "$(git status --porcelain)" ] && version="$version+dirty"
 fi
 ${CC:-cc} -std=c11 -O2 -Wall -Wextra ${CFLAGS:-} -DGCON_VERSION="\"$version\"" -Ivm/src \
-	-o bin/gcon-c.new src/*.c vm/src/gen_tables.c
-mv bin/gcon-c.new bin/gcon-c
-echo "built bin/gcon-c ($version)"
-
-if command -v go >/dev/null 2>&1; then
-	go build -o bin/gcon ./cmd/gcon
-	echo "built bin/gcon (Go)"
-else
-	echo "build.sh: no Go: bin/gcon is not built (until the C gcon replaces it)"
-fi
+	-o bin/gcon.new src/*.c vm/src/gen_tables.c
+mv bin/gcon.new bin/gcon
+echo "built bin/gcon ($version)"

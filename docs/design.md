@@ -76,6 +76,30 @@ the `keywords` program test leaves the graphics keywords to gcon-vm's
 tests. gcon-vm checks its runs against recorded results
 (`tests/expected/` there), first recorded from the Go VM.
 
+### Done (2026-11-26): the Go removed
+
+With the language server ported, every part was proved, and the Go
+went, all at once: `cmd/`, `internal/`, `go.mod` and the Go tools; the
+tag `go-reference` keeps them. `build.sh` builds `bin/gcon` from
+`src/`, and needs only a C compiler (C++ and CMake for the display
+server). The differential tests against the Go (`src/tests/diff.sh`,
+with `tools/refdump`) are retired with it (Sean): they had done their
+work, and from here the oracles are icont and iconx for what Icon
+defines, and gcon's own recorded results and probes for what it adds
+("Two oracles"). Also gone: the Go VM, and with it `GCONVM=go` and its
+case in a built program's header (`GCONVM` now always names a
+gcon-vm); gcon-vm's `tests/dis.sh` (its `gcon dis` was the Go's,
+against which it proved the loader; the C's is gcon-vm's own listing)
+and `tests/vs-go.sh`. The tables generated from the Go (`tokens.inc`,
+`builtin.inc`, gcon-vm's `gen_tables.c`) are kept as files and
+maintained by hand; a new Unicode version will need a generator for
+`gen_tables.c`'s printability table, written in C. The program tests
+moved to `vm/tests/programs`, and the Go's conformance test (Icon's
+own suite against iconx's output) became `vm/tests/conformance.sh`,
+the Arizona oracle run directly: 84 of the 89 pass, `prepro` now among
+them. `src/tests/fmt.sh` and `lsp.sh` still need Go, to build
+icontools' icfmt and iconls, their oracles.
+
 icontools stays as it is, standalone (above); gcon's formatter and
 language server are ported from gcon's own fork.
 
@@ -189,16 +213,15 @@ icont. Within one directory, how a name is turned into a path is still
 icont's (`pathfind`, above), for link as for `$include`.
 
 The driver is ported (`src/driver.c`, `src/main.c`, built by
-`build.sh` as `bin/gcon-c` until the Go goes and it becomes
-`bin/gcon`). It does as the Go does, but for what was Go's own: the root
-is $GCONROOT, the directory above the executable, or one named at
-build time (`-DGCON_DEFAULT_ROOT=`), Go's module cache (for a gcon
-installed by `go install`) no longer being a place to look; programs
-run on gcon-vm only (`GCONVM=go` is refused: there is no Go VM);
-`gcon dis` is gcon-vm's listing (`gcon-vm -dis`, which the loader tests
-prove identical to the Go's); and the version, as the Go stamps its
-own, is a pseudo-version naming the commit, stamped by `build.sh`. Its
-`gcon build` writes what the Go's writes, byte for byte but for the
+`build.sh` as `bin/gcon`). It does as the Go did, but for what was
+Go's own: the root is $GCONROOT, the directory above the executable,
+or one named at build time (`-DGCON_DEFAULT_ROOT=`), Go's module cache
+(for a gcon installed by `go install`) no longer being a place to look;
+programs run on gcon-vm only (there is no Go VM); `gcon dis` is
+gcon-vm's listing (`gcon-vm -dis`, which the loader tests proved
+identical to the Go's); and the version, as the Go stamps its own, is a
+pseudo-version naming the commit, stamped by `build.sh`. Its
+`gcon build` wrote what the Go's wrote, byte for byte but for the
 header's name of the gcon that built it.
 
 The formatter is ported (`src/format.c`, `gcon fmt`), from icontools'
@@ -1613,9 +1636,10 @@ a procedure, `$line`, the predefined symbols and digraphs against iconx.
     built-program format; the Go VM stays as the reference meanwhile.
 11. gcon in C (see "Decision: gcon in C"). Done: the front end
     (lexer, preprocessor, parser, name resolution, compiler and
-    encoder), the driver and `gcon fmt`. Next, in order (Sean,
-    2026-11-26): the language server; then the Go removed, all at once;
-    then `gcon vet`; then graphics again (a bug Sean has found).
+    encoder), the driver, `gcon fmt` and the language server; then the
+    Go removed, all at once ("Done: the Go removed"). Next, in order
+    (Sean, 2026-11-26): `gcon vet`; then graphics again (a bug Sean has
+    found).
 12. `gcon vet` (decided 2026-11-26): as Go's vet, it reports only what
     is almost certainly a mistake, as "file:line: message", exit status
     1 if any, and the language server shows the same findings. The first

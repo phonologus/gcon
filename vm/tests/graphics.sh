@@ -1,8 +1,9 @@
 #!/bin/sh
 # Runs tests/graphics.icn (graphics on a hidden canvas, so no display is
-# needed) and compares its output with tests/graphics.std. Needs gcon (as
-# tests/dis.sh) and the display server: $GCONGRAPHICS, by default
-# ../graphics/bin/gcon-graphics in this checkout.
+# needed) and compares its output with tests/graphics.std. Needs gcon
+# ($GCON, or built from $GCONSRC, default this checkout) and the display
+# server: $GCONGRAPHICS, by default ../graphics/bin/gcon-graphics in this
+# checkout.
 set -eu
 here=$(cd "$(dirname "$0")/.." && pwd)
 vm=${VM:-$here/bin/gcon-vm}
@@ -10,7 +11,7 @@ tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 if [ -z "${GCON:-}" ]; then
 	src=$(cd "${GCONSRC:-$here/..}" && pwd)
-	(cd "$src" && go build -o "$tmp/gcon" ./cmd/gcon)
+	${CC:-cc} -std=c11 -O2 -DGCON_VERSION='"test"' -I"$src/vm/src" -o "$tmp/gcon" "$src"/src/*.c "$src/vm/src/gen_tables.c"
 	GCON=$tmp/gcon
 fi
 export GCONGRAPHICS=${GCONGRAPHICS:-$here/../graphics/bin/gcon-graphics}

@@ -6,7 +6,8 @@
 # ($ICONBIN, else gcon's tools/iconx/build.sh) it also runs the same
 # program on iconx with the same library, and shows any difference.
 #
-# Needs a C compiler, gcon (as tests/dis.sh) and the Icon sources.
+# Needs a C compiler, gcon ($GCON, or built from $GCONSRC, default this
+# checkout) and the Icon sources.
 set -eu
 here=$(cd "$(dirname "$0")/.." && pwd)
 vm=${VM:-$here/bin/gcon-vm}
@@ -15,7 +16,7 @@ tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 if [ -z "${GCON:-}" ]; then
 	src=$(cd "${GCONSRC:-$here/..}" && pwd)
-	(cd "$src" && go build -o "$tmp/gcon" ./cmd/gcon)
+	${CC:-cc} -std=c11 -O2 -DGCON_VERSION='"test"' -I"$src/vm/src" -o "$tmp/gcon" "$src"/src/*.c "$src/vm/src/gen_tables.c"
 	GCON=$tmp/gcon
 	export GCONROOT="$src" # for the IPL (link io)
 fi

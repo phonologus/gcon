@@ -1,16 +1,15 @@
 #!/bin/sh
-# The micro-benchmarks of gcon's internal/run/vmbench_test.go: loops of
-# single operations, each built once by gcon and timed on gcon's Go VM
-# and on gcon-vm, and built by icont and timed on iconx; ns per
+# Micro-benchmarks: loops of single operations, each built once by gcon
+# and timed on gcon-vm, and built by icont and timed on iconx; ns per
 # iteration (wall clock, the best of three), and gcon-vm's time as a
-# fraction of the Go VM's and of iconx's. Each includes starting the
-# program, which the iteration count amortises.
+# fraction of iconx's. Each includes starting the program, which the
+# iteration count amortises.
 #
 #   tests/bench.sh [iterations]    # default 2000000
 #
-# Needs gcon, as tests/dis.sh, and iconx: $ICONBIN (the directory of
-# icont and iconx), or built by gcon's tools/iconx/build.sh; without it
-# the iconx column is left out.
+# Needs gcon ($GCON, or built from $GCONSRC, default this checkout), and
+# iconx: $ICONBIN (the directory of icont and iconx), or built by gcon's
+# tools/iconx/build.sh; without it the iconx column is left out.
 set -u
 here=$(cd "$(dirname "$0")/.." && pwd)
 vm=${VM:-$here/bin/gcon-vm}
@@ -18,7 +17,7 @@ tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 if [ -z "${GCON:-}" ]; then
 	src=$(cd "${GCONSRC:-$here/..}" && pwd) || exit 2
-	(cd "$src" && go build -o "$tmp/gcon" ./cmd/gcon) || exit 2
+	${CC:-cc} -std=c11 -O2 -DGCON_VERSION='"test"' -I"$src/vm/src" -o "$tmp/gcon" "$src"/src/*.c "$src/vm/src/gen_tables.c" || exit 2
 	GCON=$tmp/gcon
 fi
 ICONBIN=${ICONBIN:-$(sh "${GCONSRC:-$here/..}/tools/iconx/build.sh" 2>/dev/null)}
@@ -26,7 +25,7 @@ ICONBIN=${ICONBIN:-$(sh "${GCONSRC:-$here/..}/tools/iconx/build.sh" 2>/dev/null)
 N=${1:-2000000}
 ${CC:-cc} -std=c11 -O1 -o "$tmp/besttime" "$here/tests/besttime.c" || exit 2
 best() { "$tmp/besttime" "$@" || exit 2; } # best of three wall times, in ns
-printf '%-12s %9s %9s %9s %8s %8s\n' benchmark "iconx ns" "go ns" "c ns" "c/go" "c/iconx"
+printf '%-12s %9s %9s %8s\n' benchmark "iconx ns" "c ns" "c/iconx"
 while IFS='|' read -r name body; do
 	cat >"$tmp/b.icn" <<EOF
 procedure p()
@@ -47,16 +46,15 @@ procedure main()
 end
 EOF
 	(cd "$tmp" && "$GCON" build -o b b.icn) || exit 2
-	g=$(GCONVM=go best "$GCON" run "$tmp/b")
 	c=$(best "$vm" "$tmp/b")
 	i=0
 	if [ "$ICONBIN" ]; then
 		(cd "$tmp" && "$ICONBIN/icont" -s -o bi b.icn) || exit 2
 		i=$(best "$ICONBIN/iconx" "$tmp/bi")
 	fi
-	awk -v n="$name" -v i="$i" -v g="$g" -v c="$c" -v N="$N" 'BEGIN {
-		printf "%-12s %9s %9.1f %9.1f %8.2f %8s\n", n, i ? sprintf("%.1f", i/N) : "-",
-			g/N, c/N, c/g, i ? sprintf("%.2f", c/i) : "-" }'
+	awk -v n="$name" -v i="$i" -v c="$c" -v N="$N" 'BEGIN {
+		printf "%-12s %9s %9.1f %8s\n", n, i ? sprintf("%.1f", i/N) : "-",
+			c/N, i ? sprintf("%.2f", c/i) : "-" }'
 done <<'EOF'
 empty|&null
 size|*"abcde"
