@@ -271,18 +271,6 @@ static Operand operand(Decoder *d) {
 	return (Operand){(uint8_t)k, (int32_t)(x >> 3)};
 }
 
-/* Instruction field flags: a field is present when nonzero. */
-enum {
-	InstrDst = 1 << 0,
-	InstrX = 1 << 1,
-	InstrH = 1 << 2,
-	InstrArgs = 1 << 3,
-	InstrFn = 1 << 4,
-	InstrL1 = 1 << 5,
-	InstrL2 = 1 << 6,
-	InstrFile = 1 << 7,
-};
-
 static void proc(Decoder *d, Proc *p) {
 	p->name = str(d);
 	p->file = str(d);
@@ -356,11 +344,6 @@ static void procs_section(Decoder *d) {
 	for (int i = 0; i < n && !d->err; i++)
 		proc(d, &p->procs[p->nprocs++]);
 }
-
-/* Value tags. */
-enum {
-	ValNull, ValInt, ValBig, ValReal, ValString, ValCset, ValBuiltin, ValProc, ValRecord
-};
 
 /* integer returns the integer with sign neg and magnitude mag (n bytes,
  * big-endian): a small integer if it fits in 64 bits, as gcon's

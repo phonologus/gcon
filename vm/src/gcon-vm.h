@@ -9,6 +9,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "format.h"
+
 #define GCONVM_VERSION "0.0.0"
 
 /* util.c */
@@ -88,19 +90,11 @@ typedef struct Big {
 
 /* Programs, as gcon's internal/vm/instr.go and value.go. */
 
-enum OperandKind { NoOperand, TempOp, LocalOp, GlobalOp, ConstOp };
-
 typedef struct Operand {
 	uint8_t kind;
 	int32_t index;
 } Operand;
 
-enum Op {
-	OpGoto, OpIGoto, OpSetLabel, OpMove, OpMoveVar, OpAssign, OpOper,
-	OpCall, OpResume, OpReturn, OpFail, OpSuspend, OpOnce, OpIsNull,
-	OpCreate, OpActivate, OpCoRet, OpCoFail, OpScanEnter, OpScanSwap,
-	NumOps
-};
 extern const char *const opnames[NumOps];
 
 typedef struct Instr {
@@ -139,11 +133,6 @@ typedef struct RecordType {
 	int64_t serial; /* the last serial number issued (run time) */
 } RecordType;
 
-enum BuiltinKind {
-	BuiltinOp, BuiltinFunction, BuiltinAsgn, BuiltinApply, BuiltinField,
-	BuiltinUnsupported, NumBuiltinKinds
-};
-
 typedef struct BuiltinRef {
 	uint8_t kind;
 	Str name;
@@ -168,7 +157,6 @@ typedef struct Program {
 } Program;
 
 /* load.c */
-enum { FormatVersion = 1 };
 extern const char Magic[8];
 const uint8_t *encoded(const uint8_t *data, size_t n, size_t *len);
 Buf *decode(const uint8_t *b, size_t n, Program **pp);

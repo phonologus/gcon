@@ -112,6 +112,20 @@ heap and does not recurse, and the passes after it walk trees
 iteratively, so nothing in the toolchain has a stack ceiling. Its
 trees and errors are the Go's for every input the Go can parse.
 
+**Decision (2026-11-26, Sean): the compiler is iterative too.** Here
+icont itself has a ceiling: its code generator (`tcode.c`'s `traverse`)
+recurses, and crashes at 200,000 nested calls; the Go's recursion
+manages that but fails at a million (its 1 GB stack). A recursive C
+compiler would fail in the tens of thousands, and a big thread stack
+would only raise the ceiling. "Recursion is goto in a fancy frock": the
+C compiler keeps its own stack of frames on the heap, as the parser
+does, at the price of a harder port. Its output must be the Go's byte
+for byte, so each frame makes its side effects (labels, temporaries,
+constants, globals, instructions) in exactly the Go's order. (Measuring
+this found the Go's compiler quadratic in nesting depth, 17 s for
+20,000 nested calls, finding each expression's line by collecting all
+its tokens; fixed, with identical output.)
+
 The preprocessor is the first part ported from icont's code itself
 (`src/ipp.c` is icont's `ipp.c`, its output in gcon's form), checked
 against `icont -E` (text, positions and errors) as well as the Go. The
