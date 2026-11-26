@@ -383,3 +383,45 @@ program's header runs gcon-vm directly (the gcon-vm of the building
 gcon's root, unless `GCONVM`, `GCON` or a gcon beside the program says
 otherwise), without starting gcon: hello world starts in 6.6 ms, of
 which gcon-vm is 4.2, against 11.2 for icont's output on iconx.
+
+## Tuning on a real program: phwbi (2026-11-26)
+
+`phwbi` (Sean's prism analyser, in `icn/`) on `test_big.wav` (732,410
+samples) is the first whole-program benchmark: it times its
+initialisation (reading the file into a list of records) and its main
+pass (`prism()`), both before its window opens, so it runs headless.
+Its inner code is records in a global list, almost every statement of
+the form `mem[a].f := mem[b].g`. Profiled with macOS `sample` on a `-g
+-fno-omit-frame-pointer` build; each change measured alone, A/B.
+
+- **Field lookup remembered.** A field operator (one per field name,
+  shared by every use of it) compared the name with each of the record
+  type's field names, by `memcmp`, at every `r.f`: about a fifth of the
+  time. It now keeps the field's index in each record type, by type
+  number (record types are fixed at load), filled on first use
+  (`fieldindex`). Main pass 2,400 to 1,890 ms.
+- **`deref` inline.** It was a call for every operand, though most
+  values are not variables; now `vm.h` tests for a variable inline and
+  reads a `KRef` there, calling `derefvar` for the rest. 1,890 to
+  1,710 ms, and initialisation 238 to 205 ms.
+- **Fast paths for `L[i]` and `r.f`**, beside the integer ones in
+  `operint`: a list with an integer subscript, and a record with the
+  field, are done in the loop without the scratch buffer, the call
+  through the builtin, or `mustint`; anything else falls back to
+  `o_index` and `fieldfn`, so errors and the other cases are unchanged.
+  1,710 to 1,270 ms.
+- **`:=:` and `<->` by flag**: `OpAssign` compared the operator's name
+  with two `strcmp`s on every assignment with an operator; `mkasgn` now
+  sets `swap`. Within noise here, but free. (An inline `assignvar` fast
+  path was tried too: no measurable gain, so not kept.)
+
+| (ms) | iconx | gcon-vm before | after | after / iconx |
+|---|---:|---:|---:|---:|
+| initialisation | 320 | 245 | 202 | 0.63 |
+| main pass | 2,710 | 2,400 | 1,265 | 0.47 |
+
+Output is identical on `test.wav` and `test_big.wav`, also under the
+address and undefined-behaviour sanitizers. What is left is spread over
+the loop itself (operand fetch and dispatch, `operint`), the collector
+(about a tenth: 23 collections as the heap grows to some 285 MB of
+records, each tracing it all) and frame set-up in `newframe`.

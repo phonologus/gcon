@@ -135,7 +135,7 @@ static bool subst_set(Substr *s, Value x);
 static Value var_get(Var *v);
 static bool var_set(Var *v, Value x);
 
-Value deref(Value v) {
+Value derefvar(Value v) {
 	switch (VKIND(v)) {
 	case KRef:
 		return *(Value *)v.w.p;

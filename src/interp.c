@@ -443,6 +443,27 @@ static bool operint(Frame *f, Instr *in, Builtin *b) {
 		case OpIdent:
 			v = y, ok = identical(x, y);
 			break;
+		case OpIndex: { /* L[i], i an integer; the rest by o_index */
+			if (VKIND(x) != KList || VKIND(y) != KInt)
+				return false;
+			List *l = x.w.p;
+			int64_t i = y.w.i;
+			if (i <= 0)
+				i += l->n + 1;
+			ok = i >= 1 && i <= l->n;
+			if (ok)
+				v = idxval(KListElem, l, i - 1);
+			break;
+		}
+		case OpField: { /* r.f, r a record with f; the rest by fieldfn */
+			if (VKIND(x) != KRecord)
+				return false;
+			int i = fieldindex(b, ((Record *)x.w.p)->t);
+			if (i < 0)
+				return false;
+			v = idxval(KField, x.w.p, i), ok = true;
+			break;
+		}
 		default:
 			v = y, ok = !identical(x, y);
 		}
@@ -587,7 +608,7 @@ static void loop(Frame *f) {
 			NEXT;
 		CASE(OpAssign) {
 			Builtin *ab = in->fnp;
-			if (ab && (!strcmp(ab->name, ":=:") || !strcmp(ab->name, "<->"))) {
+			if (ab && ab->swap) {
 				if (!isvarop(f, in->dst))
 					runerrv(111, deref(get(f, in->dst)));
 				if (!isvarop(f, in->x))

@@ -197,7 +197,7 @@ enum { AdjNone, AdjMin, AdjExact };
 /* Fast paths the interpreter computes itself. */
 enum {
 	IntNone, IntAdd, IntSub, IntMul, IntLT, IntLE, IntGT, IntGE, IntEQ, IntNE,
-	OpSize, OpPlus, OpNeg, OpIdent, OpNotIdent
+	OpSize, OpPlus, OpNeg, OpIdent, OpNotIdent, OpIndex, OpField
 };
 
 struct Builtin {
@@ -213,12 +213,15 @@ struct Builtin {
 	int adjn;
 	int arity;     /* for args(): funcArity, or -1 */
 	Str field;     /* a field operator's field */
+	int *fidx;     /* its index in each record type, by type number (-2: not yet looked up) */
+	bool swap;     /* an assignment operator that exchanges: :=: or <-> */
 };
 
 void builtins_init(void);
 Builtin *findop(const char *key);
 Builtin *findfn(const char *name, size_t n);
 Builtin *fieldop(Str name);
+int fieldindex(Builtin *b, RecordType *t); /* b's field in t, or -1 */
 Builtin *asgnop(Str name);
 Builtin *unsupported(Str name);
 extern Builtin applyop;
@@ -311,7 +314,16 @@ void link_program(Program *p);
 #define ARG(i) ((i) < n ? a[i] : NULLV)
 #define ISNULL(v) (VKIND(v) == KNull)
 
-Value deref(Value v);
+Value derefvar(Value v);
+/* deref: the value of v if it is a variable, else v itself (the usual
+ * case, kept inline; a local's KRef too). */
+static inline Value deref(Value v) {
+	if (!isvar(v))
+		return v;
+	if (VKIND(v) == KRef)
+		return *(Value *)v.w.p;
+	return derefvar(v);
+}
 bool assignvar(Value dst, Value x, bool *isvar_);
 bool setvar(Value ref, Value v);
 bool cvnum(Value v, Value *out);

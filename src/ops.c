@@ -454,7 +454,7 @@ FN(k_source) { (void)b; (void)a; (void)n; *out = ptrval(KCoexp, vm.co->activator
 FN(k_main) { (void)b; (void)a; (void)n; *out = ptrval(KCoexp, vm.main); return true; }
 
 static Builtin ops[] = {
-	{.name = "[]", .key = "[]", .fn = o_index, .reffirst = true},
+	{.name = "[]", .key = "[]", .fn = o_index, .reffirst = true, .intop = OpIndex},
 	{.name = "[:]", .key = "[:]", .fn = o_section, .reffirst = true},
 	{.name = "to", .key = "to", .gen = o_to},
 	{.name = "!", .key = "u!", .gen = o_bang, .reffirst = true},

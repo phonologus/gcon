@@ -83,12 +83,28 @@ static char *strz(Str s, const char *prefix) {
 	return p;
 }
 
+/* fieldindex is recfield, remembered for each record type: a field
+ * operator is shared by every use of its name, and record types are
+ * fixed when the program is loaded. */
+int fieldindex(Builtin *b, RecordType *t) {
+	size_t k = (size_t)(t - vm.prog->records);
+	if (!b->fidx) {
+		b->fidx = xmalloc((size_t)vm.prog->nrecords * sizeof *b->fidx);
+		for (int j = 0; j < vm.prog->nrecords; j++)
+			b->fidx[j] = -2;
+	}
+	int i = b->fidx[k];
+	if (i == -2)
+		i = b->fidx[k] = recfield(t, b->field);
+	return i;
+}
+
 FN(fieldfn) {
 	(void)n;
 	if (VKIND(a[0]) != KRecord)
 		runerrv(107, a[0]);
 	Record *r = a[0].w.p;
-	int i = recfield(r->t, b->field);
+	int i = fieldindex(b, r->t);
 	if (i < 0)
 		runerrv(207, a[0]);
 	*out = idxval(KField, r, i);
@@ -101,6 +117,7 @@ static Builtin *mkfield(Str name) {
 	b->key = b->name;
 	b->table = BuiltinField;
 	b->fn = fieldfn;
+	b->intop = OpField;
 	b->arity = -1;
 	return b;
 }
@@ -110,6 +127,7 @@ static Builtin *mkasgn(Str name) {
 	b->name = strz(name, "");
 	b->key = b->name;
 	b->table = BuiltinAsgn;
+	b->swap = !strcmp(b->name, ":=:") || !strcmp(b->name, "<->");
 	b->arity = -1;
 	return b;
 }
