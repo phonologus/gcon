@@ -43,7 +43,10 @@ Optional settings:
 ```json
 "lsp": {
   "gcon": {
-    "binary": { "path": "/path/to/gcon/bin/gcon" },
+    "binary": {
+      "path": "/path/to/gcon/bin/gcon",
+      "arguments": ["lsp"]
+    },
     "initialization_options": {
       "icon95": true,
       "ipath": ["/path/to/more/libraries"]
@@ -52,7 +55,10 @@ Optional settings:
 }
 ```
 
-- `binary.path`: the `gcon` to run, if it is not on your PATH.
+- `binary.path`: the `gcon` to run, if it is not on your PATH. Give
+  `binary.arguments` as `["lsp"]` with it: Zed runs a binary named in
+  the settings with the settings' arguments, so without them it runs
+  plain `gcon`, which prints its usage, and the server fails to start.
 - `icon95`: also warn of gcon's additions that Icon 9.5 lacks, as
   `gcon vet -icon95` does, for code that must also run under Arizona
   Icon.

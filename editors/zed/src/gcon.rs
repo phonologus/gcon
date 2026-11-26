@@ -7,13 +7,16 @@
 //! ```json
 //! "lsp": {
 //!   "gcon": {
-//!     "binary": { "path": "/path/to/gcon/bin/gcon" },
+//!     "binary": { "path": "/path/to/gcon/bin/gcon", "arguments": ["lsp"] },
 //!     "initialization_options": { "icon95": true, "ipath": ["/path/to/lib"] }
 //!   }
 //! }
 //! ```
 //!
-//! `binary.arguments`, if given, replace the default `["lsp"]`.
+//! `binary.arguments`, if given and not empty, replace the default
+//! `["lsp"]`. Zed runs a `binary.path` given in the settings with the
+//! settings' arguments, which are then none unless given: so a path
+//! needs `"arguments": ["lsp"]` beside it (the README says so).
 
 use zed_extension_api::{self as zed, settings::LspSettings, LanguageServerId, Result};
 
@@ -47,6 +50,7 @@ impl zed::Extension for GconExtension {
         let args = binary
             .as_ref()
             .and_then(|b| b.arguments.clone())
+            .filter(|a| !a.is_empty())
             .unwrap_or_else(|| vec!["lsp".to_string()]);
         let mut env = worktree.shell_env();
         if let Some(extra) = binary.and_then(|b| b.env) {
