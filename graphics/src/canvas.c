@@ -18,9 +18,12 @@
  * centres, so outlines, lines, arcs and polygons are drawn through
  * (x + 0.5, y + 0.5); rectangle fills cover [x, x+w) by [y, y+h).
  */
+#include <signal.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <unistd.h>
 #include <math.h>
 #include <blend2d/blend2d.h>
 #include "sdlgfx.h"
@@ -110,6 +113,106 @@ static void touch(Canvas *c, int x0, int y0, int x1, int y1)
    }
 }
 
+/*
+ * A test hook: if ICONSDL_TEST_DUMP names a directory when the first
+ * canvas is made, every canvas is written there as DIR/NNN.ppm (NNN
+ * its number in order of making, from 001; logical pixels) when it is
+ * freed, and those still alive when the process exits. Comparing two
+ * runs of a program needs no screen. The server ignores SIGTERM, so
+ * that a test run stopping a program leaves it to write them as it
+ * exits. DIR/started marks the first canvas, DIR/done that all
+ * are written.
+ */
+typedef struct DumpEnt { void *cv; int id; struct DumpEnt *next; } DumpEnt;
+static const char *dumpdir;
+static int dumpinit, dumpcount;
+static DumpEnt *dumps;
+
+static void dump_one(void *cv, int id)
+{
+   Canvas *c = cv;
+   char path[4096];
+   unsigned int *px = malloc((size_t)c->w * c->h * sizeof *px + 4);
+   FILE *f;
+   if (!px)
+      return;
+   cv_read(c, 0, 0, c->w, c->h, 0, px);
+   snprintf(path, sizeof path, "%s/%03d.ppm", dumpdir, id);
+   if ((f = fopen(path, "wb")) != NULL) {
+      size_t n = (size_t)c->w * c->h;
+      unsigned char *rgb = malloc(n * 3 + 1);
+      fprintf(f, "P6\n%d %d\n255\n", c->w, c->h);
+      if (rgb) {
+         for (size_t i = 0; i < n; i++) {
+            rgb[3 * i] = (px[i] >> 16) & 0xFF;
+            rgb[3 * i + 1] = (px[i] >> 8) & 0xFF;
+            rgb[3 * i + 2] = px[i] & 0xFF;
+         }
+         fwrite(rgb, 1, n * 3, f);
+         free(rgb);
+      }
+      fclose(f);
+   }
+   free(px);
+}
+
+static void dump_rest(void)
+{
+   for (DumpEnt *e = dumps; e; e = e->next)
+      dump_one(e->cv, e->id);
+   dumps = NULL;
+   {  /* DIR/done: everything is written */
+      char path[4096];
+      FILE *f;
+      snprintf(path, sizeof path, "%s/done", dumpdir);
+      if ((f = fopen(path, "w")) != NULL)
+         fclose(f);
+   }
+}
+
+static void dump_register(void *cv)
+{
+   if (!dumpinit) {
+      dumpinit = 1;
+      dumpdir = getenv("ICONSDL_TEST_DUMP");
+      if (dumpdir && !*dumpdir)
+         dumpdir = NULL;
+      if (dumpdir) {
+         atexit(dump_rest);
+         /* a test run stopping the program (SIGTERM to its process
+          * group) leaves the server to write the dumps when the
+          * connection closes, as it exits */
+         signal(SIGTERM, SIG_IGN);
+         char path[4096];  /* DIR/started: dumps will follow */
+         FILE *f;
+         snprintf(path, sizeof path, "%s/started", dumpdir);
+         if ((f = fopen(path, "w")) != NULL)
+            fclose(f);
+      }
+   }
+   if (!dumpdir)
+      return;
+   DumpEnt *e = malloc(sizeof *e);
+   if (!e)
+      return;
+   e->cv = cv;
+   e->id = ++dumpcount;
+   e->next = dumps;
+   dumps = e;
+}
+
+static void dump_unregister(void *cv)
+{
+   for (DumpEnt **p = &dumps; *p; p = &(*p)->next)
+      if ((*p)->cv == cv) {
+         DumpEnt *e = *p;
+         dump_one(cv, e->id);
+         *p = e->next;
+         free(e);
+         return;
+      }
+}
+
 void *cv_new(int w, int h, int scale, unsigned int bg)
 {
    Canvas *c = calloc(1, sizeof *c);
@@ -131,6 +234,7 @@ void *cv_new(int w, int h, int scale, unsigned int bg)
    fill_device(c, 0, 0, c->pw, c->ph, OPAQUE | bg);
    mask_begin(c);
    touch(c, 0, 0, c->pw, c->ph);
+   dump_register(c);
    return c;
 }
 
@@ -139,6 +243,7 @@ void cv_free(void *cv)
    Canvas *c = cv;
    if (!c)
       return;
+   dump_unregister(c);
    bl_context_destroy(&c->mctx);
    bl_image_destroy(&c->img);
    bl_image_destroy(&c->mask);

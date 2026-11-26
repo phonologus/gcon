@@ -285,6 +285,10 @@ static Value writeargs(File *f, Value *a, int n, bool nl) {
 				runerrv(109, v);
 			}
 			bufadd(&buf, s.s, (size_t)s.n);
+			if (f->gfx && !f->closed) { /* a window: each argument drawn as it comes, as iconx's wputstr */
+				emit(f, buf.b, buf.n, false);
+				buf.n = 0;
+			}
 		}
 	}
 	if (nl)
@@ -402,7 +406,8 @@ FN(f_open) {
 	String mode = textc("r");
 	if (!ISNULL(ARG(1)))
 		mode = muststr(a[1]);
-	if (memchr(mode.s, 'g', (size_t)mode.n) || memchr(mode.s, 'G', (size_t)mode.n)) {
+	if (memchr(mode.s, 'g', (size_t)mode.n) || memchr(mode.s, 'G', (size_t)mode.n) ||
+	    memchr(mode.s, 'x', (size_t)mode.n) || memchr(mode.s, 'X', (size_t)mode.n)) { /* x: as iconx, a window too */
 		/* a window: the other arguments are its attributes */
 		File *w = gfx_open(muststr(ARG(0)), a + 2, n > 2 ? n - 2 : 0);
 		if (!w)

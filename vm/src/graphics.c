@@ -13,6 +13,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/time.h>
+#include <time.h>
 
 #define FN(f) static bool f(Builtin *b, Value *a, int n, Value *out)
 #define GENFN(f) static Gen *f(Builtin *b, Value *a, int n)
@@ -2995,18 +2996,51 @@ FN(f_GotoRC) {
 	return true;
 }
 
-FN(f_QueryPointer) {
-	(void)b;
-	int warg;
-	WBinding *w = optwindow(a, n, &warg);
-	pollevent();
-	(void)w;
-	/* (as iconx: a list [x, y] of the pointer relative to the window) */
-	List *l = newlist(0);
-	list_append(l, intval(w->window->pointerx - w->context->dx));
-	list_append(l, intval(w->window->pointery - w->context->dy));
-	*out = ptrval(KList, l);
+/* QueryPointer(w) generates the pointer's x and y, as iconx's: for a
+ * window, where the pointer was at its last event (query_pointer); for
+ * null, on the screen (query_rootpointer). */
+typedef struct PairGen {
+	Gen g;
+	int64_t v[2];
+	int i;
+} PairGen;
+
+static void pairmark(Gen *g) { (void)g; }
+
+static bool pairnext(Gen *gg, Value *out) {
+	PairGen *g = (PairGen *)gg;
+	if (g->i >= 2)
+		return false;
+	*out = intval(g->v[g->i++]);
 	return true;
+}
+
+GENFN(f_QueryPointer) {
+	(void)b;
+	PairGen *g = gcnew(sizeof *g, T_GEN);
+	g->g.next = pairnext;
+	g->g.mark = pairmark;
+	pollevent();
+	Value w = n > 0 ? a[0] : NULLV;
+	if (VKIND(w) == KNull) {
+		if (!gp_connect()) {
+			g->v[0] = g->v[1] = 0;
+			return &g->g;
+		}
+		gp_begin(P_GLOBALMOUSE);
+		gp_end();
+		gp_reply(P_GLOBALMOUSE);
+		int ok = gr_i32(), x = gr_i32(), y = gr_i32();
+		g->v[0] = ok ? x : 0;
+		g->v[1] = ok ? y : 0;
+	} else {
+		if (VKIND(w) != KFile || !((File *)w.w.p)->gfx)
+			runerrv(140, w);
+		WState *ws = ((WBinding *)((File *)w.w.p)->gfx)->window;
+		g->v[0] = ws->pointerx;
+		g->v[1] = ws->pointery;
+	}
+	return &g->g;
 }
 
 FN(f_Clone) {
@@ -3062,10 +3096,13 @@ FN(f_Couple) {
 FN(f_Uncouple) {
 	(void)b;
 	int warg;
-	optwindow(a, n, &warg);
+	WBinding *w = optwindow(a, n, &warg);
 	File *f = (warg ? a[0] : kwindow).w.p;
-	gfx_close(f);
+	/* As iconx's (free_binding): the value is no longer open, and the
+	 * canvas goes only when its last binding does; close() would
+	 * close the window for every binding. */
 	f->closed = true;
+	free_window(w->window);
 	*out = retwindow(a, warg);
 	return true;
 }
@@ -3328,7 +3365,39 @@ FN(f_WDefault) {
 	return false;
 }
 
-FN(f_Active) { (void)b, (void)a, (void)n, (void)out; return false; }
+/* Active() is a window with an event queued, waiting for one if there
+ * is none, the windows taken in turn (rwindow.r's getactivewindow);
+ * it fails if no window is open. */
+FN(f_Active) {
+	(void)b, (void)a, (void)n;
+	static long next = 0;
+	long nwindows = 0;
+	for (WState *ws = wstates; ws; ws = ws->next)
+		nwindows++;
+	if (nwindows == 0)
+		return false;
+	next %= nwindows;
+	WState *ptr = wstates;
+	for (long i = 0; i < next; i++)
+		ptr = ptr->next;
+	for (;;) {
+		if (pollevent() < 0)
+			runerr(141);
+		WState *ws = ptr;
+		long j = next + 1;
+		for (long i = 0; i < nwindows; ws = ws->next ? ws->next : wstates, i++, j++)
+			if (ws->filep && ws->listp->n > 0) {
+				next = j;
+				*out = ptrval(KFile, ws->filep);
+				return true;
+			}
+		/* none: wait for events (iconx sleeps and polls) */
+		if (nwins && process_events(50) < 0)
+			runerr(141);
+		if (!nwins)
+			nanosleep(&(struct timespec){0, 50000000}, NULL);
+	}
+}
 
 /* Mutable colours are not supported (as icon-sdl's). */
 FN(f_FreeColor) {
@@ -4094,7 +4163,7 @@ static Builtin fns[] = {
 	{.name = "FillRectangle", .fn = f_FillRectangle}, {.name = "Font", .fn = f_Font},
 	{.name = "GotoRC", .fn = f_GotoRC}, {.name = "GotoXY", .fn = f_GotoXY},
 	{.name = "Lower", .fn = f_Lower}, {.name = "Pending", .fn = f_Pending},
-	{.name = "Pixel", .gen = f_Pixel}, {.name = "QueryPointer", .fn = f_QueryPointer},
+	{.name = "Pixel", .gen = f_Pixel}, {.name = "QueryPointer", .gen = f_QueryPointer},
 	{.name = "Raise", .fn = f_Raise}, {.name = "TextWidth", .fn = f_TextWidth},
 	{.name = "Uncouple", .fn = f_Uncouple}, {.name = "WAttrib", .gen = f_WAttrib},
 	{.name = "WFlush", .fn = f_WFlush}, {.name = "WSync", .fn = f_WSync},

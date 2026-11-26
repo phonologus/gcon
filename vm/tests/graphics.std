@@ -16,6 +16,9 @@ TextWidth 33
 Font sans,14 15 width 32
 clone window_1:2(test) fg #0f0 orig fg blue
 clone drew 0,65535,0
+couple window_1:3(test)
+after uncouple: depth 24 fg #0f0
+mode x window_2:5(xmode); pointer 0 0 (integer)
 &window window_1:1(test)
 pattern checkers
  65535,65535,65535 65535,65535,65535 65535,65535,65535 65535,65535,65535 0,0,65535 0,0,65535 0,0,65535 0,0,65535 0,0,65535 0,0,65535 0,0,65535 0,0,65535 65535,65535,65535 65535,65535,65535 65535,65535,65535 65535,65535,65535

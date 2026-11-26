@@ -1,0 +1,13 @@
+#STDERR
+# A field reference whose field a record of the program declares: the
+# traceback names the field (as "field" only when no record the linker
+# keeps has it).
+record point(x, y)
+procedure main()
+   local p
+   p := point(1, 2)
+   write(p.x)
+   p := &null
+   write(p.y)
+end
+status 0

@@ -336,6 +336,25 @@ void calledfrom(Buf *b, Frame *f) {
 
 /* ---- The traceback ---- */
 
+/* keptfield: a record the linker keeps declares field s; if none does,
+ * iconx's traceback says "field" (the field number was -1 from link
+ * time, imisc.r). */
+static bool keptfield(const char *s, size_t n) {
+	Program *p = vm.prog;
+	for (int i = 0; i < p->nglobals; i++) {
+		if (p->invocable && !p->invocable[i])
+			continue;
+		Value g = p->globals[i];
+		if (VKIND(g) != KRecordType)
+			continue;
+		RecordType *rt = g.w.p;
+		for (int k = 0; k < rt->nfields; k++)
+			if (rt->fields[k].n == n && !memcmp(rt->fields[k].s, s, n))
+				return true;
+	}
+	return false;
+}
+
 static void val(Buf *b, Frame *f, Operand o) { outimage(b, deref(get(f, o)), 0); }
 static void vari(Buf *b, Frame *f, Operand o) { outimage(b, ref(f, o), 0); }
 
@@ -402,7 +421,9 @@ static void operator(Buf *b, Frame *f, Builtin *bt, Operand *ops, int n) {
 	} else if (name[0] == '.' && name[1] && n == 1) {
 		bufputc(b, '{');
 		val(b, f, ops[0]);
-		bufputs(b, " . field}");
+		bufputs(b, " . ");
+		bufputs(b, keptfield(name + 1, strlen(name + 1)) ? name + 1 : "field");
+		bufputc(b, '}');
 	} else if (!strcmp(name, "to")) {
 		bufputc(b, '{');
 		val(b, f, ops[0]);
