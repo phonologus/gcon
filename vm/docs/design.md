@@ -704,5 +704,35 @@ expected: icon-sdl's window tests (`close`, `coexp`, `events`,
 (keystrokes matched as phwbi matches them). With the old `mkstr` it
 fails, as it should.
 
-**Still to do:** `DrawImage`, `DrawCurve`, the palette functions,
+**Still to do (then):** `DrawImage`, `DrawCurve`, the palette functions,
 `ReadImage`/`WriteImage` (image files), icons.
+
+## Graphics: images, palettes and curves (2026-11-26)
+
+The last of Icon 9.5's graphics functions (but the MS Windows ones):
+`DrawImage` and the palettes (`PaletteChars`, `PaletteColor`,
+`PaletteKey`), `ReadImage` and `WriteImage`, `DrawCurve`, and the
+`image=` and `iconimage=` attributes. They are Icon's own code: the
+palettes are rcolor.r's (`src/palette.c`, generated from it but for
+`palnum`, which takes a C string), GIF files rimage.r's (`src/gif.c`,
+which reads through `fmemopen` and writes through `open_memstream`,
+and is given the pixels rsdlwin.ri's `capture` gives), the curve
+rwindow.r's `genCurve`; `strimage`, `blimage`, `capture` and the
+image attributes follow icon-sdl's rsdlwin.ri. GIF is the client's
+entirely; the server draws pixels (`WRITE`), reads them (`READ`), and
+encodes and decodes PNG, JPEG, BMP and QOI with Blend2D (`ENCODE`,
+`DECODE`), never opening the program's files; `ICON` gives a window
+its icon (protocol version 2). The graphics functions now have
+iconx's arities for `args()` (they had none, so 0); the catalogue
+had `Couple`'s wrong (-1 for 2).
+
+**Tests.** Compared with icon-sdl's iconx on a program using each
+(palette names and colours, keys, bilevel and palette images, curves,
+GIF and PNG written and read back, `image=`): identical output, and
+byte-identical GIF and PNG files. `tests/ref.sh` runs icon-sdl's
+reference programs, whose expected images are unmodified Arizona
+Icon's under X11: all within the tolerances icon-sdl's backend has
+(`images`, the palettes and `DrawImage`, identical to X11), as are
+icon-sdl's own numbers. icon-sdl's whole `misc` window test (window
+icons) passes. `ifncsgen` (what `function()` generates) is identical
+to icon-sdl's iconx but for gcon's own five functions.

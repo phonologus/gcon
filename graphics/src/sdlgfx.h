@@ -13,6 +13,8 @@
  * 0xRRGGBB, as on a 24-bit TrueColor X display.
  */
 
+#include <stddef.h>
+
 /* Check that SDL3 and Blend2D are linked and working; returns the SDL
  * version as major*10000 + minor*100 + patch, or 0 on failure. */
 int sdlgfx_probe(void);
@@ -60,10 +62,12 @@ void cv_read(void *cv, int x, int y, int w, int h, unsigned int bg,
 void cv_write(void *cv, const sdlgc *gc, int x, int y, int w, int h,
    const unsigned int *px, const unsigned char *opaque);
 
-/* image files: returns 1 written, 0 failed, -1 format not handled */
-int cv_save(void *cv, const char *path, int x, int y, int w, int h);
-/* returns 0xAARRGGBB pixels (malloc'd) or NULL */
-unsigned int *cv_load(const char *path, int *w, int *h);
+/* image files, in memory: cv_encode returns 1 (bytes in *data,
+ * malloc'd), 0 failed, -1 a format it does not write (by extension);
+ * cv_decode returns 0xAARRGGBB pixels (malloc'd) or NULL */
+int cv_encode(void *cv, const char *ext, int x, int y, int w, int h,
+   unsigned char **data, size_t *len);
+unsigned int *cv_decode(const unsigned char *data, size_t len, int *w, int *h);
 
 /* mark a logical area as changed (to be shown again) */
 void cv_dirty(void *cv, int x, int y, int w, int h);

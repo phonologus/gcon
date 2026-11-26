@@ -760,24 +760,29 @@ void cv_write(void *cv, const sdlgc *gc, int x, int y, int w, int h,
    touch(c, r[0], r[1], r[2], r[3]);
 }
 
-static const char *ext(const char *path)
-{
-   const char *e = strrchr(path, '.');
-   return e ? e + 1 : "";
-}
-
-int cv_save(void *cv, const char *path, int x, int y, int w, int h)
+/*
+ * cv_encode encodes a region of the canvas in the format its file
+ * extension names (PNG, JPEG, BMP or QOI): 1, with the bytes in *data
+ * (malloc'd) and *len; 0 if it could not; -1 for another format (GIF,
+ * which the client writes itself). The server never opens the
+ * program's files: the client writes the bytes.
+ */
+int cv_encode(void *cv, const char *e, int x, int y, int w, int h, unsigned char **data, size_t *len)
 {
    Canvas *c = cv;
-   const char *e = ext(path);
    BLImageCore out;
    BLImageData d;
    BLImageCodecCore codec;
+   BLArrayCore arr;
    int ok;
 
+   *data = NULL;
+   *len = 0;
    if (strcasecmp(e, "png") && strcasecmp(e, "jpg") && strcasecmp(e, "jpeg")
        && strcasecmp(e, "bmp") && strcasecmp(e, "qoi"))
       return -1;
+   if (w <= 0 || h <= 0)
+      return 0;
    bl_image_init(&out);
    if (bl_image_create(&out, w, h, BL_FORMAT_XRGB32) != BL_SUCCESS)
       return 0;
@@ -790,21 +795,36 @@ int cv_save(void *cv, const char *path, int x, int y, int w, int h)
          p[i] |= OPAQUE;
    }
    bl_image_codec_init(&codec);
+   bl_array_init(&arr, BL_OBJECT_TYPE_ARRAY_UINT8);
    ok = bl_image_codec_find_by_extension(&codec, e, SIZE_MAX, NULL) == BL_SUCCESS
-        && bl_image_write_to_file(&out, path, &codec) == BL_SUCCESS;
+        && bl_image_write_to_data(&out, &arr, &codec) == BL_SUCCESS;
+   if (ok) {
+      *len = bl_array_get_size(&arr);
+      *data = malloc(*len ? *len : 1);
+      if (*data)
+         memcpy(*data, bl_array_get_data(&arr), *len);
+      else
+         ok = 0;
+   }
+   bl_array_destroy(&arr);
    bl_image_codec_destroy(&codec);
    bl_image_destroy(&out);
    return ok;
 }
 
-unsigned int *cv_load(const char *path, int *w, int *h)
+/*
+ * cv_decode decodes an image file's bytes (PNG, JPEG, BMP, QOI): its
+ * pixels, 0xAARRGGBB premultiplied (malloc'd), and size; NULL if it is
+ * not an image Blend2D reads.
+ */
+unsigned int *cv_decode(const unsigned char *data, size_t len, int *w, int *h)
 {
    BLImageCore img;
    BLImageData d;
    unsigned int *px;
 
    bl_image_init(&img);
-   if (bl_image_read_from_file(&img, path, NULL) != BL_SUCCESS
+   if (bl_image_read_from_data(&img, data, len, NULL) != BL_SUCCESS
        || bl_image_convert(&img, BL_FORMAT_PRGB32) != BL_SUCCESS) {
       bl_image_destroy(&img);
       return NULL;
@@ -812,7 +832,7 @@ unsigned int *cv_load(const char *path, int *w, int *h)
    bl_image_get_data(&img, &d);
    *w = d.size.w;
    *h = d.size.h;
-   px = malloc((size_t)*w * *h * 4);
+   px = malloc((size_t)*w * *h * 4 + 4);
    if (px)
       for (int j = 0; j < *h; j++)
          memcpy(px + (size_t)j * *w, (uint8_t *)d.pixel_data + j * d.stride, (size_t)*w * 4);

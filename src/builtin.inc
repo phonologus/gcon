@@ -11,7 +11,7 @@ static const BuiltinFunc functions[] = {
 	{"Color", -1, "Color(argv[])", "return or set color map entries", true, false},
 	{"ColorValue", -1, "ColorValue(w,s)", "produce RGB components from string color name", true, false},
 	{"CopyArea", -1, "CopyArea(w,w2,x,y,width,height,x2,y2)", "copy area", true, false},
-	{"Couple", -1, "Couple(w,w2)", "couple canvas to context", true, false},
+	{"Couple", 2, "Couple(w,w2)", "couple canvas to context", true, false},
 	{"DrawArc", -1, "DrawArc(argv[])", "draw arc", true, false},
 	{"DrawCircle", -1, "DrawCircle(argv[])", "draw circle", true, false},
 	{"DrawCurve", -1, "DrawCurve(argv[])", "draw curve", true, false},

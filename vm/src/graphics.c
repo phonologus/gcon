@@ -6,6 +6,7 @@
  * called its canvas and platform layers directly.
  */
 #include "gfx.h"
+#include "gimg.h"
 
 #include <ctype.h>
 #include <math.h>
@@ -678,6 +679,11 @@ static void unmap(WState *ws) {
 static void free_window(WState *ws) {
 	if (--ws->refcount > 0)
 		return;
+	free(ws->initpx);
+	free(ws->initop);
+	free(ws->iconpx);
+	ws->initpx = ws->iconpx = NULL;
+	ws->initop = NULL;
 	ws->bits |= 1; /* closed */
 	unmap(ws);
 	if (ws->id) {
@@ -1130,6 +1136,9 @@ static void btn_back(int b) {
 }
 
 static WBinding *bindingof(WState *ws); /* a binding of ws, for its context */
+static void putpixels(WBinding *w, int x, int y, int wd, int ht, const unsigned *px, const unsigned char *op);
+static bool loadimage(WBinding *w, const char *name, int p, unsigned **px, unsigned char **op, int *iw, int *ih);
+static void sendicon(WState *ws);
 static void opened(File *f);
 
 static void do_resize(WState *ws, int w, int h, unsigned bg) {
@@ -1435,6 +1444,14 @@ static int wmap(WBinding *w) {
 		nwins++;
 		ws->bits |= 256; /* exposed */
 	}
+	if (ws->initpx) { /* image= */
+		putpixels(w, 0, 0, ws->initw, ws->inith, ws->initpx, ws->initop);
+		free(ws->initpx);
+		free(ws->initop);
+		ws->initpx = NULL;
+		ws->initop = NULL;
+	}
+	sendicon(ws);
 	return Succeeded;
 }
 
@@ -1636,6 +1653,7 @@ static int setcanvas(WBinding *w, const char *s) {
 		ws->win = true;
 		nwins++;
 		ws->bits |= 256;
+		sendicon(ws);
 	} else {
 		gp_begin(P_STATE);
 		gp_u32(ws->id);
@@ -2008,12 +2026,24 @@ static int wattrib(WBinding *w, const char *s, size_t len, Value *answer) {
 			break;
 		case A_CANVAS:
 		case A_ICONIC: AttemptAttr(setcanvas(w, val)); break;
-		case A_ICONIMAGE:
-			if (!val[0])
+		case A_ICONIMAGE: { /* an image file (rsdlwin.ri's seticonimage) */
+			unsigned *px;
+			unsigned char *op;
+			int iw, ih;
+			if (!val[0] || !loadimage(w, val, 0, &px, &op, &iw, &ih))
 				return Failed;
-			free(ws->iconimage); /* (the icon itself: later) */
+			for (size_t i = 0; i < (size_t)iw * (size_t)ih; i++)
+				px[i] = op[i] ? 0xFF000000u | px[i] : 0;
+			free(op);
+			free(ws->iconimage);
 			ws->iconimage = salloc(val);
+			free(ws->iconpx);
+			ws->iconpx = px;
+			ws->iconw = iw;
+			ws->iconh = ih;
+			sendicon(ws);
 			break;
+		}
 		case A_ICONLABEL:
 			free(ws->iconlabel);
 			ws->iconlabel = salloc(val);
@@ -2104,7 +2134,33 @@ static int wattrib(WBinding *w, const char *s, size_t len, Value *answer) {
 				return Failed;
 			wc->leading = (int)tmp;
 			break;
-		case A_IMAGE: return Failed; /* (images: later) */
+		case A_IMAGE: { /* the window's size and initial contents */
+			unsigned *px;
+			unsigned char *op;
+			int iw, ih;
+			if (!loadimage(w, val, 0, &px, &op, &iw, &ih))
+				return Failed;
+			if (ws->id) { /* the canvas exists: resized, and drawn now */
+				if (setwidth(w, iw) != Succeeded || setheight(w, ih) != Succeeded) {
+					free(px);
+					free(op);
+					return Failed;
+				}
+				putpixels(w, 0, 0, iw, ih, px, op);
+				free(px);
+				free(op);
+				break;
+			}
+			free(ws->initpx);
+			free(ws->initop);
+			ws->initpx = px;
+			ws->initop = op;
+			ws->initw = iw;
+			ws->inith = ih;
+			ws->width = iw;
+			ws->height = ih;
+			break;
+		}
 		case A_ECHO:
 			if (strcmp(val, "on") && strcmp(val, "off"))
 				return Failed;
@@ -2979,7 +3035,7 @@ FN(f_Clone) {
 		Value ans;
 		switch (wattrib(w2, s.s, (size_t)s.n, &ans)) {
 		case Failed: return false;
-		case Error: runerrv(errnum, a[i]);
+		case Error: runerr(errnum); /* iconx: runerr(0, ...), no value */
 		}
 	}
 	*out = winval(w2, textc(""));
@@ -3058,7 +3114,7 @@ static bool wattribnext(Gen *gg, Value *out) {
 		Value ans;
 		switch (wattrib(g->w, s.s, len, &ans)) {
 		case Failed: continue;
-		case Error: runerrv(errnum, v);
+		case Error: runerr(errnum); /* iconx: runerr(0, ...), no value */
 		}
 		*out = ans;
 		return true;
@@ -3105,7 +3161,7 @@ GENFN(f_WAttrib) {
 			args[i] = NULLV;
 			continue;
 		case Error:
-			runerrv(errnum, v);
+			runerr(errnum); /* iconx: runerr(0, ...), no value */
 		}
 		static const struct { const char *p; int c; } cfg[] = {
 			{"pos=", 1}, {"posx=", 1}, {"posy=", 1}, {"rows=", 2}, {"size=", 2},
@@ -3404,10 +3460,627 @@ static void opened(File *f) {
 	}
 }
 
+
+/* ---- Images, palettes and curves (fwindow.r's DrawImage, Palette*,
+ * ReadImage, WriteImage and DrawCurve; rsdlwin.ri's strimage, blimage,
+ * capture, readimage and dumpimage; rwindow.r's genCurve) ---- */
+
+/* putpixels writes pixels (0xRRGGBB) to w's canvas where op is
+ * nonzero. */
+static void putpixels(WBinding *w, int x, int y, int wd, int ht, const unsigned *px, const unsigned char *op) {
+	if (!w->window->id || wd <= 0 || ht <= 0)
+		return;
+	uint32_t gc = wgc(w);
+	size_t k = (size_t)wd * (size_t)ht;
+	gp_begin(P_WRITE);
+	gp_u32(w->window->id);
+	gp_u32(gc);
+	gp_i32(x);
+	gp_i32(y);
+	gp_i32(wd);
+	gp_i32(ht);
+	for (size_t i = 0; i < k; i++)
+		gp_u32(px[i]);
+	gp_bytes(op, k);
+	gp_end();
+	drawing();
+}
+
+/* getpixels reads w's canvas (0xRRGGBB; outside it, bg). */
+static unsigned *getpixels(WBinding *w, int x, int y, int wd, int ht) {
+	size_t k = (size_t)wd * (size_t)ht;
+	unsigned *px = xmalloc(k * sizeof *px + 1);
+	gp_begin(P_READ);
+	gp_u32(w->window->id);
+	gp_i32(x);
+	gp_i32(y);
+	gp_i32(wd);
+	gp_i32(ht);
+	gp_u32(w->context->bg);
+	gp_end();
+	gp_reply(P_READ);
+	for (size_t i = 0; i < k; i++)
+		px[i] = gr_u32();
+	return px;
+}
+
+/* strimage draws a character-per-pixel image (DrawImage, GIF files):
+ * 0, or -1 on error. */
+static int strimage(WBinding *w, int x, int y, int width, int height, struct palentry *e, const unsigned char *s,
+	size_t len) {
+	unsigned pix[256];
+	int n = width * height;
+	if (!w->window->id || n <= 0)
+		return 0;
+	for (int c = 0; c < 256; c++)
+		if (e[c].used && e[c].valid) {
+			char tmp[24]; /* named as rxwin.ri's strimage does */
+			snprintf(tmp, sizeof tmp, "%ld,%ld,%ld", e[c].clr.red, e[c].clr.green, e[c].clr.blue);
+			pix[c] = sdl_rgb(w, e[c].clr.red, e[c].clr.green, e[c].clr.blue, tmp, NULL);
+		}
+	unsigned *px = xcalloc((size_t)n, sizeof *px);
+	unsigned char *op = xcalloc((size_t)n, 1);
+	int ix = 0, iy = 0;
+	while (len-- && iy < height) {
+		int c = *s++;
+		int v = e[c].valid;
+		if (v) {
+			px[iy * width + ix] = pix[c];
+			op[iy * width + ix] = 1;
+		}
+		if (v || e[c].transpt) {
+			if (++ix >= width) {
+				ix = 0;
+				iy++;
+			}
+		}
+	}
+	if (ix > 0) /* pad the final row with bg */
+		while (ix < width) {
+			px[iy * width + ix] = w->context->bg;
+			op[iy * width + ix++] = 1;
+		}
+	putpixels(w, x, y, width, height, px, op);
+	free(px);
+	free(op);
+	return 0;
+}
+
+/* blimage draws a bilevel image ("width,#hex" or "width,~hex"): the hex
+ * digits fill each row right to left, as in rxwin.ri. */
+static void blimage(WBinding *w, int x, int y, int width, int height, int ch, const unsigned char *s, size_t len) {
+	int n = width * height;
+	if (!w->window->id || n <= 0)
+		return;
+	unsigned *px = xcalloc((size_t)n, sizeof *px);
+	unsigned char *op = xcalloc((size_t)n, 1);
+	unsigned m = (unsigned)width % 4;
+	unsigned msk1 = m == 0 ? 8 : 1u << (m - 1);
+	unsigned fg = w->context->fg, bg = w->context->bg;
+	unsigned ix = (unsigned)width, iy = 0;
+	m = msk1;
+	while (len-- && iy < (unsigned)height) {
+		unsigned c = *s++;
+		if (isxdigit((int)c)) {
+			if (!isdigit((int)c))
+				c += 9;
+			while (m > 0) {
+				--ix;
+				if (c & m) {
+					px[iy * width + ix] = fg;
+					op[iy * width + ix] = 1;
+				} else if (ch != TCH1) {
+					px[iy * width + ix] = bg;
+					op[iy * width + ix] = 1;
+				}
+				m >>= 1;
+			}
+			if (ix == 0) {
+				ix = (unsigned)width;
+				iy++;
+				m = msk1;
+			} else
+				m = 8;
+		}
+	}
+	if (ix > 0 && ix < (unsigned)width && iy < (unsigned)height)
+		while (ix < (unsigned)width) { /* pad the final row */
+			px[iy * width + ix] = bg;
+			op[iy * width + ix++] = 1;
+		}
+	putpixels(w, x, y, width, height, px, op);
+	free(px);
+	free(op);
+}
+
+FN(f_DrawImage) {
+	(void)b;
+	int warg;
+	WBinding *w = optwindow(a, n, &warg);
+	int64_t x = -w->context->dx, y = -w->context->dy;
+	/* x or y can be defaulted but s is required; x and y first, so that
+	 * the message makes more sense */
+	if (n - warg >= 1 && !defint(a[warg], -w->context->dx, &x))
+		runerrv(101, a[warg]);
+	if (n - warg >= 2 && !defint(a[warg + 1], -w->context->dy, &y))
+		runerrv(101, a[warg + 1]);
+	if (n - warg < 3)
+		runerr(103);
+	String d;
+	if (!cvstr(a[warg + 2], &d))
+		runerrv(103, a[warg + 2]);
+	x += w->context->dx;
+	y += w->context->dy;
+	const unsigned char *s = (const unsigned char *)d.s, *z = s + d.n, *t;
+	int width = 0;
+	while (s < z && *s == ' ')
+		s++;
+	while (s < z && isdigit(*s))
+		width = 10 * width + *s++ - '0';
+	while (s < z && *s == ' ')
+		s++;
+	if (width == 0 || s >= z || *s++ != ',')
+		return false;
+	while (s < z && *s == ' ')
+		s++;
+	if (s >= z)
+		return false;
+	int c = *s;
+	size_t nchars;
+	if (c == '#' || c == '~') { /* bilevel */
+		s++;
+		nchars = 0;
+		for (t = s; t < z; t++)
+			if (isxdigit(*t))
+				nchars++;
+			else if (*t != PCH1 && *t != PCH2)
+				return false;
+		if (nchars == 0)
+			return false;
+		size_t row = ((size_t)width + 3) / 4;
+		if (nchars % row != 0)
+			return false;
+		blimage(w, (int)x, (int)y, width, (int)(nchars / row), c, s, (size_t)(z - s));
+		*out = NULLV;
+		return true;
+	}
+	c = *s++; /* the palette */
+	int p = 0;
+	while (s < z && isdigit(*s))
+		p = 10 * p + *s++ - '0';
+	while (s < z && *s == ' ')
+		s++;
+	if (s >= z || p == 0 || *s++ != ',')
+		return false;
+	if (c == 'g' && p >= 2 && p <= 256)
+		p = -p;
+	else if (c != 'c' || p < 1 || p > 6)
+		return false;
+	struct palentry *e = palsetup(p);
+	if (!e)
+		runerr(305);
+	for (int i = 0; i < 256; i++)
+		e[i].used = 0;
+	nchars = 0;
+	for (t = s; t < z; t++) {
+		c = *t;
+		e[c].used = 1;
+		if (e[c].valid || e[c].transpt)
+			nchars++;
+		else if (c != PCH1 && c != PCH2)
+			return false;
+	}
+	if (nchars == 0 || nchars % (size_t)width != 0)
+		return false;
+	if (strimage(w, (int)x, (int)y, width, (int)(nchars / (size_t)width), e, s, (size_t)(z - s)) < 0)
+		runerr(305);
+	*out = NULLV;
+	return true;
+}
+
+/* palarg: the palette a value names (palnum): 1 for null, -1 if it is
+ * not a string. */
+static int palarg(Value v) {
+	if (VKIND(v) == KNull)
+		return 1;
+	String s;
+	if (!cvstr(v, &s))
+		return -1;
+	return palnum(cstr(s));
+}
+
+static bool iswindowarg(Value *a, int n) {
+	return n > 0 && VKIND(a[0]) == KFile && ((File *)a[0].w.p)->gfx;
+}
+
+/* bytesorstr: a string of n bytes, text unless some are not ASCII. */
+static Value bytesorstr(const char *s, size_t n) {
+	int unit = TextUnit;
+	for (size_t i = 0; i < n; i++)
+		if ((unsigned char)s[i] >= 0x80)
+			unit = BytesUnit;
+	return strval(strcopy(s, (int64_t)n, unit));
+}
+
+FN(f_PaletteChars) {
+	(void)b;
+	int warg = iswindowarg(a, n); /* a window is not required */
+	int p = n - warg < 1 ? 1 : palarg(a[warg]);
+	if (p == -1)
+		runerrv(103, a[warg]);
+	if (p == 0)
+		return false;
+	int k;
+	const char *s = palchars(p, &k);
+	*out = bytesorstr(s, (size_t)k);
+	return true;
+}
+
+FN(f_PaletteColor) {
+	(void)b;
+	int warg = iswindowarg(a, n);
+	if (n - warg < 2)
+		runerr(103);
+	int p = palarg(a[warg]);
+	if (p == -1)
+		runerrv(103, a[warg]);
+	if (p == 0)
+		return false;
+	String d;
+	if (!cvstr(a[warg + 1], &d))
+		runerrv(103, a[warg + 1]);
+	if (d.n != 1)
+		runerrv(205, a[warg + 1]);
+	struct palentry *e = palsetup(p);
+	if (!e)
+		runerr(305);
+	e += (unsigned char)d.s[0];
+	if (!e->valid)
+		return false;
+	char tmp[48];
+	snprintf(tmp, sizeof tmp, "%ld,%ld,%ld", e->clr.red, e->clr.green, e->clr.blue);
+	*out = strval(strcopy(tmp, (int64_t)strlen(tmp), TextUnit));
+	return true;
+}
+
+FN(f_PaletteKey) {
+	(void)b;
+	WBinding *w = NULL;
+	int warg = 0;
+	if (iswindowarg(a, n)) {
+		w = ((File *)a[0].w.p)->gfx; /* an explicit window */
+		warg = 1;
+	} else if (VKIND(kwindow) == KFile && ((File *)kwindow.w.p)->gfx)
+		w = ((File *)kwindow.w.p)->gfx; /* &window */
+	if (n - warg < 2)
+		runerr(103);
+	int p = palarg(a[warg]);
+	if (p == -1)
+		runerrv(103, a[warg]);
+	if (p == 0)
+		return false;
+	int64_t i;
+	if (cvint(a[warg + 1], &i))
+		return false; /* a mutable colour: gcon has none */
+	String s;
+	if (!cvstr(a[warg + 1], &s))
+		runerrv(103, a[warg + 1]);
+	long r, g, bl;
+	if (parsecolor(w, cstr(s), &r, &g, &bl) != Succeeded)
+		return false;
+	*out = bytesorstr(rgbkey(p, r / 65535.0, g / 65535.0, bl / 65535.0), 1);
+	return true;
+}
+
+/* capture gives a region as 15-bit linear colour, for gif_write,
+ * mapping each 8-bit channel through gamma as rxwin.ri does. */
+static short *capture(WBinding *w, int x, int y, int width, int height) {
+	size_t k = (size_t)width * (size_t)height;
+	short *data = xmalloc(k * sizeof *data + 1);
+	unsigned char cmap[256];
+	double gamma = w->context->gamma;
+	for (int i = 0; i < 256; i++)
+		cmap[i] = (unsigned char)(31 * pow(i / 255., gamma) + 0.5);
+	unsigned *px = getpixels(w, x, y, width, height);
+	for (size_t i = 0; i < k; i++) {
+		unsigned p = px[i];
+		data[i] = (short)((cmap[(p >> 16) & 0xFF] << 10) | (cmap[(p >> 8) & 0xFF] << 5) | cmap[p & 0xFF]);
+	}
+	free(px);
+	return data;
+}
+
+/* readall reads a file; false if it cannot. */
+static bool readall(const char *name, Buf *b) {
+	FILE *f = fopen(name, "rb");
+	if (!f)
+		return false;
+	char chunk[65536];
+	size_t k;
+	while ((k = fread(chunk, 1, sizeof chunk, f)) > 0)
+		bufadd(b, chunk, k);
+	bool ok = !ferror(f);
+	fclose(f);
+	return ok;
+}
+
+FN(f_ReadImage) {
+	(void)b;
+	int warg;
+	WBinding *w = optwindow(a, n, &warg);
+	if (n - warg == 0)
+		runerrv(103, NULLV);
+	String fname;
+	if (!cvstr(a[warg], &fname))
+		runerrv(103, a[warg]);
+	/* x and y must be integers; they default to the upper left pixel */
+	int64_t x = -w->context->dx, y = -w->context->dy;
+	if (n - warg >= 2 && !defint(a[warg + 1], -w->context->dx, &x))
+		runerrv(101, a[warg + 1]);
+	if (n - warg >= 3 && !defint(a[warg + 2], -w->context->dy, &y))
+		runerrv(101, a[warg + 2]);
+	int p = 0; /* an optional palette */
+	if (n - warg >= 4 && VKIND(a[warg + 3]) != KNull) {
+		p = palarg(a[warg + 3]);
+		if (p == -1)
+			runerrv(103, a[warg + 3]);
+		if (p == 0)
+			return false;
+	}
+	x += w->context->dx;
+	y += w->context->dy;
+	unsigned *px;
+	unsigned char *op;
+	int iw, ih;
+	if (!loadimage(w, cstr(fname), p, &px, &op, &iw, &ih))
+		return false;
+	putpixels(w, (int)x, (int)y, iw, ih, px, op);
+	free(px);
+	free(op);
+	*out = NULLV;
+	return true;
+}
+
+/* loadimage reads an image file: GIF by Icon's reader (its colours
+ * coerced to palette p, if p is not 0), else as the server decodes it
+ * (PNG, JPEG, BMP, QOI). The pixels, 0xRRGGBB as w's device colours,
+ * opaque where op is nonzero; false if it cannot be read. */
+static bool loadimage(WBinding *w, const char *name, int p, unsigned **pxp, unsigned char **opp, int *iw, int *ih) {
+	Buf data = {0};
+	if (!readall(name, &data))
+		return false;
+	struct imgdata imd;
+	if (gif_read((unsigned char *)data.b, data.n, p, &imd)) {
+		free(data.b);
+		unsigned pix[256];
+		for (int c = 0; c < 256; c++) {
+			struct palentry *e = &imd.paltbl[c];
+			if (e->used && e->valid) {
+				char tmp[24]; /* named as rxwin.ri's strimage does */
+				snprintf(tmp, sizeof tmp, "%ld,%ld,%ld", e->clr.red, e->clr.green, e->clr.blue);
+				pix[c] = sdl_rgb(w, e->clr.red, e->clr.green, e->clr.blue, tmp, NULL);
+			}
+		}
+		size_t k = (size_t)imd.width * (size_t)imd.height;
+		unsigned *px = xcalloc(k + 1, sizeof *px);
+		unsigned char *op = xcalloc(k + 1, 1);
+		for (size_t i = 0; i < k; i++) {
+			int c = imd.data[i];
+			if (imd.paltbl[c].valid) {
+				px[i] = pix[c];
+				op[i] = 1;
+			}
+		}
+		*iw = imd.width;
+		*ih = imd.height;
+		free(imd.paltbl);
+		free(imd.data);
+		*pxp = px;
+		*opp = op;
+		return true;
+	}
+	gp_begin(P_DECODE);
+	gp_str(data.b ? data.b : "", data.n);
+	gp_end();
+	free(data.b);
+	gp_reply(P_DECODE);
+	int ok = gr_i32();
+	*iw = gr_i32();
+	*ih = gr_i32();
+	if (!ok)
+		return false;
+	size_t k = (size_t)*iw * (size_t)*ih;
+	unsigned *px = xmalloc(k * sizeof *px + 1);
+	unsigned char *op = xmalloc(k + 1);
+	for (size_t i = 0; i < k; i++) {
+		unsigned v = gr_u32();
+		px[i] = v & 0xFFFFFF;
+		op[i] = (v >> 24) >= 128; /* alpha below half: transparent */
+	}
+	*pxp = px;
+	*opp = op;
+	return true;
+}
+
+/* sendicon gives ws's window its icon (iconimage=), if it has both. */
+static void sendicon(WState *ws) {
+	if (!ws->iconpx || !ws->id || !ws->win)
+		return;
+	size_t k = (size_t)ws->iconw * (size_t)ws->iconh;
+	gp_begin(P_ICON);
+	gp_u32(ws->id);
+	gp_i32(ws->iconw);
+	gp_i32(ws->iconh);
+	for (size_t i = 0; i < k; i++)
+		gp_u32(ws->iconpx[i]);
+	gp_end();
+}
+
+FN(f_WriteImage) {
+	(void)b;
+	int warg;
+	WBinding *w = optwindow(a, n, &warg);
+	if (n - warg == 0)
+		runerrv(103, NULLV);
+	String fname;
+	if (!cvstr(a[warg], &fname))
+		runerrv(103, a[warg]);
+	int x, y, width, height;
+	int r = rectargs(w, n, a, warg + 1, &x, &y, &width, &height);
+	if (r >= 0)
+		runerrv(101, a[r]);
+	/* clip to the window, and fail if nothing is left */
+	if (x < 0) {
+		width += x;
+		x = 0;
+	}
+	if (y < 0) {
+		height += y;
+		y = 0;
+	}
+	if (x + width > w->window->width)
+		width = w->window->width - x;
+	if (y + height > w->window->height)
+		height = w->window->height - y;
+	if (width <= 0 || height <= 0 || !w->window->id)
+		return false;
+	const char *name = cstr(fname);
+	const char *dot = strrchr(name, '.'), *slash = strrchr(name, '/');
+	const char *ext = dot && (!slash || dot > slash) ? dot + 1 : "";
+	/* the server's formats first; it declines the others (GIF) */
+	gp_begin(P_ENCODE);
+	gp_u32(w->window->id);
+	gp_i32(x);
+	gp_i32(y);
+	gp_i32(width);
+	gp_i32(height);
+	gp_str(ext, strlen(ext));
+	gp_end();
+	gp_reply(P_ENCODE);
+	int st = gr_i32();
+	uint32_t len = gr_u32();
+	unsigned char *bytes = xmalloc((size_t)len + 1);
+	gr_bytes(bytes, len);
+	size_t blen = len;
+	if (st < 0) { /* GIF, the client's */
+		free(bytes);
+		short *data = capture(w, x, y, width, height);
+		int ok = gif_write(data, width, height, &bytes, &blen);
+		free(data);
+		if (!ok)
+			return false;
+	} else if (st == 0) {
+		free(bytes);
+		return false;
+	}
+	FILE *f = fopen(name, "wb");
+	bool ok = f && fwrite(bytes, 1, blen, f) == blen;
+	if (f && fclose(f) != 0)
+		ok = false;
+	free(bytes);
+	if (!ok)
+		return false;
+	*out = retwindow(a, warg);
+	return true;
+}
+
+/* genCurve draws a smooth curve through n points (rwindow.r: from
+ * Barry and Goldman, "A Recursive Evaluation Algorithm for a class of
+ * Catmull-Rom Splines", 1988), as polylines. */
+static void genCurve(WBinding *w, const int *px, const int *py, int n) {
+	int *xy = NULL;
+	long npoints = 0;
+	for (int i = 3; i < n; i++) {
+		float ax = px[i] - 3 * px[i - 1] + 3 * px[i - 2] - px[i - 3];
+		float ay = py[i] - 3 * py[i - 1] + 3 * py[i - 2] - py[i - 3];
+		float bx = 2 * px[i - 3] - 5 * px[i - 2] + 4 * px[i - 1] - px[i];
+		float by = 2 * py[i - 3] - 5 * py[i - 2] + 4 * py[i - 1] - py[i];
+		int adx = abs(px[i - 1] - px[i - 2]), ady = abs(py[i - 1] - py[i - 2]);
+		int steps = (adx > ady ? adx : ady) + 10;
+		if (steps + 4 > npoints) {
+			free(xy);
+			xy = xmalloc((size_t)(steps + 4) * 2 * sizeof *xy);
+			npoints = steps + 4;
+		}
+		float stepsize = 1.0 / steps;
+		float stepsize2 = stepsize * stepsize;
+		float stepsize3 = stepsize * stepsize2;
+		float x = xy[0] = px[i - 2];
+		float y = xy[1] = py[i - 2];
+		float dx = (stepsize3 * 0.5) * ax + (stepsize2 * 0.5) * bx + (stepsize * 0.5) * (px[i - 1] - px[i - 3]);
+		float dy = (stepsize3 * 0.5) * ay + (stepsize2 * 0.5) * by + (stepsize * 0.5) * (py[i - 1] - py[i - 3]);
+		float d2x = (stepsize3 * 3) * ax + stepsize2 * bx;
+		float d2y = (stepsize3 * 3) * ay + stepsize2 * by;
+		float d3x = (stepsize3 * 3) * ax;
+		float d3y = (stepsize3 * 3) * ay;
+		for (int j = 0; j < steps; j++) {
+			x = x + dx;
+			y = y + dy;
+			dx = dx + d2x;
+			dy = dy + d2y;
+			d2x = d2x + d3x;
+			d2y = d2y + d3y;
+			xy[2 * (j + 1)] = (short)(int)x;
+			xy[2 * (j + 1) + 1] = (short)(int)y;
+		}
+		drawxy(w, P_LINES, xy, steps + 1, 2);
+	}
+	free(xy);
+}
+
+FN(f_DrawCurve) {
+	(void)b;
+	int warg;
+	WBinding *w = optwindow(a, n, &warg);
+	int c = multiple(n, warg, 2);
+	int dx = w->context->dx, dy = w->context->dy;
+	int *px = xmalloc(sizeof(int) * (size_t)(c + 2)), *py = xmalloc(sizeof(int) * (size_t)(c + 2));
+	if (c > 1) {
+		int x0 = cshort(a[warg]), y0 = cshort(a[warg + 1]);
+		int xN = cshort(a[n - 2]), yN = cshort(a[n - 1]);
+		bool closed = x0 == xN && y0 == yN;
+		if (closed) { /* duplicate the next to last point */
+			px[0] = cshort(a[n - 4]) + dx;
+			py[0] = cshort(a[n - 3]) + dy;
+		} else { /* duplicate the first point */
+			px[0] = x0 + dx;
+			py[0] = y0 + dy;
+		}
+		int i;
+		for (i = 1; i <= c; i++) {
+			int base = warg + (i - 1) * 2;
+			px[i] = (short)cshort(a[base]) + dx;
+			py[i] = (short)cshort(a[base + 1]) + dy;
+		}
+		if (closed) { /* duplicate the second point */
+			px[i] = px[2];
+			py[i] = py[2];
+		} else { /* duplicate the last point */
+			px[i] = px[i - 1];
+			py[i] = py[i - 1];
+		}
+		if (c < 3) {
+			int *xy = xmalloc(sizeof(int) * 2 * (size_t)c);
+			for (int k = 0; k < c; k++)
+				xy[2 * k] = px[k + 1], xy[2 * k + 1] = py[k + 1];
+			drawxy(w, P_LINES, xy, c, 2);
+			free(xy);
+		} else
+			genCurve(w, px, py, c + 2);
+	}
+	free(px);
+	free(py);
+	*out = retwindow(a, warg);
+	return true;
+}
 /* ---- Registration ---- */
 
 static Builtin fns[] = {
 	{.name = "Alert", .fn = f_Alert}, {.name = "Bg", .fn = f_Bg},
+	{.name = "DrawCurve", .fn = f_DrawCurve}, {.name = "DrawImage", .fn = f_DrawImage},
+	{.name = "PaletteChars", .fn = f_PaletteChars}, {.name = "PaletteColor", .fn = f_PaletteColor},
+	{.name = "PaletteKey", .fn = f_PaletteKey}, {.name = "ReadImage", .fn = f_ReadImage},
+	{.name = "WriteImage", .fn = f_WriteImage},
 	{.name = "Clip", .fn = f_Clip}, {.name = "Clone", .fn = f_Clone},
 	{.name = "CopyArea", .fn = f_CopyArea}, {.name = "Couple", .fn = f_Couple},
 	{.name = "DrawArc", .fn = f_DrawArc}, {.name = "DrawCircle", .fn = f_DrawCircle},

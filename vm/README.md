@@ -83,6 +83,12 @@ draws on a hidden canvas through the display server and compares with
 opens real windows (briefly; it needs a display), with keystrokes and
 clicks scripted through the display server, and compares each
 program's output with the expected (`tests/window/`).
+
+    tests/ref.sh
+
+runs icon-sdl's reference drawing programs and compares their images
+with unmodified Icon's under X11 (`tests/ref/expected`), within the
+tolerances of the SDL backend (`tests/ref/tolerance`).
 `tests/bench.sh` times micro-benchmarks on gcon-vm and iconx.
 
 `src/gen_tables.c` holds the names of gcon's operations and built-ins;

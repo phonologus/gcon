@@ -24,7 +24,7 @@
 #include <mach-o/dyld.h>
 #endif
 
-enum { Version = 1 };
+enum { Version = 2 };
 
 static int sock = -1;
 static pid_t server;
@@ -254,4 +254,11 @@ void gp_close(void) {
 	close(sock);
 	sock = -1;
 	waitpid(server, NULL, 0);
+}
+
+void gr_bytes(void *p, size_t n) {
+	if (rlen - rpos < n)
+		lost("protocol error (short reply)");
+	memcpy(p, rb + rpos, n);
+	rpos += n;
 }

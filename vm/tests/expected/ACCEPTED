@@ -16,3 +16,9 @@ tests-general/features   gcon predefines _X_WINDOW_SYSTEM (its events use X
                          keysyms, which the IPL's keysyms.icn names under
                          it), so &features includes "X Windows", as in
                          icon-sdl's iconx
+ipl-progs/ifncsgen       function() now generates DrawCurve, DrawImage,
+                         PaletteChars, PaletteColor, PaletteKey, ReadImage
+                         and WriteImage, and the graphics functions have
+                         iconx's arities (args()): identical to icon-sdl's
+                         iconx but for gcon's own bytes, len, runes, uchar
+                         and utf8valid

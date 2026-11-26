@@ -17,7 +17,8 @@ enum {
 	P_SEGMENTS, P_RECTS, P_FILLRECTS, P_ARCS, P_ERASE, P_COPY, P_WRITE, P_READ,
 	P_COLOR, P_WAIT, P_SHOW, P_FONT, P_TEXT, P_WIDTH, P_TITLE, P_GEOMETRY,
 	P_STATE, P_MAP, P_RESIZABLE, P_POSITION, P_RAISE, P_LOWER, P_CURSOR,
-	P_WARP, P_BEEP, P_DISPLAYSIZE, P_GLOBALMOUSE, P_OVERLAY,
+	P_WARP, P_BEEP, P_DISPLAYSIZE, P_GLOBALMOUSE, P_OVERLAY, P_ENCODE, P_DECODE,
+	P_ICON,
 };
 
 #define NOPOS INT32_MIN
@@ -44,6 +45,7 @@ void gp_reply(int op);
 uint32_t gr_u32(void);
 int32_t gr_i32(void);
 int64_t gr_i64(void);
+void gr_bytes(void *p, size_t n);
 
 /* ---- Iconx's definitions (graphics.h, icon-sdl's sdlwin.h) ---- */
 
@@ -116,6 +118,11 @@ typedef struct WState {
 	List *listp;        /* the Icon event list */
 	File *filep;        /* the window value it was opened as */
 	int iconic;
+	unsigned *initpx;       /* image=: drawn when the canvas is made */
+	unsigned char *initop;
+	int initw, inith;
+	unsigned *iconpx;       /* iconimage=: 0xAARRGGBB, sent to the window */
+	int iconw, iconh;
 	struct WState *next;
 } WState;
 

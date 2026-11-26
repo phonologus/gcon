@@ -56,7 +56,8 @@ use:
 
 `HELLO` (0) **reply**: `u32 version`. Reply: `u32 version` (the
 server's), `u32 ok` (1 if it speaks the client's version). First on
-every connection.
+every connection. This is version 2 (version 1 lacked `ENCODE`,
+`DECODE` and `ICON`).
 
 ### Canvases and windows
 
@@ -195,8 +196,20 @@ text's cell is first filled with the gc's bg (X's XDrawImageString, for
 `TEXT` would draw it (shaped, so not always the sum of its characters'
 widths).
 
-### Image files *(later)*
+### Image files
 
-The server never opens the program's files: `DECODE` takes a file's
-bytes and replies with pixels; `ENCODE` takes pixels and a format and
-replies with the bytes.
+The server never opens the program's files: the client reads and
+writes them, and GIF, Icon's own format, is the client's entirely.
+
+`ENCODE` (36) **reply**: `u32 canvas, i32 x, y, w, h, str ext`. Encodes
+the region in the format the file extension names (`png`, `jpg` or
+`jpeg`, `bmp`, `qoi`; any case). Reply: `i32 status` (1 encoded, 0
+failed, -1 a format the server does not write), `str bytes`.
+
+`DECODE` (37) **reply**: `str bytes`. Decodes a PNG, JPEG, BMP or QOI
+file. Reply: `i32 ok, i32 w, i32 h, u32 px[w*h]`, 0xAARRGGBB
+(premultiplied; alpha below half is transparent to Icon).
+
+`ICON` (38): `u32 canvas, i32 w, i32 h, u32 px[w*h]`, 0xAARRGGBB. Makes
+the image the canvas's window's icon (on macOS, the application's Dock
+icon); nothing for a canvas without a window.

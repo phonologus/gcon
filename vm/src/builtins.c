@@ -182,6 +182,18 @@ static const struct {
 	{"trim", 2}, {"type", 1}, {"upto", 4}, {"variable", 1}, {"where", 1}, {"write", -1},
 	{"writes", -1},
 	{"bytes", 1}, {"len", 1}, {"runes", 1}, {"uchar", 1}, {"utf8valid", 1},
+	/* the graphics functions, as a graphics iconx declares them */
+	{"Active", 0}, {"Alert", -1}, {"Bg", -1}, {"Clip", -1}, {"Clone", -1}, {"Color", -1},
+	{"ColorValue", -1}, {"CopyArea", -1}, {"Couple", 2}, {"DrawArc", -1}, {"DrawCircle", -1},
+	{"DrawCurve", -1}, {"DrawImage", -1}, {"DrawLine", -1}, {"DrawPoint", -1},
+	{"DrawPolygon", -1}, {"DrawRectangle", -1}, {"DrawSegment", -1}, {"DrawString", -1},
+	{"EraseArea", -1}, {"Event", -1}, {"Fg", -1}, {"FillArc", -1}, {"FillCircle", -1},
+	{"FillPolygon", -1}, {"FillRectangle", -1}, {"Font", -1}, {"FreeColor", -1}, {"GotoRC", -1},
+	{"GotoXY", -1}, {"Lower", -1}, {"NewColor", -1}, {"PaletteChars", -1},
+	{"PaletteColor", -1}, {"PaletteKey", -1}, {"Pattern", -1}, {"Pending", -1}, {"Pixel", -1},
+	{"QueryPointer", 1}, {"Raise", -1}, {"ReadImage", -1}, {"TextWidth", -1},
+	{"Uncouple", 1}, {"WAttrib", -1}, {"WDefault", -1}, {"WFlush", -1}, {"WSync", 1},
+	{"WriteImage", -1},
 };
 
 /* opsbyname: an operator's spelling and its implementations for 0, 1, 2
