@@ -4,7 +4,7 @@
 
 gcon-graphics is gcon's display server. The decision and its reasons are
 in gcon's `docs/design.md` ("Graphics: a separate display server"). In
-brief: gconx owns Icon's graphics semantics (the event queue as an Icon
+brief: gcon-vm owns Icon's graphics semantics (the event queue as an Icon
 list, `Event()`, polling, `&x`, `&y`, `&interval`, `WDelay`, window
 and context values); the server owns windows, canvases, drawing and
 raw events. Canvases live in the server, as in X11 and Plan 9's
@@ -33,7 +33,7 @@ objects named by integer ids chosen by the client, drawing requests that
 need no reply, and few messages that do. Rules carried from gcon's
 design:
 
-- drawing requests are pipelined; gconx flushes when it blocks, flushes
+- drawing requests are pipelined; gcon-vm flushes when it blocks, flushes
   explicitly, needs a reply, or exits;
 - replies only where an answer is needed: `Pixel` (one per rectangle),
   opening windows and fonts, geometry queries;
@@ -41,28 +41,29 @@ design:
   a failing pipelined request is a protocol error;
 - font metrics and glyph advances come back when a font opens, so text
   width needs no round trip;
-- image files are read and written by gconx; the server sends and
-  receives pixels, and never opens the program's files;
+- image files are read and written by gcon-vm, which does GIF itself;
+  the server encodes and decodes the other formats in memory (`ENCODE`,
+  `DECODE`), and never opens the program's files;
 - windows (canvases) and graphics contexts are separate objects, so
   `Clone` and `Couple` map onto them as onto X11's drawables and GCs;
 - a version handshake comes first;
 - events flow back unsolicited, in the X conventions `plat.c` already
   produces.
 
-The transport is a socketpair inherited from gconx (the server is its
+The transport is a socketpair inherited from gcon-vm (the server is its
 child), or a named socket.
 
-## To do
+## Done (2026-11-26)
 
-1. ~~Write the protocol specification~~ (`docs/protocol.md`, version 1;
-   events are fetched by the client with `WAIT` rather than sent
-   unsolicited: see below). Fonts, text, window requests, image files.
-2. A headless Go server in gcon, drawing into `image.RGBA` or recording
-   requests, for gcon's tests; a conformance suite over the protocol that
-   both servers pass.
-3. The protocol reader here, replacing `pl_main`'s interpreter thread.
-4. Bring over icon-sdl's reference and window tests in a form that
-   drives the server through the protocol.
+1. The protocol specification (`docs/protocol.md`, version 2; events
+   are fetched by the client with `WAIT` rather than sent unsolicited:
+   see below), with fonts, text, window requests, icons and image
+   files.
+2. The protocol reader here, replacing `pl_main`'s interpreter thread.
+3. icon-sdl's reference and window tests, driving the server through
+   gcon-vm (`../vm/tests/ref.sh`, `window.sh`). The planned headless
+   Go server for gcon's tests went with gcon's Go: hidden canvases
+   (`../vm/tests/graphics.sh`) need no display.
 
 ## Events: fetched, not pushed (2026-11-26)
 
