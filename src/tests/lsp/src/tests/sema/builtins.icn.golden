@@ -20,13 +20,14 @@
 {"jsonrpc":"2.0","id":19,"result":{"range":{"start":{"line":4,"character":12},"end":{"line":4,"character":17}},"placeholder":"other"}}
 {"jsonrpc":"2.0","id":20,"result":{"changes":{"file://ROOT/src/tests/sema/builtins.icn":[{"range":{"start":{"line":4,"character":12},"end":{"line":4,"character":17}},"newText":"zzz"}]}}}
 {"jsonrpc":"2.0","id":21,"result":{"contents":{"kind":"markdown","value":"```icon\n\u0026fail\n```\n\nJust fail\n\nKeyword · [Icon reference](https://www2.cs.arizona.edu/icon/refernce/keywlist.htm)"},"range":{"start":{"line":7,"character":9},"end":{"line":7,"character":13}}}}
-{"jsonrpc":"2.0","id":22,"result":null}
-{"jsonrpc":"2.0","id":23,"result":[{"uri":"file://ROOT/src/tests/sema/builtins.icn","range":{"start":{"line":7,"character":9},"end":{"line":7,"character":13}}}]}
+{"jsonrpc":"2.0","id":22,"result":{"contents":{"kind":"markdown","value":"```icon\n\u0026fail\n```\n\nJust fail\n\nKeyword · [Icon reference](https://www2.cs.arizona.edu/icon/refernce/keywlist.htm)"},"range":{"start":{"line":7,"character":9},"end":{"line":7,"character":13}}}}
+{"jsonrpc":"2.0","id":23,"result":null}
 {"jsonrpc":"2.0","id":24,"result":[{"uri":"file://ROOT/src/tests/sema/builtins.icn","range":{"start":{"line":7,"character":9},"end":{"line":7,"character":13}}}]}
-{"jsonrpc":"2.0","id":25,"result":[{"range":{"start":{"line":7,"character":9},"end":{"line":7,"character":13}},"kind":1}]}
-{"jsonrpc":"2.0","id":26,"result":null}
-{"jsonrpc":"2.0","id":27,"error":{"code":-32803,"message":"nothing here that can be renamed"}}
+{"jsonrpc":"2.0","id":25,"result":[{"uri":"file://ROOT/src/tests/sema/builtins.icn","range":{"start":{"line":7,"character":9},"end":{"line":7,"character":13}}}]}
+{"jsonrpc":"2.0","id":26,"result":[{"range":{"start":{"line":7,"character":9},"end":{"line":7,"character":13}},"kind":1}]}
+{"jsonrpc":"2.0","id":27,"result":null}
 {"jsonrpc":"2.0","id":28,"error":{"code":-32803,"message":"nothing here that can be renamed"}}
-{"jsonrpc":"2.0","id":29,"result":[{"name":"main","kind":12,"location":{"uri":"file://ROOT/src/tests/sema/builtins.icn","range":{"start":{"line":1,"character":10},"end":{"line":1,"character":14}}},"containerName":"builtins.icn"}]}
-{"jsonrpc":"2.0","id":30,"result":[]}
-{"jsonrpc":"2.0","id":31,"result":null}
+{"jsonrpc":"2.0","id":29,"error":{"code":-32803,"message":"nothing here that can be renamed"}}
+{"jsonrpc":"2.0","id":30,"result":[{"name":"main","kind":12,"location":{"uri":"file://ROOT/src/tests/sema/builtins.icn","range":{"start":{"line":1,"character":10},"end":{"line":1,"character":14}}},"containerName":"builtins.icn"}]}
+{"jsonrpc":"2.0","id":31,"result":[]}
+{"jsonrpc":"2.0","id":32,"result":null}

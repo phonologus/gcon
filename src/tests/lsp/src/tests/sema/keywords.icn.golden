@@ -12,13 +12,14 @@
 {"jsonrpc":"2.0","id":11,"result":{"range":{"start":{"line":0,"character":10},"end":{"line":0,"character":14}},"placeholder":"main"}}
 {"jsonrpc":"2.0","id":12,"result":{"changes":{"file://ROOT/src/tests/sema/keywords.icn":[{"range":{"start":{"line":0,"character":10},"end":{"line":0,"character":14}},"newText":"zzz"}]}}}
 {"jsonrpc":"2.0","id":13,"result":{"contents":{"kind":"markdown","value":"```icon\n\u0026fail\n```\n\nJust fail\n\nKeyword · [Icon reference](https://www2.cs.arizona.edu/icon/refernce/keywlist.htm)"},"range":{"start":{"line":1,"character":19},"end":{"line":1,"character":23}}}}
-{"jsonrpc":"2.0","id":14,"result":null}
-{"jsonrpc":"2.0","id":15,"result":[{"uri":"file://ROOT/src/tests/sema/keywords.icn","range":{"start":{"line":1,"character":19},"end":{"line":1,"character":23}}}]}
+{"jsonrpc":"2.0","id":14,"result":{"contents":{"kind":"markdown","value":"```icon\n\u0026fail\n```\n\nJust fail\n\nKeyword · [Icon reference](https://www2.cs.arizona.edu/icon/refernce/keywlist.htm)"},"range":{"start":{"line":1,"character":19},"end":{"line":1,"character":23}}}}
+{"jsonrpc":"2.0","id":15,"result":null}
 {"jsonrpc":"2.0","id":16,"result":[{"uri":"file://ROOT/src/tests/sema/keywords.icn","range":{"start":{"line":1,"character":19},"end":{"line":1,"character":23}}}]}
-{"jsonrpc":"2.0","id":17,"result":[{"range":{"start":{"line":1,"character":19},"end":{"line":1,"character":23}},"kind":1}]}
-{"jsonrpc":"2.0","id":18,"result":{"signatures":[{"label":"write(x1, x2, ...)","documentation":{"kind":"markdown","value":"Write the arguments followed by a newline; a file argument directs the following output to that file."},"parameters":[{"label":"x1"},{"label":"x2"},{"label":"..."}]}],"activeSignature":0,"activeParameter":1}}
-{"jsonrpc":"2.0","id":19,"error":{"code":-32803,"message":"nothing here that can be renamed"}}
+{"jsonrpc":"2.0","id":17,"result":[{"uri":"file://ROOT/src/tests/sema/keywords.icn","range":{"start":{"line":1,"character":19},"end":{"line":1,"character":23}}}]}
+{"jsonrpc":"2.0","id":18,"result":[{"range":{"start":{"line":1,"character":19},"end":{"line":1,"character":23}},"kind":1}]}
+{"jsonrpc":"2.0","id":19,"result":{"signatures":[{"label":"write(x1, x2, ...)","documentation":{"kind":"markdown","value":"Write the arguments followed by a newline; a file argument directs the following output to that file."},"parameters":[{"label":"x1"},{"label":"x2"},{"label":"..."}]}],"activeSignature":0,"activeParameter":1}}
 {"jsonrpc":"2.0","id":20,"error":{"code":-32803,"message":"nothing here that can be renamed"}}
-{"jsonrpc":"2.0","id":21,"result":[{"name":"main","kind":12,"location":{"uri":"file://ROOT/src/tests/sema/keywords.icn","range":{"start":{"line":0,"character":10},"end":{"line":0,"character":14}}},"containerName":"keywords.icn"}]}
-{"jsonrpc":"2.0","id":22,"result":[]}
-{"jsonrpc":"2.0","id":23,"result":null}
+{"jsonrpc":"2.0","id":21,"error":{"code":-32803,"message":"nothing here that can be renamed"}}
+{"jsonrpc":"2.0","id":22,"result":[{"name":"main","kind":12,"location":{"uri":"file://ROOT/src/tests/sema/keywords.icn","range":{"start":{"line":0,"character":10},"end":{"line":0,"character":14}}},"containerName":"keywords.icn"}]}
+{"jsonrpc":"2.0","id":23,"result":[]}
+{"jsonrpc":"2.0","id":24,"result":null}

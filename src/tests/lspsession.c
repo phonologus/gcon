@@ -6,7 +6,8 @@
  *	1; the IPATHDIRs as the client's ipath), open FILE, its document
  *	symbols and formatting, shutdown, exit
  *   lspsession features FILE STEP [IPATHDIR ...]
- *	as basic, then for every STEPth identifier or keyword name: hover,
+ *	as basic, then for every STEPth identifier or keyword name: hover
+ *	(and for a keyword, hover on its "&" as well),
  *	definition, references (with and without declarations), highlights,
  *	signature help, completion, prepare rename and rename (to "zzz");
  *	then workspace symbols ($LSPCOMPLETE=n: completion at every nth of
@@ -194,6 +195,14 @@ int main(int argc, char **argv) {
 			Buf r = {0};
 			bufprintf(&r, "%s}", q.b);
 			request("textDocument/hover", r.b);
+			/* a keyword's name: hover on its "&" too */
+			if (i > 0 && ts.v[i - 1].kind == T_AND && ts.v[i - 1].offset + ts.v[i - 1].len == t->offset) {
+				int aline, acol;
+				lines_position(&lines, ts.v[i - 1].offset, &aline, &acol);
+				Buf a = {0};
+				bufprintf(&a, "%s,\"position\":{\"line\":%d,\"character\":%d}}", td.b, aline - 1, acol);
+				request("textDocument/hover", a.b);
+			}
 			request("textDocument/definition", r.b);
 			r.n = 0;
 			bufprintf(&r, "%s,\"context\":{\"includeDeclaration\":true}}", q.b);

@@ -1682,9 +1682,21 @@ static char *functionurl(const BuiltinFunc *f) {
 	return b.b;
 }
 
+#include "gcondoc.inc"
+
+/* gcondoc returns the documentation of one of gcon's additions (a
+ * keyword with its "&"), or NULL. */
+static const char *gcondoc(const char *name) {
+	for (size_t i = 0; i < sizeof gcondocs / sizeof gcondocs[0]; i++)
+		if (!strcmp(gcondocs[i].name, name))
+			return gcondocs[i].md;
+	return NULL;
+}
+
 static char *builtindoc(Server *s, const BuiltinFunc *f) {
 	CharVec parts = {0};
-	const char *md = s->refdocs ? strmap_get(&s->refdocs->functions, f->name, strlen(f->name)) : NULL;
+	const char *md = f->gcon ? gcondoc(f->name)
+		: s->refdocs ? strmap_get(&s->refdocs->functions, f->name, strlen(f->name)) : NULL;
 	if (md)
 		addpart(&parts, xstrndup(md, strlen(md)));
 	else {
@@ -1695,7 +1707,7 @@ static char *builtindoc(Server *s, const BuiltinFunc *f) {
 	}
 	Buf k = {0};
 	if (f->gcon)
-		bufputs(&k, "gcon built-in function (not in Icon 9.5)");
+		bufputs(&k, "gcon built-in function (not in Icon 9.5) \xc2\xb7 [gcon design notes](" GCONDOC_URL ")");
 	else
 		bufprintf(&k, "%s \xc2\xb7 [Icon reference](%s)", f->graphics ? "Built-in graphics function" : "Built-in function",
 			functionurl(f));
@@ -1705,7 +1717,13 @@ static char *builtindoc(Server *s, const BuiltinFunc *f) {
 
 static char *keyworddoc(Server *s, const Keyword *k) {
 	CharVec parts = {0};
-	const char *md = s->refdocs ? strmap_get(&s->refdocs->keywords, k->name, strlen(k->name)) : NULL;
+	const char *md = NULL;
+	if (k->gcon) {
+		Buf n = {0};
+		bufprintf(&n, "&%s", k->name);
+		md = gcondoc(n.b);
+	} else if (s->refdocs)
+		md = strmap_get(&s->refdocs->keywords, k->name, strlen(k->name));
 	if (md)
 		addpart(&parts, xstrndup(md, strlen(md)));
 	else {
@@ -1718,7 +1736,7 @@ static char *keyworddoc(Server *s, const Keyword *k) {
 	}
 	Buf l = {0};
 	if (k->gcon)
-		bufputs(&l, "gcon keyword (not in Icon 9.5)");
+		bufputs(&l, "gcon keyword (not in Icon 9.5) \xc2\xb7 [gcon design notes](" GCONDOC_URL ")");
 	else
 		bufprintf(&l, "Keyword \xc2\xb7 [Icon reference](%srefernce/keywlist.htm)", site_);
 	addpart(&parts, l.b);
@@ -1835,7 +1853,31 @@ static char *fielddoc(PosCtx *c, const char *name, size_t n, SymVec *fields) {
 	return b.b;
 }
 
+/* ampkeyword returns the name of the keyword whose "&" is at the
+ * position ("&subject", the name directly after it), or NULL. (A
+ * position at the end of the "&" is the name's start, which identat
+ * finds.) */
+static Token *ampkeyword(PosCtx *c) {
+	Tokens *ts = &c->d->file->toks;
+	size_t lo = 0, hi = ts->n;
+	while (lo < hi) {
+		size_t mid = (lo + hi) / 2;
+		if (ts->v[mid].offset > c->off)
+			hi = mid;
+		else
+			lo = mid + 1;
+	}
+	if (lo == 0 || lo >= ts->n)
+		return NULL;
+	Token *t = &ts->v[lo - 1], *n = &ts->v[lo];
+	if (t->kind != T_AND || t->implicit || c->off > tend(t) || n->offset != tend(t) || !c->info->iskeyword[lo])
+		return NULL;
+	return n;
+}
+
 static void hover(Server *s, PosCtx *c, Buf *b) {
+	if (!c->tok)
+		c->tok = ampkeyword(c);
 	if (!c->tok) {
 		bufputs(b, "null");
 		return;
