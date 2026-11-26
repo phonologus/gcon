@@ -14,9 +14,10 @@
 //! ```
 //!
 //! `binary.arguments`, if given and not empty, replace the default
-//! `["lsp"]`. Zed runs a `binary.path` given in the settings with the
-//! settings' arguments, which are then none unless given: so a path
-//! needs `"arguments": ["lsp"]` beside it (the README says so).
+//! `["lsp"]`. But when the settings give `binary.path`, Zed runs that
+//! binary itself, with the settings' arguments (none unless given),
+//! without calling this extension: so a path needs `"arguments":
+//! ["lsp"]` beside it (the README says so). Seen in Zed's log, 2026-11.
 
 use zed_extension_api::{self as zed, settings::LspSettings, LanguageServerId, Result};
 
