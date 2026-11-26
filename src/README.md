@@ -18,6 +18,8 @@ identical before the next (`../docs/design.md`, "gcon in C").
 | `compile.c` | `internal/compile`, iterative | done |
 | `driver.c`, `main.c` | `internal/run`, `internal/root`, `cmd/gcon` | done |
 | `format.c` | icontools' `internal/format` and `cmd/icfmt` (`gcon fmt`) | done |
+| `json.c` | (Go's `encoding/json`: reading, and writing as it writes) | done |
+| `lsp.c`, `refdocs.c` | icontools' `internal/lsp`, `internal/builtin/docs.go`, `cmd/iconls` (`gcon lsp`) | done |
 
 `tokens.inc` is generated from the Go's token table by
 `tests/gentoken.sh`, and `builtin.inc` from its catalogue of built-ins
@@ -140,3 +142,18 @@ status for every file of the corpus and its damaged variants (2,822,
 formatted file kept (inserted semicolons included), and the flags
 (`-l`, `-w`, `-d`, standard input, errors). gcon's literals (`\u`,
 `\U`, cset ranges) are tokens like any other, kept byte for byte.
+
+The language server (`lsp.c`, `gcon lsp`) is icontools' `iconls` on
+gcon's front end, finding linked and included files through gcon's
+root, its diagnostics gcon's (icont's wording, the other declaration
+as related information). `json.c` writes JSON as Go does, so replies
+compare byte for byte. `tests/lsp.sh basic|features` runs sessions made
+by `tests/lspsession.c` on both servers (iconls built from
+`../icontools`), in parallel: basic (symbols, formatting, diagnostics)
+for every file of the corpus, 1,933 sessions identical; features (hover,
+definition, references, highlights, completion, signature help, rename,
+workspace symbols at every seventh identifier) for every tenth file,
+170 sessions and 32,069 messages identical, with or without the
+reference pages (`DOCS`). Differences by design are normalised: the
+wording of diagnostics, and gcon's built-ins in completions. `FULL=1`
+runs every file and variant, `SANITIZE=1` the sanitizers.

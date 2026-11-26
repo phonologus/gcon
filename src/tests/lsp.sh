@@ -47,9 +47,13 @@ GCONROOT=$here
 LC_ALL=C
 export GCONROOT LC_ALL
 unset IPATH LPATH
+# The reference pages both servers read for hovers (DOCS; default none).
+docs=${DOCS:-$tmp/nodocs}
 lib="$here/lib/ipl/procs $here/lib/ipl/gprocs $here/lib/ipl/incl $here/lib/ipl/gincl"
 
+named=
 if [ $# -gt 0 ]; then
+	named=1
 	for f; do echo "$f"; done >"$tmp/list"
 else
 	{
@@ -67,7 +71,10 @@ norm() {
 	    -e 's/,"relatedInformation":\[{"location":{"uri":"[^"]*","range":{"start":{"line":[0-9]*,"character":[0-9]*},"end":{"line":[0-9]*,"character":[0-9]*}}},"message":"[^"]*"}\]//g' \
 	    -e 's/: duplicate field name"/: redeclared identifier"/g' \
 	    -e 's/: inconsistent redeclaration (also a [a-z ]* in [^)]*)"/: inconsistent redeclaration"/g' \
-	    -e 's/"message":"\\u0026\([A-Za-z_0-9]*\): invalid keyword"/"message":"\\"\1\\": invalid keyword"/g'
+	    -e 's/"message":"\\u0026\([A-Za-z_0-9]*\): invalid keyword"/"message":"\\"\1\\": invalid keyword"/g' |
+	# gcon's built-ins and keywords that Icon 9.5 lacks, in completions
+	sed -E -e 's/,\{"label":"(bytes|len|runes|uchar|utf8valid)","kind":3,"detail":"[^"]*","documentation":\{"kind":"markdown","value":"[^"]*"\},"sortText":"2[a-z0-9]*"\}//g' \
+	    -e 's/,\{"label":"uset","kind":21,"detail":"\\u0026uset","documentation":\{"kind":"markdown","value":"[^"]*"\}\}//g'
 }
 
 # Files whose remaining differences are by design and cannot be
@@ -75,6 +82,23 @@ norm() {
 # kinds under one name, which icont (and gcon) call an inconsistent
 # redeclaration, and iconls a redeclared identifier.
 known="src/tests/sema/redecl.icn"
+
+# firstdiff A B: for each message that differs, its number and the text
+# of both around the first differing byte.
+firstdiff() {
+	awk 'NR == FNR { a[FNR] = $0; n = FNR; next }
+	{
+		if (a[FNR] == $0) next
+		x = a[FNR]; i = 1
+		while (i <= length(x) && substr(x, i, 1024) == substr($0, i, 1024)) i += 1024
+		while (i <= length(x) && substr(x, i, 1) == substr($0, i, 1)) i++
+		s = i > 60 ? i - 60 : 1
+		print "message " FNR " at byte " i ":"
+		print "< " substr(x, s, 200)
+		print "> " substr($0, s, 200)
+	}
+	END { if (FNR != n) print "message counts " n " and " FNR }' "$1" "$2"
+}
 
 # work LIST OUT: compare the sessions of LIST's files, writing "same N"
 # (N messages) or "diff FILE" lines, and any differences, to OUT.
@@ -92,16 +116,17 @@ work() {
 				"$tmp/lspsession" basic "$f" $h $lib >"$w.sess" || continue
 			else
 				[ $h = 0 ] && continue
+				[ "${FULL:-}" != 1 ] && [ -z "$named" ] && [ $((n % 10)) != 0 ] && continue
 				"$tmp/lspsession" features "$f" "${STEP:-7}" $lib >"$w.sess" || continue
 			fi
-			"$tmp/iconls" <"$w.sess" 2>/dev/null | "$tmp/lspsession" split | norm >"$w.i"
-			"$tmp/gcon" lsp <"$w.sess" 2>"$w.err" | "$tmp/lspsession" split | norm >"$w.c"
+			"$tmp/iconls" -docs "$docs" <"$w.sess" 2>/dev/null | "$tmp/lspsession" split | norm >"$w.i"
+			"$tmp/gcon" lsp -docs "$docs" <"$w.sess" 2>"$w.err" | "$tmp/lspsession" split | norm >"$w.c"
 			if cmp -s "$w.i" "$w.c" && ! [ -s "$w.err" ]; then
 				echo "same $(wc -l <"$w.c")"
 			else
 				echo "diff $f (hierarchical $h)"
 				if [ "${VERBOSE:-}" ]; then
-					diff "$w.i" "$w.c" | cut -c1-400 | head -"$VERBOSE" | sed 's/^/| /'
+					firstdiff "$w.i" "$w.c" | head -"$VERBOSE" | sed 's/^/| /'
 					head -3 "$w.err" | sed 's/^/| /'
 				fi
 			fi

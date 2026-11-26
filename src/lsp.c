@@ -20,6 +20,7 @@
 #include "format.h"
 #include "json.h"
 #include "lit.h"
+#include "refdocs.h"
 #include "sema.h"
 
 #include <dirent.h>
@@ -273,12 +274,7 @@ static Doc *load(Workspace *w, const char *path) {
 	return d;
 }
 
-static const char *tokname(Doc *d, Token *t, size_t *n) {
-	*n = t->len;
-	return d->text + t->offset;
-}
 
-/* definesmain reports whether d declares procedure main. */
 static bool definesmain(Doc *d) {
 	for (size_t i = 0; i < d->file->decls.n; i++) {
 		Node *x = d->file->decls.v[i];
@@ -631,6 +627,7 @@ typedef struct Server {
 	Workspace ws;
 	bool initialized, shutdown, utf8, hierarchical;
 	const char *docsdir; /* reference pages, or NULL */
+	RefDocs *refdocs;
 } Server;
 
 static void logf_(Server *s, const char *fmt, ...) __attribute__((format(printf, 2, 3)));
@@ -1120,11 +1117,7 @@ static void initialize(Server *s, JVal *p, Buf *b) {
 	bufputs(b, "}}");
 }
 
-/* The features of stage 2, by request: false if method is not one. */
-static bool lsp_feature(Server *s, const char *method, JVal *params, Buf *result, int *code, char **err) {
-	(void)s, (void)method, (void)params, (void)result, (void)code, (void)err;
-	return false;
-}
+static bool lsp_feature(Server *s, const char *method, JVal *params, Buf *result, int *code, char **err);
 
 /* dispatch handles a request or notification; for a request, it writes
  * the result to b (JSON), or sets *err. */
@@ -1280,10 +1273,1295 @@ static const char *cachedir(void) {
 #endif
 }
 
-static int lsp_fetchdocs(const char *dir) {
-	fprintf(stderr, "gcon lsp: fetch-docs into %s: not yet\n", dir);
-	return 1;
+typedef VEC(char *) CharVec;
+
+/* ------------------------------------------------------------------ */
+/* Features (features.go) */
+
+/* goquote writes s as Go's %q (strconv.Quote) does. */
+static void goquote(Buf *b, const char *s, size_t n) {
+	bufputc(b, '"');
+	for (size_t i = 0; i < n;) {
+		unsigned char c = (unsigned char)s[i];
+		if (c < RuneSelf) {
+			switch (c) {
+			case '"': bufputs(b, "\\\""); break;
+			case '\\': bufputs(b, "\\\\"); break;
+			case '\a': bufputs(b, "\\a"); break;
+			case '\b': bufputs(b, "\\b"); break;
+			case '\f': bufputs(b, "\\f"); break;
+			case '\n': bufputs(b, "\\n"); break;
+			case '\r': bufputs(b, "\\r"); break;
+			case '\t': bufputs(b, "\\t"); break;
+			case '\v': bufputs(b, "\\v"); break;
+			default:
+				if (c < 0x20 || c == 0x7f)
+					bufprintf(b, "\\x%02x", c);
+				else
+					bufputc(b, c);
+			}
+			i++;
+			continue;
+		}
+		int w;
+		int32_t r = utf8decode((const uint8_t *)s + i, n - i, &w);
+		if (r == RuneError && w == 1)
+			bufprintf(b, "\\x%02x", c);
+		else
+			bufadd(b, s + i, (size_t)w);
+		i += (size_t)w;
+	}
+	bufputc(b, '"');
 }
+
+static void goquotez(Buf *b, const char *s) { goquote(b, s, strlen(s)); }
+
+/* pathrel is filepath.Rel for two clean absolute paths. */
+static char *pathrel(const char *basep, const char *targ) {
+	CharVec a = {0}, z = {0};
+	char *x = xstrndup(basep, strlen(basep)), *y = xstrndup(targ, strlen(targ));
+	for (char *t = strtok(x, "/"); t; t = strtok(NULL, "/"))
+		VPUSH(a, t);
+	for (char *t = strtok(y, "/"); t; t = strtok(NULL, "/"))
+		VPUSH(z, t);
+	size_t k = 0;
+	while (k < a.n && k < z.n && !strcmp(a.v[k], z.v[k]))
+		k++;
+	Buf b = {0};
+	for (size_t i = k; i < a.n; i++) {
+		if (b.n)
+			bufputc(&b, '/');
+		bufputs(&b, "..");
+	}
+	for (size_t i = k; i < z.n; i++) {
+		if (b.n)
+			bufputc(&b, '/');
+		bufputs(&b, z.v[i]);
+	}
+	return b.b ? b.b : xstrndup(".", 1);
+}
+
+static char *relpathto(Doc *from, const char *path) {
+	if (from->path[0] && path[0])
+		return pathrel(dirname_(from->path), path);
+	return xstrndup(path, strlen(path));
+}
+
+static char *relpath(Doc *from, Doc *to) {
+	if (from->path[0] && to->path[0])
+		return pathrel(dirname_(from->path), to->path);
+	return to->uri;
+}
+
+/* posctx is a position in a document, with the document's program and
+ * name resolution. */
+typedef struct PosCtx {
+	Doc *d;
+	size_t off;
+	Program *prog;
+	DocVec docs;
+	SemaInfo *info;
+	Token *tok; /* identifier at the position, or NULL */
+} PosCtx;
+
+static size_t tokidx(Doc *d, Token *t) { return (size_t)(t - d->file->toks.v); }
+static const char *ttext(Doc *d, Token *t) { return d->text + t->offset; }
+static size_t tend(Token *t) { return t->offset + t->len; }
+
+static bool ttexteq(Doc *d, Token *t, const char *s, size_t n) {
+	return t->len == n && !memcmp(ttext(d, t), s, n);
+}
+
+/* identat returns the identifier (or keyword name) token touching byte
+ * offset off: one containing it, or ending at it. */
+static Token *identat(File *f, size_t off) {
+	size_t lo = 0, hi = f->toks.n;
+	while (lo < hi) {
+		size_t mid = (lo + hi) / 2;
+		if (f->toks.v[mid].offset > off)
+			hi = mid;
+		else
+			lo = mid + 1;
+	}
+	for (long j = (long)lo - 1; j >= 0 && j >= (long)lo - 2; j--) {
+		Token *t = &f->toks.v[j];
+		if (t->implicit)
+			continue;
+		if ((t->kind == T_IDENT || t->kind == T_FAIL) && t->offset <= off && off <= tend(t))
+			return t;
+		if (tend(t) < off)
+			break;
+	}
+	return NULL;
+}
+
+static bool at(Server *s, JVal *p, PosCtx *c, int *code, char **err) {
+	const char *uri = json_str(p, "textDocument.uri");
+	Doc *d = getdoc(s, uri);
+	if (!d) {
+		Buf m = {0};
+		bufprintf(&m, "document not open: %s", uri);
+		*code = CodeInvalidParams, *err = m.b;
+		return false;
+	}
+	memset(c, 0, sizeof *c);
+	c->d = d;
+	Pos ps = {json_int(p, "position.line"), json_int(p, "position.character")};
+	c->off = offsetof_pos(&d->m, ps);
+	c->prog = program(&s->ws, d, &c->docs);
+	c->info = sema_resolve(c->prog, &d->sf);
+	c->tok = identat(d->file, c->off);
+	return true;
+}
+
+/* target is what an identifier denotes. */
+typedef struct Target {
+	Symbol *sym;
+	SymVec *fields; /* for a field reference x.name */
+	bool isfield;
+	const Keyword *kw;
+	bool iskw;
+	char *link; /* for a link declaration: the linked file's path */
+	bool islink;
+} Target;
+
+static Target target(Server *s, PosCtx *c) {
+	Target t = {0};
+	if (!c->tok)
+		return t;
+	size_t k = tokidx(c->d, c->tok);
+	Symbol *sym = c->info->uses[k];
+	if (sym) {
+		t.sym = sym;
+		if (sym->kind == S_FIELD) {
+			t.isfield = true;
+			t.fields = strmap_get(&c->prog->fields, sym->name, strlen(sym->name));
+		}
+		return t;
+	}
+	if (c->info->fielduses[k]) {
+		t.isfield = true, t.fields = c->info->fielduses[k];
+		return t;
+	}
+	if (c->info->iskeyword[k]) {
+		t.iskw = true, t.kw = c->info->keywords[k];
+		return t;
+	}
+	for (size_t i = 0; i < c->d->file->decls.n; i++) {
+		Node *x = c->d->file->decls.v[i];
+		if (x->kind != N_LINK)
+			continue;
+		for (size_t j = 0; j < x->link.files.elems.n; j++)
+			if (x->link.files.elems.v[j] == c->tok) {
+				t.islink = true;
+				const char *n = ttext(c->d, c->tok);
+				size_t len = c->tok->len;
+				while (len && *n == '"')
+					n++, len--;
+				while (len && n[len - 1] == '"')
+					len--;
+				Doc *ld = findlink(&s->ws, xstrndup(n, len), c->d);
+				t.link = ld ? ld->path : "";
+			}
+	}
+	return t;
+}
+
+static void tokrange(Buf *b, PosCtx *c) { jrange(b, &c->d->m, c->tok->offset, tend(c->tok)); }
+
+/* location writes the location of token t of file f. */
+static bool location(Buf *b, SemaFile *f, Token *t) {
+	if (!f || !t)
+		return false;
+	Doc *d = docof(f);
+	bufputs(b, "{\"uri\":");
+	json_stringz(b, d->uri);
+	bufputs(b, ",\"range\":");
+	jrange(b, &d->m, t->offset, tend(t));
+	bufputc(b, '}');
+	return true;
+}
+
+/* ---- hover */
+
+static void codeblock(Buf *b, const char *code) {
+	bufputs(b, "```icon\n");
+	bufputs(b, code);
+	bufputs(b, "\n```");
+}
+
+static char *toklist(Doc *d, TokList *l) {
+	Buf b = {0};
+	bufputc(&b, '(');
+	bool first = true;
+	for (size_t i = 0; i < l->elems.n; i++) {
+		Token *t = l->elems.v[i];
+		if (!t)
+			continue;
+		if (!first)
+			bufputs(&b, ", ");
+		first = false;
+		bufadd(&b, ttext(d, t), t->len);
+	}
+	bufputc(&b, ')');
+	return b.b;
+}
+
+static char *procsignature(Doc *d, Node *p) {
+	Buf b = {0};
+	if (p->proc.name)
+		bufadd(&b, ttext(d, p->proc.name), p->proc.name->len);
+	else
+		bufputc(&b, '?');
+	bufputs(&b, toklist(d, &p->proc.params));
+	if (p->proc.lbrack) {
+		b.n--; /* the ")" */
+		bufputs(&b, "[])");
+	}
+	return b.b;
+}
+
+static char *capitalize(const char *s) {
+	char *c = xstrndup(s, strlen(s));
+	if (c[0] >= 'a' && c[0] <= 'z')
+		c[0] = (char)(c[0] - 'a' + 'A');
+	return c;
+}
+
+/* doccomment returns the comment documenting a declaration: the
+ * comment lines immediately above it, and a trailing comment on its
+ * first line (the IPL's "#:" convention). */
+static char *doccomment(Doc *d, Symbol *sym) {
+	Token *first = firsttoken(sym->node);
+	if (!first)
+		return xstrndup("", 0);
+	CharVec lines = {0};
+	int newlines = 0;
+	for (size_t i = first->nlead; i-- > 0;) {
+		Trivia *tr = &first->lead[i];
+		if (tr->kind == TV_SPACE)
+			continue;
+		if (tr->kind == TV_NEWLINE) {
+			if (++newlines > 1)
+				break;
+			continue;
+		}
+		if (tr->kind != TV_COMMENT)
+			break;
+		newlines = 0;
+		VPUSH(lines, NULL);
+		memmove(lines.v + 1, lines.v, (lines.n - 1) * sizeof *lines.v);
+		lines.v[0] = xstrndup(d->text + tr->offset, tr->len);
+	}
+	long fl = position(&d->m, first->offset).line;
+	for (size_t i = tokidx(d, first); i < d->file->toks.n; i++) {
+		Token *t = &d->file->toks.v[i];
+		if (t->implicit || position(&d->m, t->offset).line == fl)
+			continue;
+		for (size_t k = 0; k < t->nlead; k++) {
+			Trivia *tr = &t->lead[k];
+			if (tr->kind == TV_NEWLINE)
+				break;
+			if (tr->kind == TV_COMMENT && position(&d->m, tr->offset).line == fl)
+				VPUSH(lines, xstrndup(d->text + tr->offset, tr->len));
+		}
+		break;
+	}
+	Buf b = {0};
+	bool any = false;
+	for (size_t i = 0; i < lines.n; i++) {
+		char *l = lines.v[i];
+		while (*l == '#')
+			l++;
+		if (*l == ':')
+			l++;
+		bool rule = true;
+		for (char *p = l; *p; p++)
+			if (!strchr("#=-*_ \t", *p))
+				rule = false;
+		if (rule)
+			continue; /* a rule, not text */
+		char *t = trimspace(l, strlen(l));
+		if (any)
+			bufputs(&b, "  \n");
+		any = true;
+		bufputs(&b, t);
+	}
+	return b.b ? b.b : xstrndup("", 0);
+}
+
+static void addpart(CharVec *parts, char *s) { VPUSH(*parts, s); }
+
+/* decldoc gives a declaration's doc comment and, if it is in another
+ * file, where. */
+static void decldoc(Symbol *sym, PosCtx *c, CharVec *parts) {
+	if (!sym->file)
+		return;
+	Doc *d = docof(sym->file);
+	char *doc = doccomment(d, sym);
+	if (doc[0])
+		addpart(parts, doc);
+	if (d != c->d) {
+		Buf m = {0};
+		bufprintf(&m, "Declared in `%s`.", relpath(c->d, d));
+		addpart(parts, m.b);
+	}
+}
+
+static char *joinparts(CharVec *parts) {
+	Buf b = {0};
+	for (size_t i = 0; i < parts->n; i++) {
+		if (i)
+			bufputs(&b, "\n\n");
+		bufputs(&b, parts->v[i]);
+	}
+	return b.b ? b.b : xstrndup("", 0);
+}
+
+static const char site_[] = "https://www2.cs.arizona.edu/icon/";
+
+static char *functionurl(const BuiltinFunc *f) {
+	Buf b = {0};
+	if (f->graphics) {
+		bufprintf(&b, "%sdocs/ipd281/gipd_a.htm#%s", site_, f->name);
+		return b.b;
+	}
+	char c = f->name[0];
+	if (c >= 'A' && c <= 'Z')
+		c = (char)(c - 'A' + 'a');
+	const char *page = c <= 'd' ? "funcad.htm" : c <= 'j' ? "funcej.htm" : c <= 'o' ? "funcko.htm"
+			   : c <= 'r' ? "funcpr.htm" : "funcsz.htm";
+	bufprintf(&b, "%srefernce/%s#%s", site_, page, f->name);
+	return b.b;
+}
+
+static char *builtindoc(Server *s, const BuiltinFunc *f) {
+	CharVec parts = {0};
+	const char *md = s->refdocs ? strmap_get(&s->refdocs->functions, f->name, strlen(f->name)) : NULL;
+	if (md)
+		addpart(&parts, xstrndup(md, strlen(md)));
+	else {
+		Buf c = {0};
+		codeblock(&c, f->signature);
+		addpart(&parts, c.b);
+		addpart(&parts, capitalize(f->summary));
+	}
+	Buf k = {0};
+	if (f->gcon)
+		bufputs(&k, "gcon built-in function (not in Icon 9.5)");
+	else
+		bufprintf(&k, "%s \xc2\xb7 [Icon reference](%s)", f->graphics ? "Built-in graphics function" : "Built-in function",
+			functionurl(f));
+	addpart(&parts, k.b);
+	return joinparts(&parts);
+}
+
+static char *keyworddoc(Server *s, const Keyword *k) {
+	CharVec parts = {0};
+	const char *md = s->refdocs ? strmap_get(&s->refdocs->keywords, k->name, strlen(k->name)) : NULL;
+	if (md)
+		addpart(&parts, xstrndup(md, strlen(md)));
+	else {
+		Buf c = {0};
+		Buf code = {0};
+		bufprintf(&code, "&%s", k->name);
+		codeblock(&c, code.b);
+		addpart(&parts, c.b);
+		addpart(&parts, capitalize(k->summary));
+	}
+	Buf l = {0};
+	if (k->gcon)
+		bufputs(&l, "gcon keyword (not in Icon 9.5)");
+	else
+		bufprintf(&l, "Keyword \xc2\xb7 [Icon reference](%srefernce/keywlist.htm)", site_);
+	addpart(&parts, l.b);
+	return joinparts(&parts);
+}
+
+static char *symboldoc(Server *s, Symbol *sym, PosCtx *c) {
+	CharVec parts = {0};
+	Buf b = {0};
+	switch (sym->kind) {
+	case S_PARAM: case S_LOCAL: case S_STATIC: case S_IMPLICIT: {
+		const char *word = sym->kind == S_PARAM ? "parameter" : sym->kind == S_STATIC ? "static" : "local";
+		Buf code = {0};
+		bufprintf(&code, "%s %s", word, sym->name);
+		codeblock(&b, code.b);
+		addpart(&parts, b.b);
+		Buf where = {0};
+		Node *p = sym->node;
+		if (p && p->kind == N_PROC && p->proc.name) {
+			Doc *pd = sym->file ? docof(sym->file) : c->d;
+			bufprintf(&where, " of procedure `%.*s`", (int)p->proc.name->len, ttext(pd, p->proc.name));
+		}
+		Buf t = {0};
+		if (sym->kind == S_IMPLICIT)
+			bufprintf(&t, "Undeclared, so a local variable%s.", where.b ? where.b : "");
+		else
+			bufprintf(&t, "%c%s%s.", word[0] - 'a' + 'A', word + 1, where.b ? where.b : "");
+		addpart(&parts, t.b);
+		break;
+	}
+	case S_PROCEDURE: {
+		Buf code = {0};
+		bufprintf(&code, "procedure %s", procsignature(docof(sym->file), sym->node));
+		codeblock(&b, code.b);
+		addpart(&parts, b.b);
+		decldoc(sym, c, &parts);
+		break;
+	}
+	case S_RECORD: {
+		Buf code = {0};
+		bufprintf(&code, "record %s%s", sym->name, toklist(docof(sym->file), &sym->node->record.fields));
+		codeblock(&b, code.b);
+		addpart(&parts, b.b);
+		decldoc(sym, c, &parts);
+		break;
+	}
+	case S_GLOBAL: {
+		Buf code = {0};
+		bufprintf(&code, "global %s", sym->name);
+		codeblock(&b, code.b);
+		addpart(&parts, b.b);
+		decldoc(sym, c, &parts);
+		break;
+	}
+	case S_BUILTIN:
+		return builtindoc(s, sym->builtin);
+	case S_MACRO: {
+		MacroDef *m = sym->macro;
+		if (m->predefined) {
+			Buf code = {0};
+			bufprintf(&code, "$define %s 1", m->name);
+			codeblock(&b, code.b);
+			addpart(&parts, b.b);
+			Buf t = {0};
+			bufputs(&t, "Predefined by the Icon preprocessor");
+			if (m->predefined->feature[0]) {
+				bufputs(&t, " when `&features` includes ");
+				goquotez(&t, m->predefined->feature);
+			}
+			bufputc(&t, '.');
+			addpart(&parts, t.b);
+		} else {
+			Buf code = {0};
+			bufprintf(&code, "$define %s %s", m->name, m->value);
+			char *tc = trimspace(code.b, code.n);
+			codeblock(&b, tc);
+			addpart(&parts, b.b);
+			if (strcmp(m->path, c->d->path)) {
+				Buf t = {0};
+				bufprintf(&t, "Defined in `%s`.", relpathto(c->d, m->path));
+				addpart(&parts, t.b);
+			}
+		}
+		break;
+	}
+	default:
+		break;
+	}
+	return joinparts(&parts);
+}
+
+static char *fielddoc(PosCtx *c, const char *name, size_t n, SymVec *fields) {
+	Buf b = {0};
+	if (!fields || !fields->n) {
+		bufprintf(&b, "No record has a field `%.*s`.", (int)n, name);
+		return b.b;
+	}
+	Buf recs = {0};
+	bool first = true;
+	for (size_t i = 0; i < fields->n; i++) {
+		Node *r = fields->v[i]->node;
+		Doc *d = docof(fields->v[i]->file);
+		if (!r->record.name)
+			continue;
+		if (!first)
+			bufputc(&recs, '\n');
+		first = false;
+		bufprintf(&recs, "record %.*s%s", (int)r->record.name->len, ttext(d, r->record.name),
+			toklist(d, &r->record.fields));
+	}
+	bufprintf(&b, "Field `%.*s` of\n\n", (int)n, name);
+	codeblock(&b, recs.b ? recs.b : "");
+	(void)c;
+	return b.b;
+}
+
+static void hover(Server *s, PosCtx *c, Buf *b) {
+	if (!c->tok) {
+		bufputs(b, "null");
+		return;
+	}
+	Target t = target(s, c);
+	char *md;
+	if (t.isfield)
+		md = fielddoc(c, ttext(c->d, c->tok), c->tok->len, t.fields);
+	else if (t.sym)
+		md = symboldoc(s, t.sym, c);
+	else if (t.iskw && t.kw)
+		md = keyworddoc(s, t.kw);
+	else if (t.iskw) {
+		Buf m = {0};
+		bufprintf(&m, "`&%.*s` is not a keyword", (int)c->tok->len, ttext(c->d, c->tok));
+		md = m.b;
+	} else if (t.islink && t.link[0]) {
+		Buf m = {0};
+		bufprintf(&m, "Links `%s`", t.link);
+		md = m.b;
+	} else if (t.islink)
+		md = "Linked file (source not found; set `ipath` or `$IPATH`)";
+	else {
+		bufputs(b, "null");
+		return;
+	}
+	bufputs(b, "{\"contents\":{\"kind\":\"markdown\",\"value\":");
+	json_stringz(b, md);
+	bufputs(b, "},\"range\":");
+	tokrange(b, c);
+	bufputc(b, '}');
+}
+
+/* ---- definition, references, highlights */
+
+static void definition(Server *s, PosCtx *c, Buf *b) {
+	Target t = target(s, c);
+	Buf locs = {0};
+	int n = 0;
+#define ADD(f, tok)                                                                      \
+	do {                                                                             \
+		Buf one = {0};                                                           \
+		if (location(&one, (f), (tok))) {                                        \
+			if (n++)                                                         \
+				bufputc(&locs, ',');                                     \
+			bufadd(&locs, one.b, one.n);                                     \
+		}                                                                        \
+	} while (0)
+	if (t.isfield) {
+		for (size_t i = 0; t.fields && i < t.fields->n; i++)
+			ADD(t.fields->v[i]->file, t.fields->v[i]->decl);
+	} else if (t.sym && t.sym->kind == S_MACRO) {
+		MacroDef *m = t.sym->macro;
+		Doc *d;
+		if (m->path[0] && (d = load(&s->ws, m->path))) {
+			bufputs(&locs, "{\"uri\":");
+			json_stringz(&locs, d->uri);
+			bufputs(&locs, ",\"range\":");
+			jrange(&locs, &d->m, m->offset, m->end);
+			bufputc(&locs, '}');
+			n++;
+		}
+	} else if (t.sym && t.sym->kind != S_BUILTIN) {
+		if (t.sym->kind == S_GLOBAL) {
+			/* A global declared in several places: offer them all. */
+			SymVec *g = strmap_get(&c->prog->globals, t.sym->name, strlen(t.sym->name));
+			for (size_t i = 0; g && i < g->n; i++)
+				ADD(g->v[i]->file, g->v[i]->decl);
+		} else
+			ADD(t.sym->file, t.sym->decl);
+	} else if (t.islink && t.link[0]) {
+		bufputs(&locs, "{\"uri\":");
+		json_stringz(&locs, pathtouri(t.link));
+		bufputs(&locs, ",\"range\":{\"start\":{\"line\":0,\"character\":0},\"end\":{\"line\":0,\"character\":0}}}");
+		n++;
+	}
+#undef ADD
+	if (!n) {
+		bufputs(b, "null");
+		return;
+	}
+	bufputc(b, '[');
+	bufadd(b, locs.b, locs.n);
+	bufputc(b, ']');
+}
+
+/* ref is an occurrence of a symbol. */
+typedef struct Ref {
+	Doc *d;
+	Token *tok;
+	bool isdecl;
+} Ref;
+typedef VEC(Ref) RefVec;
+
+static bool isglobalkind(SymKind k) { return k == S_GLOBAL || k == S_PROCEDURE || k == S_RECORD; }
+
+static int cmpref(const void *a, const void *b) {
+	const Ref *x = a, *y = b;
+	int c = strcmp(x->d->uri, y->d->uri);
+	if (c)
+		return c;
+	return x->tok->offset < y->tok->offset ? -1 : x->tok->offset > y->tok->offset;
+}
+
+static SemaInfo *infofor(PosCtx *c, Doc *d) { return d == c->d ? c->info : sema_resolve(c->prog, &d->sf); }
+
+static void addref(RefVec *v, Doc *d, Token *t, bool isdecl) {
+	Ref r = {d, t, isdecl};
+	VPUSH(*v, r);
+}
+
+/* refs returns the occurrences of what the identifier at c denotes, in
+ * source order within each file. */
+static RefVec refs(Server *s, PosCtx *c) {
+	Target t = target(s, c);
+	RefVec out = {0};
+	if (t.sym && sym_is_local(t.sym->kind)) {
+		for (size_t k = 0; k < c->d->file->toks.n; k++)
+			if (c->info->uses[k] == t.sym) {
+				Token *tok = &c->d->file->toks.v[k];
+				addref(&out, c->d, tok, tok == t.sym->decl && t.sym->kind != S_IMPLICIT);
+			}
+	} else if (t.sym && t.sym->kind == S_MACRO) {
+		for (size_t i = 0; i < c->docs.n; i++) {
+			Doc *d = c->docs.v[i];
+			SemaInfo *info = infofor(c, d);
+			for (size_t k = 0; k < d->file->toks.n; k++)
+				if (info->uses[k] && info->uses[k]->kind == S_MACRO && info->uses[k]->macro == t.sym->macro)
+					addref(&out, d, &d->file->toks.v[k], false);
+		}
+	} else if (t.isfield) {
+		const char *name = ttext(c->d, c->tok);
+		size_t n = c->tok->len;
+		for (size_t i = 0; i < c->docs.n; i++) {
+			Doc *d = c->docs.v[i];
+			SemaInfo *info = infofor(c, d);
+			for (size_t k = 0; k < d->file->toks.n; k++) {
+				Token *tok = &d->file->toks.v[k];
+				if (info->fielduses[k] && ttexteq(d, tok, name, n))
+					addref(&out, d, tok, false);
+				if (info->uses[k] && info->uses[k]->kind == S_FIELD && strlen(info->uses[k]->name) == n &&
+				    !memcmp(info->uses[k]->name, name, n))
+					addref(&out, d, tok, true);
+			}
+		}
+	} else if (t.sym) {
+		Symbol *sym = t.sym;
+		for (size_t i = 0; i < c->docs.n; i++) {
+			Doc *d = c->docs.v[i];
+			SemaInfo *info = infofor(c, d);
+			for (size_t k = 0; k < d->file->toks.n; k++) {
+				Symbol *u = info->uses[k];
+				if (u && (u == sym || (isglobalkind(sym->kind) && isglobalkind(u->kind) && !strcmp(u->name, sym->name))))
+					addref(&out, d, &d->file->toks.v[k], u->decl == &d->file->toks.v[k]);
+			}
+		}
+	} else if (t.iskw) {
+		const char *name = ttext(c->d, c->tok);
+		size_t n = c->tok->len;
+		for (size_t i = 0; i < c->docs.n; i++) {
+			Doc *d = c->docs.v[i];
+			SemaInfo *info = infofor(c, d);
+			for (size_t k = 0; k < d->file->toks.n; k++)
+				if (info->iskeyword[k] && ttexteq(d, &d->file->toks.v[k], name, n))
+					addref(&out, d, &d->file->toks.v[k], false);
+		}
+	}
+	qsort(out.v, out.n, sizeof *out.v, cmpref);
+	return out;
+}
+
+static void references(Server *s, PosCtx *c, bool includedecl, Buf *b) {
+	bufputc(b, '[');
+	if (c->tok) {
+		RefVec rs = refs(s, c);
+		int n = 0;
+		for (size_t i = 0; i < rs.n; i++) {
+			if (rs.v[i].isdecl && !includedecl)
+				continue;
+			if (n++)
+				bufputc(b, ',');
+			bufputs(b, "{\"uri\":");
+			json_stringz(b, rs.v[i].d->uri);
+			bufputs(b, ",\"range\":");
+			jrange(b, &rs.v[i].d->m, rs.v[i].tok->offset, tend(rs.v[i].tok));
+			bufputc(b, '}');
+		}
+	}
+	bufputc(b, ']');
+}
+
+static void highlight(Server *s, PosCtx *c, Buf *b) {
+	bufputc(b, '[');
+	if (c->tok) {
+		RefVec rs = refs(s, c);
+		int n = 0;
+		for (size_t i = 0; i < rs.n; i++) {
+			if (rs.v[i].d != c->d)
+				continue;
+			if (n++)
+				bufputc(b, ',');
+			bufputs(b, "{\"range\":");
+			jrange(b, &c->d->m, rs.v[i].tok->offset, tend(rs.v[i].tok));
+			bufputs(b, ",\"kind\":1}");
+		}
+	}
+	bufputc(b, ']');
+}
+
+/* ---- completion */
+
+static const char *const reservedwords[] = {
+	"break", "by", "case", "create", "default", "do", "else", "end", "every", "fail", "global", "if",
+	"initial", "invocable", "link", "local", "next", "not", "of", "procedure", "record", "repeat",
+	"return", "static", "suspend", "then", "to", "until", "while",
+};
+
+typedef struct Item {
+	char *label, *detail, *doc, *sorttext;
+	int kind;
+} Item;
+typedef VEC(Item) ItemVec;
+
+static void jitem(Buf *b, Item *it) {
+	bufputs(b, "{\"label\":");
+	json_stringz(b, it->label);
+	bufprintf(b, ",\"kind\":%d", it->kind);
+	if (it->detail && it->detail[0]) {
+		bufputs(b, ",\"detail\":");
+		json_stringz(b, it->detail);
+	}
+	if (it->doc && it->doc[0]) {
+		bufputs(b, ",\"documentation\":{\"kind\":\"markdown\",\"value\":");
+		json_stringz(b, it->doc);
+		bufputc(b, '}');
+	}
+	if (it->sorttext && it->sorttext[0]) {
+		bufputs(b, ",\"sortText\":");
+		json_stringz(b, it->sorttext);
+	}
+	bufputc(b, '}');
+}
+
+static char *cat2(const char *a, const char *z) {
+	Buf b = {0};
+	bufputs(&b, a);
+	bufputs(&b, z);
+	return b.b;
+}
+
+/* prevtokens returns the last two non-implicit tokens ending at or
+ * before off. */
+static void prevtokens(File *f, size_t off, Token **prev, Token **before) {
+	*prev = *before = NULL;
+	size_t i = 0;
+	while (i < f->toks.n && !(tend(&f->toks.v[i]) > off || f->toks.v[i].kind == T_EOF))
+		i++;
+	for (size_t j = i; j-- > 0;) {
+		Token *t = &f->toks.v[j];
+		if (t->implicit || t->kind == T_EOF)
+			continue;
+		if (!*prev)
+			*prev = t;
+		else {
+			*before = t;
+			return;
+		}
+	}
+}
+
+static Node *enclosingproc(File *f, size_t off) {
+	for (size_t i = 0; i < f->decls.n; i++) {
+		Node *p = f->decls.v[i];
+		if (p->kind != N_PROC)
+			continue;
+		Token *a = firsttoken(p), *z = lasttoken(p);
+		if (a && z && a->offset <= off && (off <= tend(z) || !p->proc.end))
+			return p;
+	}
+	return NULL;
+}
+
+static int cmpitem(const void *a, const void *b) {
+	return strcmp(((const Item *)a)->sorttext, ((const Item *)b)->sorttext);
+}
+
+typedef struct NameCtx {
+	CharVec *names;
+} NameCtx;
+
+static void collectkey(void *ctx, const char *key, size_t n, void *val) {
+	(void)val;
+	VPUSH(*((NameCtx *)ctx)->names, xstrndup(key, n));
+}
+
+static void identcompletions(PosCtx *c, ItemVec *items) {
+	StrMap seen = {0};
+#define ADDITEM(it)                                                                      \
+	do {                                                                             \
+		Item x_ = (it);                                                          \
+		if (!strmap_get(&seen, x_.label, strlen(x_.label))) {                    \
+			strmap_put(&seen, x_.label, strlen(x_.label), (void *)1);        \
+			VPUSH(*items, x_);                                               \
+		}                                                                        \
+	} while (0)
+	for (size_t i = 0; i < c->d->sf.nmacros; i++) {
+		MacroScope *m = &c->d->sf.macros[i];
+		if (m->from <= c->off && c->off < m->until) {
+			Buf det = {0};
+			bufprintf(&det, "$define %s %s", m->def->name, m->def->value);
+			Item it = {xstrndup(m->def->name, strlen(m->def->name)), trimspace(det.b, det.n), NULL,
+				cat2("0", m->def->name), 21};
+			ADDITEM(it);
+		}
+	}
+	Node *p = enclosingproc(c->d->file, c->off);
+	ProcLocals *pl = p ? sema_locals(c->info, p) : NULL;
+	for (size_t i = 0; pl && i < pl->syms.n; i++) {
+		Symbol *sym = pl->syms.v[i];
+		if (sym->kind == S_IMPLICIT && sym->decl == c->tok)
+			continue; /* the word being typed */
+		Item it = {xstrndup(sym->name, strlen(sym->name)), xstrndup(sym_kind_name(sym->kind), strlen(sym_kind_name(sym->kind))),
+			NULL, cat2("0", sym->name), 6};
+		ADDITEM(it);
+	}
+	CharVec names = {0};
+	NameCtx nc = {&names};
+	strmap_each(&c->prog->globals, collectkey, &nc);
+	for (size_t i = 0; i < names.n; i++) {
+		Symbol *sym = sema_global(c->prog, names.v[i], strlen(names.v[i]));
+		Item it = {names.v[i], NULL, NULL, cat2("1", names.v[i]), 6};
+		if (sym->kind == S_PROCEDURE)
+			it.kind = 3, it.detail = cat2("procedure ", procsignature(docof(sym->file), sym->node));
+		else if (sym->kind == S_RECORD) {
+			Buf det = {0};
+			bufprintf(&det, "record %s%s", names.v[i], toklist(docof(sym->file), &sym->node->record.fields));
+			it.kind = 22, it.detail = det.b;
+		} else
+			it.detail = "global";
+		ADDITEM(it);
+	}
+	size_t nf;
+	const BuiltinFunc *fs = builtin_functions(&nf);
+	for (size_t i = 0; i < nf; i++) {
+		Item it = {(char *)fs[i].name, (char *)fs[i].signature, capitalize(fs[i].summary), cat2("2", fs[i].name), 3};
+		ADDITEM(it);
+	}
+	for (size_t i = 0; i < sizeof reservedwords / sizeof reservedwords[0]; i++) {
+		Item it = {(char *)reservedwords[i], NULL, NULL, cat2("3", reservedwords[i]), 14};
+		ADDITEM(it);
+	}
+#undef ADDITEM
+	qsort(items->v, items->n, sizeof *items->v, cmpitem);
+}
+
+static void completion(PosCtx *c, Buf *b) {
+	size_t start = c->off;
+	if (c->tok && c->tok->offset < c->off)
+		start = c->tok->offset; /* completing a partly typed word */
+	Token *prev, *before;
+	prevtokens(c->d->file, start, &prev, &before);
+	ItemVec items = {0};
+	if (prev && prev->kind == T_AND && tend(prev) == start) {
+		size_t nk;
+		const Keyword *ks = builtin_keywords(&nk);
+		for (size_t i = 0; i < nk; i++) {
+			Item it = {(char *)ks[i].name, cat2("&", ks[i].name), capitalize(ks[i].summary), NULL, 21};
+			VPUSH(items, it);
+		}
+	} else if (prev && prev->kind == T_DOT && tend(prev) == start && before && tok_ender(before->kind)) {
+		CharVec names = {0};
+		NameCtx nc = {&names};
+		strmap_each(&c->prog->fields, collectkey, &nc);
+		qsort(names.v, names.n, sizeof *names.v, cmpstr);
+		for (size_t i = 0; i < names.n; i++) {
+			SymVec *fs = strmap_get(&c->prog->fields, names.v[i], strlen(names.v[i]));
+			Buf det = {0};
+			bufputs(&det, "field of ");
+			bool first = true;
+			for (size_t k = 0; fs && k < fs->n; k++) {
+				Node *r = fs->v[k]->node;
+				if (!r->record.name)
+					continue;
+				if (!first)
+					bufputs(&det, ", ");
+				first = false;
+				bufadd(&det, ttext(docof(fs->v[k]->file), r->record.name), r->record.name->len);
+			}
+			Item it = {names.v[i], det.b, NULL, NULL, 5};
+			VPUSH(items, it);
+		}
+	} else
+		identcompletions(c, &items);
+	bufputs(b, "{\"isIncomplete\":false,\"items\":[");
+	for (size_t i = 0; i < items.n; i++) {
+		if (i)
+			bufputc(b, ',');
+		jitem(b, &items.v[i]);
+	}
+	bufputs(b, "]}");
+}
+
+/* ---- signature help */
+
+/* innermostcall returns the innermost call whose argument list
+ * contains off: the last found in a pre-order walk, without recursion. */
+static Node *innermostcall(File *f, size_t off) {
+	Node *best = NULL;
+	KidVec stk = {0};
+	for (size_t i = f->decls.n; i-- > 0;) {
+		KidV k = {NULL, f->decls.v[i]};
+		VPUSH(stk, k);
+	}
+	while (stk.n) {
+		KidV k = stk.v[--stk.n];
+		if (!k.n)
+			continue;
+		Node *n = k.n;
+		if (n->kind == N_CALL && n->call.open && tend(n->call.open) <= off &&
+		    (!n->call.close || off <= n->call.close->offset))
+			best = n;
+		KidVec ks = {0};
+		syn_children(n, kids, &ks);
+		for (size_t i = ks.n; i-- > 0;)
+			if (ks.v[i].n)
+				VPUSH(stk, ks.v[i]);
+		free(ks.v);
+	}
+	free(stk.v);
+	return best;
+}
+
+static void signaturehelp(PosCtx *c, Buf *b) {
+	Node *call = innermostcall(c->d->file, c->off);
+	if (!call || !call->call.fun || call->call.fun->kind != N_IDENT || !call->call.fun->ident.name) {
+		bufputs(b, "null");
+		return;
+	}
+	Symbol *sym = c->info->uses[tokidx(c->d, call->call.fun->ident.name)];
+	if (!sym) {
+		bufputs(b, "null");
+		return;
+	}
+	CharVec params = {0};
+	char *doc = "";
+	if (sym->kind == S_PROCEDURE) {
+		Node *p = sym->node;
+		Doc *d = docof(sym->file);
+		for (size_t i = 0; i < p->proc.params.elems.n; i++)
+			if (p->proc.params.elems.v[i])
+				VPUSH(params, xstrndup(ttext(d, p->proc.params.elems.v[i]), p->proc.params.elems.v[i]->len));
+		if (p->proc.lbrack && params.n)
+			params.v[params.n - 1] = cat2(params.v[params.n - 1], "[]");
+		doc = doccomment(d, sym);
+	} else if (sym->kind == S_RECORD) {
+		Doc *d = docof(sym->file);
+		TokList *fl = &sym->node->record.fields;
+		for (size_t i = 0; i < fl->elems.n; i++)
+			if (fl->elems.v[i])
+				VPUSH(params, xstrndup(ttext(d, fl->elems.v[i]), fl->elems.v[i]->len));
+		doc = "Record constructor";
+	} else if (sym->kind == S_BUILTIN) {
+		const char *sig = sym->builtin->signature;
+		const char *i = strchr(sig, '('), *j = strrchr(sig, ')');
+		if (i && j && j > i + 1) {
+			const char *p = i + 1;
+			while (p <= j) {
+				const char *e = p;
+				while (e < j && *e != ',')
+					e++;
+				char *t = trimspace(p, (size_t)(e - p));
+				if (t[0])
+					VPUSH(params, t);
+				p = e + 1;
+			}
+		}
+		doc = capitalize(sym->builtin->summary);
+	} else {
+		bufputs(b, "null");
+		return;
+	}
+	long active = 0;
+	for (size_t i = 0; i < call->call.args.seps.n; i++)
+		if (call->call.args.seps.v[i] && call->call.args.seps.v[i]->offset < c->off)
+			active++;
+	if (params.n && active >= (long)params.n)
+		active = (long)params.n - 1; /* extra arguments of a variadic function */
+	bufputs(b, "{\"signatures\":[{\"label\":");
+	Buf label = {0};
+	bufputs(&label, sym->name);
+	bufputc(&label, '(');
+	for (size_t i = 0; i < params.n; i++) {
+		if (i)
+			bufputs(&label, ", ");
+		bufputs(&label, params.v[i]);
+	}
+	bufputc(&label, ')');
+	json_stringz(b, label.b);
+	if (doc[0]) {
+		bufputs(b, ",\"documentation\":{\"kind\":\"markdown\",\"value\":");
+		json_stringz(b, doc);
+		bufputc(b, '}');
+	}
+	bufputs(b, ",\"parameters\":[");
+	for (size_t i = 0; i < params.n; i++) {
+		if (i)
+			bufputc(b, ',');
+		bufputs(b, "{\"label\":");
+		json_stringz(b, params.v[i]);
+		bufputc(b, '}');
+	}
+	bufprintf(b, "]}],\"activeSignature\":0,\"activeParameter\":%ld}", active);
+}
+
+/* ---- rename */
+
+static bool failwith(int *code, char **err, Buf *m) {
+	*code = CodeRequestFailed, *err = m->b;
+	return false;
+}
+
+static bool renameable(Server *s, PosCtx *c, Target *t, int *code, char **err) {
+	*t = target(s, c);
+	if (!c->tok || !t->sym || t->sym->kind == S_BUILTIN || t->sym->kind == S_MACRO || t->isfield) {
+		Buf m = {0};
+		bufputs(&m, "nothing here that can be renamed");
+		return failwith(code, err, &m);
+	}
+	/* Don't edit files outside the document's directory (libraries). */
+	char *dir = c->d->path[0] ? dirname_(c->d->path) : xstrndup(".", 1);
+	RefVec rs = refs(s, c);
+	for (size_t i = 0; i < rs.n; i++) {
+		Doc *rd = rs.v[i].d;
+		if (!rd->path[0] || strcmp(dirname_(rd->path), dir)) {
+			Buf m = {0};
+			goquote(&m, ttext(c->d, c->tok), c->tok->len);
+			bufprintf(&m, " is also used in %s, outside this directory", relpath(c->d, rd));
+			return failwith(code, err, &m);
+		}
+	}
+	return true;
+}
+
+static void preparerename(Server *s, PosCtx *c, Buf *b, int *code, char **err) {
+	Target t;
+	if (!renameable(s, c, &t, code, err))
+		return;
+	bufputs(b, "{\"range\":");
+	tokrange(b, c);
+	bufputs(b, ",\"placeholder\":");
+	json_string(b, ttext(c->d, c->tok), c->tok->len);
+	bufputc(b, '}');
+}
+
+/* proctokens gives the token index range [lo, hi] of procedure p. */
+static bool procrange(Doc *d, Node *p, size_t *lo, size_t *hi) {
+	Token *a = firsttoken(p), *z = lasttoken(p);
+	if (!a || !z)
+		return false;
+	*lo = tokidx(d, a), *hi = tokidx(d, z);
+	return true;
+}
+
+static bool renameconflict(Server *s, PosCtx *c, Symbol *sym, const char *newname, int *code, char **err) {
+	(void)s;
+	size_t nn = strlen(newname);
+	Buf m = {0};
+	if (sym_is_local(sym->kind)) {
+		Node *p = sym->node;
+		ProcLocals *pl = sema_locals(c->info, p);
+		Symbol *other = pl ? strmap_get(&pl->byname, newname, nn) : NULL;
+		if (other) {
+			goquotez(&m, newname);
+			bufprintf(&m, " is already a %s of this procedure", sym_kind_name(other->kind));
+			return failwith(code, err, &m);
+		}
+		/* Would capture a use of a global or built-in of that name. */
+		size_t lo, hi;
+		if (procrange(c->d, p, &lo, &hi))
+			for (size_t k = lo; k <= hi; k++) {
+				Symbol *u = c->info->uses[k];
+				if (u && !strcmp(u->name, newname)) {
+					goquotez(&m, newname);
+					bufprintf(&m, " is used in this procedure as a %s", sym_kind_name(u->kind));
+					return failwith(code, err, &m);
+				}
+			}
+		return true;
+	}
+	SymVec *g = strmap_get(&c->prog->globals, newname, nn);
+	if (g && g->n) {
+		goquotez(&m, newname);
+		bufprintf(&m, " is already a %s (%s)", sym_kind_name(g->v[0]->kind), relpath(c->d, docof(g->v[0]->file)));
+		return failwith(code, err, &m);
+	}
+	/* Each procedure using the global must not have a local of the new
+	 * name, nor use a built-in of that name. */
+	for (size_t i = 0; i < c->docs.n; i++) {
+		Doc *d = c->docs.v[i];
+		SemaInfo *info = infofor(c, d);
+		for (size_t j = 0; j < d->file->decls.n; j++) {
+			Node *p = d->file->decls.v[j];
+			size_t lo, hi;
+			if (p->kind != N_PROC || !procrange(d, p, &lo, &hi))
+				continue;
+			bool usessym = false, usesnew = false;
+			for (size_t k = lo; k <= hi; k++) {
+				Symbol *u = info->uses[k];
+				if (u) {
+					usessym = usessym || (!strcmp(u->name, sym->name) && isglobalkind(u->kind));
+					usesnew = usesnew || !strcmp(u->name, newname);
+				}
+			}
+			if (usessym && usesnew && p->proc.name) {
+				goquotez(&m, newname);
+				bufprintf(&m, " is already used in procedure %.*s", (int)p->proc.name->len, ttext(d, p->proc.name));
+				return failwith(code, err, &m);
+			}
+		}
+	}
+	if (builtin_function(newname, nn)) {
+		/* A new global of this name would hide the built-in wherever
+		 * it is used. */
+		for (size_t i = 0; i < c->docs.n; i++) {
+			Doc *d = c->docs.v[i];
+			SemaInfo *info = infofor(c, d);
+			for (size_t k = 0; k < d->file->toks.n; k++) {
+				Symbol *u = info->uses[k];
+				if (u && u->kind == S_BUILTIN && !strcmp(u->name, newname)) {
+					goquotez(&m, newname);
+					bufprintf(&m, " would hide the built-in function used in %s", relpath(c->d, d));
+					return failwith(code, err, &m);
+				}
+			}
+		}
+	}
+	return true;
+}
+
+static void renamesym(Server *s, PosCtx *c, const char *newname, Buf *b, int *code, char **err) {
+	Target t;
+	if (!renameable(s, c, &t, code, err))
+		return;
+	Tokens ts = lex_tokenize(newname, strlen(newname));
+	if (ts.n != 2 || ts.v[0].kind != T_IDENT || ts.v[0].len != strlen(newname)) {
+		Buf m = {0};
+		goquotez(&m, newname);
+		bufputs(&m, " is not a valid identifier");
+		*code = CodeInvalidParams, *err = m.b;
+		return;
+	}
+	Symbol *sym = t.sym;
+	if (!strcmp(newname, sym->name)) {
+		bufputs(b, "{\"changes\":{}}");
+		return;
+	}
+	RefVec rs = refs(s, c);
+	if (!renameconflict(s, c, sym, newname, code, err))
+		return;
+	/* edits by URI, the URIs sorted (as Go writes a map) */
+	CharVec uris = {0};
+	for (size_t i = 0; i < rs.n; i++) {
+		bool have = false;
+		for (size_t k = 0; k < uris.n; k++)
+			if (!strcmp(uris.v[k], rs.v[i].d->uri))
+				have = true;
+		if (!have)
+			VPUSH(uris, rs.v[i].d->uri);
+	}
+	qsort(uris.v, uris.n, sizeof *uris.v, cmpstr);
+	bufputs(b, "{\"changes\":{");
+	for (size_t k = 0; k < uris.n; k++) {
+		if (k)
+			bufputc(b, ',');
+		json_stringz(b, uris.v[k]);
+		bufputs(b, ":[");
+		int n = 0;
+		for (size_t i = 0; i < rs.n; i++) {
+			if (strcmp(rs.v[i].d->uri, uris.v[k]))
+				continue;
+			if (n++)
+				bufputc(b, ',');
+			bufputs(b, "{\"range\":");
+			jrange(b, &rs.v[i].d->m, rs.v[i].tok->offset, tend(rs.v[i].tok));
+			bufputs(b, ",\"newText\":");
+			json_stringz(b, newname);
+			bufputc(b, '}');
+		}
+		bufputc(b, ']');
+	}
+	bufputs(b, "}}");
+}
+
+/* ---- workspace symbols */
+
+static bool containsfold(const char *s, const char *q) {
+	size_t n = strlen(s), m = strlen(q);
+	for (size_t i = 0; i + m <= n; i++) {
+		size_t k = 0;
+		while (k < m && ((s[i + k] >= 'A' && s[i + k] <= 'Z') ? s[i + k] + 32 : s[i + k]) == q[k])
+			k++;
+		if (k == m)
+			return true;
+	}
+	return false;
+}
+
+static void workspacesymbols(Server *s, const char *query, Buf *b) {
+	char *q = xstrndup(query, strlen(query));
+	for (char *p = q; *p; p++)
+		if (*p >= 'A' && *p <= 'Z')
+			*p = (char)(*p + 32);
+	StrMap seen = {0};
+	DocVec open = opendocs(s);
+	bufputc(b, '[');
+	int n = 0;
+	for (size_t i = 0; i < open.n; i++) {
+		DocVec order = {0};
+		program(&s->ws, open.v[i], &order);
+		for (size_t j = 0; j < order.n; j++) {
+			Doc *d = order.v[j];
+			if (strmap_get(&seen, d->uri, strlen(d->uri)))
+				continue;
+			strmap_put(&seen, d->uri, strlen(d->uri), (void *)1);
+			DSymVec syms = docsymbols(d);
+			for (size_t k = 0; k < syms.n; k++) {
+				if (syms.v[k].kind == SymbolModule || !containsfold(syms.v[k].name, q))
+					continue;
+				if (n++)
+					bufputc(b, ',');
+				jsyminfo(b, syms.v[k].name, syms.v[k].kind, d->uri, &d->m, syms.v[k].sa, syms.v[k].sz,
+					d->path[0] ? basename_(d->path) : ".");
+			}
+		}
+	}
+	bufputc(b, ']');
+}
+
+/* ---- dispatch */
+
+static bool lsp_feature(Server *s, const char *method, JVal *params, Buf *b, int *code, char **err) {
+	static const char *const positional[] = {
+		"textDocument/hover", "textDocument/definition", "textDocument/references",
+		"textDocument/documentHighlight", "textDocument/completion", "textDocument/signatureHelp",
+		"textDocument/prepareRename", "textDocument/rename",
+	};
+	if (!strcmp(method, "workspace/symbol")) {
+		workspacesymbols(s, json_str(params, "query"), b);
+		return true;
+	}
+	int which = -1;
+	for (int i = 0; i < 8; i++)
+		if (!strcmp(method, positional[i]))
+			which = i;
+	if (which < 0)
+		return false;
+	PosCtx c;
+	if (!at(s, params, &c, code, err))
+		return true;
+	switch (which) {
+	case 0: hover(s, &c, b); break;
+	case 1: definition(s, &c, b); break;
+	case 2: references(s, &c, json_bool(params, "context.includeDeclaration"), b); break;
+	case 3: highlight(s, &c, b); break;
+	case 4: completion(&c, b); break;
+	case 5: signaturehelp(&c, b); break;
+	case 6: preparerename(s, &c, b, code, err); break;
+	case 7: renamesym(s, &c, json_str(params, "newName"), b, code, err); break;
+	}
+	return true;
+}
+
+static int lsp_fetchdocs(const char *dir) { return refdocs_fetch(dir); }
 
 static _Noreturn void lspusage(void) {
 	fputs("usage: gcon lsp [-log file] [-docs dir]\n"
@@ -1337,6 +2615,7 @@ int lsp_main(int argc, char **argv) {
 		return 2;
 	}
 	s.docsdir = docs ? docs : cachedir();
+	s.refdocs = refdocs_load(s.docsdir);
 	s.ws.root = root_find().dir;
 	return serve(&s);
 }

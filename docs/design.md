@@ -209,6 +209,15 @@ file's tokens kept). gcon's additions to the language are lexical (the
 literal escapes `\u` and `\U`, cset ranges) and pass through it as
 written.
 
+The language server is ported (`src/lsp.c`, `gcon lsp`), from
+icontools' `iconls`, which is its oracle (`src/tests/lsp.sh`) but for
+what gcon defines: files are found through gcon's root (no ucode),
+diagnostics are icont's, and hovers and completions include gcon's
+built-ins and keywords (marked as not in Icon 9.5). The Icon
+reference pages are not redistributable, so `gcon lsp fetch-docs`
+downloads them (with curl) to a local cache, as `iconls fetch-docs`
+does.
+
 ### Graphics: a separate display server
 
 **Decision (2026-11-25): graphics runs in a separate display server
