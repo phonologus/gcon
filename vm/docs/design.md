@@ -682,8 +682,11 @@ time the program looked the string held whatever the stack held next
 copied now (`strcopy`). And gcon did not predefine `_X_WINDOW_SYSTEM`,
 under which the IPL's `keysyms.icn` names the special keys (phwbi's
 `Key_Home`): its events use X keysyms, so it does now, and `&features`
-includes "X Windows", as icon-sdl's iconx does (`features` accepted
-anew, `preproc`'s expected output updated).
+includes "X Windows" (`features` accepted anew, `preproc`'s expected
+output updated). (Not as icon-sdl does it, as was first written here:
+icon-sdl defines `_SDL_GRAPHICS` ("SDL graphics") and modifies three
+IPL files to name the keys under a new `_X_KEYSYMS`; see "Graphics: the
+IPL's programs" below.)
 
 Testing this against icon-sdl's window tests found that `write` and
 `read` on a window, listed above as still to do, had never been
@@ -736,3 +739,32 @@ Icon's under X11: all within the tolerances icon-sdl's backend has
 icon-sdl's own numbers. icon-sdl's whole `misc` window test (window
 icons) passes. `ifncsgen` (what `function()` generates) is identical
 to icon-sdl's iconx but for gcon's own five functions.
+
+## Graphics: the IPL's programs (2026-11-26)
+
+Every program of the IPL's `gprogs` (177) and `gpacks` (65) was run
+under gcon and under icon-sdl's iconx, the same SDL3 + Blend2D
+backend, with the same time limit and no input, and their output, exit
+status and every canvas compared pixel for pixel. The canvases come
+from a test hook in both servers (`ICONSDL_TEST_DUMP`, graphics'
+`src/canvas.c`), so no screen is read. Where the two differed, iconx
+was run again: a program whose two iconx runs differ (`randomize`,
+animation, timing) says nothing about gcon.
+
+It found six gcon bugs, fixed: `Uncouple` closed the window for every
+binding of its canvas; open's mode `"x"` was not a window;
+`QueryPointer` returned a list instead of generating x and y, and
+needed a window; `Active` always failed; `write` to a window drew its
+arguments as one run (iconx draws each); and a traceback's field
+reference said `field` where iconx names the field. Since then every
+deterministic program matches iconx exactly, but two.
+
+Those two, `vib/dlog` and `tiger/tgrmap`, follow from how gcon names
+the keys: it predefines `_X_WINDOW_SYSTEM` (its keys are X keysyms,
+which the IPL's `keysyms.icn` names under it), so the vidgets ask for
+X font names (`viface.icn`) and `tgrmap` takes the X keypad keys.
+icon-sdl instead predefines `_SDL_GRAPHICS` ("SDL graphics" in
+`&features`) and changes three IPL files: `keysyms.icn` names the
+keys under a new `_X_KEYSYMS`, defined by either symbol, and
+`vtext.icn` and `tgrmap.icn` test `_X_KEYSYMS`. Which gcon should do
+is open.
