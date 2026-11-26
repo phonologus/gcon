@@ -34,13 +34,26 @@ else
 	echo "build.sh: no C++ compiler or CMake: the display server is not built"
 fi
 
-# The version, in the form Go stamps its own: a pseudo-version naming
-# the commit, "+dirty" for uncommitted changes; "(devel)" without git.
+# The version, by Go's rules for its own: a commit tagged vX.Y.Z is
+# vX.Y.Z; a later commit is the pseudo-version vX.Y.(Z+1)-0.DATE-COMMIT,
+# which sorts after vX.Y.Z and before the next release (v0.0.0-DATE-COMMIT
+# with no release tag behind it); "+dirty" marks uncommitted changes;
+# "(devel)" without git.
 version="(devel)"
 if command -v git >/dev/null 2>&1 && git rev-parse --git-dir >/dev/null 2>&1; then
-	when=$(TZ=UTC git log -1 --format=%cd --date=format-local:%Y%m%d%H%M%S)
-	commit=$(git rev-parse HEAD | cut -c1-12)
-	version="v0.0.0-$when-$commit"
+	release='v[0-9]*.[0-9]*.[0-9]*'
+	if tag=$(git describe --tags --exact-match --match "$release" 2>/dev/null); then
+		version=$tag
+	else
+		when=$(TZ=UTC git log -1 --format=%cd --date=format-local:%Y%m%d%H%M%S)
+		commit=$(git rev-parse HEAD | cut -c1-12)
+		if tag=$(git describe --tags --abbrev=0 --match "$release" 2>/dev/null); then
+			next=$(echo "$tag" | awk -F. '{ printf "%s.%s.%d", $1, $2, $3 + 1 }')
+			version="$next-0.$when-$commit"
+		else
+			version="v0.0.0-$when-$commit"
+		fi
+	fi
 	[ -n "$(git status --porcelain)" ] && version="$version+dirty"
 fi
 ${CC:-cc} -std=c11 -O2 -Wall -Wextra ${CFLAGS:-} -DGCON_VERSION="\"$version\"" -Ivm/src \
