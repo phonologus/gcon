@@ -1170,7 +1170,11 @@ func (p *pcomp) brk(e *syntax.Break, fail label) (label, label, vm.Operand) {
 	l.broken = true
 	a := p.newLabel()
 	savedLoops, savedScans := p.loops, p.scans
-	p.loops, p.scans = p.loops[:len(p.loops)-1], p.scans[:l.scans]
+	// Copies, not reslicings: a loop or scan within e would append into
+	// the saved slices' arrays, overwriting the enclosing loop (which a
+	// later next then uses) or scan (which leaving then swaps).
+	p.loops = append([]*loop(nil), p.loops[:len(p.loops)-1]...)
+	p.scans = append([]vm.Operand(nil), p.scans[:l.scans]...)
 	st, r, v := p.expr(e.X, l.fail, a)
 	p.loops, p.scans = savedLoops, savedScans
 	p.place(a)
