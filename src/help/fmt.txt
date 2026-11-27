@@ -1,0 +1,23 @@
+usage: gcon fmt [-l] [-w] [-d] [path ...]
+
+Fmt formats Icon source in Gcon's one layout, as gofmt formats Go: there
+are no style options. It reformats layout only: the tokens, comments and
+meaning of the program are unchanged.
+
+Each path is a file or a directory; a directory's .icn files are
+formatted, in lexical order, at any depth. With no path, fmt formats
+standard input.
+
+By default fmt writes the formatted source to standard output. The flags
+are:
+
+	-d
+		display diffs instead of rewriting files.
+	-l
+		list files whose formatting differs from gcon fmt's.
+	-w
+		write the result to the source file instead of standard
+		output. Not allowed with standard input.
+
+A file that cannot be parsed is reported and left unchanged, and the
+exit status is then 2.

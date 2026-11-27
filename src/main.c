@@ -13,11 +13,13 @@
  *	                               what is not Icon 9.5)
  *	gcon env                       print gcon's root and library search paths
  *	gcon version                   print gcon's version
+ *	gcon help [command | topic]    the manual (help.c, src/help)
  *
  * Programs run on gcon-vm, the root's (libexec/gcon-vm) or $GCONVM's.
  */
 #include "driver.h"
 #include "format.h"
+#include "help.h"
 #include "ipp.h"
 #include "lsp.h"
 #include "vet.h"
@@ -27,20 +29,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-static _Noreturn void usage(void) {
-	fputs("usage:\n"
-	      "\tgcon run file [args...]\n"
-	      "\tgcon build [-o out] file.icn\n"
-	      "\tgcon dis file\n"
-	      "\tgcon fmt [-l] [-w] [-d] [path ...]\n"
-	      "\tgcon lsp [-log file] [-docs dir]\n"
-	      "\tgcon vet [-icon95] file.icn ...\n"
-	      "\tgcon env\n"
-	      "\tgcon version\n",
-		stderr);
-	exit(2);
-}
 
 static Root root;
 
@@ -78,10 +66,10 @@ static int build(int argc, char **argv, const char *argv0) {
 		char *eq = strchr(name, '=');
 		size_t nl = eq ? (size_t)(eq - name) : strlen(name);
 		if ((nl == 1 && name[0] == 'h') || (nl == 4 && !strncmp(name, "help", 4)))
-			usage();
+			help_page("build");
 		if (nl != 1 || name[0] != 'o') {
 			fprintf(stderr, "flag provided but not defined: -%.*s\n", (int)nl, name);
-			usage();
+			help_usage("build");
 		}
 		if (eq)
 			out = eq + 1;
@@ -89,11 +77,11 @@ static int build(int argc, char **argv, const char *argv0) {
 			out = argv[++i];
 		else {
 			fprintf(stderr, "flag needs an argument: -o\n");
-			usage();
+			help_usage("build");
 		}
 	}
 	if (argc - i != 1)
-		usage();
+		help_usage("build");
 	const char *src = argv[i];
 	if (!out) {
 		const char *base = strrchr(src, '/');
@@ -161,15 +149,15 @@ static int vet(int argc, char **argv) {
 		}
 		char *name = a + 1 + (a[1] == '-');
 		if (!strcmp(name, "h") || !strcmp(name, "help"))
-			usage();
+			help_page("vet");
 		if (strcmp(name, "icon95")) {
 			fprintf(stderr, "flag provided but not defined: -%s\n", name);
-			usage();
+			help_usage("vet");
 		}
 		opts.icon95 = true;
 	}
 	if (i == argc)
-		usage();
+		help_usage("vet");
 	Config c = config();
 	int status = 0;
 	bool found = false;
@@ -261,20 +249,26 @@ static void env(void) {
 
 int main(int argc, char **argv) {
 	if (argc < 2)
-		usage();
+		help_overview();
 	const char *cmd = argv[1];
+	if (!strcmp(cmd, "help"))
+		return help_main(argc - 1, argv + 1);
 	root = root_find();
 	Config c = config();
 	if (!strcmp(cmd, "run")) {
+		if (argc >= 3 && help_isflag(argv[2]))
+			help_page("run");
 		if (argc < 3)
-			usage();
+			help_usage("run");
 		return execvm(vm(), argv[2], argv + 3, argc - 3, false, &c);
 	}
 	if (!strcmp(cmd, "build"))
 		return build(argc - 2, argv + 2, argv[0]);
 	if (!strcmp(cmd, "dis")) {
+		if (argc == 3 && help_isflag(argv[2]))
+			help_page("dis");
 		if (argc != 3)
-			usage();
+			help_usage("dis");
 		return execvm(vm(), argv[2], NULL, 0, true, &c);
 	}
 	if (!strcmp(cmd, "lsp"))
@@ -283,13 +277,17 @@ int main(int argc, char **argv) {
 		return vet(argc - 2, argv + 2);
 	if (!strcmp(cmd, "fmt"))
 		return format_main(argc - 1, argv + 1);
-	if (!strcmp(cmd, "env")) {
-		env();
+	if (!strcmp(cmd, "env") || !strcmp(cmd, "version")) {
+		if (argc == 3 && help_isflag(argv[2]))
+			help_page(cmd);
+		if (argc != 2)
+			help_usage(cmd);
+		if (!strcmp(cmd, "env"))
+			env();
+		else
+			printf("gcon %s\n", GCON_VERSION);
 		return 0;
 	}
-	if (!strcmp(cmd, "version")) {
-		printf("gcon %s\n", GCON_VERSION);
-		return 0;
-	}
-	usage();
+	fprintf(stderr, "gcon %s: unknown command\nRun 'gcon help' for usage.\n", cmd);
+	return 2;
 }

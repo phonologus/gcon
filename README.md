@@ -58,6 +58,7 @@ gcon build prog.icn                 # write ./prog, a runnable program
 gcon fmt -w *.icn                   # format sources in place
 gcon vet prog.icn                   # report likely mistakes
 gcon lsp                            # language server, for your editor
+gcon help [command | topic]         # the manual: commands, environment, ...
 ```
 
 No `.u1` or `.u2` files are written anywhere: programs are linked from

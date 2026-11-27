@@ -1,0 +1,16 @@
+usage: gcon run file [arguments]
+
+Run translates the Icon program in file, with the files it links, and
+runs it on gcon-vm. The arguments are passed to the program: main
+receives them as a list of strings. Nothing is written: there are no
+.u1 or .u2 files and no executable.
+
+The file may also be a program written by gcon build, which is run as
+it is.
+
+The exit status is the program's. If the program cannot be translated,
+run prints the errors and exits with status 1.
+
+&progname is file without ".icn" ("./prog" for prog.icn).
+
+See also: gcon help build, gcon help library, gcon help environment.

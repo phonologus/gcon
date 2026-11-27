@@ -1,0 +1,22 @@
+usage: gcon build [-o out] file.icn
+
+Build translates file.icn and the files it links into one executable
+file. By default the file is named as icont names its output: the
+source file's name without ".icn", in the current directory.
+
+The flags are:
+
+	-o out
+		write the program to out instead.
+
+The built program is a short shell script followed by the program's
+VM code. It runs on gcon-vm, found in this order: $GCONVM, a gcon-vm;
+$GCON, a gcon; a gcon in the program's directory; the gcon-vm of the
+root that built it; the gcon that built it; gcon on the PATH. A built
+program therefore needs a Gcon installation to run, but no source
+files, and it can be moved.
+
+A program built by a different version of Gcon, whose VM code this
+version does not read, is refused with a message to rebuild it.
+
+See also: gcon help run, gcon help library.

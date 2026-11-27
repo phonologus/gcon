@@ -2100,7 +2100,10 @@ command appears in its help page; help output has golden files, as
 
 0. The Gcon sweep: prose in the READMEs, notes, help and the editors'
    display names (not released changelog entries, not code).
-1. `gcon help`, its pages and topics; the `getenv` check.
+1. `gcon help`, its pages and topics; the `getenv` check. Done
+   (2026-11-27): the pages in `src/help`, compiled in by `tools/help.sh`
+   (`src/helppages.inc`, committed); checked by `src/tests/help.sh`;
+   the variables for development listed in design/development.md.
 2. The doc tree and `gcon doc` topics: README split, internal sections
    to design/development.md, the internals pages (protocol moved; the
    built program's format brought up to date: it still names the Go

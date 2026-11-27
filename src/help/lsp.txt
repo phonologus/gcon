@@ -1,0 +1,32 @@
+usage: gcon lsp [-log file] [-docs dir]
+       gcon lsp fetch-docs [-dir dir]
+
+Lsp is Gcon's language server, for editors. It speaks the Language
+Server Protocol on standard input and output, and gives diagnostics as
+you type (translation errors and gcon vet's findings), hover
+documentation, go to definition, references, completion, signature
+help, rename and formatting (as gcon fmt).
+
+The flags are:
+
+	-dir dir
+		with fetch-docs: download into dir instead of the cache.
+	-docs dir
+		read Icon's reference pages from dir instead of the cache.
+	-log file
+		append the server's log to file instead of standard error.
+
+Editors that pass -stdio may do so; it is accepted and ignored. -version
+prints the version.
+
+Hover documentation for Icon's built-in functions and keywords comes
+from Icon's reference pages on the Arizona website, which cannot be
+shipped with Gcon. "gcon lsp fetch-docs" downloads them once into the
+cache: ~/Library/Caches/gcon/ref on macOS, $XDG_CACHE_HOME/gcon/ref or
+~/.cache/gcon/ref elsewhere. Without them, hovers show a one-line
+summary.
+
+The client may send the initialization options "icon95" (also report
+what is not Icon 9.5, as gcon vet -icon95) and "ipath" (more directories
+to search for linked files). The editor extensions in Gcon's editors
+directory set these up.

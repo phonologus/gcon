@@ -1,0 +1,9 @@
+usage: gcon dis file
+
+Dis lists the VM code of file, which may be Icon source (translated as
+gcon run translates it) or a program written by gcon build: the format
+version, the constants, globals and record types, and each procedure's
+instructions.
+
+The listing is for the curious and for debugging Gcon itself. Its form
+may change from one version to the next.

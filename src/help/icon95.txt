@@ -1,0 +1,27 @@
+Icon 9.5 programs behave under Gcon as they do under iconx. What Gcon
+adds to the language is small:
+
+	usets, written u'...', and the keyword &uset
+	ranges in cset and uset literals: 'a..z'
+	Go's \u and \U escapes in any literal: "caf\u00e9"
+	the built-ins uchar, uord, uset and uvalid
+	the library module uclass
+
+Two of these can change what a 9.5 program does: a literal containing
+\u or \U (in 9.5, the letters u and U), and image of UTF-8 text, which
+Gcon shows as itself ("café" where iconx writes "caf\xc3\xa9"). "gcon
+vet -icon95" reports every use of Gcon's additions, for code that must
+also run under Arizona Icon.
+
+The other differences:
+
+	graphics uses SDL3 and Blend2D, not X11 (gcon help graphics)
+	there is no separate translator and linker: gcon run and gcon
+	build translate and link from source, writing no ucode
+	memory is one collected heap, not iconx's regions: &allocated
+	counts the bytes allocated, &regions gives iconx's initial
+	sizes, &storage gives zeros, and BLKSIZE, STRSIZE and the
+	other memory variables have no effect
+	&version is "Icon Version 9.5 (Gcon)"
+
+See also: gcon help unicode, gcon help graphics.

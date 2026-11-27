@@ -1,0 +1,32 @@
+Icon's graphics run in a display server, gcon-graphics, a separate
+process that gcon-vm starts when a program first opens a window and
+talks to through a protocol. The server draws with SDL3 and Blend2D; it
+is not an X11 client. It is the backend of icon-sdl, a fork of Icon 9.5
+whose iconx draws with it, in a process of its own.
+
+	The preprocessor defines _SDL_GRAPHICS, not _X_WINDOW_SYSTEM,
+	and &features includes "SDL graphics", so programs that test for
+	X take their portable path. Keys are reported as X keysyms.
+
+	Drawing is antialiased, and HiDPI: an Icon pixel is one point,
+	drawn at the display's scale (ICONSDL_SCALE overrides it).
+
+	Fonts are the system's own (CoreText on macOS, fontconfig on
+	Linux). The portable families mono, sans, serif and typewriter
+	map to them; a font name that is not found fails, as under X.
+
+	Image files: GIF, as in Icon, and PNG, JPEG, BMP and QOI, for
+	both ReadImage and WriteImage.
+
+	Not supported: the colour forms rgb:r/g/b and RGBi:...; keypad
+	keys report the characters they type, not keypad keysyms;
+	iconlabel= is accepted but never shown.
+
+On macOS, ICONSDL_META=command makes the Command key &meta, instead
+of Option. GCONGRAPHICS names another display server.
+
+Without the server (it needs a C++ compiler and CMake to build), every
+other part of Gcon works; a program that opens a window stops with a
+message that the display server cannot be run.
+
+See also: gcon help environment.

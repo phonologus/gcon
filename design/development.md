@@ -116,6 +116,34 @@ changing the grammar, commit it and pin that commit in
 `editors/zed/extension.toml`: the test checks that the pinned grammar is
 the current one.
 
+## Help
+
+`gcon help`'s pages are the plain text files in `src/help`: `NAME.txt`
+is `gcon help NAME`, and `gcon.txt` the overview, which lists every
+command and topic. A command's page starts with its usage, up to the
+first blank line, which is what the command prints when misused.
+`tools/help.sh`, run by `build.sh`, compiles them into
+`src/helppages.inc`, which is committed, so that whatever compiles
+`src/*.c` has it. `src/tests/help.sh` checks that it is current, and the
+pages against gcon and the code: each page as gcon prints it, the
+overview against the pages and the commands, each usage's flags against
+the page, and every environment variable the C reads against `gcon help
+environment` or the list below.
+
+## Environment variables for development
+
+Not in `gcon help environment`, which is for users:
+
+| Variable | Read by | Effect |
+|---|---|---|
+| `GCONVMSTRESS=n` | gcon-vm (`vm/src/gc.c`) | collect every n allocations, poisoning freed blocks |
+| `GCONVMDEBUG=gc` | gcon-vm (`vm/src/gc.c`) | a line on standard error for each collection; freed blocks poisoned |
+| `ICONSDL_TEST_DUMP=dir` | gcon-graphics (`graphics/src/canvas.c`) | write each canvas to dir at exit, for `vm/tests/iconx.sh` |
+| `ICONSDL_TEST_EVENTS=script` | gcon-graphics (`graphics/src/plat.c`) | scripted keys, clicks and a close for the first window, for `vm/tests/window.sh` |
+| `GCON`, `GCONSRC` | the test drivers | the gcon to test, or the checkout to build it from |
+| `LSPCOMPLETE=n`, `LSPICON95` | `src/tests/lspsession.c` | completion at every nth position only; ask for vet's Icon 9.5 checks |
+| `VSCODE_TEST_VERSION`, `VSCODE_TEST_CACHE` | `editors/vscode` tests | the VS Code to test with, and where it is cached |
+
 ## Unicode
 
 Gcon uses the Unicode Character Database twice: gcon-vm's table of

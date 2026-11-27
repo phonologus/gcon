@@ -1,0 +1,55 @@
+Gcon needs no environment variables: gcon finds its root from its own
+location. These change what it does.
+
+The toolchain:
+
+	GCONROOT
+		the root, holding the Icon Program Library (lib/ipl) and
+		gcon-vm (libexec). By default, the directory above gcon's own
+		(bin/..), if it is a root.
+	IPATH
+		more directories to search for linked files, before the
+		root's library, separated by spaces or colons, as icont's.
+	LPATH
+		more directories to search for $include files, before the
+		root's, likewise.
+	GCONVM
+		the gcon-vm to run programs on, instead of the root's
+		(libexec/gcon-vm). A built program runs on it too.
+	GCON
+		the gcon that a built program runs through, if GCONVM is not
+		set.
+
+Running programs (gcon-vm):
+
+	TRACE
+		the initial value of &trace: procedure calls, returns,
+		suspensions and failures are traced to &errout while it is
+		nonzero (negative: indefinitely).
+	MSTKSIZE
+		the size of the evaluation stack, in words, as iconx's
+		(default 1000000). A program that recurses deeper than it
+		allows stops with run-time error 301.
+	FPATH
+		directories, separated by spaces, that the IPL's pathload (and
+		so link cfunc) searches for C libraries; gcon-vm adds the
+		root's lib, which holds libcfunc.so, as iconx adds its bin.
+	GCONGRAPHICS
+		the display server to start, instead of the gcon-graphics
+		beside gcon-vm.
+
+The display server (gcon-graphics):
+
+	ICONSDL_SCALE
+		the number of device pixels per Icon pixel, overriding the
+		display's own scale (2 on most HiDPI displays).
+	ICONSDL_META
+		"command" makes the Command key Icon's meta key (&meta) on
+		macOS, instead of Option.
+
+iconx's memory variables (BLKSIZE, STRSIZE, ...) have no effect: Gcon
+has one heap, which grows as it needs to.
+
+"gcon env" prints the root, the search paths and the gcon-vm in use.
+
+See also: gcon help library.

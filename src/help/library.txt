@@ -1,0 +1,30 @@
+A Gcon root is a directory holding the Icon Program Library (lib/ipl),
+Gcon's own library (lib/gcon) and gcon-vm (libexec), as a Go root holds
+Go's library and tools. A checkout that build.sh has built is a root.
+gcon finds its root from its own location (bin/..); GCONROOT names
+another.
+
+A declaration "link name" links name.icn, the first found of:
+
+	name.icn in the current directory
+	name.icn in each directory of IPATH
+	the IPL's procedures: lib/ipl/procs, then lib/ipl/gprocs
+	Gcon's own library: lib/gcon
+
+A file that declares main is passed over: it is a program, not a
+library. Gcon links from source, so no .u1 or .u2 files are needed or
+written; nothing is written beside your sources.
+
+A directive "$include file" includes the first found of:
+
+	file, as named (relative to the current directory)
+	file in each directory of LPATH
+	the IPL's include files: lib/ipl/incl, then lib/ipl/gincl
+
+IPATH and LPATH hold directories separated by spaces or colons, as
+icont's do. "gcon env" prints both search paths in full.
+
+Gcon's own library is searched last, so it never hides a file of the
+IPL. It holds uclass (Unicode character classes; gcon help unicode).
+
+See also: gcon help environment.

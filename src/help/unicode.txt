@@ -1,0 +1,33 @@
+Strings are bytes, and csets are sets of the 256 byte values, exactly as
+in Icon 9.5. Every string operation reads and counts bytes; positions,
+subscripts and *s are always in bytes.
+
+Unicode is one addition, the uset: a set of characters for UTF-8 text,
+drawn from the ASCII characters, the 128 bytes from \x80 and every
+Unicode code point.
+
+	u'...'      a uset literal, with ranges: u'α..ω'
+	&uset       every character
+	uset(x)     a string (read as UTF-8) or a cset, as a uset
+
+Given a uset, the scanning functions any, many, upto, bal and trim step
+over whole UTF-8 characters; given a cset, they step over bytes. So
+tab(any(&uset)) is the next character of the subject. Positions stay
+byte positions.
+
+Csets and usets never mix: c ++ u, cset(u), or a cset and a uset in one
+bal is run-time error 128, and gcon vet reports the mixes it can see.
+uset(c) is the one conversion.
+
+	uchar(i)    the UTF-8 encoding of the code point i
+	uord(s)     the code point of the one UTF-8 character s
+	uvalid(s)   s, if it is valid UTF-8
+
+Unicode character classes are a library module: "link uclass", then
+uclass("L"), uclass("Nd") or uclass("Greek") is that general category or
+script as a uset.
+
+In any literal, \uXXXX and \UXXXXXXXX give a code point's UTF-8 bytes,
+as in Go. image shows a valid, printable UTF-8 sequence as itself.
+
+See also: gcon help icon95.

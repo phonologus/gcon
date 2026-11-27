@@ -1,0 +1,29 @@
+Gcon runs, builds, formats and checks Icon 9.5 programs.
+
+Usage:
+
+	gcon <command> [arguments]
+
+The commands are:
+
+	build        build a program into an executable file
+	dis          list the VM code of a program
+	env          print Gcon's root and search paths
+	fmt          format Icon source
+	help         show help for a command or topic
+	lsp          run the language server
+	run          run Icon source or a built program
+	version      print Gcon's version
+	vet          report likely mistakes
+
+Use "gcon help <command>" for more information about a command.
+
+Additional help topics:
+
+	environment  environment variables
+	graphics     the graphics display server
+	icon95       differences from Icon 9.5
+	library      where linked and included files are found
+	unicode      strings, usets and UTF-8
+
+Use "gcon help <topic>" for more information about that topic.

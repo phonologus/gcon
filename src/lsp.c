@@ -18,6 +18,7 @@
 #include "builtin.h"
 #include "driver.h"
 #include "format.h"
+#include "help.h"
 #include "json.h"
 #include "lit.h"
 #include "refdocs.h"
@@ -2691,13 +2692,6 @@ static bool lsp_feature(Server *s, const char *method, JVal *params, Buf *b, int
 
 static int lsp_fetchdocs(const char *dir) { return refdocs_fetch(dir); }
 
-static _Noreturn void lspusage(void) {
-	fputs("usage: gcon lsp [-log file] [-docs dir]\n"
-	      "       gcon lsp fetch-docs [-dir dir]\n",
-		stderr);
-	exit(2);
-}
-
 int lsp_main(int argc, char **argv) {
 	const char *logfile = NULL, *docs = NULL;
 	if (argc > 1 && !strcmp(argv[1], "fetch-docs")) {
@@ -2707,8 +2701,10 @@ int lsp_main(int argc, char **argv) {
 				dir = argv[++i];
 			else if (!strncmp(argv[i], "-dir=", 5))
 				dir = argv[i] + 5;
+			else if (help_isflag(argv[i]))
+				help_page("lsp");
 			else
-				lspusage();
+				help_usage("lsp");
 		}
 		if (!dir) {
 			fprintf(stderr, "gcon lsp: no cache directory; use -dir\n");
@@ -2733,8 +2729,10 @@ int lsp_main(int argc, char **argv) {
 		else if (!strcmp(a, "-version")) {
 			printf("gcon lsp %s\n", GCON_VERSION);
 			return 0;
-		} else
-			lspusage();
+		} else if (help_isflag(argv[i]))
+			help_page("lsp");
+		else
+			help_usage("lsp");
 	}
 	Server s = {0};
 	s.in = stdin, s.out = stdout, s.logf = stderr;

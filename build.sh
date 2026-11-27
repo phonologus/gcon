@@ -61,6 +61,7 @@ if command -v git >/dev/null 2>&1 && git rev-parse --git-dir >/dev/null 2>&1; th
 	fi
 	[ -n "$(git status --porcelain)" ] && version="$version+dirty"
 fi
+sh tools/help.sh # src/helppages.inc: gcon help's pages, from src/help
 ${CC:-cc} -std=c11 -O2 -Wall -Wextra ${CFLAGS:-} -DGCON_VERSION="\"$version\"" -Ivm/src \
 	-o bin/gcon.new src/*.c vm/src/gen_tables.c
 mv bin/gcon.new bin/gcon

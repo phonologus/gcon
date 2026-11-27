@@ -49,9 +49,7 @@ status 2
 == flag
 flag provided but not defined: -x
 usage: gcon fmt [-l] [-w] [-d] [path ...]
-  -d	display diffs instead of rewriting files
-  -l	list files whose formatting differs from gcon fmt's
-  -w	write result to (source) file instead of stdout
+Run 'gcon help fmt' for details.
 status 2
 == -w
 w/broken.icn:

@@ -13,6 +13,7 @@
 #endif
 #include "format.h"
 
+#include "help.h"
 #include "syntax.h"
 
 #include <dirent.h>
@@ -1484,15 +1485,6 @@ static void walk(const char *root) {
 	}
 }
 
-static _Noreturn void fmtusage(void) {
-	fputs("usage: gcon fmt [-l] [-w] [-d] [path ...]\n"
-	      "  -d\tdisplay diffs instead of rewriting files\n"
-	      "  -l\tlist files whose formatting differs from gcon fmt's\n"
-	      "  -w\twrite result to (source) file instead of stdout\n",
-		stderr);
-	exit(2);
-}
-
 int format_main(int argc, char **argv) {
 	int i = 1;
 	for (; i < argc; i++) {
@@ -1510,11 +1502,11 @@ int format_main(int argc, char **argv) {
 			fwrite_ = true;
 		else if (!strcmp(name, "d"))
 			fdiff = true;
-		else if (!strcmp(name, "h") || !strcmp(name, "help"))
-			fmtusage();
+		else if (help_isflag(a))
+			help_page("fmt");
 		else {
 			fprintf(stderr, "flag provided but not defined: -%s\n", name);
-			fmtusage();
+			help_usage("fmt");
 		}
 	}
 	if (i == argc) {
