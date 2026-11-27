@@ -69,7 +69,9 @@ which gcon-vm avoids as below.
   measure before refining.
 - **Dispatch.** Computed goto, with a switch for compilers without it.
 - **Built-in functions.** Ported from gcon's Go VM, keeping its Unicode
-  semantics (units, csets with code-point ranges); large integers and
+  semantics (units, csets with code-point ranges; revised 2026-11-27 to
+  byte strings, 9.5 csets, usets and the `u` functions, gcon's
+  `docs/design.md`, "Strings and Unicode"); large integers and
   real formatting from iconx's public-domain sources where they fit.
 - **Graphics.** A client of gcon-graphics' protocol.
 - **Testing.** gcon's program tests, the reference conformance tests and

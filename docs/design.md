@@ -196,7 +196,7 @@ reached only through the Go. So the authorities are:
    the Go (Icon's sources are public domain; reused code is identified
    as modified).
 2. *The Go reference* only for what Icon has no counterpart for: the
-   Unicode extensions (cset ranges, string units), the graphics
+   Unicode extensions (usets, the `u` functions, cset ranges), the graphics
    protocol, gcon's program format, the tooling (the lossless tree,
    error recovery for an editor, the formatter, the language server),
    and the infrastructure (the distribution layout, GCONROOT, the
@@ -711,280 +711,302 @@ run` hands programs to it when it is installed (`internal/run`,
 
 ## Strings and Unicode
 
-Icon 9.5 strings are bytes, and a cset is a set of 256 byte values.
-gcon makes Unicode text the default while keeping byte strings, and follows
-Go's handling of UTF-8 throughout. All encoding and decoding goes through
-`unicode/utf8`; gcon never hand-rolls a UTF-8 decoder.
+Icon 9.5 strings are bytes, and a cset is a set of 256 byte values. gcon
+keeps both exactly, and adds UTF-8 as something a program asks for where
+it reads characters: a second kind of cset, the **uset**, whose members
+are code points as well as bytes, and a few `u` functions. Strings stay
+bytes throughout, as in Go.
+
+### Decision (revised 2026-11-27): strings are bytes; UTF-8 is asked for
+
+The first design (2026-11-25, "one representation, two units") gave
+every string a **unit**, text or bytes, set by a literal's contents, a
+file's mode and a mixed-operand rule, and read a text string's
+characters as UTF-8 everywhere: in `move`, `!s`, `ord`, `map`, the
+padding widths, and cset matching, whose single universe held bytes and
+code points together. Files were text by default.
+
+In use, the unit was the problem. How a line of scanning code behaved
+depended on where its subject had come from, which nothing in the line
+showed, and the default broke 9.5 programs on binary data. Read in the
+default mode, the bytes `ab`, `é` (UTF-8), `cd`, `\xe9`, `ef` gave:
+
+- `tab(many(&cset))` stopped after 2 bytes, not 9: `&cset` holds the
+  byte 0xE9 but not the code point U+00E9 that `C3 A9` decoded to;
+- `ord(move(1))` at 3 was 233 and moved 2 bytes;
+- `ord(!s)` of the lone byte was 65533, not 233;
+- `~&cset` was every non-ASCII code point, not the empty cset, which
+  gave three accepted conformance differences (`checkc.icn`,
+  `scan.icn`).
+
+The same lesson came first from `reads` (2026-11-27), which had
+counted characters in text files and had to go back to 9.5's bytes
+(see the end of this section).
+
+**The decision:**
+
+- **A string is bytes**, with no unit, as in Icon 9.5 and Go. Every
+  string operation is 9.5's: `*s`, subscripts, `move`, `!s`, `ord`,
+  `char`, `map`, `reverse`, `trim`, `left`, `right`, `center`, `detab`,
+  `entab`, comparison, `reads`, `read`. A 9.5 program behaves as in 9.5
+  on any data.
+- **A cset is 9.5's**: a set of the 256 byte values. `'é'` in a UTF-8
+  source file is `{0xC3, 0xA9}`, as icont makes it, and `~&cset` is
+  empty.
+- **A uset** is a set of characters drawn from the bytes and the code
+  points (below). It is what the first design's cset was.
+- **The cset argument says how scanning steps.** `any`, `many`, `upto`,
+  `bal` and `trim` read bytes when given a cset and UTF-8 characters
+  when given a uset. The intent is visible where the match is written,
+  and a procedure that takes its cset as a parameter (as many in the IPL
+  do: `tab(many(c))`) works on UTF-8 text when its caller passes a
+  uset, and as before otherwise.
+- **The `u` functions** read characters where the 9.5 function reads
+  bytes and has no cset to look at: `umove`, `ulen`, `uchars`, `uord`,
+  `uchar`, `ureads` (below).
+- **Positions stay bytes** (see "Positions are bytes"), so `tab`, `pos`,
+  `match`, `find` and `=s` need no counterparts.
+
+**Not chosen:**
+
+- *A scanning mode*, lexical (a `utf` declaration to the end of a
+  block) or dynamic (a variant of `?` setting a flag in the scanning
+  environment beside `&subject` and `&pos`). A lexical mode makes the
+  same text mean different things by where it stands, including what
+  `'é'` is; the compiler would still need two operations for every
+  character-reading function and the mode would only choose between
+  them. A dynamic mode brings back the defect from the other side: an
+  IPL procedure written for bytes would start decoding when called
+  inside a UTF-8 scan, invisibly at the call. Perl's lexical
+  `use bytes` is the cautionary example; its own documentation
+  discourages it.
+- *`rune` counterparts of every scanning function* (`tabrune`,
+  `uptorune`, `?rune`, ...). With positions in bytes, most of them would
+  be the same function; with the uset, the rest dispatch on their
+  argument.
 
 ### Prior art
 
 - **Goaldi** makes every string Unicode, stored as parallel low-byte and
   high-bits arrays (`runtime/vstring.go`). It has no byte strings (`readb`
   puts one byte in each character), and it **drops string scanning and
-  csets** (`doc/diffs.adoc`). Its source names "Go strings with
-  annotations for quicker `*s`, `s[i]`" as the alternative it did not
-  take. gcon uses Go strings without the annotations: positions are
-  bytes, as in Go, so `*s` and `s[i]` need none.
+  csets** (`doc/diffs.adoc`).
 - **Object Icon** (objecticon.sourceforge.net, "Unicode") adds a `ucs`
   type: a UTF-8 string with an offset index for random access, written
   `u"..."`. Its csets range over 0 to 0x10FFFF, and it adds `&uset`,
   `uchar` and `ucs()`. Unicode is opt-in there (a `u` prefix, plus
   `$encoding UTF-8`), and mixing a `ucs` with an invalid string is a
-  runtime error.
+  runtime error. gcon takes its names (`&uset`, `uchar`, the `u`
+  prefix) but puts the Unicode in the set, not the string.
+- **Go** strings are bytes; `range`, `unicode/utf8` and the functions
+  that take runes decode where asked. gcon follows its handling of
+  malformed UTF-8 exactly (below).
+- **Rust's `regex`** matches bytes or text, and Unicode is a property of
+  the pattern (`(?-u)` turns it off within a group), not of the
+  haystack: the model for usets.
 
-### Decision: one representation, two units
+### Strings
 
-- A string value is a Go `string` plus a **unit**, text or bytes. The unit
-  says how the string's characters are read; it never changes positions
-  or lengths, which are bytes (see "Positions are bytes" below).
-- **Malformed UTF-8 is handled as Go handles it.** A text string may hold
-  any bytes, and they are never rewritten. Reading it as characters
-  follows `utf8.DecodeRuneInString`: each invalid byte is a one-byte
-  character whose code point is U+FFFD. So `len(s)` is
-  `utf8.RuneCountInString`, and `!s` yields exactly what a Go `range`
-  loop does. Since every character is a substring of the original bytes,
-  `s` is always the concatenation of `!s`, and any data round-trips
-  unchanged. This is also what makes byte positions safe: a slice through
-  a character yields lone bytes, which rejoin to the character.
-- **Conversions never fail or copy.** `runes(s)` and `bytes(s)` relabel
-  the same bytes, as Go's `[]rune` and `[]byte` conversions read them. `utf8valid(s)` is available for programs that need to check.
-- **ASCII is neutral.** A cached flag marks all-ASCII strings, which
-  behave identically in either unit and take a fast path. Every ASCII-only
-  9.5 program therefore behaves as in 9.5.
-- **Mixed operands.** When an operation combines units, non-ASCII text
-  makes the result text. Otherwise non-ASCII bytes make it bytes.
-  Otherwise the result is ASCII. Nothing is an error. For example
-  `"abc" || char(200)` is bytes, exactly as in 9.5.
-- **Literals.** A literal's unit comes from its contents. It is text if it
-  contains a non-ASCII code point (a UTF-8 character in the source, or a
-  `\u`/`\U` escape of 0x80 or more); any `\x80`–`\xff` escapes in it are
-  then lone bytes inside the text. Otherwise it is bytes if it contains
-  such a byte escape or source bytes that are not valid UTF-8 (a Latin-1
-  file), so such files behave as in 9.5. Otherwise it is ASCII. No literal
-  in the reference tree or in `icn/` mixes raw UTF-8 with byte escapes
-  (none has raw UTF-8 at all; 14 have Latin-1 bytes), so the mixed rule
-  changes nothing there. Escapes follow Go:
-  `\x` gives a byte, and `\u` (4 hex digits) or `\U` (up to 6) gives a code
-  point. A surrogate or a value above 0x10FFFF is a compile-time error.
-  In 9.5 `\u` is not an escape: icont reads `"\u00e9"` as the five
-  characters `u00e9`. No file in `icon/tests` or `icon/ipl` uses `\u` or
+- **Literals** are their bytes. A UTF-8 character in the source is its
+  bytes, as in icont. Escapes follow Go where 9.5 has none: `\x` gives a
+  byte, and `\u` (4 hex digits) or `\U` (up to 6) gives the code point's
+  UTF-8 bytes; a surrogate or a value above 0x10FFFF is a compile-time
+  error. In 9.5 `\u` is not an escape (icont reads `"é"` as the five
+  characters `u00e9`); no file in `icon/tests` or `icon/ipl` uses `\u` or
   `\U` in a literal, so the incompatibility is accepted.
-- **Comparison is plain byte comparison.** For valid UTF-8, byte order is
-  code-point order, so `<<`, `==` and `sort` need no decoding.
-- **Code points to characters.** `char(i)` keeps its 9.5 meaning for
-  0–255: text below 128, bytes from 128 to 255. `uchar(i)` gives a
-  one-character text string for any code point; an invalid code point
-  gives U+FFFD, as Go's `string(rune)` does. `ord` returns the code point,
-  which is U+FFFD for an invalid byte.
-- **I/O.** Files are text by default; mode `"u"` makes a file bytes.
-  (In 9.5, `"u"` means "untranslated", i.e. binary, and is ignored on
-  Unix; `"b"` already means "both", read and write, so it cannot mean
-  bytes.) Reading does no validation or rewriting; it only sets the
-  unit. `read` strips `"\n"` or `"\r\n"`, as iconx does.
-- **`reads` counts bytes; `readrunes` counts characters.** (Revised
-  2026-11-27; `reads(f, n)` first read n characters in text mode.)
-  `reads(f, n)` is Icon's low-level reader and reads n bytes in either
-  unit, as in 9.5: it is what binary formats are read with, and its
-  counts must agree with `seek` and `where` (the IPL's `abkform.icn`
-  reads a byte with `reads(f)` and backs over it with
-  `seek(f, where(f) - 1)`), and with the 9.5 programs that read a file
-  in fixed-size blocks. It may split a sequence, which is safe by the
-  malformed-UTF-8 rule above: the pieces rejoin. **`reads` always
-  produces bytes**, whatever the file's unit, so binary readers get 9.5's
-  values from a file opened in the default text mode: `ord(reads(f))`
-  of the byte 0xE9 is 233 (as text, a lone byte would read as U+FFFD,
-  65533). `runes(reads(f, n))` reads the result as text, at no cost.
-  `readrunes(f, n)` is gcon's built-in for n characters: code points in
-  a text file, never splitting a sequence (an invalid byte is one
-  character), and bytes in a bytes file, where it is `reads`. It
-  produces a string of the file's unit. There is no counterpart for writing: `writes` takes no count,
-  and writes a string's bytes unchanged in either unit (the first n
-  characters of `s` are `s ? move(n)`). On a window both read n
-  keystrokes, which are one byte each, as in iconx.
-- **Csets** have no unit; their characters are ASCII, bytes and code
-  points (see "Csets" below).
-- Out of scope: normalization, grapheme clusters and display width. The
-  unit is the rune, as in Go.
-- **UTF-8 is the only text encoding.** As in Go, text means UTF-8 and
-  anything else is binary. gcon does not transcode or guess encodings:
-  a Latin-1 (or other) file read in text mode keeps its bytes, and its
-  non-UTF-8 bytes read as U+FFFD; to work with it, read it as bytes.
-  Latin-1 bytes in source literals make those literals bytes, which is
-  what preserves 9.5's behaviour for them, not support for Latin-1 text.
+- **Files** read and write bytes, unchanged, in every mode. Mode `"u"`
+  is 9.5's ("untranslated"), ignored on Unix as in iconx.
+- **`reads(f, n)` reads n bytes**, as in 9.5: it is what binary formats
+  are read with, and its counts must agree with `seek` and `where` (the
+  IPL's `abkform.icn` reads a byte with `reads(f)` and backs over it
+  with `seek(f, where(f) - 1)`), and with the 9.5 programs that read a
+  file in fixed-size blocks. `ureads(f, n)` reads n characters.
+- **Malformed UTF-8 is read as Go reads it**, wherever gcon reads
+  characters (the `u` functions, uset matching, `uset(s)`): each byte
+  that does not begin a valid sequence is a one-byte character, which
+  `utf8.DecodeRuneInString` reports as U+FFFD. Every character is a
+  substring of the original bytes, so `s` is always the concatenation of
+  `uchars(s)`, and any data round-trips unchanged.
+- **UTF-8 is the only text encoding.** gcon does not transcode or guess
+  encodings. A Latin-1 file is bytes, as in 9.5; read with the `u`
+  functions, its non-UTF-8 bytes are one-byte characters.
+- Out of scope: normalization, grapheme clusters and display width.
+  gcon's character is the rune, as in Go.
+
+### The `u` functions
+
+Each reads UTF-8 characters where its 9.5 counterpart reads bytes. All
+take and produce ordinary strings and byte positions.
+
+| 9.5 (bytes) | gcon (UTF-8 characters) |
+|---|---|
+| `move(n)` | `umove(n)`: n characters forward, or back for negative n (decoding backwards, as `utf8.DecodeLastRuneInString`); fails, as `move`, when there are not that many |
+| `*s` | `ulen(s)`: the character count (`utf8.RuneCountInString`) |
+| `!s` | `uchars(s)`: generates the characters, as a Go `range` |
+| `ord(s)` | `uord(s)`: the code point of the one character `s` (error 205 otherwise, as `ord`); U+FFFD for an invalid byte, whose value `ord` gives |
+| `char(i)` | `uchar(i)`: the UTF-8 encoding of code point i; an invalid code point gives U+FFFD, as Go's `string(rune)` |
+| `reads(f, n)` | `ureads(f, n)`: n characters, never splitting a sequence (an invalid byte is one character); on a window, n keystrokes, as `reads` |
+| `cset(x)`, `'...'`, `&cset` | `uset(x)`, `u'...'`, `&uset` |
+
+- `utf8valid(s)` stays, for programs that need to check.
+- **No `u` version yet** of `reverse`, `map`, `left`, `right`, `center`,
+  `detab` or `entab`: they are 9.5's, on bytes. Each can be added when a
+  program needs it.
+- **Removed** from v0.2.0: `len` (now `ulen`), `readrunes` (now
+  `ureads`), and `runes` and `bytes`, which relabelled a string's unit.
+- Like every built-in, these names are hidden by a declaration of the
+  same name. None of `umove`, `ulen`, `uchars`, `uord`, `uchar`, `ureads`,
+  `uset` or `utf8valid` occurs in `icon/tests`, `icon/ipl` or `icn/`.
 
 ### Positions are bytes
 
-**Decision (revised 2026-11-25).** As in Go, a position, subscript or
-length is a byte offset; an operation that reads characters decodes them
-at that offset. (The first design counted every position in the string's
-unit, characters in text.)
+**Decision (2026-11-25, unchanged).** As in Go and in 9.5, a position,
+subscript or length is a byte offset; an operation that reads characters
+decodes them at that offset.
 
 | Bytes: positions, subscripts, lengths | Characters: operations that read them |
 |---|---|
-| `*s` (Go's `len`) | `len(s)` (Go's `utf8.RuneCountInString`) |
-| `s[i]`, `s[i:j]`, `s[i+:n]` | `!s` (Go's `range`) |
-| `&pos`, `tab(i)`, `pos(i)` | `move(n)`: n characters, forward or back |
-| positions produced by `upto`, `many`, `any`, `find`, `match`, `bal` | the tests those functions make, and their steps |
-| the `i, j` range arguments of the string analysis functions | `readrunes(f, n)` |
-| `reads(f, n)`, `seek(f, i)`, `where(f)` | |
-| | `map`, `reverse`, `trim`, `cset(s)`, `ord`, `image` |
-| | widths in `left`, `right`, `center`; `detab`/`entab` columns |
+| `*s`, `s[i]`, `s[i:j]`, `s[i+:n]` | `ulen(s)`, `uchars(s)`, `uord(s)` |
+| `&pos`, `tab(i)`, `pos(i)`, `move(n)` | `umove(n)` |
+| positions produced by `upto`, `many`, `any`, `find`, `match`, `bal` | the tests `upto`, `many`, `any`, `bal` and `trim` make with a uset, and their steps |
+| `reads(f, n)`, `seek(f, i)`, `where(f)` | `ureads(f, n)` |
 
-- **Why.** It is exactly 9.5, whose positions are byte positions. The unit
-  no longer affects positions: `runes(s)` and `bytes(s)` have the same
-  length and positions, and `*(a || b) = *a + *b` always. Slicing anywhere
-  is safe, because of the malformed-UTF-8 rule above. Positions produced
-  by the scanning functions fall on character boundaries whenever the
-  subject is valid UTF-8, since those functions step over whole
-  characters, so `tab(upto(c))` and `tab(many(c))` never split one.
-  Indexing is constant-time, with no cursor or offset index.
-- **Where it bites, as in Go.** `"é"[1]` is the lone byte `"Ã"` and
-  `*"é"` is 2. `tab(&pos + 1)` can split a character where `move(1)`
-  cannot: `move` is Icon's "next character", the scanning counterpart of
-  a `range` step. `match`, `find` and `=s` compare bytes, as Go's
-  `strings.HasPrefix` and `strings.Index` do.
-- **Padding widths are characters**, as Go's `fmt` widths count runes:
-  the least surprising choice for lining up text, short of display width
-  (East Asian wide characters, combining marks), which stays out of scope.
-- **`len`** is gcon's built-in for the character count. The corpus uses
-  `len` 135 times, always declared (or as a record field), so the
-  built-in changes no program. It is a deliberate false friend: Go's
-  `len` of a string counts bytes, which here is `*s`. The name was kept
-  for its shape, on the understanding that it is documented clearly; it
-  is no more of a pitfall than Icon's 1-based positions.
+- Slicing anywhere is safe, by the malformed-UTF-8 rule: a slice through
+  a character yields lone bytes, which rejoin to the character.
+  Positions produced with a uset fall on character boundaries whenever
+  the subject is valid UTF-8, since uset matching steps over whole
+  characters, so `tab(upto(u))` and `tab(many(u))` never split one.
+- `tab(&pos + 1)` and `move(1)` can split a character where `umove(1)`
+  and `tab(any(&uset))` cannot.
 
-### Csets
+### Csets and usets
 
-**Decision (revised 2026-11-25): csets have no unit.** There is one
-universe of characters:
+**Csets** are 9.5's: sets of the 256 byte values, stored as a 256-bit
+set, with 9.5's literals, conversions, operations, keywords, `image`
+and `string`. One addition: **ranges** with Pascal's `..`, `'a..zA..Z_'`,
+`'\x00..\x1f'`. A range is inclusive and both ends are single bytes; an
+end written as a multi-byte character (`'é..ü'`, `'Ͱ..Ͽ'`) is
+a compile-time error, since in a cset it would be two members. An
+unescaped `..` must have a member on each side; a `.` endpoint is
+written `\.` (which 9.5 already reads as `.`), so `'\...z'` is the range
+from `.` to `z`. A `..` at either end of a literal, three unescaped
+dots, or a descending range is a compile-time error. In 9.5, `..` in a
+cset literal only repeats the member `.`, and none of the 1,655 cset
+literals in the reference tree and `icn/` contains it.
+
+**Usets** have one universe of characters:
 
 - the 128 ASCII characters;
 - the 128 non-ASCII **bytes**, 0x80–0xFF; and
 - the non-ASCII **code points**: 0x80–0x10FFFF less the 2,048 surrogates.
 
-That makes 1,112,192 characters. A cset is a set of them. The byte 0xE9
-and the code point U+00E9 are different members: `'\xe9é'` has two. Since
-there is a single universe, csets form a Boolean algebra: `~~c === c`, De
-Morgan's laws hold, `a -- b === a ** ~b`, and `===` is equality of
-members, so identical csets behave identically. `TestCsetAlgebra` checks
-these laws over a range of csets.
+That makes 1,112,192 characters. The byte 0xE9 and the code point U+00E9
+are different members: `u'\xe9é'` has two. A cset's members are a subset
+of this universe (ASCII and the bytes), so a cset converts to a uset
+exactly.
 
-(The first design gave each cset a unit, text or bytes, with ASCII-only
-csets neutral and complement taken over the cset's own unit. That broke
-the laws: `~&cset` was the empty cset, which is neutral, so `~~&cset` was
-`&uset`. Keeping a unit even on ASCII-only csets would restore
-`~~c === c`, but then two `===` csets could have different complements.
-The problem was having two universes.)
-
-- **Matching.** Scanning functions read the subject's characters in the
-  subject's unit. In a text subject, a character is a code point or an
-  invalid byte (as `utf8.DecodeRuneInString` splits it), and matches
-  when it is a member: an invalid byte matches only that byte member, and
-  a real U+FFFD only the code point U+FFFD. In a bytes subject, a
-  character is a byte, and matches when it is a byte member or a byte of
-  a member code point's UTF-8 encoding: a bytes subject sees `'é'` as
-  `{0xC3, 0xA9}`, which is what 9.5 makes of `'é'` in a UTF-8 source
-  file.
-- **The value is a string.** A cset's canonical string is its members
+- **Type.** `type(u)` is `"uset"`. A uset and a cset are never `===`,
+  even with the same members (as `'abc'` and `"abc"` are not in 9.5):
+  their complements differ. `sort` orders usets after csets.
+- **Literals** `u'...'`: a UTF-8 character in the source is a code point
+  member, `\u`/`\U` a code point, `\x80`–`\xff` a byte; invalid source
+  bytes are byte members. Ranges are as in csets, but both ends are code
+  points (a range spanning the surrogates skips them) or both bytes
+  (`u'\x80..\xff'`); a mixed range is a compile-time error. `u'` is free
+  syntax: in 9.5 an identifier directly followed by a literal is a
+  syntax error, and `u'` never occurs as a prefix in the corpus.
+- **Algebra.** Complement is over the whole universe; `++`, `--` and
+  `**` give a uset when either operand is one, converting a cset
+  exactly. So usets form a Boolean algebra: `~~u === u`, De Morgan's laws
+  hold, `a -- b === a ** ~b`, and `===` is equality of members.
+- **Conversions.** `uset(x)` converts a string by reading its characters
+  as UTF-8 (valid sequences are code points, invalid bytes are bytes),
+  and a cset exactly. Where a cset is required, a uset converts through
+  its string, as any value does: the cset of the bytes of its members'
+  encodings, so `cset(u'é')` is `'\xa9\xc3'`, which is what `'é'` is.
+- **The value is a string.** A uset's canonical string is its members
   sorted in string (`<<`) order and concatenated, a code point by its
-  UTF-8 encoding and a byte as itself. Read as text, it is exactly its
+  UTF-8 encoding and a byte as itself. Read as UTF-8, it is exactly its
   members: in sorted order a lone lead byte (0xC2–0xF4) is followed only
   by members whose first byte is at least as large, which is never a
   continuation byte, so it cannot fuse with them
-  (`experiments/csetorder` checks this). Its unit is text if the cset has
-  a code point, else bytes: the unit a literal with those members has.
-  `string(c)` is that string, and `!c` generates the members in order.
-  `string(&cset)` is 9.5's 256-byte string.
-- `cset(s)` reads the characters of `s` in its unit: in text, valid
-  sequences are code points and invalid bytes are bytes; in bytes, every
-  byte is a byte.
-- `runes(c)` is `c`. `bytes(c)` is the cset of the bytes that match `c`
-  in a bytes subject: each code point is replaced by its encoding's
-  bytes. So `bytes('é')` is `'\xa9\xc3'`.
-- **Literals.** A cset literal's characters are read in the literal's
-  unit, by the same rule as strings: in a text literal, `é` is a code
-  point and `\xe9` a byte; in a bytes literal, everything is bytes.
-- **Ranges** use Pascal's `..`: `'a..zA..Z_'`, `'\u0370..\u03ff'`,
-  `'\x00..\x1f'`. A range is inclusive, and the two characters `..` can
-  never be one byte or one code point. An unescaped `..` must have a
-  member on each side; a `.` endpoint is written `\.` (which 9.5 already
-  reads as `.`), so `'\...z'` is the range from `.` to `z`. A `..` at
-  either end of a literal, or three unescaped dots, is a compile-time
-  error. Both ends are code points (a range spanning the surrogates
-  skips them) or both are bytes (`\x80..\xff`); a mixed or descending
-  range is a compile-time error. In 9.5, `..` inside a cset literal only
-  repeats the member `.`, and none of the 1,655 cset literals in the
-  reference tree and `icn/` contains it, so no existing literal changes
-  meaning. String literals do not have ranges.
-- **Complement** is over the whole universe. `&cset` is ASCII plus the
-  128 bytes, as in 9.5, so `~&cset` is every non-ASCII code point.
-  `&uset` (Object Icon's name) is the whole universe, `~''`.
+  (`experiments/csetorder` checks this). `string(u)` is that string,
+  `!u` generates the members in order, and `*u` counts them.
+- **Keywords.** `&uset` is the whole universe, `~u''`. The predefined
+  csets (`&cset`, `&ascii`, `&letters`, ...) stay csets.
+- **Matching.** With a uset, the scanning functions read the subject's
+  characters as UTF-8. A character is a code point or an invalid byte
+  (as `utf8.DecodeRuneInString` splits it), and matches when it is a
+  member: an invalid byte matches only that byte member, and a real
+  U+FFFD only the code point U+FFFD. `bal` steps by characters when any
+  of its cset arguments is a uset. `trim(s, u)` trims whole characters.
 - **Representation.** The canonical string is the meaning, not the
-  storage: `~'a'` would be about 4 MB as a string. Storage is a 256-bit
+  storage: `~u'a'` would be about 4 MB as a string. Storage is a 256-bit
   set for ASCII and the bytes, and a sorted list of code-point ranges.
   The string is built only when asked for.
-- **Unicode classes.** Go's `unicode` tables give csets for categories
-  and scripts (names to be settled, e.g. `ucat("L")`, `uscript("Greek")`).
+- **Unicode classes.** The Unicode tables give usets for categories and
+  scripts (names to be settled, e.g. `ucat("L")`, `uscript("Greek")`).
 
 ### image()
 
-`image()` follows Go's `%q` (`strconv.Quote`): printable characters
-appear as themselves, other code points as `\u`/`\U` escapes, and invalid
-bytes as `\xNN`. Two Icon escapes are kept: `\e` for 0x1B and `\d` for
-0x7F, where Go writes `\x1b` and `\x7f`. With those, `image()` of ASCII
-matches 9.5 (checked against icont: `"\x00\x01\b\t\n\v\f\r\e\d"` renders
-identically). 52 of the 99 reference tests call `image`.
-
-- A **bytes** string escapes every byte 0x80–0xFF as `\xNN`, as 9.5 does.
-  So the image shows the unit: `"é"` is text, while `"\xc3\xa9"` is the
-  same bytes as a bytes string. Both images are literals that rebuild the
-  value with its unit.
-- Csets use single quotes and escape `'` rather than `"`, as 9.5 does. A
-  cset whose members are those of a predefined cset images as its name
-  (`&digits`, `&letters`, `&cset`, `&uset`, ...), as iconx's `csname`
+- **Strings** image as 9.5 does for ASCII and bytes (`\b \t \n \v \f \r
+  \e \d`, other control characters and lone bytes 0x80–0xFF as `\xNN`),
+  but a valid UTF-8 sequence for a printable code point (Go's
+  `unicode.IsPrint`) appears as itself, and one for a code point that is
+  not printable as a `\u`/`\U` escape. Both rebuild the same bytes, since
+  `"é"` in a UTF-8 source *is* `C3 A9`, so every image is still a literal
+  of its value, and UTF-8 text is readable without a separate function.
+  This differs from 9.5 only for strings holding valid sequences; no
+  expected output in `icon/tests/general` has one.
+- **Csets** image exactly as 9.5. Since a cset's bytes are listed in
+  ascending order, a lead byte is never followed by a continuation byte,
+  so no image shows a character by accident. A cset whose members are
+  those of a predefined cset images as its name, as iconx's `csname`
   does.
-- **Csets with ranges.** Otherwise a cset images by listing every member,
-  as 9.5 does, when it has at most 256 members; that covers every 9.5
-  cset. A larger cset images with ranges: code-point ranges first, then
-  byte ranges, with runs of 4 or more consecutive members written `x..y`,
-  shorter runs listed, and a `.` at either end of a range written `\.`.
-  For example, `image(~&ascii)` is `'\u0080..\U10ffff\x80..\xff'`, and
-  `image(~'a')` is `` '\x00..`b..\U10ffff\x80..\xff' ``.
-- Since a cset has no unit, every cset's image is a literal that rebuilds
-  it exactly: the literal's characters are read by the same rule that
-  produced the image.
-- **One inexact case, accepted.** A text string whose only non-ASCII
-  content is invalid bytes (for example `"caf\xe9"`, from reading a
-  Latin-1 file in text mode) has no literal of its own unit: its image
-  reads back as bytes. The two differ only where units matter (`ord`
-  gives 0xFFFD rather than 233, and cset matching). This is accepted,
-  following Go: such a value is malformed text, and gcon does not try to
-  make it first-class (see "UTF-8 is the only text encoding").
+- **Usets** image as `u'...'`, read by the uset literal's rule: `&uset`
+  by name; otherwise every member when there are at most 256, else with
+  ranges, code-point ranges first, then byte ranges, runs of 4 or more
+  written `x..y`, and a `.` at either end of a range written `\.`. For
+  example, `image(~u'a')` is `` u'\x00..`b..\U10ffff\x80..\xff' ``.
 
-### Compatibility cost and open points
+### Compatibility
 
-All 99 programs in `icon/tests/general` and their expected outputs are
-pure ASCII. Of the 1,197 `.icn` files in `icon/tests` and `icon/ipl`, 19
-contain non-ASCII bytes (14 of them valid UTF-8); it has not yet been
-checked whether those bytes are in literals or only comments.
+- **9.5 programs** behave as in 9.5 on any data. The three accepted
+  differences in `checkc.icn` and `scan.icn` disappear. What remains:
+  `image()` of strings holding valid printable UTF-8 (none in the
+  reference outputs), the `\u`/`\U` escapes, `..` in cset literals, and
+  the new built-in names (hidden by declarations; none in the corpus).
+- **gcon v0.2.0 programs** that relied on text strings change: `move`,
+  `!s`, `ord`, `map`, `reverse`, the padding widths and cset matching
+  read bytes; `'é'` is two byte members; `len`, `readrunes`, `runes` and
+  `bytes` are gone. The fix is to say UTF-8 where it is meant: `umove`,
+  `uchars`, `uord`, `ulen`, `ureads`, `u'...'`, `uset(s)`. A breaking
+  change is a minor version in v0.x, by Go's rules.
 
-Differences from 9.5 are confined to complements, which now include the
-code points. Matching is unaffected: a complement matches the same bytes
-of a bytes subject as in 9.5. What differs is a complement's size, image,
-string and elements. In the four reference tests that use characters
-128–255:
+### Implementation: the byte path is iconx's
 
-- `collate.icn` and `iobig.icn` use only `&cset` (`string`, `reverse`,
-  `left`, subscripts, `!&cset`), which is as in 9.5.
-- `checkc.icn`: `&cset -- ~&ascii` gives `&ascii` and `image(&cset)` is
-  unchanged, both as in 9.5. **Differs:** `&letters ++ ~&ucase` is the
-  whole universe, `&uset`, not 256 characters.
-- `scan.icn`: **differs** in `image(~&cset)`, which is
-  `'\u0080..\U10ffff'`, not `''`; and in `image(~&ascii)`, which is
-  `'\u0080..\U10ffff\x80..\xff'`, not the 128 bytes.
+The lesson of `reads`: the first design's work for the text unit
+(decoding, character counts, unit tags) had become the common path, and
+`reads` became simpler and faster when it went back to 9.5. With bytes
+the default, each 9.5 operation should be the C iconx's is: `memcpy`,
+loops over bytes, a 256-bit membership test (iconx's `Testb`), a
+256-entry table for `map`. Decoding lives only in the `u` functions,
+uset matching and `uset(s)`. So:
 
-These three lines are kept deliberately and will be listed in the
-conformance test with this reason.
+- the string value loses its unit tag, and its cached ASCII flag unless
+  a measured fast path still needs it;
+- a cset is a bare 256-bit set; the bitmap plus code-point ranges is
+  the uset;
+- the loader, the compiler and C functions (`cfuncs`) stop classifying
+  strings by content;
+- each changed operation is measured before and after, with iconx as
+  the bar (string- and scan-heavy programs from `vm/tests/programs` and
+  the IPL).
+
+Order of work: strings and csets in gcon-vm, with the uset beside the
+cset; the `u` functions and `u'...'` in the front end, `gcon fmt`,
+`gcon lsp` (and its documentation of gcon's additions) and
+tree-sitter-gcon; then the audit of the byte paths, with measurements.
 
 ## Linking
 
@@ -1393,14 +1415,15 @@ a procedure, `$line`, the predefined symbols and digraphs against iconx.
   `Record`. Field references are looked up by name when they run, so
   `x.f` works on any record type with a field `f`; `r[i]` and `r["f"]`
   subscript by position or field name.
-- gcon's extra built-ins (`len`, `runes`, `bytes`, `uchar`, `utf8valid`,
-  `readrunes`) and the keyword `&uset` are in the catalogue marked `Gcon`. Like any
-  built-in, they are hidden by a declaration of the same name but not by
-  an undeclared use, which would assign to the global. None of these
-  names is used undeclared in the reference tree or `icn/` (`runes`,
-  `uchar` and `utf8valid` do not occur at all). `text`, an earlier
-  choice, was rejected: it is a natural variable name, used undeclared
-  in `tests/general/diffwrds.icn`.
+- gcon's extra built-ins (`umove`, `ulen`, `uchars`, `uord`, `uchar`,
+  `ureads`, `uset`, `utf8valid`) and the keyword `&uset` are in the
+  catalogue marked `Gcon` ("Strings and Unicode"; v0.2.0 had `len`,
+  `runes`, `bytes` and `readrunes`, removed by its 2026-11-27
+  revision). Like any built-in, they are hidden by a declaration of the
+  same name but not by an undeclared use, which would assign to the
+  global. None of these names occurs in the reference tree or `icn/`.
+  `text`, an earlier choice, was rejected: it is a natural variable
+  name, used undeclared in `tests/general/diffwrds.icn`.
 - Error conversion (`internal/vm/errors.go`) follows iconx's `err_msg`
   (`errmsg.r`). A run-time error is a Go panic carrying a
   `RuntimeError`; the main loop runs under one deferred `recover`, so
@@ -1575,7 +1598,7 @@ a procedure, `$line`, the predefined symbols and digraphs against iconx.
   activations, and the kept globals, sorted, as `xdisp`.
 - `open` of a directory for reading reads its entries (with "." and
   "..", sorted): `read` and `!f` an entry, `reads(f, n)` an entry cut to
-  n bytes (`readrunes(f, n)` to n characters); `seek` and `where` fail, as iconx's `ReadDirectory`.
+  n bytes (`ureads(f, n)` to n characters); `seek` and `where` fail, as iconx's `ReadDirectory`.
   `x[]` is `x[&null]`, as icont compiles an empty subscript list.
 - The keyboard functions `getch`, `getche` and `kbhit` (`kbd*.go`) put a
   terminal on standard input into non-canonical mode while they run, as
@@ -1773,8 +1796,13 @@ Next, after v0.1.0 (Sean, 2026-11-26):
   `writes` allocate once and no longer leak.
 - Linux: the display server has package lists, but gcon has not been
   built or tested there.
-- Unicode classes: csets for categories and scripts (names to be
-  settled; see "Csets").
+- Strings are bytes (decision 2026-11-27, "Strings and Unicode"):
+  gcon-vm without units, 9.5 csets beside usets; the `u` functions and
+  `u'...'` through the front end, `gcon fmt`, `gcon lsp`, tree-sitter-gcon
+  and the README; then the byte paths audited against iconx, measured.
+  A breaking change, so a minor version.
+- Unicode classes: usets for categories and scripts (names to be
+  settled; see "Csets and usets").
 - Built-in documentation, the modern man page: a `gcon doc`, as `go
   doc` is for Go. `gcon doc len` or `gcon doc &subject` shows what the
   language server's hover shows (the catalogue, the reference pages
