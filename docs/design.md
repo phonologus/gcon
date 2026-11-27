@@ -1765,7 +1765,12 @@ a procedure, `$line`, the predefined symbols and digraphs against iconx.
 
 Next, after v0.1.0 (Sean, 2026-11-26):
 
-- Bugs found in real use, toward v0.1.1.
+- Bugs found in real use. Released as v0.2.0 (2026-11-27), with the
+  editor extensions and the grammar at 0.2.0 too: `reads` counts bytes
+  and produces bytes, as Icon 9.5's low-level reader; the new built-in
+  `readrunes` reads characters (a minor version, by Go's rules, since
+  `reads` changed and `readrunes` is new); `reads`, `write` and
+  `writes` allocate once and no longer leak.
 - Linux: the display server has package lists, but gcon has not been
   built or tested there.
 - Unicode classes: csets for categories and scripts (names to be

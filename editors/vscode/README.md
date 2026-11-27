@@ -39,8 +39,8 @@ The extension is not on the Marketplace. Build a package and install it:
 ```sh
 cd editors/vscode
 npm install
-npm run package                     # writes gcon-0.1.0.vsix
-code --install-extension gcon-0.1.0.vsix
+npm run package                     # writes gcon-0.2.0.vsix
+code --install-extension gcon-0.2.0.vsix
 ```
 
 ## Settings
