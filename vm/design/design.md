@@ -1,13 +1,13 @@
 # gcon-vm design
 
-gcon-vm runs gcon's bytecode. gcon (Go) is the toolchain: it translates
+gcon-vm runs Gcon's bytecode. Gcon (Go) is the toolchain: it translates
 Icon to bytecode, writes built programs, formats, serves the language
 server; gcon-vm (C) executes. gcon-graphics (C) is the display server.
 C builds stay out of the Go repository.
 
 ## Decision (2026-11-25): the VM in C
 
-gcon's Go VM reached 1.6 times iconx's time over `micro.icn` (from 3.5),
+Gcon's Go VM reached 1.6 times iconx's time over `micro.icn` (from 3.5),
 beating iconx on loops, integer arithmetic, comparison and co-expression
 switching, but the rest of the gap was structural, and closing it meant
 working against Go's runtime: values as tagged structs needed `unsafe`;
@@ -15,7 +15,7 @@ every store of a value (which holds a pointer) into a frame, list or
 table pays a write barrier while the collector marks; frames that may
 outlive a call must be on the heap; dispatch is a `switch`, with bounds
 checks; allocation goes through the collector rather than a bump
-pointer. See gcon's `design/design.md` ("Decision: the VM in C") for the
+pointer. See Gcon's `design/design.md` ("Decision: the VM in C") for the
 stock-take.
 
 Extending iconx instead was considered and set aside. iconx switches
@@ -23,14 +23,14 @@ co-expressions through POSIX threads and semaphores (`rswitch.c`), and
 its interpreter recurses on the C stack, so fast co-expressions would
 need per-architecture stack-switching assembly; and its strings are byte
 runs and its csets 256-bit maps throughout a 26,000-line runtime, so
-gcon's Unicode semantics would mean surgery across most of it. gcon's
+Gcon's Unicode semantics would mean surgery across most of it. Gcon's
 VM design (Proebsting's translation, a non-recursive interpreter) gives
 cheap co-expressions by construction, and its semantics are done and
 tested (84 of 89 reference tests, 247 of 275 IPL programs identical to
 iconx), so gcon-vm ports that design.
 
 **Evidence** (`experiments/spike`, Apple M-series, `cc -O2`): the loops
-of gcon's `experiments/valuerep`, with the same instructions and frame
+of Gcon's `experiments/valuerep`, with the same instructions and frame
 layout, and a procedure call with frames on a stack:
 
 | loop | C, computed goto | C, switch | Go, same design |
@@ -48,15 +48,15 @@ which gcon-vm avoids as below.
 
 ## Plan
 
-- **Input.** gcon's built-program format (`gcon/internal/vm/encode.go`,
+- **Input.** Gcon's built-program format (`gcon/internal/vm/encode.go`,
   `design/design.md` "The built program's format"): versioned, sectioned,
   checksummed, with builtins by name. gcon-vm's loader checks it as
-  `vm.Decode` does. gcon passes a program to gcon-vm (`gcon run`
+  `vm.Decode` does. Gcon passes a program to gcon-vm (`gcon run`
   translates then hands the bytecode over; a built program's header runs
   gcon-vm), found in `$GCONROOT/libexec`.
 - **Values.** 16-byte tagged structs: a kind, flags and a 48-bit field
   (a string's length, an index), and a word (an integer, a real, a
-  pointer). Kinds as gcon's `valuecore.go`, variables included, so a
+  pointer). Kinds as Gcon's `valuecore.go`, variables included, so a
   number, a substring or a variable allocates nothing.
 - **Frames and co-expressions.** Icon's generators are resumed in last-in
   first-out order, so a suspended procedure's frame stays on the stack
@@ -68,32 +68,32 @@ which gcon-vm avoids as below.
   sweep over size-classed blocks and a bump-allocated string region;
   measure before refining.
 - **Dispatch.** Computed goto, with a switch for compilers without it.
-- **Built-in functions.** Ported from gcon's Go VM, keeping its Unicode
+- **Built-in functions.** Ported from Gcon's Go VM, keeping its Unicode
   semantics (units, csets with code-point ranges; revised 2026-11-27 to
-  byte strings, 9.5 csets, usets and the `u` functions, gcon's
+  byte strings, 9.5 csets, usets and the `u` functions, Gcon's
   `design/design.md`, "Strings and Unicode"); large integers and
   real formatting from iconx's public-domain sources where they fit.
 - **Graphics.** A client of gcon-graphics' protocol.
-- **Testing.** gcon's program tests, the reference conformance tests and
+- **Testing.** Gcon's program tests, the reference conformance tests and
   the differential test against iconx, and the Go VM as a second oracle:
   both VMs run the same built file. The Go VM remains the reference
   until gcon-vm passes everything.
 
 ## The loader (2026-11-25)
 
-`src/load.c` reads gcon's built-program format, format version 1, as
-gcon's `vm.Decode` and `vm.Validate` do: the same reads in the same
-order, the same checks, and the same messages, so gcon-vm and gcon
+`src/load.c` reads Gcon's built-program format, format version 1, as
+Gcon's `vm.Decode` and `vm.Validate` do: the same reads in the same
+order, the same checks, and the same messages, so gcon-vm and Gcon
 report a damaged file identically. It is a transliteration, by design:
-as in gcon, a decoder records its first error and every later read
+as in Gcon, a decoder records its first error and every later read
 returns zero, so the code reads straight through and checks once.
 
 - **Where the program is.** A built program (a `#!` file in which a
   line holding `[gcon program follows]` is followed by the magic), or a
   file that is just the encoded program (starting with the magic), the
   form in which `gcon run` will hand over bytecode it has translated.
-- **What it makes.** A `Program` close to gcon's: procedures with their
-  instructions (one struct per instruction, fields as gcon's `Instr`),
+- **What it makes.** A `Program` close to Gcon's: procedures with their
+  instructions (one struct per instruction, fields as Gcon's `Instr`),
   record types, constants, globals with their names and initial values,
   main, the invocable set and the build information. Constants are
   values in the 16-byte layout planned above (a header holding kind,
@@ -102,30 +102,30 @@ returns zero, so the code reads straight through and checks once.
   interpreter dispatches on is the interpreter's business, done when it
   exists.
 - **Builtins** stay references (a kind and a name), checked against the
-  names gcon knows, so an unknown one is refused at load as gcon refuses
-  it. The names are generated from gcon's sources
+  names Gcon knows, so an unknown one is refused at load as Gcon refuses
+  it. The names are generated from Gcon's sources
   (`tools/gentables.sh`, through a `go run -overlay` that adds a command
-  to gcon's module without changing gcon). When gcon-vm has its own
+  to Gcon's module without changing Gcon). When gcon-vm has its own
   builtins, the check becomes "names gcon-vm implements".
 - **Messages** are buffers with a length, not C strings: they quote
   names from the file, which can hold any bytes, NUL included. (The
   damage test found this: a builtin name with a NUL in it.)
 
 **Listing.** `gcon-vm -dis` writes exactly what `gcon dis` writes, so the
-two can be compared byte for byte. That needs gcon's images of
+two can be compared byte for byte. That needs Gcon's images of
 constants, which the VM needs anyway for `image()`, `string()` and
-`write()`: `src/image.c` ports gcon's `quote` (Icon's escapes for ASCII;
+`write()`: `src/image.c` ports Gcon's `quote` (Icon's escapes for ASCII;
 in text, Go's rule: printable characters as themselves, others as `\u` or
 `\U`), cset images (named csets, members, or ranges past 256 members),
 `rtos` (C's `%.10g`, which Go's `'g'` with precision 10 matches), and
 large integers (digits, or `integer(~10^n)` from iconx's estimate).
 Printability is Go's `strconv.IsPrint`, as a generated table of the
-non-printable ranges (741 ranges, Unicode 17.0.0): gcon's images follow
+non-printable ranges (741 ranges, Unicode 17.0.0): Gcon's images follow
 the Unicode tables of the Go that built it, so the table is regenerated
 with the builtin names.
 
-**Tests.** `tests/dis.sh` (retired with the Go) built programs with the Go gcon and compared
-its listings with gcon-vm's: 483 programs (the reference tests, the IPL programs, gcon's
+**Tests.** `tests/dis.sh` (retired with the Go) built programs with the Go Gcon and compared
+its listings with gcon-vm's: 483 programs (the reference tests, the IPL programs, Gcon's
 program tests, the samples in `icn/`, and `tests/values.icn`, whose
 constants exercise every image case) were identical. `tests/damage.sh`
 compares every truncation of a built program and every byte changed
@@ -139,7 +139,7 @@ messages cover every check in the decoder and most in the validator.
 
 ## Planned (2026-11-25): `loadfunc`, revisit when the VM runs
 
-gcon does not provide `loadfunc` (error 121) because gcon is pure Go,
+Gcon does not provide `loadfunc` (error 121) because Gcon is pure Go,
 without cgo. gcon-vm is C and can `dlopen`, so it can bring `loadfunc`
 back. Take this up once the interpreter runs and the builtins are in.
 
@@ -161,7 +161,7 @@ back. Take this up once the interpreter runs and the builtins are in.
   as a new kind.
 - **The two VMs differ** until gcon-vm replaces the Go VM: under the Go
   VM `loadfunc` stays error 121. No format change is needed: `loadfunc`
-  is already one of gcon's function names.
+  is already one of Gcon's function names.
 - **Gains:** the IPL programs that need C functions (`htget`,
   `weblinks`) can run, and native bindings can be added without growing
   the VM.
@@ -170,11 +170,11 @@ back. Take this up once the interpreter runs and the builtins are in.
 
 gcon-vm runs programs: `gcon-vm prog args...` loads a built program,
 links it and runs it, with `&progname` the name it was given, as
-iconx's is the icode file's. The run-time system is a port of gcon's Go
+iconx's is the icode file's. The run-time system is a port of Gcon's Go
 VM (`internal/vm`), file for file, keeping its semantics exactly: the
 Go VM is the reference, and the tests compare the two.
 
-| gcon (Go)                         | gcon-vm (C)        |
+| Gcon (Go)                         | gcon-vm (C)        |
 |-----------------------------------|--------------------|
 | vm.go, coexpr.go, errors.go       | `src/interp.c`     |
 | value.go, valuecore.go, substr.go | `src/conv.c`       |
@@ -207,11 +207,11 @@ Go VM is the reference, and the tests compare the two.
 - **Large integers** (`src/big.c`): sign and magnitude in base 2^32
   digits, as iconx's, with Knuth's division; every result normalised,
   so a large integer is never equal to a small one. Conversions to and
-  from reals follow iconx digit by digit, as gcon's do.
+  from reals follow iconx digit by digit, as Gcon's do.
 - **Files** are buffered by gcon-vm itself on file descriptors (so a
   read from a terminal returns what is there). One difference from
-  gcon: at exit, gcon-vm waits for the commands of pipes still open for
-  writing, so their output is complete when it ends; gcon waits only
+  Gcon: at exit, gcon-vm waits for the commands of pipes still open for
+  writing, so their output is complete when it ends; Gcon waits only
   when it relays their output, and iconx never waits.
   `reads(f, n)` allocates its result once, at its exact size: the
   buffer's bytes are copied whole and the rest is read straight into
@@ -222,12 +222,12 @@ Go VM is the reference, and the tests compare the two.
   copies whole runs.
 - **Memory** is managed by the collector (below, "The collector").
 
-**Tests.** `tests/programs.sh` runs gcon's program tests (expected
+**Tests.** `tests/programs.sh` runs Gcon's program tests (expected
 output, exit status and standard error recorded from iconx) built, as
-gcon's own tests run them: all 93 pass. `tests/vs-go.sh` runs programs
+Gcon's own tests run them: all 93 pass. `tests/vs-go.sh` runs programs
 on both VMs from the same built file and compares output, messages and
-exit status: the 89 reference tests gcon builds are identical.
-`tests/bench.sh` times gcon's VM micro-benchmarks on both.
+exit status: the 89 reference tests Gcon builds are identical.
+`tests/bench.sh` times Gcon's VM micro-benchmarks on both.
 
 **First measurements** (Apple M-series, `cc -O2`, no tuning, ns per
 iteration, Go VM then gcon-vm): empty loop 6.6 / 4.8, `x + 407` 11.3 /
@@ -239,9 +239,9 @@ without a collector's costs, which will change these.
 **The IPL** (`tests/vs-go.sh ../icon/ipl/progs`, each run limited to
 ten seconds): 260 programs identical on both VMs; 3 nondeterministic
 (their two Go runs differ); 9 that run past the limit on the Go VM
-(most wait on input that never ends a loop); 2 gcon does not build.
+(most wait on input that never ends a loop); 2 Gcon does not build.
 One, `envelope`, differs only in timing: it writes to a pipe into
-`lpr`, whose message gcon-vm waits for before exiting and gcon does
+`lpr`, whose message gcon-vm waits for before exiting and Gcon does
 not. A program that seeds `&random` from the clock (`ilib`, through
 the IPL's `randomize`) is caught as nondeterministic only when its two
 Go runs fall in different seconds.
@@ -299,7 +299,7 @@ variable holding the previous co-expression, so each keeps the one
 before reachable. The Go VM keeps the same chain (2.8 GB); gcon-vm
 finishes in 0.9 s and 2.2 GB; iconx fails at once ("cannot create
 thread"). Copying only the locals a co-expression's body uses would
-break such chains; that is the compiler's to decide (gcon), and is
+break such chains; that is the compiler's to decide (Gcon), and is
 observable only through `variable` and `display` in the body, which
 would then not find the locals left out.
 
@@ -323,10 +323,10 @@ Four changes, measured one at a time with `tests/bench.sh`:
   test) are inlined. `left` went from 1.7 times iconx's time to parity
   with these first two.
 - **Frames are recycled, not stacked.** A frame per co-expression stack
-  in the strict sense does not fit gcon's code: a suspended generator's
+  in the strict sense does not fit Gcon's code: a suspended generator's
   frame must stay while its caller goes on calling, and iconx reclaims
   the stack above abandoned generators when a bounded expression ends
-  (its mark and unmark), which gcon's instructions do not record (an
+  (its mark and unmark), which Gcon's instructions do not record (an
   abandoned generator's handle is simply overwritten). So `while x :=
   gen()` would leave a dead frame on the stack per iteration. What a
   stack gives, cheap last-in first-out allocation of memory still in
@@ -374,23 +374,23 @@ fourteen is about 0.64 of iconx's time, and 0.51 of the Go VM's.
 `upto` and `find` are nearest parity: the cost there is the call and
 the generator, which a later pass can take on.
 
-## Running from gcon (2026-11-26)
+## Running from Gcon (2026-11-26)
 
-`gcon run` hands programs to gcon-vm (gcon's `design/design.md`,
+`gcon run` hands programs to gcon-vm (Gcon's `design/design.md`,
 "Decision: gcon run uses gcon-vm"): a built program by `exec`ing
 `gcon-vm program args...`; source by translating it, writing the
 encoded program to a file deleted at once, and `exec`ing `gcon-vm
 -progname name /dev/fd/N args...`, so that `&progname` is what the Go
-VM gives the source. gcon finds gcon-vm through `$GCONVM`, or in its
+VM gives the source. Gcon finds gcon-vm through `$GCONVM`, or in its
 root's `libexec`, where `tools/install.sh` puts it; with neither, or
-`GCONVM=go`, the Go gcon used its Go VM (both gone with the Go). The loader accepts either a built file
+`GCONVM=go`, the Go Gcon used its Go VM (both gone with the Go). The loader accepts either a built file
 (the shell header, the marker, the encoding) or the bare encoding.
 
-gcon's `TestExecVM` runs all its program tests from source through the
+Gcon's `TestExecVM` runs all its program tests from source through the
 hand-over, when `GCONVM` names a gcon-vm: all 94 pass. A built
 program's header runs gcon-vm directly (the gcon-vm of the building
-gcon's root, unless `GCONVM`, `GCON` or a gcon beside the program says
-otherwise), without starting gcon: hello world starts in 6.6 ms, of
+Gcon's root, unless `GCONVM`, `GCON` or a `gcon` beside the program says
+otherwise), without starting `gcon`: hello world starts in 6.6 ms, of
 which gcon-vm is 4.2, against 11.2 for icont's output on iconx.
 
 ## Tuning on a real program (2026-11-26)
@@ -449,7 +449,7 @@ on each exchange.
   place, and `scanenter` reuses the block the same scan's previous run
   left in its temporary (that run has ended when the scan is entered
   again). Entering a scan in a loop allocates nothing after the first
-  time. gcon's Go VM avoids the allocation by packing the environment
+  time. Gcon's Go VM avoids the allocation by packing the environment
   into the value; gcon-vm's 48-bit count has no room for a length and a
   position.
 - **A replaced generator reused** (`newgen`): a call of a builtin
@@ -499,10 +499,10 @@ Icon 9.5's `icall.h`, and existing code recompiles unchanged. The IPL's
 `ipl/cfuncs` (eleven files, 29 functions) build against gcon-vm's
 `include/icall.h`, which is 9.5's file as it is (public domain), and
 `tests/cfuncs.sh` runs them: the same library, loaded by iconx, gives
-the same output except for an iconx bug (below). gcon resolves
+the same output except for an iconx bug (below). Gcon resolves
 `loadfunc` as a function it lacks; gcon-vm resolves any such reference
 by name to its own functions first, so no format change was needed. On
-gcon's Go VM it stays error 121. `function()` now generates `loadfunc` on
+Gcon's Go VM it stays error 121. `function()` now generates `loadfunc` on
 gcon-vm, as on iconx, so the two IPL programs that list the functions
 (`gftrace`, `ifncsgen`) differ from the Go VM there by that one
 function.
@@ -548,7 +548,7 @@ function.
   (`RetFile`, as `tconnect` does) becomes a gcon-vm file on its
   descriptor.
 - **External values** are a new kind, `KExternal`, appended after the
-  kinds gcon shares (it never appears in a built program). The block is
+  kinds Gcon shares (it never appears in a built program). The block is
   iconx's (`alcexternal`: title, size, serial number from 1, function
   list, data), in gcon-vm's heap, which never moves it. `type`, `image`,
   `copy` and sorting call the block's `extlname`, `extlimage`,
@@ -569,14 +569,14 @@ function.
   iconx's addresses and mean nothing here (they load, and do what their
   code does with gcon-vm's descriptors). `cfunc.icn`'s `pathload` finds
   the library through `$FPATH`; iconx appends its own directory to
-  `$FPATH`, so the library built with iconx is found by default. gcon
+  `$FPATH`, so the library built with iconx is found by default. Gcon
   does not yet ship the built library or `cfunc.icn`, so a program that
   `link cfunc`s needs both made (as `tests/cfuncs.sh` does) and `$FPATH`
   set.
 
 ## Graphics, first part (2026-11-26)
 
-gcon's design puts graphics in a separate display server (gcon's
+Gcon's design puts graphics in a separate display server (Gcon's
 `design/design.md`, "Graphics: a separate display server"); with the VM
 now in C, gcon-vm takes the part that design gives "gconx": it owns
 Icon's graphics semantics, and gcon-graphics (icon-sdl's SDL3 + Blend2D
@@ -614,8 +614,8 @@ interpreter, and remote display stays possible.
   instructions in any graphics build; here non-graphics programs pay
   nothing). Events go onto each window's Icon list in iconx's encoding
   (`qevent`), which programs see and may change through `Pending`.
-- **Keywords.** gcon now compiles the graphics keywords as keyword
-  operations; gcon's Go VM fails them, as an Icon without graphics
+- **Keywords.** Gcon now compiles the graphics keywords as keyword
+  operations; Gcon's Go VM fails them, as an Icon without graphics
   does. Here `&x`, `&y`, `&row`, `&col` and `&interval` are variables
   (`VGraphics`) with iconx's side effects (`&x` sets `&col` ...), error
   140 before any event; `&window` accepts a window or &null.
@@ -640,16 +640,16 @@ window, the text cursor, icons.
 **Tests.** `tests/graphics.sh` runs `tests/graphics.icn` on a hidden
 canvas (no display needed): attributes, colours, fonts, drawing read
 back with `Pixel`, patterns, `Clone`, the event list's encoding through
-`Pending` and `Event`, keywords, errors. Against gcon's Go VM
+`Pending` and `Event`, keywords, errors. Against Gcon's Go VM
 (`tests/vs-go.sh`) three reference tests now differ, all through
 `&features` (`env`, `features`, `prepro`: the last two also check that
-each feature has a predefined preprocessor symbol, which gcon does not
-yet define), and gcon's program test `keywords` expects the graphics
+each feature has a predefined preprocessor symbol, which Gcon does not
+yet define), and Gcon's program test `keywords` expects the graphics
 keywords to fail, as without graphics.
 
 **A correction to the comparisons.** `tests/vs-go.sh` ran its
 reference programs with `gcon run`, which, since gcon-vm was installed
-in gcon's root, handed them to that gcon-vm rather than the Go VM; the
+in Gcon's root, handed them to that gcon-vm rather than the Go VM; the
 "identical to the Go VM" counts since then compared gcon-vm with its
 installed self. It now sets `GCONVM=go`; rerun so, the reference tests
 are identical but for the three above. In the IPL, 257 programs are
@@ -658,16 +658,16 @@ before), `gftrace` and `ifncsgen` (`function()` now generates the
 graphics functions, as a graphics iconx's does) and `irunerr` (which
 lists the error texts, now with 140 to 147).
 
-## Retiring gcon's Go VM, step 1: recorded runs (2026-11-26)
+## Retiring Gcon's Go VM, step 1: recorded runs (2026-11-26)
 
-Sean's decision: gcon's Go VM is to be retired, gcon + gcon-vm being the
+Sean's decision: Gcon's Go VM is to be retired, Gcon + gcon-vm being the
 sole implementation, since keeping two implementations of the semantics
 now forks behaviour at every new feature (`loadfunc`, graphics,
 `&features`). The steps: (1) record the Go VM's runs as expected
-results; (2) `gcon run` always uses gcon-vm, and gcon's tests that run
-programs use it; (3) split gcon's `internal/vm` into the program format,
+results; (2) `gcon run` always uses gcon-vm, and Gcon's tests that run
+programs use it; (3) split Gcon's `internal/vm` into the program format,
 which the compiler needs, and the interpreter, which goes; (4) the
-consequences: predefined symbols for gcon-vm's features, gcon's
+consequences: predefined symbols for gcon-vm's features, Gcon's
 `keywords` test, the READMEs and design notes.
 
 Step 1: `tests/expected.sh` runs the reference tests and the IPL's
@@ -689,7 +689,7 @@ delivered keystrokes correctly; gcon-vm made each one's string with
 `mkstr`, which keeps a pointer, to a `char` on the C stack, so by the
 time the program looked the string held whatever the stack held next
 ("\e" for "a", say), and `case e of { "v": ... }` never matched. It is
-copied now (`strcopy`). And gcon did not predefine `_X_WINDOW_SYSTEM`,
+copied now (`strcopy`). And Gcon did not predefine `_X_WINDOW_SYSTEM`,
 under which the IPL's `keysyms.icn` names the special keys (such as
 `Key_Home`): its events use X keysyms, so it does now, and `&features`
 includes "X Windows". (Not as icon-sdl does it, as was first written
@@ -746,20 +746,20 @@ Icon's under X11: all within the tolerances icon-sdl's backend has
 (`images`, the palettes and `DrawImage`, identical to X11), as are
 icon-sdl's own numbers. icon-sdl's whole `misc` window test (window
 icons) passes. `ifncsgen` (what `function()` generates) is identical
-to icon-sdl's iconx but for gcon's own five functions.
+to icon-sdl's iconx but for Gcon's own five functions.
 
 ## Graphics: the IPL's programs (2026-11-26)
 
 Every program of the IPL's `gprogs` (177) and `gpacks` (65) was run
-under gcon and under icon-sdl's iconx, the same SDL3 + Blend2D
+under Gcon and under icon-sdl's iconx, the same SDL3 + Blend2D
 backend, with the same time limit and no input, and their output, exit
 status and every canvas compared pixel for pixel. The canvases come
 from a test hook in both servers (`ICONSDL_TEST_DUMP`, graphics'
 `src/canvas.c`), so no screen is read. Where the two differed, iconx
 was run again: a program whose two iconx runs differ (`randomize`,
-animation, timing) says nothing about gcon.
+animation, timing) says nothing about Gcon.
 
-It found six gcon bugs, fixed: `Uncouple` closed the window for every
+It found six Gcon bugs, fixed: `Uncouple` closed the window for every
 binding of its canvas; open's mode `"x"` was not a window;
 `QueryPointer` returned a list instead of generating x and y, and
 needed a window; `Active` always failed; `write` to a window drew its
@@ -767,7 +767,7 @@ arguments as one run (iconx draws each); and a traceback's field
 reference said `field` where iconx names the field. Since then every
 deterministic program matches iconx exactly, but two.
 
-Those two, `vib/dlog` and `tiger/tgrmap`, follow from how gcon names
+Those two, `vib/dlog` and `tiger/tgrmap`, follow from how Gcon names
 the keys: it predefines `_X_WINDOW_SYSTEM` (its keys are X keysyms,
 which the IPL's `keysyms.icn` names under it), so the vidgets ask for
 X font names (`viface.icn`) and `tgrmap` takes the X keypad keys.
@@ -776,12 +776,12 @@ icon-sdl instead predefines `_SDL_GRAPHICS` ("SDL graphics" in
 keys under a new `_X_KEYSYMS`, defined by either symbol, and
 `vtext.icn` and `tgrmap.icn` test `_X_KEYSYMS`.
 
-**Decision (Sean, 2026-11-26): `_SDL_GRAPHICS`, as icon-sdl.** gcon's
+**Decision (Sean, 2026-11-26): `_SDL_GRAPHICS`, as icon-sdl.** Gcon's
 backend is a different beast from Icon's X11 one, so it should not
-claim to be X. gcon predefines `_SDL_GRAPHICS` ("SDL graphics" in
+claim to be X. Gcon predefines `_SDL_GRAPHICS` ("SDL graphics" in
 `&features`) and carries icon-sdl's changes in its own lightly
 modified IPL: `tools/ipl/patch.sh` makes them (`gincl/keysyms.icn`,
-`gprocs/vtext.icn`; `tgrmap` is in `gpacks`, which gcon does not
+`gprocs/vtext.icn`; `tgrmap` is in `gpacks`, which Gcon does not
 ship), run by `tools/ipl/update.sh` after each refresh, and stops if
 upstream has changed a line it replaces; `lib/ipl/UPSTREAM` lists the
 patched files. Arizona Icon is feature-complete, so this should cost
@@ -792,9 +792,9 @@ change to its copy (checked, as `patch.sh`'s changes are). With this,
 `dlog` and `tgrmap` (icon-sdl's) match iconx too: every deterministic
 program of `gprogs` and `gpacks` does.
 
-## What gcon ships of the IPL (2026-11-26)
+## What Gcon ships of the IPL (2026-11-26)
 
-**Decision (Sean): gcon is a replacement for using Icon, not a copy
+**Decision (Sean): Gcon is a replacement for using Icon, not a copy
 of its distribution.** It ships the IPL's library (`procs`, `gprocs`,
 `incl`, `gincl`), the programs Arizona's `ipl/BuildBin` builds into its
 `bin` (`colrbook`, `colrpick`, `fontpick`, `palette`, `wevents`,
@@ -802,13 +802,13 @@ of its distribution.** It ships the IPL's library (`procs`, `gprocs`,
 Arizona builds into its `bin` (`cfuncs`, as `libcfunc.so`): whatever
 it takes to build them. The rest (the other programs and packages,
 data and documents) is of historical and educational interest, and in
-Arizona Icon's repository, where gcon's tests read it.
+Arizona Icon's repository, where Gcon's tests read it.
 
 `tools/ipl/update.sh` copies them into `lib/ipl` and makes
 `procs/cfunc.icn`, the C functions' Icon interface, with the IPL's own
 `cfuncs/mkfunc.sh`. `build.sh` builds the programs into the root's
-`bin` with gcon, and the C functions into the root's `lib/libcfunc.so`
-against gcon's `icall.h`; gcon-vm appends the root's `lib` to `FPATH`,
+`bin` with Gcon, and the C functions into the root's `lib/libcfunc.so`
+against Gcon's `icall.h`; gcon-vm appends the root's `lib` to `FPATH`,
 where `cfunc.icn`'s `pathload` finds the library, as iconx appends its
 own `bin`; with it Icon's own `cfuncs` and `extlvals` tests pass
 (86 of the suite's 89 now). `tests/iconx.sh` compares the shipped programs with

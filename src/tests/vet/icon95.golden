@@ -1,10 +1,10 @@
-icon95.icn:2: link uclass: a gcon library module, not in Icon 9.5
+icon95.icn:2: link uclass: a Gcon library module, not in Icon 9.5
 icon95.icn:4: \u escape: not in Icon 9.5
 icon95.icn:4: \U escape: not in Icon 9.5
 icon95.icn:5: cset range: not in Icon 9.5
-icon95.icn:7: uvalid: a gcon built-in function, not in Icon 9.5
-icon95.icn:7: uchar: a gcon built-in function, not in Icon 9.5
+icon95.icn:7: uvalid: a Gcon built-in function, not in Icon 9.5
+icon95.icn:7: uchar: a Gcon built-in function, not in Icon 9.5
 icon95.icn:8: uset literal: not in Icon 9.5
-icon95.icn:8: uord: a gcon built-in function, not in Icon 9.5
-icon95.icn:8: &uset: a gcon keyword, not in Icon 9.5
+icon95.icn:8: uord: a Gcon built-in function, not in Icon 9.5
+icon95.icn:8: &uset: a Gcon keyword, not in Icon 9.5
 status 1

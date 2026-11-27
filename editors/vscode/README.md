@@ -1,9 +1,9 @@
-# Icon (gcon) for Visual Studio Code
+# Icon (Gcon) for Visual Studio Code
 
 Support for the [Icon programming language](https://www.cs.arizona.edu/icon/)
-as [gcon](https://github.com/phonologus/gcon) reads it:
+as [Gcon](https://github.com/phonologus/gcon) reads it:
 
-- syntax highlighting, with gcon's `\u` escapes, cset ranges, uset
+- syntax highlighting, with Gcon's `\u` escapes, cset ranges, uset
   literals and built-in functions;
 - diagnostics as you type: syntax errors, the Icon translator's checks
   (undeclared identifiers, redeclarations, invalid keywords) and
@@ -16,13 +16,13 @@ as [gcon](https://github.com/phonologus/gcon) reads it:
 - signature help;
 - formatting with `gcon fmt`, on save by default.
 
-The language features come from gcon's language server, `gcon lsp`. The
+The language features come from Gcon's language server, `gcon lsp`. The
 extension is a fork of icontools' Icon extension, which runs icontools'
 `iconls`; the two both claim `.icn` files, so install one or the other.
 
 ## Requirements
 
-Build gcon and put its `bin` on your `PATH` (see the
+Build Gcon and put its `bin` on your `PATH` (see the
 [quick start](https://github.com/phonologus/gcon#quick-start)), or set
 `gcon.path`. For full documentation of the built-in functions on hover
 (optional; the Icon website's documentation cannot be redistributed, so
@@ -48,8 +48,8 @@ code --install-extension gcon-0.3.1.vsix
 | Setting | Description |
 |---|---|
 | `gcon.path` | Path to `gcon` (default: found on the `PATH`). |
-| `gcon.icon95` | Also warn of gcon's additions that Icon 9.5 lacks, as `gcon vet -icon95` does, for code that must also run under Arizona Icon. |
-| `gcon.ipath` | More directories in which to find the sources of linked files. gcon already searches the current directory, `$IPATH` and its own Icon Program Library. |
+| `gcon.icon95` | Also warn of Gcon's additions that Icon 9.5 lacks, as `gcon vet -icon95` does, for code that must also run under Arizona Icon. |
+| `gcon.ipath` | More directories in which to find the sources of linked files. Gcon already searches the current directory, `$IPATH` and its own Icon Program Library. |
 | `gcon.trace.server` | Trace the protocol in the Output panel. |
 
 Format on save, 3-space indentation and spaces are on by default for
@@ -68,7 +68,7 @@ example:
 ## Development
 
 `npm run test:unit` tests the TextMate grammar, which
-`scripts/gen-grammar.js` generates with the built-in functions of gcon's
+`scripts/gen-grammar.js` generates with the built-in functions of Gcon's
 catalogue (`../../src/builtin.inc`). `npm test` also runs the
 integration tests in a downloaded VS Code against `../../bin/gcon`;
 `VSCODE_TEST_VERSION` and `VSCODE_TEST_CACHE` pick a version and a copy

@@ -1,8 +1,8 @@
 # Tcl/Tk from Icon, through loadfunc
 
 An experiment, kept to come back to once gcon-graphics is done: a
-Tcl/Tk binding for gcon, as a C library loaded by `loadfunc`
-(gcon-vm only; under gcon's Go VM `loadfunc` is error 121). Native
+Tcl/Tk binding for Gcon, as a C library loaded by `loadfunc`
+(gcon-vm only; under Gcon's Go VM `loadfunc` is error 121). Native
 widgets from Icon, beside (not instead of) Icon's own graphics.
 
 ```icon
@@ -26,7 +26,7 @@ end
   the last event's words as a list.
 - `tktest.icn`: every part, with no one at the keyboard (a transparent
   window; Tk makes the events). Its output is the same on iconx and
-  gcon-vm but for gcon's UTF-8 text (iconx shows `"héllo"` as bytes).
+  gcon-vm but for Gcon's UTF-8 text (iconx shows `"héllo"` as bytes).
 - `demo.icn`: a window with an entry, buttons and a canvas you click,
   and an animation run by Icon between events.
 
@@ -56,7 +56,7 @@ run-time error 500 with Tcl's message as the offending value.
 
 ## To do, when this is taken up
 
-- Ship it: gcon could build `libicontk.so` and put `tk.icn` on the link
+- Ship it: Gcon could build `libicontk.so` and put `tk.icn` on the link
   path, with a default `$FPATH` (as iconx's) so `link tk` just works.
 - Faster calls: each `tk_eval` parses a script; a `tk_call(word, ...)`
   taking the words as separate arguments (Tcl_EvalObjv) would skip the

@@ -1746,7 +1746,7 @@ static char *builtindoc(Server *s, const BuiltinFunc *f) {
 	}
 	Buf k = {0};
 	if (f->gcon)
-		bufputs(&k, "gcon built-in function (not in Icon 9.5) \xc2\xb7 [gcon design notes](" GCONDOC_URL ")");
+		bufputs(&k, "Gcon built-in function (not in Icon 9.5) \xc2\xb7 [Gcon design notes](" GCONDOC_URL ")");
 	else
 		bufprintf(&k, "%s \xc2\xb7 [Icon reference](%s)", f->graphics ? "Built-in graphics function" : "Built-in function",
 			functionurl(f));
@@ -1775,7 +1775,7 @@ static char *keyworddoc(Server *s, const Keyword *k) {
 	}
 	Buf l = {0};
 	if (k->gcon)
-		bufputs(&l, "gcon keyword (not in Icon 9.5) \xc2\xb7 [gcon design notes](" GCONDOC_URL ")");
+		bufputs(&l, "Gcon keyword (not in Icon 9.5) \xc2\xb7 [Gcon design notes](" GCONDOC_URL ")");
 	else
 		bufprintf(&l, "Keyword \xc2\xb7 [Icon reference](%srefernce/keywlist.htm)", site_);
 	addpart(&parts, l.b);

@@ -243,7 +243,7 @@ static void builtins_section(Decoder *d) {
 		if (!resolve(&r)) {
 			d->err = msg("unknown builtin ");
 			builtinref(d->err, &r);
-			bufputs(d->err, " (built by a newer gcon?)");
+			bufputs(d->err, " (built by a newer Gcon?)");
 			return;
 		}
 		p->builtins[p->nbuiltins++] = r;
@@ -592,7 +592,7 @@ static Buf *sections(Decoder *d) {
 				if (memcmp(tag, required[i], 4) == 0)
 					e = msg("section %s out of order", q);
 			if (!e)
-				e = msg("unknown section %s (built by a newer gcon?)", q);
+				e = msg("unknown section %s (built by a newer Gcon?)", q);
 			free(q);
 			return e;
 		}
@@ -755,7 +755,7 @@ Buf *decode(const uint8_t *b, size_t n, Program **pp) {
 	if (d.err)
 		return damaged(d.err);
 	if (v != FormatVersion)
-		return msg("program built by %s gcon (format %llu; this gcon reads format %d): rebuild it",
+		return msg("program built by %s Gcon (format %llu; this Gcon reads format %d): rebuild it",
 			   v > FormatVersion ? "a newer" : "an older", (unsigned long long)v, FormatVersion);
 	Buf *e = sections(&d);
 	if (!e)

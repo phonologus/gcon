@@ -51,7 +51,7 @@ static Program *load(const char *path) {
 	}
 	const uint8_t *enc = encoded(data, n, &len);
 	if (enc == NULL) {
-		fprintf(stderr, "%s: not a built gcon program\n", path);
+		fprintf(stderr, "%s: not a built Gcon program\n", path);
 		exit(1);
 	}
 	Program *p;

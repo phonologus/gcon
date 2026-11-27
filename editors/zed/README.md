@@ -1,9 +1,9 @@
-# Icon (gcon) for Zed
+# Icon (Gcon) for Zed
 
-Icon language support for [Zed](https://zed.dev), as gcon reads Icon:
-syntax highlighting (with gcon's `\u` escapes, cset ranges, uset literals and
+Icon language support for [Zed](https://zed.dev), as Gcon reads Icon:
+syntax highlighting (with Gcon's `\u` escapes, cset ranges, uset literals and
 built-ins), outline and bracket matching, from the grammar in
-`../tree-sitter-gcon`, and gcon's language server, `gcon lsp`:
+`../tree-sitter-gcon`, and Gcon's language server, `gcon lsp`:
 diagnostics and `gcon vet` warnings, hover with documentation, go to
 definition, find references, completion, signature help, rename and
 formatting with `gcon fmt`.
@@ -13,7 +13,7 @@ It is a fork of icontools' Icon extension, which runs icontools'
 
 ## Setup
 
-Build gcon and put its `bin` on your PATH (see the
+Build Gcon and put its `bin` on your PATH (see the
 [quick start](https://github.com/phonologus/gcon#quick-start)); the
 extension runs `gcon lsp`. Then install this extension: in Zed, run
 `zed: install dev extension` and choose this directory (`editors/zed`).
@@ -60,12 +60,12 @@ Optional settings:
   the settings itself, with the settings' arguments, without asking the
   extension, so without them it runs plain `gcon`, which prints its
   usage, and the server fails to start. Or leave `binary` out and put
-  gcon's `bin` on your PATH: then the extension supplies `lsp`.
-- `icon95`: also warn of gcon's additions that Icon 9.5 lacks, as
+  Gcon's `bin` on your PATH: then the extension supplies `lsp`.
+- `icon95`: also warn of Gcon's additions that Icon 9.5 lacks, as
   `gcon vet -icon95` does, for code that must also run under Arizona
   Icon.
 - `ipath`: more directories in which to find linked files' sources.
-  gcon already searches the current directory, `IPATH` and its own Icon
+  Gcon already searches the current directory, `IPATH` and its own Icon
   Program Library.
 
 ## Development

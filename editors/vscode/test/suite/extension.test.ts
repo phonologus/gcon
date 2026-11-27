@@ -20,7 +20,7 @@ function positionOf(doc: vscode.TextDocument, text: string): vscode.Position {
   return doc.positionAt(off);
 }
 
-suite("Icon (gcon) extension", () => {
+suite("Icon (Gcon) extension", () => {
   let doc: vscode.TextDocument;
 
   suiteSetup(async () => {
@@ -41,9 +41,9 @@ suite("Icon (gcon) extension", () => {
     assert.strictEqual(diags.length, 3, messages.join("\n"));
     assert.ok(diags.every((d) => d.severity === vscode.DiagnosticSeverity.Warning), "all warnings");
     assert.match(messages.join("\n"), /undeclared identifier/);
-    // gcon vet: an error at run time, and (gcon.icon95) a gcon addition
+    // gcon vet: an error at run time, and (gcon.icon95) a Gcon addition
     assert.match(messages.join("\n"), /numeric comparison with "abc", which is not a number: run-time error 102/);
-    assert.match(messages.join("\n"), /uchar: a gcon built-in function, not in Icon 9\.5/);
+    assert.match(messages.join("\n"), /uchar: a Gcon built-in function, not in Icon 9\.5/);
   });
 
   test("hover shows the declaration and its comment", async () => {

@@ -1,11 +1,11 @@
 # The C front end
 
-gcon's translator and tools in C, built as `../bin/gcon`. They were
+Gcon's translator and tools in C, built as `../bin/gcon`. They were
 ported part by part from the Go reference (the tag `go-reference`),
-each part proved identical before the next (`../design/design.md`, "gcon
+each part proved identical before the next (`../design/design.md`, "Gcon
 in C"), and the Go then removed, all at once; this file records how
 each part was proved. Going forward the oracles are icont and iconx
-for what Icon defines, and gcon's own recorded results for what it adds.
+for what Icon defines, and Gcon's own recorded results for what it adds.
 
 | File | Ported from (in `go-reference`) |
 |---|---|
@@ -31,8 +31,8 @@ and catalogue of built-ins, and are maintained by hand.
 ## Testing
 
 The tests now are `tests/oracle.sh` (against icont), `tests/fmt.sh`
-and `tests/lsp.sh` (gcon against itself: golden files and properties
-over the corpus), and gcon-vm's (`../vm/tests`), which run what gcon
+and `tests/lsp.sh` (Gcon against itself: golden files and properties
+over the corpus), and gcon-vm's (`../vm/tests`), which run what Gcon
 builds. `tests/dump.c` prints the
 front end's view of a file (`dump lex|parse|walk|pp|sema|build FILE`),
 for debugging.
@@ -41,7 +41,7 @@ Until the Go went, `tests/diff.sh` (retired with it) built
 `tests/dump.c` with the address and undefined-behaviour
 sanitizers, and the Go reference's `tools/refdump`, and checked that
 both wrote the same canonical form for every file of the corpus: the Icon tree beside the checkout,
-gcon's library, test data and experiments, `../icn`, the edge cases in
+Gcon's library, test data and experiments, `../icn`, the edge cases in
 `tests/lex.icn` and `tests/lex2.icn`, and variants made with a fixed
 seed (truncations, changed bytes, random bytes). At the lexer's port:
 2,780 files identical (and 3,000 more mutated ones, once).
@@ -81,7 +81,7 @@ mutants, no disagreement. A planted bug (`^` made left-associative) is
 caught, in `tests/general/parse.icn`.
 
 The preprocessor is icont's own code (`ipp.c`, public domain), its
-output given gcon's form (a line for each line read, and a map of where
+output given Gcon's form (a line for each line read, and a map of where
 each came from) and its nested `$if` skip made iterative. `oracle.sh`
 checks it against `icont -E`, with the symbols that icont defines: the
 same lines that are not blank, each from the same file and line (from
@@ -133,9 +133,9 @@ expression could overwrite the enclosing loop or scan
 The driver (`driver.c`, `main.c`) was
 checked end to end against the Go's `gcon`: `gcon env` in several
 environments; `gcon build` and `gcon dis` of the 618 files of the
-reference tests, the IPL's progs and gprogs, gcon's test data and
+reference tests, the IPL's progs and gprogs, Gcon's test data and
 `../icn` (604 built files identical, 36.6 MB, but for the header's
-`GCBIN=` line naming each gcon; messages and listings identical); `gcon
+`GCBIN=` line naming each `gcon`; messages and listings identical); `gcon
 run` of source and of built programs, with arguments, and each error
 path (missing files, unresolved links with and without a root, syntax
 errors, flags); and gcon-vm's tests run with it as `$GCON`
@@ -143,22 +143,22 @@ errors, flags); and gcon-vm's tests run with it as `$GCON`
 sanitizers, it builds the 476 programs of the IPL and `../icn` cleanly.
 
 The formatter (`format.c`, `gcon fmt`) is icontools' (`icfmt`),
-whose tree is gcon's (gcon's front end is icontools' fork), on gcon's
+whose tree is Gcon's (Gcon's front end is icontools' fork), on Gcon's
 front end, iterative like the rest. While it was ported, `tests/fmt.sh`
 checked it against icfmt (built from `../icontools`): the same output,
 messages and exit status for every file of the corpus and its damaged
 variants (2,822, 1,838 of them changed by formatting), the token
 sequence of every formatted file kept (inserted semicolons included),
-and the flags (`-l`, `-w`, `-d`, standard input, errors). gcon's
+and the flags (`-l`, `-w`, `-d`, standard input, errors). Gcon's
 literals (`\u`, `\U`, cset ranges) are tokens like any other, kept
-byte for byte. Now gcon is its own oracle (`../design/design.md`):
+byte for byte. Now Gcon is its own oracle (`../design/design.md`):
 `tests/fmt.sh` checks golden output for the repository's own sources
 and the flags (`tests/fmt/`), and, over the corpus and its variants,
 that formatting never crashes, keeps every token and is idempotent.
 
 The language server (`lsp.c`, `gcon lsp`) is icontools' `iconls` on
-gcon's front end, finding linked and included files through gcon's
-root, its diagnostics gcon's (icont's wording, the other declaration
+Gcon's front end, finding linked and included files through Gcon's
+root, its diagnostics Gcon's (icont's wording, the other declaration
 as related information). `json.c` writes JSON as Go does, so replies
 compared byte for byte. While it was ported, `tests/lsp.sh` ran
 sessions made by `tests/lspsession.c` on both servers (iconls built
@@ -167,13 +167,13 @@ diagnostics) for every file of the corpus, 1,933 sessions identical;
 features (hover, definition, references, highlights, completion,
 signature help, rename, workspace symbols at every seventh
 identifier) for every tenth file, 170 sessions and 32,069 messages
-identical, with or without the reference pages. Now it checks gcon
+identical, with or without the reference pages. Now it checks Gcon
 against itself: golden replies for probes in the repository
 (`tests/lsp/`, hovers on reference-page fixtures in `tests/lsp/ref`),
 and a reply to every request in sessions over the whole corpus
 (`FULL=1`: every file and variant; `SANITIZE=1`: the sanitizers).
 
-gcon's additions to the language are checked against gcon itself:
+Gcon's additions to the language are checked against Gcon itself:
 `tests/lsp.sh` also checks that the language server's diagnostics for
 the probes in `tests/lit` (every literal error, and good literals) are
 the errors `gcon build` reports.

@@ -1,6 +1,6 @@
 # Icon syntax notes
 
-Facts about Icon's surface syntax and name resolution that the gcon front
+Facts about Icon's surface syntax and name resolution that the Gcon front
 end depends on, with their source in the reference tree. Carried over
 from icontools (`design/design.md` at 9cf9615); keep it up to date here.
 
@@ -69,7 +69,7 @@ Confirmed against icont's own lexer on the whole corpus (see
   - Otherwise an unescaped newline ends the literal with "unclosed quote".
   - A newline inside a continued literal does not count for semicolon
     insertion.
-  - gcon's uset literal, `u'...'`, is one token: an identifier that is
+  - Gcon's uset literal, `u'...'`, is one token: an identifier that is
     exactly `u` directly followed by `'` begins it (in 9.5 an
     identifier followed by a literal is a syntax error), and the rest is
     read as a cset literal. `u 'x'` (with a blank) is `u` then a cset.

@@ -267,7 +267,7 @@ static void visit(void *ctx, Node *n) {
 			if (k == VetLinkSelf)
 				bufprintf(&m, "link %s: this is the program's own file, so nothing is linked", quoted(v, t));
 			else if (k == VetLinkGcon && v->opts.icon95)
-				bufprintf(&m, "link %s: a gcon library module, not in Icon 9.5", quoted(v, t));
+				bufprintf(&m, "link %s: a Gcon library module, not in Icon 9.5", quoted(v, t));
 			else
 				continue;
 			report(v, t, m.b);
@@ -330,7 +330,7 @@ static void visit(void *ctx, Node *n) {
 		const Keyword *k = v->info->keywords[tokidx(v, t)];
 		if (k && k->gcon) {
 			Buf m = {0};
-			bufprintf(&m, "&%s: a gcon keyword, not in Icon 9.5", k->name);
+			bufprintf(&m, "&%s: a Gcon keyword, not in Icon 9.5", k->name);
 			report(v, t, m.b);
 		}
 		break;
@@ -339,7 +339,7 @@ static void visit(void *ctx, Node *n) {
 		Symbol *s = identsym(v, n);
 		if (v->opts.icon95 && s && s->kind == S_BUILTIN && s->builtin && s->builtin->gcon) {
 			Buf m = {0};
-			bufprintf(&m, "%s: a gcon built-in function, not in Icon 9.5", s->name);
+			bufprintf(&m, "%s: a Gcon built-in function, not in Icon 9.5", s->name);
 			report(v, n->ident.name, m.b);
 		}
 		break;

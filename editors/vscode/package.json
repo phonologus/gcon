@@ -1,7 +1,7 @@
 {
   "name": "gcon",
-  "displayName": "Icon (gcon)",
-  "description": "Icon as gcon reads it: highlighting, diagnostics and vet warnings, hover documentation, go to definition, references, completion, rename and formatting (gcon lsp).",
+  "displayName": "Icon (Gcon)",
+  "description": "Icon as Gcon reads it: highlighting, diagnostics and vet warnings, hover documentation, go to definition, references, completion, rename and formatting (gcon lsp).",
   "version": "0.3.1",
   "publisher": "phonologus",
   "author": "Sean Jensen",
@@ -48,7 +48,7 @@
       }
     ],
     "configuration": {
-      "title": "Icon (gcon)",
+      "title": "Icon (Gcon)",
       "properties": {
         "gcon.path": {
           "type": "string",
@@ -61,7 +61,7 @@
             "type": "string"
           },
           "default": [],
-          "markdownDescription": "More directories in which to find the sources of linked files (`link` declarations). gcon already searches the current directory, `$IPATH` and its own Icon Program Library."
+          "markdownDescription": "More directories in which to find the sources of linked files (`link` declarations). Gcon already searches the current directory, `$IPATH` and its own Icon Program Library."
         },
         "gcon.icon95": {
           "type": "boolean",
@@ -91,7 +91,7 @@
     "commands": [
       {
         "command": "gcon.restartServer",
-        "title": "Icon (gcon): Restart Language Server"
+        "title": "Icon (Gcon): Restart Language Server"
       }
     ]
   },

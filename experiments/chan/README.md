@@ -3,7 +3,7 @@
 A proof of concept: Go's goroutines and channels as a small library in
 plain Icon 9.5 (`chan.icn`, about 200 lines), built only on
 co-expressions. Its tasks are cooperative and run on one thread, like Go
-with `GOMAXPROCS=1`. Because co-expression switches are cheap in gcon,
+with `GOMAXPROCS=1`. Because co-expression switches are cheap in Gcon,
 programs built from many tasks run at speeds close to compiled Go's.
 
 ```icon
@@ -48,13 +48,13 @@ of procedure calls and two or three co-expression transfers.
 
 - `chan.icn`: the library.
 - `chantest.icn`: every feature, including deadlock detection;
-  `chantest.std` is its output, identical on iconx, gcon's Go VM and
+  `chantest.std` is its output, identical on iconx, Gcon's Go VM and
   gcon-vm.
 - `ring.icn`: a token passed m times round a ring of n tasks (n × m
   blocking hand-offs).
 - `sieve.icn`: the concurrent prime sieve of Newsqueak and Go: one task
   per prime found.
-- The same ring and sieve in Go, for comparison, and gcon's Go VM, are in
+- The same ring and sieve in Go, for comparison, and Gcon's Go VM, are in
   the tag `go-reference` (`experiments/chan/go`).
 - `bench.sh`: ring and sieve on gcon-vm and iconx.
 
@@ -62,7 +62,7 @@ of procedure calls and two or three co-expression transfers.
 
 Milliseconds (ns per hand-off for the ring), with peak memory:
 
-| | gcon-vm | gcon Go VM | iconx 9.5 | Go, 1 proc | Go, all procs |
+| | gcon-vm | Gcon Go VM | iconx 9.5 | Go, 1 proc | Go, all procs |
 |---|---:|---:|---:|---:|---:|
 | ring 1000 × 1000 | 205 ns, 22 MB | 2,376 ns | 4,760 ns | 90 ns | 120 ns |
 | ring 10 × 100,000 | 219 ns, 19 MB | 1,040 ns | 4,920 ns | 69 ns | 102 ns |

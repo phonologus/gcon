@@ -81,7 +81,7 @@ async function start(): Promise<void> {
     vscode.window
       .showErrorMessage(
         `Could not start gcon's language server (${command} lsp). ` +
-          "Build gcon and put its bin directory on your PATH, or set gcon.path.",
+          "Build Gcon and put its bin directory on your PATH, or set gcon.path.",
         install,
       )
       .then((choice) => {

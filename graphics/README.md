@@ -1,6 +1,6 @@
 # gcon-graphics
 
-The display server for gcon. gcon-vm, gcon's runtime, owns Icon's
+The display server for Gcon. gcon-vm, Gcon's runtime, owns Icon's
 graphics semantics: the event queue, `Event()`, the event keywords,
 window and context values (`../vm/src/graphics.c`). This server owns the
 display. It opens windows, keeps the canvases, draws, and sends events
@@ -26,7 +26,7 @@ Forked from [icon-sdl](https://github.com/phonologus/icon-sdl), branch
 `src/`), the vendored, checksum-pinned dependencies (`deps/`), the X
 colour-name tools (`sdl/tools/`, now `tools/`) and the Linux package
 lists. The canvas layer's behaviour was checked there against Icon's X11
-backend, pixel for pixel where possible, and gcon keeps that check
+backend, pixel for pixel where possible, and Gcon keeps that check
 (`../vm/tests/ref.sh`). Its design notes are in icon-sdl's
 `sdl/design.md`; this server's are in [design/design.md](design/design.md).
 
@@ -34,7 +34,7 @@ backend, pixel for pixel where possible, and gcon keeps that check
 
     ./build.sh
 
-or gcon's `../build.sh`, which installs the server as the root's
+or Gcon's `../build.sh`, which installs the server as the root's
 `libexec/gcon-graphics`. You need a C and C++ compiler and CMake. On
 macOS, the Xcode Command Line Tools; on Linux, the packages in
 `linux-packages.txt` (Debian, Ubuntu) or `linux-packages-fedora.txt`

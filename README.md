@@ -1,6 +1,6 @@
-# gcon
+# Gcon
 
-gcon is an implementation of the [Icon](https://www.cs.arizona.edu/icon/)
+Gcon is an implementation of the [Icon](https://www.cs.arizona.edu/icon/)
 programming language, version 9.5, written in C. It has a translator,
 a virtual machine and a graphics display server. One script builds the
 lot, and there is no `make Configure` step. Compared with Arizona's
@@ -45,11 +45,11 @@ gcon run hello.icn
   `graphics/linux-packages.txt` (Debian, Ubuntu) or
   `graphics/linux-packages-fedora.txt` (Fedora).
 
-The checkout becomes a *gcon root*, in the way a Go checkout is a
+The checkout becomes a *Gcon root*, in the way a Go checkout is a
 GOROOT. `gcon` finds the root from its own location, so you don't need
 `GCONROOT` or any other variable. The Icon Program Library is part of
 the root: `link graphics` just works. `IPATH` and `LPATH` still add
-directories to search, as with icont, and `gcon env` shows where gcon
+directories to search, as with icont, and `gcon env` shows where Gcon
 looks.
 
 ```sh
@@ -65,7 +65,7 @@ source each time.
 
 ## Editor set-up
 
-gcon's language server, `gcon lsp`, gives diagnostics as you type
+Gcon's language server, `gcon lsp`, gives diagnostics as you type
 (including `gcon vet`'s warnings), hover documentation, go to definition,
 references, completion, signature help, rename and formatting. The
 extensions for Zed and VS Code are in `editors/`. Each one runs the
@@ -88,7 +88,7 @@ You need Rust, installed through [rustup](https://rustup.rs). Zed builds
 the extension and the grammar itself.
 
 1. In Zed, open the command palette and run `zed: install dev extension`.
-2. Choose the `editors/zed` directory of your gcon checkout.
+2. Choose the `editors/zed` directory of your Gcon checkout.
 3. Optionally, turn on formatting on save in Zed's `settings.json`:
 
    ```json
@@ -97,7 +97,7 @@ the extension and the grammar itself.
    }
    ```
 
-Settings such as `icon95` (warn of gcon's additions, for code that must
+Settings such as `icon95` (warn of Gcon's additions, for code that must
 also run under Arizona Icon) are in
 [editors/zed/README.md](editors/zed/README.md).
 
@@ -125,7 +125,7 @@ over standard input and output. The tree-sitter grammar is in
 
 ## Differences from Icon 9.5
 
-Icon 9.5 programs behave as they do under iconx. What gcon adds to the
+Icon 9.5 programs behave as they do under iconx. What Gcon adds to the
 language is small: usets, `u'...'` literals, cset ranges, `\u` and `\U`
 escapes, four built-ins, the keyword `&uset`, and the `uclass` library
 module. Only two of these can change what a 9.5 program does, and none
@@ -157,7 +157,7 @@ Unicode-aware follows from it:
   exactly what it always was. Positions stay byte positions.
 - **Csets and usets never mix.** There is no silent conversion between
   them, as there is none between types in Go: `c ++ u`, `cset(u)`, or a
-  cset and a uset in one `bal` is run-time error 128 (gcon's), and
+  cset and a uset in one `bal` is run-time error 128 (Gcon's), and
   `gcon vet` reports the mixes it can see. `uset(c)` is the one
   conversion.
 - **Three built-ins** work with code points: `uord(s)` gives the code
@@ -189,12 +189,12 @@ The display server is an SDL3 + Blend2D backend, run as a separate
 process (`libexec/gcon-graphics`) that the runtime talks to through a
 protocol. It is not an X11 client. The backend was first written for
 Arizona Icon itself, in [icon-sdl](https://github.com/phonologus/icon-sdl),
-a fork of Icon 9.5 whose iconx draws with it; gcon's display server is
+a fork of Icon 9.5 whose iconx draws with it; Gcon's display server is
 that backend in a process of its own.
 
 - **The preprocessor defines `_SDL_GRAPHICS`, not `_X_WINDOW_SYSTEM`**,
   and `&features` says `SDL graphics`, so programs that test for X take
-  their portable path. Keys are still reported as X keysyms: gcon's
+  their portable path. Keys are still reported as X keysyms: Gcon's
   copy of the library carries two small changes, the same as icon-sdl's
   (made by `tools/ipl/patch.sh`), so that `keysyms.icn`'s key names
   work.
@@ -220,11 +220,11 @@ that backend in a process of its own.
 - **There is no separate translator and linker** (icont), and nothing is
   written beside your sources. `gcon build` writes one executable file,
   which runs on the root's `gcon-vm`.
-- **Memory:** gcon has one collected heap, not iconx's regions.
+- **Memory:** Gcon has one collected heap, not iconx's regions.
   `&allocated` counts the bytes allocated since the program started;
   `&regions` gives iconx's initial sizes and `&storage` gives zeros.
   iconx's memory variables (`BLKSIZE`, `STRSIZE`, ...) have no effect.
-- **What is shipped:** gcon replaces *using* Icon, not Arizona's whole
+- **What is shipped:** Gcon replaces *using* Icon, not Arizona's whole
   distribution. `lib/ipl` holds the IPL's procedures and include files,
   the programs Arizona builds into its `bin` (`colrbook`, `colrpick`,
   `fontpick`, `palette`, `vib`, `wevents`, `xgamma`, all built into the
@@ -239,7 +239,7 @@ loop with both systems and reports wall-clock nanoseconds per
 iteration, best of three. They were run on an Apple M5 with Apple clang
 21 on 2026-11-26.
 
-| benchmark | iconx (ns) | gcon (ns) | gcon / iconx |
+| benchmark | iconx (ns) | Gcon (ns) | Gcon / iconx |
 |---|---:|---:|---:|
 | empty loop | 7.4 | 3.8 | 0.52 |
 | `*s` | 9.7 | 3.8 | 0.39 |
@@ -259,7 +259,7 @@ iteration, best of three. They were run on an Apple M5 with Apple clang
 
 Leaving out the co-expressions, the geometric mean is **0.49** of
 iconx's time. iconx gives each co-expression its own C stack and
-switches between them in assembly. gcon's VM is not recursive, so a
+switches between them in assembly. Gcon's VM is not recursive, so a
 co-expression is just a VM state, and a switch costs about as much as a
 procedure call.
 
@@ -270,7 +270,7 @@ world" starts in 6.6 ms, against iconx's 11.2.
 
 ## How it is checked
 
-Icon's own C sources are the authority on the language, so gcon is
+Icon's own C sources are the authority on the language, so Gcon is
 checked against Arizona's icont and iconx:
 
 - **The language:** 88 of the 89 programs in Icon's test suite give
@@ -286,8 +286,8 @@ checked against Arizona's icont and iconx:
 - The runtime is tested under the address and undefined-behaviour
   sanitizers.
 
-For gcon's own additions (`fmt`, `lsp`, `vet`, usets and `uclass`),
-gcon's recorded results are the reference: golden files, test programs,
+For Gcon's own additions (`fmt`, `lsp`, `vet`, usets and `uclass`),
+Gcon's recorded results are the reference: golden files, test programs,
 and runs of 318 programs from the test suite and the IPL
 (`vm/tests/expected.sh`). See [design/development.md](design/development.md).
 
@@ -298,8 +298,8 @@ and runs of 318 programs from the test suite and the IPL
 | `src/` | the `gcon` command: preprocessor, parser, compiler, driver, `fmt`, `lsp`, `vet` ([src/README.md](src/README.md)) |
 | `vm/` | `gcon-vm`, the runtime ([vm/README.md](vm/README.md)) |
 | `graphics/` | `gcon-graphics`, the display server, with SDL3 and Blend2D vendored and pinned ([graphics/README.md](graphics/README.md)) |
-| `lib/ipl/` | the Icon Program Library, as gcon ships it ([lib/ipl/README](lib/ipl/README)) |
-| `lib/gcon/` | gcon's own library, searched after the IPL's: `uclass.icn`, generated by `build.sh` |
+| `lib/ipl/` | the Icon Program Library, as Gcon ships it ([lib/ipl/README](lib/ipl/README)) |
+| `lib/gcon/` | Gcon's own library, searched after the IPL's: `uclass.icn`, generated by `build.sh` |
 | `deps/` | the Unicode Character Database, vendored and pinned, from which `uclass` is generated |
 | `editors/` | editor support: the tree-sitter grammar, and the Zed and VS Code extensions ([editors/README.md](editors/README.md)) |
 | `design/` | [design.md](design/design.md) (decisions and their reasons), [development.md](design/development.md) (building and testing), [syntax.md](design/syntax.md) |
@@ -313,7 +313,7 @@ scripts download them.
 
 ## History
 
-gcon was written first in Go. It was then ported to C part by part, and
+Gcon was written first in Go. It was then ported to C part by part, and
 each part was proved to give the same results as the Go before the Go
 was removed. The Go is kept as the tag `go-reference`. The `g` came from
 Go; it can stand for graphics now. The front end began as a fork of
@@ -322,7 +322,7 @@ standalone formatter and language server for Arizona Icon.
 
 ## Licence
 
-gcon is under the MIT licence; see [LICENSE](LICENSE). The Icon Program
+Gcon is under the MIT licence; see [LICENSE](LICENSE). The Icon Program
 Library in `lib/ipl` is in the public domain; [NOTICE](NOTICE)
 reproduces the copyright notices on the card bitmaps in
 `lib/ipl/gprocs/cardbits.icn`, as a precaution. The display server's

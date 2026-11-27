@@ -1,4 +1,4 @@
-The Icon Program Library (IPL), as gcon ships it, copied from the
+The Icon Program Library (IPL), as Gcon ships it, copied from the
 reference implementation, github.com/gtownsend/icon, by
 tools/ipl/update.sh:
 
@@ -6,7 +6,7 @@ tools/ipl/update.sh:
   incl, gincl     the include files, which $include finds
   gprogs, gpacks  the programs Arizona's ipl/BuildBin builds into its bin
                   (colrbook, colrpick, fontpick, palette, wevents,
-                  xgamma; vib), which gcon's build.sh builds into the
+                  xgamma; vib), which Gcon's build.sh builds into the
                   root's bin
   cfuncs          the C functions, which build.sh builds into the
                   root's lib/libcfunc.so; procs/cfunc.icn, their Icon
@@ -16,12 +16,12 @@ The rest of the IPL (its other programs, packages, data and documents)
 is in Arizona Icon's repository. UPSTREAM records the commit and each
 file's SHA-256.
 
-A few files are changed for gcon, whose display server is icon-sdl's
-SDL backend (gcon predefines _SDL_GRAPHICS, not _X_WINDOW_SYSTEM): the
+A few files are changed for Gcon, whose display server is icon-sdl's
+SDL backend (Gcon predefines _SDL_GRAPHICS, not _X_WINDOW_SYSTEM): the
 changes are icon-sdl's, made by tools/ipl/patch.sh, marked "# gcon:" in
 the files, and listed in UPSTREAM.
 
-gcon searches procs and gprocs after IPATH (for link), and incl and
+Gcon searches procs and gprocs after IPATH (for link), and incl and
 gincl after LPATH (for $include). To change a file, copy it to a
 directory on IPATH or LPATH rather than editing it here, or add a
 change to tools/ipl/patch.sh.
@@ -35,4 +35,4 @@ modifications as well as the original source."
 The one exception is gprocs/cardbits.icn, whose playing-card bitmaps
 carry copyright and permission notices from Sun Microsystems, Network
 Computing Devices and their authors. As a precaution those notices are
-reproduced in NOTICE at the top of the gcon tree, as they ask.
+reproduced in NOTICE at the top of the Gcon tree, as they ask.

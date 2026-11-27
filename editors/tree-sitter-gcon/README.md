@@ -1,7 +1,7 @@
 # tree-sitter-gcon
 
-A [tree-sitter](https://tree-sitter.github.io/) grammar for Icon as gcon
-reads it: Icon 9.5, with gcon's lexical additions: the escapes
+A [tree-sitter](https://tree-sitter.github.io/) grammar for Icon as Gcon
+reads it: Icon 9.5, with Gcon's lexical additions: the escapes
 `\uXXXX` and `\UXXXXXX`, ranges in cset literals (`'a..z'`), and uset
 literals (`u'...'`, a `uset` node with a cset's parts). The
 editors' extensions in `../zed` use it.
@@ -17,14 +17,14 @@ tree-sitter-icon makes a string or cset a single token, here escapes are
 editors can show them. The trees are otherwise the same.
 
 Highlighting queries are in `queries/` (Neovim capture conventions); the
-built-in function names in them come from gcon's catalogue
+built-in function names in them come from Gcon's catalogue
 (`../gen.sh`).
 
 ## Verification
 
 `../test.sh` runs the tests in `test/corpus`, checks that `src/` is
 generated from `grammar.js`, and parses every Icon file in Arizona
-Icon's tree (`../../../icon`) and in gcon's own tests and library: the
+Icon's tree (`../../../icon`) and in Gcon's own tests and library: the
 files that do not parse are exactly those recorded in `failing.txt`
 (preprocessor tests whose `$ifdef` branches do not parse as a whole,
 deliberate errors, and include files that are not programs), the same

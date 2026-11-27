@@ -17,7 +17,7 @@
   "metadata": {
     "version": "0.3.1",
     "license": "MIT",
-    "description": "Icon grammar for tree-sitter, as gcon reads Icon",
+    "description": "Icon grammar for tree-sitter, as Gcon reads Icon",
     "links": {
       "repository": "https://github.com/phonologus/gcon"
     }

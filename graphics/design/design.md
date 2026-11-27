@@ -2,8 +2,8 @@
 
 ## Role
 
-gcon-graphics is gcon's display server. The decision and its reasons are
-in gcon's `design/design.md` ("Graphics: a separate display server"). In
+gcon-graphics is Gcon's display server. The decision and its reasons are
+in Gcon's `design/design.md` ("Graphics: a separate display server"). In
 brief: gcon-vm owns Icon's graphics semantics (the event queue as an Icon
 list, `Event()`, polling, `&x`, `&y`, `&interval`, `WDelay`, window
 and context values); the server owns windows, canvases, drawing and
@@ -30,7 +30,7 @@ need it to change.
 
 Modelled on Plan 9's draw protocol (draw(3)): compact binary messages,
 objects named by integer ids chosen by the client, drawing requests that
-need no reply, and few messages that do. Rules carried from gcon's
+need no reply, and few messages that do. Rules carried from Gcon's
 design:
 
 - drawing requests are pipelined; gcon-vm flushes when it blocks, flushes
@@ -62,7 +62,7 @@ child), or a named socket.
 2. The protocol reader here, replacing `pl_main`'s interpreter thread.
 3. icon-sdl's reference and window tests, driving the server through
    gcon-vm (`../vm/tests/ref.sh`, `window.sh`). The planned headless
-   Go server for gcon's tests went with gcon's Go: hidden canvases
+   Go server for Gcon's tests went with Gcon's Go: hidden canvases
    (`../vm/tests/graphics.sh`) need no display.
 
 ## Events: fetched, not pushed (2026-11-26)

@@ -1,16 +1,16 @@
-# gcon design notes
+# Gcon design notes
 
-gcon runs Icon 9.5 programs on a virtual machine written in Go. It is one
-binary: it translates Icon source to gcon's own bytecode and executes it.
+Gcon runs Icon 9.5 programs on a virtual machine written in Go. It is one
+binary: it translates Icon source to Gcon's own bytecode and executes it.
 It supports Go 1.24 and later.
 
 Compatibility target: the *language* of Icon 9.5, checked against the
 reference implementation. Compatibility with icont's ucode/icode files
-is not a goal; gcon has its own bytecode.
+is not a goal; Gcon has its own bytecode.
 
 ## Scope and direction
 
-gcon is meant to become a standalone Icon toolchain in the Go mould:
+Gcon is meant to become a standalone Icon toolchain in the Go mould:
 `go install` puts one `gcon` command on the path, and that command
 gathers the tools under subcommands (run, build, fmt, the language
 server, ...). Over time it takes in what now lives in separate projects:
@@ -19,7 +19,7 @@ and editor extensions, and graphics (see "Graphics: a separate display
 server" below).
 
 icontools and icon-sdl remain standalone, for the wider Icon community,
-built around the reference implementation. gcon does not depend on them.
+built around the reference implementation. Gcon does not depend on them.
 It forked the icontools front end (lexer, parser, name resolution,
 built-in catalogue, and the icont oracle) at icontools 9cf9615, and the
 two evolve independently. Syntax facts are in [syntax.md](syntax.md).
@@ -27,9 +27,9 @@ two evolve independently. Syntax facts are in [syntax.md](syntax.md).
 Dependencies: the core (front end, translator, VM, and tools that work on
 source) uses only the standard library.
 
-### Decision (2026-11-26): gcon in C; the Go implementation is the reference
+### Decision (2026-11-26): Gcon in C; the Go implementation is the reference
 
-**gcon becomes a C program**, with the Go implementation frozen as the
+**Gcon becomes a C program**, with the Go implementation frozen as the
 reference it is ported against. "Go showed it can be done. C is how it
 *is* done." What carries over from the Go is the design, not the
 language: the root layout (`bin`, `lib`, `libexec`, as GOROOT), the
@@ -40,7 +40,7 @@ compiler (and C++ for the display server).
 **Why.** gcon-vm, the runtime, is already C (see "the VM in C" below),
 and keeping a second runtime in Go forked behaviour at every feature
 (`loadfunc`, graphics, `&features`); retiring the Go VM alone would have
-left gcon a Go translator in front of a C runtime, two toolchains to
+left Gcon a Go translator in front of a C runtime, two toolchains to
 build one program. The front end and tools are small (about 6,200 lines
 of Go here, and the formatter and language server about 3,200 in
 icontools' fork of the same front end), use little beyond `strings`,
@@ -52,7 +52,7 @@ encoder mirrors).
 **How: a differential port.** Each part is ported to C and proved
 identical to the Go before the next: `gcon build` must produce the same
 built program, byte for byte, for every file of the corpus (the
-reference tests, the IPL, `icn/`, gcon's test data); `gcon fmt` the same
+reference tests, the IPL, `icn/`, Gcon's test data); `gcon fmt` the same
 output; the language server the same replies to recorded sessions; and
 the icont oracle tests carry over. Order: lexer and literals, parser,
 preprocessor, name resolution, compiler and encoder (`gcon build`
@@ -85,7 +85,7 @@ tag `go-reference` keeps them. `build.sh` builds `bin/gcon` from
 server). The differential tests against the Go (`src/tests/diff.sh`,
 with `tools/refdump`) are retired with it (Sean): they had done their
 work, and from here the oracles are icont and iconx for what Icon
-defines, and gcon's own recorded results and probes for what it adds
+defines, and Gcon's own recorded results and probes for what it adds
 ("Two oracles"). Also gone: the Go VM, and with it `GCONVM=go` and its
 case in a built program's header (`GCONVM` now always names a
 gcon-vm); gcon-vm's `tests/dis.sh` (its `gcon dis` was the Go's,
@@ -123,7 +123,7 @@ run time:
   constructor or built-in function and is never assigned (106);
   parameters are passed values, so are not reported;
 - string invocation of a procedure or record constructor that
-  icont's linker (and gcon's) discards (106);
+  icont's linker (and Gcon's) discards (106);
 - (2026-11-27) a cset and a uset that certainly meet (error 128, or
   `===` that can never succeed; "Csets and usets");
 - (2026-11-27) a link declaration that resolves to the program's own
@@ -135,8 +135,8 @@ run time:
 
 The checks of the whole program are made only for a complete program
 (every link found) that declares main. With `-icon95`, also what Icon
-9.5 lacks: `\u` and `\U` escapes, cset ranges, uset literals, gcon's
-built-ins and keywords, and links to gcon's own library (`lib/gcon`). File
+9.5 lacks: `\u` and `\U` escapes, cset ranges, uset literals, Gcon's
+built-ins and keywords, and links to Gcon's own library (`lib/gcon`). File
 mode `"u"`, first planned as a check, is 9.5's too ("untranslated"),
 and the IPL uses it, so it is not reported.
 
@@ -147,42 +147,42 @@ errors. Two are a bug in the IPL: `progs/strpsgml.icn` declares
 locals `readtbl` and `stripunb`, hiding the procedures it links, so
 it fails with error 106 on any input (iconx too). One is
 `packs/ibpag2/ibpag2.icn`, which its Makefile links with
-`ibreader.u1` on icont's command line, not by `link`; as gcon builds
+`ibreader.u1` on icont's command line, not by `link`; as Gcon builds
 it (one file and what it links), the field is no record's. With
 `-icon95` there are no findings in the IPL or Icon's tests.
 `src/tests/vet.sh` keeps the probes (`src/tests/vet/`) and these
 findings as golden files, checks that the language server reports
 the probes' findings, and that vet never crashes on the corpus.
 
-### Decision (2026-11-26): editor support is forked into gcon
+### Decision (2026-11-26): editor support is forked into Gcon
 
-**Decision (Sean): gcon carries its own editor support, in `editors/`,
+**Decision (Sean): Gcon carries its own editor support, in `editors/`,
 forked from icontools' and tree-sitter-icon, as its front end was.**
 `editors/tree-sitter-gcon` is tree-sitter-icon (at 6070fd3) renamed,
-with literals that show gcon's additions: escapes are `escape_sequence`
+with literals that show Gcon's additions: escapes are `escape_sequence`
 nodes (with `\u` and `\U`) and a cset's `..` a `range_operator`, where
 tree-sitter-icon makes each literal one token. The trees are otherwise
 the same: the same 30 of 1,776 corpus files fail with both grammars.
 `editors/zed` and `editors/vscode` are icontools' extensions running
 `gcon lsp` (initialization options `icon95` and `ipath`), with
-highlighting from gcon's catalogue (`editors/gen.sh`, and the VS Code
+highlighting from Gcon's catalogue (`editors/gen.sh`, and the VS Code
 extension's `gen-grammar.js`). Zed reads the grammar from this
 repository's subdirectory, pinned by commit (`path` in a grammar entry
 of `extension.toml`, which Zed accepts though its documentation does not
 list it; its own OCaml extension uses it).
 
 The extensions are in their editors' languages (Rust, TypeScript), not
-C: they are not part of gcon's build, and `build.sh` does not touch
+C: they are not part of Gcon's build, and `build.sh` does not touch
 them. icontools and tree-sitter-icon stay as they are, for Arizona
-Icon; a user installs gcon's extension or icontools', since both claim
+Icon; a user installs Gcon's extension or icontools', since both claim
 `.icn`. `editors/test.sh` tests all three.
 
-### Decision (2026-11-26): gcon is its own oracle for fmt and lsp
+### Decision (2026-11-26): Gcon is its own oracle for fmt and lsp
 
-The C gcon is now gospel for gcon (Sean): `gcon fmt` and `gcon lsp` are
+The C Gcon is now gospel for Gcon (Sean): `gcon fmt` and `gcon lsp` are
 no longer checked against icontools' icfmt and iconls, which are
-entirely independent of gcon and may go their own way. Their tests
-check gcon against itself: golden files recorded from it
+entirely independent of Gcon and may go their own way. Their tests
+check Gcon against itself: golden files recorded from it
 (`src/tests/fmt/`, `src/tests/lsp/`; `-update` rewrites them, to be
 read before committing), and properties that need no oracle over the
 whole corpus: formatting never crashes, keeps every token and changes
@@ -190,10 +190,10 @@ nothing the second time; the language server answers every request
 without a word on standard error. Hovers with reference pages are
 checked on fixtures in the pages' formats (`src/tests/lsp/ref`, written
 for icontools' tests), since the pages themselves are not
-redistributable. No gcon test needs Go.
+redistributable. No Gcon test needs Go.
 
-icontools stays as it is, standalone (above); gcon's formatter and
-language server are ported from gcon's own fork.
+icontools stays as it is, standalone (above); Gcon's formatter and
+language server are ported from Gcon's own fork.
 
 **Two oracles (2026-11-26, after the parser's port).** Checking the C
 only against the Go would make the port C to Go to C, with Icon itself
@@ -206,7 +206,7 @@ reached only through the Go. So the authorities are:
    as modified).
 2. *The Go reference* only for what Icon has no counterpart for: the
    Unicode extensions (usets, the `u` functions, cset ranges), the graphics
-   protocol, gcon's program format, the tooling (the lossless tree,
+   protocol, Gcon's program format, the tooling (the lossless tree,
    error recovery for an editor, the formatter, the language server),
    and the infrastructure (the distribution layout, GCONROOT, the
    driver's search paths and commands: below).
@@ -252,7 +252,7 @@ scanning environment. Fixed in the Go (copies), with tests
 (`internal/run/testdata/breakloop.icn`, `breakscan.icn`).
 
 The preprocessor is the first part ported from icont's code itself
-(`src/ipp.c` is icont's `ipp.c`, its output in gcon's form), checked
+(`src/ipp.c` is icont's `ipp.c`, its output in Gcon's form), checked
 against `icont -E` (text, positions and errors) as well as the Go. The
 port found three places where the Go was not icont's, fixed in both:
 an error's offending value is shown as it is, in quotes (the Go quoted
@@ -264,7 +264,7 @@ cleaned the whole name; and a file that opens but cannot be read ends
 at once, where the Go reported "cannot open". A fourth came later, from
 the differential test's damaged files: a directive line ends at a NUL
 byte, as icont's C strings do (so `$define X "|<NUL>|"` is an
-unterminated literal); the Go read on past it. In other lines gcon
+unterminated literal); the Go read on past it. In other lines Gcon
 keeps a NUL as an ordinary byte, departing from icont on purpose:
 icont loses the rest of such a line *and its newline*, joining it to
 the next, a defect rather than a definition.
@@ -288,14 +288,14 @@ unknown keyword is `"x": invalid keyword` (the Go wrote `&x`); and an
 inconsistent redeclaration says no more than icont's text. The other
 declaration it conflicts with, which the Go put in the message ("also
 a record in a.icn"), is now the diagnostic's `Related` symbol, for the
-language server to give as related information. Positions stay gcon's
+language server to give as related information. Positions stay Gcon's
 (a line for the linker's errors too, which icont gives only the file),
 and undeclared identifiers are flagged in every procedure, where icont
 -u reports only those its linker keeps (an editor wants them all).
 
-**Decision (2026-11-26): the driver and infrastructure are gcon's.**
+**Decision (2026-11-26): the driver and infrastructure are Gcon's.**
 What a file *means* is icont's to say; how the toolchain is laid out
-and finds things is not. gcon's distribution layout, the GCONROOT
+and finds things is not. Gcon's distribution layout, the GCONROOT
 protocol (Go's GOROOT model), and the search order built on them (the
 current directory, LPATH or IPATH, then the root) stay as the Go
 reference has them, and the Go is their oracle. So the C does not take
@@ -308,26 +308,26 @@ The driver is ported (`src/driver.c`, `src/main.c`, built by
 `build.sh` as `bin/gcon`). It does as the Go did, but for what was
 Go's own: the root is $GCONROOT, the directory above the executable,
 or one named at build time (`-DGCON_DEFAULT_ROOT=`), Go's module cache
-(for a gcon installed by `go install`) no longer being a place to look;
+(for a Gcon installed by `go install`) no longer being a place to look;
 programs run on gcon-vm only (there is no Go VM); `gcon dis` is
 gcon-vm's listing (`gcon-vm -dis`, which the loader tests proved
 identical to the Go's); and the version, as the Go stamps its own, is a
 pseudo-version naming the commit, stamped by `build.sh`. Its
 `gcon build` wrote what the Go's wrote, byte for byte but for the
-header's name of the gcon that built it.
+header's name of the `gcon` that built it.
 
 The formatter is ported (`src/format.c`, `gcon fmt`), from icontools'
-`internal/format` and `icfmt`: gcon's front end is icontools' fork, so
+`internal/format` and `icfmt`: Gcon's front end is icontools' fork, so
 the trees are the same and `icfmt` was its oracle while it was ported
 (identical over the corpus and its damaged variants, every formatted
-file's tokens kept). gcon's additions to the language are lexical (the
+file's tokens kept). Gcon's additions to the language are lexical (the
 literal escapes `\u` and `\U`, cset ranges) and pass through it as
 written.
 
 The language server is ported (`src/lsp.c`, `gcon lsp`), from
 icontools' `iconls`, which was its oracle while it was ported but for
-what gcon defines: files are found through gcon's root (no ucode),
-diagnostics are icont's, and hovers and completions include gcon's
+what Gcon defines: files are found through Gcon's root (no ucode),
+diagnostics are icont's, and hovers and completions include Gcon's
 built-ins and keywords (marked as not in Icon 9.5). The Icon
 reference pages are not redistributable, so `gcon lsp fetch-docs`
 downloads them (with curl) to a local cache, as `iconls fetch-docs`
@@ -338,7 +338,7 @@ does.
 **Decision (2026-11-25): graphics runs in a separate display server
 process, X11 / Plan 9 style.** gconx and the server talk a protocol over
 a socket. This supersedes the earlier plan (same day) to link icon-sdl's
-backend into gcon through cgo; the choice of icon-sdl's backend over a Go
+backend into Gcon through cgo; the choice of icon-sdl's backend over a Go
 toolkit such as Fyne stands, but it becomes the server.
 
 **Division of labour.** gconx owns everything Icon's graphics model
@@ -350,8 +350,8 @@ events back. It can be written in any language and run on its own.
 
 **Why.**
 
-- gcon stays pure Go: no cgo, no C++ toolchain, no build tag,
-  cross-compilation intact, and `go install` of gcon never needs C.
+- Gcon stays pure Go: no cgo, no C++ toolchain, no build tag,
+  cross-compilation intact, and `go install` of Gcon never needs C.
 - The macOS rule that SDL owns the main thread is the server's concern
   alone; gconx needs no `LockOSThread`.
 - A server crash cannot corrupt the interpreter's state.
@@ -411,7 +411,7 @@ requests:
   `Clone` and `Couple` map onto X11's drawable / GC split.
 - **Version handshake** first on every connection.
 - **Startup.** gconx starts the server lazily on the first
-  `open(..., "g")`, as a child on a socketpair, found next to the gcon
+  `open(..., "g")`, as a child on a socketpair, found next to the Gcon
   binary or named by an environment variable (which could instead name a
   socket to connect to, giving remote display).
 
@@ -476,8 +476,8 @@ interpreter is written in Go.
   transfer, `&source` or `^C` (`doc/diffs.adoc`, "Co-Expressions").
 
 Takeaways: the Proebsting translation works well in Go, and it is what
-gcon's code generator should use. But Goaldi gave up exactly the part of
-Icon that gcon has to keep: full co-expressions.
+Gcon's code generator should use. But Goaldi gave up exactly the part of
+Icon that Gcon has to keep: full co-expressions.
 
 ## Co-expressions
 
@@ -506,18 +506,18 @@ problems of their own:
 - A runtime error inside a co-expression's goroutine has to be recovered
   and handed to `&main`.
 
-Measured again on gcon's real VM loop once co-expressions were built
+Measured again on Gcon's real VM loop once co-expressions were built
 (2026-11-25, same machine; `experiments/coswitch/vmswitch.icn`, timed
 externally, per operation including about 10 ns of loop overhead):
 
 | implementation | `@c` round trip | `@(create 1)` |
 |----------------|----------------:|--------------:|
 | iconx 9.5      |        2,520 ns |     17,750 ns |
-| gcon           |           30 ns |        150 ns |
+| Gcon           |           30 ns |        150 ns |
 
 ### Decision: a non-recursive VM
 
-gcon's VM never recurses on the Go stack for Icon-level control:
+Gcon's VM never recurses on the Go stack for Icon-level control:
 
 - Goal-directed evaluation within a procedure compiles to jumps, using
   the Proebsting translation as Goaldi does.
@@ -564,7 +564,7 @@ value" (Go's nil interface in the old representation), distinct from
 collector sees the struct as it would any pointer. Values are 24 bytes
 instead of 16, so lists and tables take half as much memory again.
 
-**Evidence** (`experiments/valuerep`): two interpreters with gcon's
+**Evidence** (`experiments/valuerep`): two interpreters with Gcon's
 dispatch loop, frames and instruction layout, differing only in the
 representation, running the same loops. The struct is 3.2 times as
 fast in each, with no allocation: an integer loop `x := i + 407` 12.3
@@ -665,8 +665,8 @@ A stock-take after a day of performance work, which took the Go VM from
   `image()`, mixed operands) bring complexity of their own, whatever the
   language.
 
-So gcon's VM moves to C, in its own repository, **gcon-vm**, beside gcon
-and gcon-graphics, keeping C builds out of this one: gcon remains the Go
+So Gcon's VM moves to C, in its own repository, **gcon-vm**, beside Gcon
+and gcon-graphics, keeping C builds out of this one: Gcon remains the Go
 toolchain (translation, `build`, `fmt`, the language server) and hands
 bytecode, in the built-program format, to gcon-vm. gcon-vm ports this
 VM's design and semantics rather than extending iconx, whose
@@ -681,8 +681,8 @@ has the plan.
 
 ### Decision (2026-11-26): gcon run uses gcon-vm
 
-gcon-vm runs gcon's built programs with the same results as this VM
-(gcon's program tests, the reference tests, 260 IPL programs), at about
+gcon-vm runs Gcon's built programs with the same results as this VM
+(Gcon's program tests, the reference tests, 260 IPL programs), at about
 half its time, and co-expressions at a hundredth of iconx's. So `gcon
 run` hands programs to it when it is installed (`internal/run`,
 `gconvm.go`):
@@ -690,28 +690,28 @@ run` hands programs to it when it is installed (`internal/run`,
 - **Which VM.** `$GCONVM` if set: a gcon-vm, or `go` for this VM; else
   `libexec/gcon-vm` in the root, if executable; else this VM. `gcon env`
   shows the choice (`GCONVM`, `GCONVMFROM`).
-- **A built program** is run as it is: gcon `exec`s gcon-vm on the file,
-  so gcon's process becomes gcon-vm's, and the exit status, signals and
+- **A built program** is run as it is: `gcon` `exec`s gcon-vm on the file,
+  so `gcon`'s process becomes gcon-vm's, and the exit status, signals and
   standard streams are simply its own; `&progname` is the name the
   program was invoked by, as before.
 - **A built program's header** runs gcon-vm itself where it can, so as
-  not to start gcon: `$GCONVM` if it names one; else, unless `$GCON` or a
-  gcon beside the program is there to decide, the gcon-vm of the root of
-  the gcon that built it, recorded in the header (`GCVM`) as the gcon's
+  not to start `gcon`: `$GCONVM` if it names one; else, unless `$GCON` or a
+  `gcon` beside the program is there to decide, the gcon-vm of the root of
+  the `gcon` that built it, recorded in the header (`GCVM`) as that `gcon`'s
   path is; else `gcon run` as before (and so `GCONVM=go` goes through
-  gcon to this VM). The header also finds the gcon beside the program by
+  `gcon` to this VM). The header also finds the `gcon` beside the program by
   parameter expansion rather than `sed`, so it starts no command but the
   VM. Hello world now starts in 6.6 ms (gcon-vm itself 4.2, the rest
-  sh), against 8.0 through gcon and 11.2 for icont's output on iconx.
-  `TestHeaderChoice` checks the order, with stand-ins for gcon and
+  sh), against 8.0 through Gcon and 11.2 for icont's output on iconx.
+  `TestHeaderChoice` checks the order, with stand-ins for `gcon` and
   gcon-vm.
 - **Source** is translated as before, built to a temporary file deleted
   at once (gcon-vm reads it as `/dev/fd/N`, inherited across the
   `exec`, rewound first since opening `/dev/fd/N` shares the offset on
   macOS), and run with `-progname` set to the name the program has from
-  source (`vm.ProgName`). Translation errors are reported by gcon as
+  source (`vm.ProgName`). Translation errors are reported by Gcon as
   before. Nothing is left on disk.
-- **Unix only.** gcon-vm is POSIX C; elsewhere gcon uses this VM.
+- **Unix only.** gcon-vm is POSIX C; elsewhere Gcon uses this VM.
 - **This VM stays**, in-process: the tests run it (it is the reference),
   and `gcon run` falls back to it. `TestExecVM` runs every program test
   from source through the hand-over itself, when `GCONVM` names a
@@ -720,7 +720,7 @@ run` hands programs to it when it is installed (`internal/run`,
 
 ## Strings and Unicode
 
-Icon 9.5 strings are bytes, and a cset is a set of 256 byte values. gcon
+Icon 9.5 strings are bytes, and a cset is a set of 256 byte values. Gcon
 keeps both exactly, and adds UTF-8 as something a program asks for where
 it reads characters: a second kind of cset, the **uset**, whose members
 are code points as well as bytes, and a few `u` functions. Strings stay
@@ -806,10 +806,10 @@ counted characters in text files and had to go back to 9.5's bytes
   `u"..."`. Its csets range over 0 to 0x10FFFF, and it adds `&uset`,
   `uchar` and `ucs()`. Unicode is opt-in there (a `u` prefix, plus
   `$encoding UTF-8`), and mixing a `ucs` with an invalid string is a
-  runtime error. gcon takes its names (`&uset`, `uchar`, the `u`
+  runtime error. Gcon takes its names (`&uset`, `uchar`, the `u`
   prefix) but puts the Unicode in the set, not the string.
 - **Go** strings are bytes; `range`, `unicode/utf8` and the functions
-  that take runes decode where asked. gcon follows its handling of
+  that take runes decode where asked. Gcon follows its handling of
   malformed UTF-8 exactly (below).
 - **Rust's `regex`** matches bytes or text, and Unicode is a property of
   the pattern (`(?-u)` turns it off within a group), not of the
@@ -832,17 +832,17 @@ counted characters in text files and had to go back to 9.5's bytes
   with `seek(f, where(f) - 1)`), and with the 9.5 programs that read a
   file in fixed-size blocks. Mode `"u"` does change `read`, as in iconx:
   only `"\n"` ends a line, where otherwise `"\r"` and `"\r\n"` do too.
-- **Malformed UTF-8 is read as Go reads it**, wherever gcon reads
+- **Malformed UTF-8 is read as Go reads it**, wherever Gcon reads
   characters (uset matching, `uset(s)`, `uord`): each byte
   that does not begin a valid sequence is a one-byte character, which
   `utf8.DecodeRuneInString` reports as U+FFFD. Every character is a
   substring of the original bytes, so `s` is always the concatenation of
   its characters, and any data round-trips unchanged.
-- **UTF-8 is the only text encoding.** gcon does not transcode or guess
+- **UTF-8 is the only text encoding.** Gcon does not transcode or guess
   encodings. A Latin-1 file is bytes, as in 9.5; read with the `u`
   functions, its non-UTF-8 bytes are one-byte characters.
 - Out of scope: normalization, grapheme clusters and display width.
-  gcon's character is the rune, as in Go.
+  Gcon's character is the rune, as in Go.
 
 ### Characters: usets, not counts
 
@@ -853,7 +853,7 @@ the positions the scanning functions produce, are bytes, and none has a
 `u` counterpart. Go makes the same choice: it never indexes or counts by
 code point except through `unicode/utf8`, a package a program calls by
 name. Counting and indexing characters is where Unicode is thorny (is a
-character a code point or a grapheme?), and gcon stays out of it. (The
+character a code point or a grapheme?), and Gcon stays out of it. (The
 first revision's `umove`, `ulen`, `uchars` and `ureads` are withdrawn.)
 
 What reads UTF-8 is a uset given to a scanning function, and that is
@@ -884,7 +884,7 @@ substring cannot:
   first character of its argument and returns its width too, which is
   what makes it usable; a `uord` that read a prefix could return only
   the code point, and the width cannot be recovered from it (an invalid
-  byte gives U+FFFD, whose encoding is 3 bytes). In gcon the width
+  byte gives U+FFFD, whose encoding is 3 bytes). In Gcon the width
   comes from scanning: `tab(any(&uset))` decodes one character and
   moves `&pos` past it, and `uord` of that substring is its value.
   Requiring exactly one character is also `ord`'s rule (`ord("ab")` is
@@ -906,7 +906,7 @@ substring cannot:
   functions; it does not seep into the rest of the language. Go strikes
   the same balance.
 - **No character generator**, as syntax (`u!s`) or as a function:
-  `tab(any(&uset))` in a loop does the job. (gcon has no rune type and
+  `tab(any(&uset))` in a loop does the job. (Gcon has no rune type and
   is not to get one; a generator would have produced substrings.)
 - **`len` and `readrunes` are removed** (they were in v0.2.0): counting
   code points is not meaningful, as Go recognises by giving it no
@@ -978,7 +978,7 @@ members of `c`.
 which converts between types only when told to, there is no silent
 conversion from a cset to a uset or from a uset to a cset. `uset(c)` is
 the one conversion, from a cset to a uset; nothing converts a uset to a
-cset. Where the two meet, gcon raises run-time error 128, "cset and uset
+cset. Where the two meet, Gcon raises run-time error 128, "cset and uset
 mixed" (127, "uset expected", is a value that cannot be a uset), and
 `gcon vet` reports the mixes it can be sure of (below). Strings still
 convert to whichever is wanted, as they convert to csets in 9.5.
@@ -1050,11 +1050,11 @@ convert to whichever is wanted, as they convert to csets in 9.5.
   - Classes combine with the uset algebra (`++`, `--`, `**`, `~`); a
     class is just a set of code points (not grapheme clusters, case
     folding or normalization).
-  - **gcon's own library.** `uclass.icn` is the first file of
-    `lib/gcon`, gcon's library beside the IPL's, searched after
+  - **Gcon's own library.** `uclass.icn` is the first file of
+    `lib/gcon`, Gcon's library beside the IPL's, searched after
     `lib/ipl/procs` and `lib/ipl/gprocs` so that it never shadows an IPL
     file (no IPL file is named `uclass`).
-  - **Generated when gcon is built.** `build.sh` generates
+  - **Generated when Gcon is built.** `build.sh` generates
     `lib/gcon/uclass.icn` from the Unicode Character Database: general
     categories from `UnicodeData.txt`, scripts from `Scripts.txt`. Both
     are vendored in `deps/unicode/` at the version gcon-vm's printable
@@ -1108,7 +1108,7 @@ convert to whichever is wanted, as they convert to csets in 9.5.
   `image()` of strings holding valid printable UTF-8 (none in the
   reference outputs), the `\u`/`\U` escapes, `..` in cset literals, and
   the new built-in names (hidden by declarations; none in the corpus).
-- **gcon v0.2.0 programs** that relied on text strings change: `move`,
+- **Gcon v0.2.0 programs** that relied on text strings change: `move`,
   `!s`, `ord`, `map`, `reverse`, the padding widths and cset matching
   read bytes; `'é'` is two byte members; `runes`, `bytes` and `&uset`
   are gone. The fix is to say UTF-8 where it is meant: a uset in the
@@ -1177,7 +1177,7 @@ takes the same time (the ASCII fast path).
 
 Order of work: strings and csets in gcon-vm (done, 2026-11-27); then
 the uset beside the cset, with `u'...'` in the front end, `gcon fmt`,
-`gcon lsp` (and its documentation of gcon's additions) and
+`gcon lsp` (and its documentation of Gcon's additions) and
 tree-sitter-gcon; then the audit of the byte paths, with measurements.
 
 ## Linking
@@ -1201,7 +1201,7 @@ two files: a single file with its global section first serves as well
 
 ### Decision (2026-11-25): link from source, no build files
 
-gcon has no ucode (its bytecode is its own) and translates quickly, so
+Gcon has no ucode (its bytecode is its own) and translates quickly, so
 `link` works on source: `link foo` finds `foo.icn`, searching the
 current directory and then the directories of `IPATH` (separated by
 spaces or colons), as icont's `pathfind` searches for `foo.u1`; `link
@@ -1214,8 +1214,8 @@ their contents, one file per unit with its global section first; that
 is an optimisation for later, not a format to design now. icont's rules
 carry over: inconsistent redeclarations across files are errors, and
 procedures nothing reaches and nothing declares invocable are dropped.
-The Icon Program Library is used from its source, which gcon finds in
-its root after `IPATH` (see "Decision: a gcon root, as GOROOT").
+The Icon Program Library is used from its source, which Gcon finds in
+its root after `IPATH` (see "Decision: a Gcon root, as GOROOT").
 
 Implemented in `run.TranslateLinked`: files are read breadth first from
 the main file, each once (by absolute path), so cycles are harmless. A
@@ -1241,16 +1241,16 @@ icont's linker gives only the file. Program tests link files from
 executable, and that is its only artefact: no self-contained binary.
 Programs are meant to be invocable files in an Icon/gcon environment,
 not binaries to distribute, and people coming from Icon already have
-an installation and expect this. (A self-contained binary, gcon with
+an installation and expect this. (A self-contained binary, Gcon with
 the program appended, was considered: one file and no dependence on an
-installed gcon, but a few MB per program, built per platform, and on
+installed Gcon, but a few MB per program, built per platform, and on
 macOS appending to the binary fails strict code-signing validation.)
 
-The file follows icont's: a `#!/bin/sh` header that finds gcon and
+The file follows icont's: a `#!/bin/sh` header that finds `gcon` and
 execs it on the file with the arguments, then a marker line, then the
 program. icont's header tries `$ICONX`, then iconx beside the program,
-then the iconx it was built with, then `iconx` on `PATH`; gcon's tries
-`$GCON`, gcon beside the program, the gcon that built it, then `gcon`
+then the iconx it was built with, then `iconx` on `PATH`; Gcon's tries
+`$GCON`, `gcon` beside the program, the `gcon` that built it, then `gcon`
 on `PATH`. `&progname` is the file's name as invoked (`$0`), as in
 iconx.
 
@@ -1259,7 +1259,7 @@ icont: a serialisation of the whole compiled `vm.Program` (code,
 constants, globals, records, procedures), the counterpart of icode,
 written once and only when asked for. Built-in functions and operators
 are recorded by name, not as Go function values. The format carries a
-version; gcon refuses a file whose version it does not read, saying to
+version; Gcon refuses a file whose version it does not read, saying to
 rebuild it, as a newer iconx refuses old icode. (Bundling the linked
 sources instead, translated at each run, was considered and set aside.)
 
@@ -1271,7 +1271,7 @@ built program and 92 ms for icont to build it; a small program
 translates in 2 ms. So running from source (an executable `.icn` with a
 `#!/usr/bin/env gcon` first line, which is an Icon comment) would be
 fast enough. The snapshot was kept for what it isolates: a built
-program depends only on gcon, not on the application's source tree and
+program depends only on Gcon, not on the application's source tree and
 the library sources (`IPATH`, `LPATH`) being present and unchanged at
 run time. Defining the serialisation is a one-off cost.
 
@@ -1283,22 +1283,22 @@ source) in full. The file is the shell header, the marker line
 
 - **Magic** `\x89GCN\r\n\x1a\n` (PNG's device: a non-ASCII first
   byte and line endings that a text-mode copy would mangle), then the
-  **format version**, a varint. gcon reads exactly one version; any
-  other is refused with "program built by a newer (older) gcon ...:
+  **format version**, a varint. Gcon reads exactly one version; any
+  other is refused with "program built by a newer (older) Gcon ...:
   rebuild it", as iconx refuses icode of another version. A file is
   recognised as built when it starts `#!` and a line holding the
   marker is followed by the magic, so `gcon run` takes either source
   or a built program, and the header simply runs `gcon run "$0" "$@"`.
 - **Sections**, each a four-byte tag, a varint length and that many
   bytes. As in PNG, a tag whose first letter is upper case is
-  required: a gcon that does not know it refuses the file ("built by
-  a newer gcon?"). One with a lower-case first letter may be skipped,
+  required: a Gcon that does not know it refuses the file ("built by
+  a newer Gcon?"). One with a lower-case first letter may be skipped,
   so information can be added later without invalidating built
   programs. The required sections come in a fixed order:
   `Bltn` (builtins), `Recd` (record types), `Proc` (procedures),
   `Cnst` (constants), `Glob` (globals with their names and initial
   values, then main and the invocable set). The optional `info`
-  section holds the build information: gcon's version and the
+  section holds the build information: Gcon's version and the
   preprocessor's predefined symbols, which are decided when the
   program is built (a program built without `_GRAPHICS` keeps its
   non-graphics branches). The last section, `End `, holds the CRC-32
@@ -1310,7 +1310,7 @@ source) in full. The file is the shell header, the marker line
   Decoding a pair gives the very same `*Builtin` (the VM compares
   some by identity), so `FieldOp`, `Unsupported` and `AsgnOp` are
   memoised, one per name. An unknown name is refused at load ("built
-  by a newer gcon?"), not left to fail when called.
+  by a newer Gcon?"), not left to fail when called.
 - **Values** are tagged: null, integer, large integer (sign and
   magnitude), real (its IEEE bits, so exact), string (its bytes),
   cset (its 256-bit bitmap), uset (its bitmap and code-point ranges),
@@ -1354,9 +1354,9 @@ does (`-o` names it), executable where readable. `gcon dis file` lists
 constants, globals and each procedure's instructions, with builtins by
 reference (`[op u-]`) and every field shown.
 
-### Decision (2026-11-25): a gcon root, as GOROOT
+### Decision (2026-11-25): a Gcon root, as GOROOT
 
-The IPL ships with gcon as source files in a root directory, as Go's
+The IPL ships with Gcon as source files in a root directory, as Go's
 standard library ships in GOROOT, not embedded in the binary: its
 sources stay there to read, learn from and copy, and the language
 server can link to them. This is icont's arrangement made explicit:
@@ -1375,7 +1375,7 @@ $GCONROOT/
 ```
 
 `lib/ipl` keeps the IPL's own directory names, and leaves room for a
-library of gcon's own beside it.
+library of Gcon's own beside it.
 
 **Search.** `link` searches the current directory, then `IPATH`, then
 `lib/ipl/procs` and `lib/ipl/gprocs`; `$include` searches the current
@@ -1390,7 +1390,7 @@ matters only when building, never when running.
 2. The directory above the executable, after following symbolic links,
    if it holds `lib/ipl/procs`: an unpacked release, a symbolic link
    such as `/usr/local/bin/gcon`, or a repository checkout, which is
-   itself a root once gcon is built into it (`go build -o bin/gcon
+   itself a root once Gcon is built into it (`go build -o bin/gcon
    ./cmd/gcon`), as Go's source tree builds `bin/go`.
 3. A default set at link time, for packagers who put the binary and
    the library apart: `-ldflags "-X
@@ -1437,7 +1437,7 @@ substitution of whole identifiers outside literals, numbers and
 comments, rescanned, never within its own definition; icont's error
 messages. Every file is preprocessed, each on its own from the
 predefined symbols, as icont translates each file on its own. The
-predefined symbols are `_V9` and one for each of gcon's `&features`
+predefined symbols are `_V9` and one for each of Gcon's `&features`
 (`_UNIX`, and `_MACINTOSH` on macOS, as iconx's macOS build defines it;
 `_ASCII`, `_CO_EXPRESSIONS`, `_KEYBOARD_FUNCTIONS`, `_LARGE_INTEGERS`,
 `_PIPES`, `_SYSTEM_FUNCTION`), each "1". `$include` searches the
@@ -1457,7 +1457,7 @@ is a preprocessor symbol for name resolution (`sema.File.Preprocessed`).
 Verified: `ipp`'s `TestOracle` compares the output with `icont -E` on
 every corpus file icont can preprocess (1188 of 1203), ignoring blank
 lines and icont's `#line` markers, adding the two predefined symbols of
-the reference icont that gcon lacks (dynamic loading, external values);
+the reference icont that Gcon lacks (dynamic loading, external values);
 `testdata/preproc.icn` checks expansion, conditionals, `$include` within
 a procedure, `$line`, the predefined symbols and digraphs against iconx.
 
@@ -1518,16 +1518,16 @@ a procedure, `$line`, the predefined symbols and digraphs against iconx.
   exit code itself: iconx returns `(pclose(fp) >> 8) & 0377` (fsys.r).
   Commands run as C's `system` and `popen` run them: `/bin/sh` with
   `argv[0]` "sh" (so the shell's messages begin "sh:"), inheriting
-  gcon's standard streams; a command read through a pipe reads gcon's
-  standard input. gcon passes its streams to a command as the
+  Gcon's standard streams; a command read through a pipe reads Gcon's
+  standard input. Gcon passes its streams to a command as the
   operating-system files they are, so a command's output never depends
-  on gcon relaying it; only when gcon was given other streams (as in
+  on Gcon relaying it; only when Gcon was given other streams (as in
   tests) does it relay them, and a pipe command then gets empty input,
   since a reader cannot be shared. Open files are flushed when the
   program ends, as C's `exit` does, and pipes written to are closed so
-  their commands see the end of their input and finish; gcon waits for
+  their commands see the end of their input and finish; Gcon waits for
   them only if it is relaying their output (iconx does not wait).
-- The evaluation stack (`push` in `internal/vm/vm.go`). gcon's frames
+- The evaluation stack (`push` in `internal/vm/vm.go`). Gcon's frames
   are on the heap, so recursion is bounded only by memory; runaway
   recursion stops, as in iconx, with run-time error 301, which `&error`
   never converts (though `runerr(301)` is converted, as any error is).
@@ -1538,7 +1538,7 @@ a procedure, `$line`, the predefined symbols and digraphs against iconx.
   to within two calls for simple recursion (55554 calls of a procedure
   with no parameters or locals, 45454 with one of each, 29412 with three
   and five). iconx's stack also holds expression temporaries, which the
-  model leaves out, so where those are deep gcon goes deeper (the IPL's
+  model leaves out, so where those are deep Gcon goes deeper (the IPL's
   `lisp` overflows at 45455 calls, iconx at 13158). A suspended frame
   is not counted, as it is not in `&level`.
 - Tables and sets (`internal/vm/structs.go`) are insertion-ordered maps
@@ -1561,11 +1561,11 @@ a procedure, `$line`, the predefined symbols and digraphs against iconx.
   follows iconx's `anycmp` order (null, integer, real, string, cset,
   file, co-expression, procedure, list, set, table, record; structures
   by serial number, records by type name then serial) and `sortf` its
-  `nthcmp`. gcon sorts stably where iconx uses `qsort`, so elements that
+  `nthcmp`. Gcon sorts stably where iconx uses `qsort`, so elements that
   compare equal (such as table entries with equal values in `sort(t, 2)`)
   may come out in a different order.
 - Output: iconx flushes the file at the end of every `write` call, so
-  output from an interrupted call appears after the error message. gcon
+  output from an interrupted call appears after the error message. Gcon
   keeps standard output buffered, keeps an interrupted call's output for
   after the error message, and flushes
   standard output whenever something else could observe it: writing to
@@ -1588,7 +1588,7 @@ a procedure, `$line`, the predefined symbols and digraphs against iconx.
   `Record`. Field references are looked up by name when they run, so
   `x.f` works on any record type with a field `f`; `r[i]` and `r["f"]`
   subscript by position or field name.
-- gcon's extra built-ins (`uchar`, `uord`, `uset`, `uvalid`) and the
+- Gcon's extra built-ins (`uchar`, `uord`, `uset`, `uvalid`) and the
   keyword `&uset` are in the catalogue marked `Gcon` ("Strings and
   Unicode"; `runes`, `bytes`, `len` and `readrunes` were removed on
   2026-11-27). Like any built-in, they are hidden by a declaration of
@@ -1630,7 +1630,7 @@ a procedure, `$line`, the predefined symbols and digraphs against iconx.
   `"<->"`) receive their arguments as variables, as iconx's operators
   with undereferenced arguments do (`Builtin.NoDeref`).
 - `&line` is the line of the keyword; `&file` is the source path as
-  given to gcon, as iconx's is the path given to icont. iconx looks the
+  given to Gcon, as iconx's is the path given to icont. iconx looks the
   line up from its instruction pointer after the keyword instruction,
   so when icont's line table starts a new entry right there (it emits
   one for nearly every node whose line or column differs), `&line`
@@ -1664,7 +1664,7 @@ a procedure, `$line`, the predefined symbols and digraphs against iconx.
   - `iand`, `ior`, `ixor`, `icom` and `ishift` act on two's complement
     values of unbounded width (`ishift(i, j)` is `i * 2^j` rounded down),
     which is what iconx's results are for large and small values alike.
-  `&features` lists the features gcon has, with iconx's names. `lgint`, `overflow`, `arith`,
+  `&features` lists the features Gcon has, with iconx's names. `lgint`, `overflow`, `arith`,
   `radix` and `over` pass; `large` matches except for its `&trace`
   output. `testdata/bigint.icn` checks the edge cases against iconx.
 - `?x` and `&random` (`internal/vm/random.go`) reproduce iconx's
@@ -1755,7 +1755,7 @@ a procedure, `$line`, the predefined symbols and digraphs against iconx.
   what string invocation would (`i` operands, default 1; `i = 0` only
   built-in functions); `args(p)` is iconx's `nparam`, taken for built-in
   functions from iconx's own reports (a variadic function with n fixed
-  parameters gives -(n+1)); `function()` generates gcon's built-in
+  parameters gives -(n+1)); `function()` generates Gcon's built-in
   function names. A call of a built-in written in the program has its
   arguments fitted to the parameters as iconx's `invoke` does (padded
   with `&null`, extras dropped), so `"~==="()` or `image()` work.
@@ -1797,7 +1797,7 @@ a procedure, `$line`, the predefined symbols and digraphs against iconx.
   codes (`&lpress` .. `&resize`) are iconx's constants; `&x`, `&y`,
   `&row`, `&col`, `&interval`, `&control`, `&shift`, `&meta`,
   `&window` and `&column` fail, as in an Icon without graphics.
-  The storage keywords describe iconx's regions, which gcon does not
+  The storage keywords describe iconx's regions, which Gcon does not
   have: `&collections` counts `collect()` calls as iconx counts
   collections (total, and by region), which are the only collections
   in a program that does not fill iconx's regions; `&regions` gives
@@ -1811,7 +1811,7 @@ a procedure, `$line`, the predefined symbols and digraphs against iconx.
 
 ### Deliberate simplifications (to be removed)
 
-- `&storage` is zeros, and `&regions` fixed: gcon's one heap has no
+- `&storage` is zeros, and `&regions` fixed: Gcon's one heap has no
   regions. `&allocated` counts what is allocated since the start
   (strings and big integers' digits as the string region, the rest as
   blocks), so the IPL's `large()` works; `ilib` differs from iconx
@@ -1819,7 +1819,7 @@ a procedure, `$line`, the predefined symbols and digraphs against iconx.
 
 ## Verification
 
-- Oracle: `icon/tests/general` has 99 `.icn`/`.std` pairs. gcon's
+- Oracle: `icon/tests/general` has 99 `.icn`/`.std` pairs. Gcon's
   conformance test runs each program and compares its output with the
   `.std` file. Programs that do not yet pass are listed explicitly, so
   progress shows up in the diff.
@@ -1832,7 +1832,7 @@ a procedure, `$line`, the predefined symbols and digraphs against iconx.
   shows them.
 - Differential testing (`tools/difftest`): for programs with no
   recorded output, such as the IPL's, each program is built by icont
-  and by gcon and run under both, as `./NAME` in its own directory, with
+  and by Gcon and run under both, as `./NAME` in its own directory, with
   its own source as standard input; output, standard error and exit
   status are compared, and a program whose iconx output differs between
   two runs is set aside as nondeterministic.
@@ -1845,7 +1845,7 @@ a procedure, `$line`, the predefined symbols and digraphs against iconx.
   The first run found five bugs, now fixed and covered by program tests:
   a pipe's `close` returned the wait status, not the exit code; a
   command read through a pipe got no standard input; a pipe left open
-  at exit lost its command's output (gcon relayed the command's output
+  at exit lost its command's output (Gcon relayed the command's output
   and died first); commands ran as "/bin/sh", not "sh"; and runaway
   recursion had no limit (error 301). Tracebacks also now show a
   built-in function's arguments adjusted to its arity, and the
@@ -1855,7 +1855,7 @@ a procedure, `$line`, the predefined symbols and digraphs against iconx.
   | Program | Difference |
   |---|---|
   | `gftrace` | prints `&version` |
-  | `ifncsgen` | `function()` includes gcon's Unicode functions and not `loadfunc` |
+  | `ifncsgen` | `function()` includes Gcon's Unicode functions and not `loadfunc` |
   | `lisp` | overflows the stack at another depth (see "The evaluation stack") |
   | `normalize` | iconx gives `p ! L` the previous location: icont's `N_Apply` emits none (tcode.c); not copied |
   | `when` | parses `ls -al` columns of its own directory, whose built files differ in size |
@@ -1870,7 +1870,7 @@ a procedure, `$line`, the predefined symbols and digraphs against iconx.
   IPL programs above at a median 1.07 times iconx's time, being
   dominated by start-up and I/O. `micro.icn` (from Jcon), which times
   each of 108 operations in a loop, shows where the time goes:
-  - gcon wins co-expression activation by two orders of magnitude (21
+  - Gcon wins co-expression activation by two orders of magnitude (21
     ns to 2611: iconx on macOS switches co-expressions through
     threads), and conjunction (`1&2&3&4&5`, compiled to jumps);
   - I/O, global access and real conversion are level;
@@ -1933,8 +1933,8 @@ a procedure, `$line`, the predefined symbols and digraphs against iconx.
 4. Grow the value types and built-ins, driven by the conformance suite.
 5. `gcon build` producing an icont-style script. Done (see "The built
    program's format"), with `gcon dis`.
-6. The IPL in a gcon root, found as Go finds GOROOT. Done (see
-   "Decision: a gcon root, as GOROOT"), with `gcon env`.
+6. The IPL in a Gcon root, found as Go finds GOROOT. Done (see
+   "Decision: a Gcon root, as GOROOT"), with `gcon env`.
 7. A differential test of IPL programs against iconx. Done: the IPL's
    programs against recorded runs (`vm/tests/expected.sh`), and its
    graphics programs against icon-sdl's iconx (`vm/tests/iconx.sh`).
@@ -1944,7 +1944,7 @@ a procedure, `$line`, the predefined symbols and digraphs against iconx.
 9. A distribution section, with packaging when graphics arrives.
 10. gcon-vm, the VM in C (see "Decision: the VM in C"), reading the
     built-program format; the Go VM stays as the reference meanwhile.
-11. gcon in C (see "Decision: gcon in C"). Done: the front end
+11. Gcon in C (see "Decision: Gcon in C"). Done: the front end
     (lexer, preprocessor, parser, name resolution, compiler and
     encoder), the driver, `gcon fmt` and the language server; then the
     Go removed, all at once ("Done: the Go removed"). Then `gcon vet`;
@@ -1956,7 +1956,7 @@ a procedure, `$line`, the predefined symbols and digraphs against iconx.
     bug fixed, the IPL's graphics programs matching icon-sdl's iconx,
     Arizona's bin programs and C functions shipped, the Zed and VS Code
     extensions and the tree-sitter grammar ("Decision: editor support
-    is forked into gcon"). Released as v0.1.0 (2026-11-26).
+    is forked into Gcon"). Released as v0.1.0 (2026-11-26).
 
 Next, after v0.1.0 (Sean, 2026-11-26):
 
@@ -2009,7 +2009,7 @@ case (Sean, 2026-11-27). As Go, two commands:
   (every variable a user may set, and the search order), `library`
   (IPATH, LPATH, the root), `icon95` (the differences from Icon 9.5),
   `unicode`, `graphics`. Plain text files in the tree, compiled into
-  gcon by an sh/awk generator, so help is always the installed
+  Gcon by an sh/awk generator, so help is always the installed
   version's and works without a root. Variables for developers and
   tests (GCONVMDEBUG, GCONVMSTRESS, ICONSDL_TEST_*, LSPCOMPLETE) are
   in design/development.md, not in help.
