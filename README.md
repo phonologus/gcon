@@ -109,8 +109,8 @@ a package and install it:
 ```sh
 cd editors/vscode
 npm install
-npm run package                     # writes gcon-0.3.0.vsix
-code --install-extension gcon-0.3.0.vsix
+npm run package                     # writes gcon-0.3.1.vsix
+code --install-extension gcon-0.3.1.vsix
 ```
 
 Formatting on save is on by default for Icon files. The settings
