@@ -1971,8 +1971,10 @@ Next, after v0.1.0 (Sean, 2026-11-26):
   grammar at 0.3.0 too: a minor version, by Go's rules, since programs
   that relied on v0.2.0's text strings or its removed built-ins must
   adapt ("Strings and Unicode").
-- Linux: the display server has package lists, but gcon has not been
-  built or tested there.
+- Linux: built from a fresh checkout and run on Fedora (gcc, x86_64;
+  Sean, 2026-11-27), phwbi included. gcc's two warnings (lto-wrapper,
+  scan.c) fixed. Not yet run there: the test suites, and a
+  measurement against iconx on the same machine.
 - Strings are bytes (decision 2026-11-27, "Strings and Unicode"): done
   (2026-11-27): gcon-vm without units, 9.5's csets, usets beside them
   through the front end, `gcon fmt`, `gcon lsp`, `gcon vet`,
