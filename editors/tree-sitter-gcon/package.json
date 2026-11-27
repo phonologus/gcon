@@ -1,6 +1,6 @@
 {
   "name": "tree-sitter-gcon",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Icon grammar for tree-sitter, as gcon reads Icon",
   "license": "MIT",
   "repository": {
