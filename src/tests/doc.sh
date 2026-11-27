@@ -15,6 +15,8 @@
 #   - The reference: an entry for every built-in function and keyword of
 #     src/builtin.inc (but those not provided), and no others.
 #   - Lookup: a topic, its last element, a file; an unknown name.
+#   - The IPL: gcon doc ipl, a file and a procedure from their header
+#     comments, the candidates marked; every candidate a file of lib/ipl.
 #   - The browser: $BROWSER is given the page's file URL; a browser
 #     that fails, or no HTML built, gives the page as text.
 #
@@ -178,6 +180,20 @@ if [ -x "$here/libexec/gcon-vm" ]; then
 else
 	echo "doc: no libexec/gcon-vm (run build.sh): examples not run"
 fi
+
+# The IPL: shown apart from the tree, from its header comments; the
+# candidates for the standard library marked; every candidate a file.
+checks=$((checks + 6))
+"$G" doc ipl | grep -q '^procs/strings  *candidate  *Procedures for manipulating strings' ||
+	problem "gcon doc ipl: procs/strings not listed as a candidate"
+"$G" doc -text WOpen | grep -q "candidate for Gcon's standard library" && "$G" doc -text WOpen | grep -q 'ipl/gprocs/wopen' ||
+	problem "gcon doc WOpen: not wopen.icn's procedure, marked as a candidate"
+"$G" doc -text ipl/bitint | grep -q 'From the Icon Program Library' && ! "$G" doc -text ipl/bitint | grep -q 'candidate' ||
+	problem "gcon doc ipl/bitint: not the IPL's file, unmarked"
+"$G" doc -text graphics | head -1 | grep -qx 'Graphics' || problem "gcon doc graphics: not the guide's page"
+"$G" doc -check 2>&1 | grep -q 'ipl' && problem "gcon doc -check looks at the IPL"
+bad=$(grep -v '^#' "$here/doc/ipl-candidates.txt" | while read -r f; do [ -f "$here/lib/ipl/$f.icn" ] || echo "$f"; done)
+[ -z "$bad" ] || problem "doc/ipl-candidates.txt names files that are not in lib/ipl: $bad"
 
 # The browser, in a root of its own, its HTML built.
 root=$tmp/root

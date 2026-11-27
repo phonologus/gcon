@@ -1,0 +1,53 @@
+# Candidates for Gcon's standard library: files of the Icon Program
+# Library (lib/ipl) that gcon doc marks "candidate for Gcon's standard
+# library" (gcon doc ipl lists them all). A file per line, relative to
+# lib/ipl; # begins a comment. design/design.md, "What of the IPL is
+# essential".
+#
+# First made (2026-11-27) as what Gcon's own distribution needs: the
+# library files that the programs it ships (lib/ipl/gprogs, vib) and
+# link cfunc depend on, from tools/iplclosure.sh. A start, to be
+# curated: what belongs in Gcon's standard library is still to decide.
+gprocs/bevel
+gprocs/button
+gprocs/color
+gprocs/dialog
+gprocs/drag
+gprocs/dsetup
+gprocs/enqueue
+gprocs/evmux
+gprocs/gpxlib
+gprocs/gpxop
+gprocs/graphics
+gprocs/imscolor
+gprocs/interact
+gprocs/optwindw
+gprocs/vbuttons
+gprocs/vcoupler
+gprocs/vdialog
+gprocs/vframe
+gprocs/vidgets
+gprocs/viface
+gprocs/vlist
+gprocs/vmenu
+gprocs/vpane
+gprocs/vradio
+gprocs/vscroll
+gprocs/vsetup
+gprocs/vslider
+gprocs/vstd
+gprocs/vstyle
+gprocs/vtext
+gprocs/window
+gprocs/wopen
+procs/cfunc
+procs/equiv
+procs/factors
+procs/hexcvt
+procs/indices
+procs/io
+procs/lists
+procs/numbers
+procs/options
+procs/random
+procs/strings

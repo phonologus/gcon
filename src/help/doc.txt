@@ -1,5 +1,6 @@
 usage: gcon doc [-raw | -html | -man | -text] [-path] [name]
        gcon doc -list
+       gcon doc ipl
        gcon doc -check
        gcon doc -test [name]
        gcon doc -build [-o dir]
@@ -16,6 +17,13 @@ one (protocol), a built-in function or keyword with an entry in the
 reference (find, '&subject'), or a Markdown file's path. An entry is
 shown alone, or opened at its place in its page. The help pages are
 help/index and help/NAME (help/run). gcon doc -list lists the topics.
+
+When nothing in the tree has the name, doc looks in the Icon Program
+Library: a file (strings) or a procedure (WOpen), or explicitly
+ipl/strings, shown from its header comment as Arizona wrote it, apart
+from Gcon's own pages. gcon doc ipl lists its files; those marked
+"candidate" are candidates for Gcon's standard library
+(doc/ipl-candidates.txt).
 
 The flags are:
 

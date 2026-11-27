@@ -2068,6 +2068,23 @@ What that asks of the tree, from the start:
   terminal and to a file and anchor in HTML.
 - Nothing that only one reader can show.
 
+### What of the IPL is essential (2026-11-27)
+
+Gcon ships the IPL's library so that Icon programs run unchanged, but
+much of it is of its time, and Gcon's own standard library is still to
+decide (Sean). What Gcon's distribution itself needs is measured by
+`tools/iplclosure.sh`: the files that the programs it builds and ships
+(`lib/ipl/gprogs`, vib) and `link cfunc` link and include, to the end.
+On 2026-11-27, 43 library files of the 392 (`procs` 11 of 252, `gprocs`
+32 of 140; mostly vib's interface toolkit, `vsetup`, `vidgets` and the
+v-files, which programs vib makes link too) and 2 of `gincl`'s 5.
+
+That set is the first list of candidates for Gcon's standard library,
+`doc/ipl-candidates.txt`, which `gcon doc` marks; it is to be curated,
+not taken as the answer. A later sprint: what Gcon's standard library
+should hold (the candidates, things Gcon itself would add, such as
+`uclass`), what of the IPL stays for compatibility, and what can go.
+
 ### The reference, and copyright
 
 Icon's source tree declares itself public domain (its README),
@@ -2130,7 +2147,14 @@ command appears in its help page; help output has golden files, as
    `gcon doc -test`; doc.sh checks the reference is complete. Hover
    shows an entry without its examples. Found on the way: the to-by
    operator's name (`image(proc("...", 3))`), fixed to iconx's.
-5. IPL procedures from their header comments.
+5. IPL procedures from their header comments. Done (2026-11-27), but
+   not anointed (Sean): the IPL is shown apart from the tree, its header
+   comments as Arizona wrote them (`gcon doc ipl`, `gcon doc ipl/strings`,
+   `gcon doc WOpen` when the tree has no such name), not in the HTML,
+   the search or `-list`. Candidates for Gcon's standard library carry a
+   banner, as rustdoc marks nightly items (Sean): the list is
+   `doc/ipl-candidates.txt`; see "What of the IPL is essential". Hover
+   on a procedure of `lib/gcon` with a reference entry shows the entry.
 6. Doc comments (Sean, 2026-11-27), as Go's: lightweight and
    heuristic, not Rust's full Markdown. The comment lines directly
    before a procedure, record or global (or the IPL's `#:` line after

@@ -1854,6 +1854,21 @@ static char *symboldoc(Server *s, Symbol *sym, PosCtx *c) {
 		break;
 	}
 	case S_PROCEDURE: {
+		/* a procedure of Gcon's own library with a reference entry */
+		Doc *pdoc = sym->file ? docof(sym->file) : NULL;
+		const char *ref = docref_entry(s->docref, sym->name);
+		if (ref && pdoc && s->ws.root) {
+			char *lib = pathjoin(s->ws.root, "lib/gcon/");
+			const char *base = strrchr(pdoc->path, '/');
+			if (base && !strncmp(pathabs(pdoc->path), pathabs(lib), strlen(pathabs(lib)))) {
+				addpart(&parts, xstrndup(ref, strlen(ref)));
+				Buf k = {0};
+				bufprintf(&k, "Gcon library procedure (`link %.*s`) \xc2\xb7 `gcon doc %s`",
+					(int)(strlen(base + 1) - 4), base + 1, sym->name);
+				addpart(&parts, k.b);
+				break;
+			}
+		}
 		Buf code = {0};
 		bufprintf(&code, "procedure %s", procsignature(docof(sym->file), sym->node));
 		codeblock(&b, code.b);

@@ -170,7 +170,7 @@ static MdDoc *parsepage(const Page *p) {
 /* lookup finds what a name means: a topic; else a reference entry
  * ("find", "&subject"); else the page whose topic's last element it is
  * ("protocol" for "internals/protocol"), trying the guide before help
- * and help before the reference. */
+ * and help before the reference. A page of NULL: nothing in the tree. */
 static Target lookup(Tree *t, const char *name) {
 	char *nm = xstrndup(name, strlen(name));
 	if (hassuffix(nm, ".md"))
@@ -225,8 +225,7 @@ static Target lookup(Tree *t, const char *name) {
 			exit(2);
 		}
 	}
-	fprintf(stderr, "gcon doc %s: no such page or entry; gcon doc -list lists the pages\n", name);
-	exit(2);
+	return (Target){NULL, NULL, -1}; /* nothing in the tree: the caller tries the IPL */
 }
 
 /* entryend is the block after entry e's last: the next heading of its
@@ -716,6 +715,217 @@ static int build(Tree *t, MdDoc **docs, const char *outdir) {
 }
 
 /* ------------------------------------------------------------------ */
+/* The Icon Program Library */
+
+/* The IPL is shipped for compatibility, not documented by Gcon: its
+ * files' header comments are shown as Arizona wrote them, apart from
+ * the tree (not in the HTML, the search or -list). design/design.md,
+ * "Documentation". */
+static const char *const ipldirs[] = {"lib/ipl/procs", "lib/ipl/gprocs"};
+enum { NIplDirs = sizeof ipldirs / sizeof ipldirs[0] };
+
+static const char iplnote[] =
+	"From the Icon Program Library, as Arizona wrote it (it is in the public "
+	"domain). It is not part of Gcon's reference: Gcon ships the library so "
+	"that Icon programs run unchanged.";
+
+/* iplheader is a file's header comment: its leading comment lines, the
+ * # taken off, a rule of #s as a blank line, tabs expanded. */
+static char *iplheader(const char *src) {
+	Buf b = {0};
+	for (const char *s = src; *s == '#';) {
+		const char *nl = strchr(s, '\n');
+		size_t n = nl ? (size_t)(nl - s) : strlen(s);
+		size_t k = 0;
+		while (k < n && s[k] == '#')
+			k++;
+		if (k >= 10)
+			bufputc(&b, '\n');
+		else {
+			int col = 0;
+			for (size_t i = 1; i < n; i++) {
+				if (s[i] == '\t') {
+					do
+						bufputc(&b, ' '), col++;
+					while (col % 8);
+				} else if (s[i] != '\r')
+					bufputc(&b, s[i]), col++;
+			}
+			while (b.n && b.b[b.n - 1] == ' ')
+				b.b[--b.n] = 0;
+			bufputc(&b, '\n');
+		}
+		s += n + (nl ? 1 : 0);
+	}
+	/* blank lines: none at the ends, at most one in a row */
+	Buf c = {0};
+	for (size_t i = 0; i < b.n; i++) {
+		if (b.b[i] == '\n' && (c.n == 0 || (c.n >= 2 && c.b[c.n - 1] == '\n' && c.b[c.n - 2] == '\n')))
+			continue;
+		bufputc(&c, b.b[i]);
+	}
+	while (c.n >= 2 && c.b[c.n - 1] == '\n' && c.b[c.n - 2] == '\n')
+		c.b[--c.n] = 0;
+	return c.b ? c.b : "";
+}
+
+/* iplprocs lists a file's procedure headings, with their "#:" summaries. */
+static char *iplprocs(const char *src) {
+	Buf b = {0};
+	for (const char *s = src; *s;) {
+		const char *nl = strchr(s, '\n');
+		size_t n = nl ? (size_t)(nl - s) : strlen(s);
+		if (n > 10 && !strncmp(s, "procedure ", 10)) {
+			bufadd(&b, s, n);
+			while (b.n && (b.b[b.n - 1] == ' ' || b.b[b.n - 1] == '\t' || b.b[b.n - 1] == '\r'))
+				b.b[--b.n] = 0;
+			bufputc(&b, '\n');
+		}
+		s += n + (nl ? 1 : 0);
+	}
+	return b.b;
+}
+
+static char *subject(const char *src) {
+	const char *s = strstr(src, "Subject:");
+	if (!s || s - src > 2000)
+		return "";
+	s += 8;
+	while (*s == ' ' || *s == '\t')
+		s++;
+	const char *e = strchr(s, '\n');
+	return xstrndup(s, e ? (size_t)(e - s) : strlen(s));
+}
+
+static int cmpstr(const void *a, const void *b) { return strcmp(*(char *const *)a, *(char *const *)b); }
+
+typedef VEC(char *) StrList;
+
+/* iplfiles lists the IPL's files, "procs/strings", sorted. */
+static StrList iplfiles(const char *root) {
+	StrList v = {0};
+	for (int i = 0; i < NIplDirs; i++) {
+		DIR *d = opendir(pathjoin(root, ipldirs[i]));
+		if (!d)
+			continue;
+		struct dirent *e;
+		while ((e = readdir(d)))
+			if (hassuffix(e->d_name, ".icn")) {
+				Buf f = {0};
+				bufprintf(&f, "%s/%.*s", ipldirs[i] + 8, (int)strlen(e->d_name) - 4, e->d_name);
+				VPUSH(v, f.b);
+			}
+		closedir(d);
+	}
+	qsort(v.v, v.n, sizeof *v.v, cmpstr);
+	return v;
+}
+
+/* candidate reports whether the IPL file ("procs/strings") is on the
+ * list of candidates for Gcon's standard library, doc/ipl-candidates.txt
+ * (a file per line; # begins a comment). */
+static bool candidate(const char *root, const char *file) {
+	static StrMap list;
+	static bool loaded;
+	if (!loaded) {
+		loaded = true;
+		Buf b = {0};
+		if (readall(pathjoin(root, "doc/ipl-candidates.txt"), &b))
+			for (char *s = b.b; *s;) {
+				char *nl = strchr(s, '\n');
+				size_t n = nl ? (size_t)(nl - s) : strlen(s);
+				char *h = memchr(s, '#', n);
+				size_t m = h ? (size_t)(h - s) : n;
+				while (m && (s[m - 1] == ' ' || s[m - 1] == '\t' || s[m - 1] == '\r'))
+					m--;
+				if (m)
+					strmap_put(&list, s, m, (void *)1);
+				s += n + (nl ? 1 : 0);
+			}
+	}
+	return strmap_get(&list, file, strlen(file)) != NULL;
+}
+
+/* The banner on a candidate's page, as rustdoc marks nightly or
+ * deprecated items. */
+static const char candidatebanner[] = "**\\[candidate for Gcon's standard library\\]**\n\n";
+
+static char *iplsource(const char *root, const char *file) {
+	Buf p = {0}, b = {0};
+	bufprintf(&p, "%s/lib/ipl/%s.icn", root, file);
+	return readall(p.b, &b) ? b.b : NULL;
+}
+
+/* iplmd is the page for name, an IPL file ("strings") or procedure
+ * ("WOpen"), as Markdown; NULL if it is neither. */
+static char *iplmd(const char *root, const char *name) {
+	char *nm = xstrndup(name, strlen(name));
+	if (!strncmp(nm, "ipl/", 4))
+		nm += 4;
+	if (hassuffix(nm, ".icn"))
+		nm[strlen(nm) - 4] = 0;
+	const char *slash = strrchr(nm, '/');
+	const char *base = slash ? slash + 1 : nm;
+	StrList files = iplfiles(root);
+	Buf md = {0};
+	for (size_t i = 0; i < files.n; i++) {
+		const char *fb = strrchr(files.v[i], '/') + 1;
+		if (strcmp(fb, base) && strcmp(files.v[i], nm))
+			continue;
+		char *src = iplsource(root, files.v[i]);
+		if (!src)
+			continue;
+		bufprintf(&md, "# ipl/%s\n\n%s%s\n\n```\n%s```\n", files.v[i],
+			candidate(root, files.v[i]) ? candidatebanner : "", iplnote, iplheader(src));
+		char *procs = iplprocs(src);
+		if (procs)
+			bufprintf(&md, "\nIts procedures (`link %s`):\n\n```\n%s```\n", fb, procs);
+		return md.b;
+	}
+	/* a procedure: the files that declare it */
+	Buf head = {0};
+	bufprintf(&head, "procedure %s(", base);
+	int found = 0;
+	for (size_t i = 0; i < files.n; i++) {
+		char *src = iplsource(root, files.v[i]);
+		if (!src)
+			continue;
+		for (const char *s = src; (s = strstr(s, head.b));) {
+			if (s != src && s[-1] != '\n') {
+				s++;
+				continue;
+			}
+			const char *nl = strchr(s, '\n');
+			char *decl = xstrndup(s, nl ? (size_t)(nl - s) : strlen(s));
+			while (*decl && (decl[strlen(decl) - 1] == ' ' || decl[strlen(decl) - 1] == '\t' || decl[strlen(decl) - 1] == '\r'))
+				decl[strlen(decl) - 1] = 0;
+			const char *fb = strrchr(files.v[i], '/') + 1;
+			if (found++) {
+				if (found == 2)
+					fprintf(stderr, "gcon doc %s: declared in more than one IPL file:\n", name);
+				fprintf(stderr, "\tipl/%s\n", files.v[i]);
+			} else
+				bufprintf(&md, "# %s\n\n%s%s\n\n```\n%s\n```\n\nIn `ipl/%s` (`link %s`), whose header says:\n\n```\n%s```\n",
+					base, candidate(root, files.v[i]) ? candidatebanner : "", iplnote, decl, files.v[i], fb, iplheader(src));
+			break;
+		}
+	}
+	if (found > 1)
+		exit(2);
+	return found ? md.b : NULL;
+}
+
+/* ipllist writes the IPL's files and their subjects. */
+static void ipllist(const char *root) {
+	StrList files = iplfiles(root);
+	printf("The Icon Program Library, as Arizona wrote it: gcon doc ipl/NAME shows a file or\nprocedure. \"candidate\": a candidate for Gcon's standard library (doc/ipl-candidates.txt).\n\n");
+	for (size_t i = 0; i < files.n; i++) {
+		char *src = iplsource(root, files.v[i]);
+		printf("%-24s %-10s %s\n", files.v[i], candidate(root, files.v[i]) ? "candidate" : "", src ? subject(src) : "");
+	}
+}
+
+/* ------------------------------------------------------------------ */
 /* Showing a page */
 
 /* pager writes text through $PAGER (default less) when standard output
@@ -892,6 +1102,10 @@ int doc_main(int argc, char **argv) {
 		Target tg, *only = NULL;
 		if (name) {
 			tg = lookup(&t, name);
+			if (!tg.page) {
+				fprintf(stderr, "gcon doc %s: no such page or entry\n", name);
+				return 2;
+			}
 			only = &tg;
 		}
 		int nrun = 0, ntrans = 0;
@@ -900,7 +1114,45 @@ int doc_main(int argc, char **argv) {
 		return bad ? 1 : 0;
 	}
 
-	Target tg = lookup(&t, name ? name : "index");
+	/* the Icon Program Library: shown apart from the tree */
+	if (name && !strcmp(name, "ipl")) {
+		ipllist(root.dir);
+		return 0;
+	}
+	Target tg = {NULL, NULL, -1};
+	if (!name || strncmp(name, "ipl/", 4))
+		tg = lookup(&t, name ? name : "index");
+	if (!tg.page) {
+		char *md = iplmd(root.dir, name);
+		if (!md) {
+			fprintf(stderr, "gcon doc %s: no such page, entry or IPL procedure; gcon doc -list lists the pages, gcon doc ipl the IPL\n", name);
+			return 2;
+		}
+		if (path) {
+			fprintf(stderr, "gcon doc %s: the IPL has no HTML\n", name);
+			return 1;
+		}
+		MdDoc *d = md_parse(md, strlen(md));
+		Buf out = {0};
+		switch (mode) {
+		case Raw: fputs(md, stdout); break;
+		case Html: {
+			Page p = {"ipl", NULL, -1};
+			htmlpage(&out, &p, d);
+			fputs(out.b, stdout);
+			break;
+		}
+		case Man:
+			md_roff(&out, d, manname(d->title), "Gcon " GCON_VERSION);
+			fputs(out.b, stdout);
+			break;
+		case Browse: /* not in the HTML: as text */
+		case Text:
+			md_text(&out, d, TextWidth);
+			pager(out.b);
+		}
+		return 0;
+	}
 	Page *p = tg.page;
 	size_t n;
 	char *src = source(p, &n);

@@ -202,6 +202,22 @@ grep -q 'Generates the positions' "$tmp/hover" && grep -q 'gcon doc find' "$tmp/
 	hfail=1
 }
 echo "lsp: hover from the reference, $hfail problems"
+# Hover on a procedure of Gcon's own library (lib/gcon) shows its entry.
+printf 'link uclass\n\nprocedure main()\n   uclass("L")\nend\n' >"$ws/hover2.icn"
+text=$(awk '{ gsub(/"/, "\\\""); printf "%s\\n", $0 }' "$ws/hover2.icn")
+{
+	frame '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"processId":null,"rootUri":null,"capabilities":{}}}'
+	frame '{"jsonrpc":"2.0","method":"initialized","params":{}}'
+	frame "{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{\"textDocument\":{\"uri\":\"file://$ws/hover2.icn\",\"languageId\":\"icon\",\"version\":1,\"text\":\"$text\"}}}"
+	frame "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/hover\",\"params\":{\"textDocument\":{\"uri\":\"file://$ws/hover2.icn\"},\"position\":{\"line\":3,\"character\":5}}}"
+	frame '{"jsonrpc":"2.0","id":3,"method":"shutdown"}'
+	frame '{"jsonrpc":"2.0","method":"exit"}'
+} | GCONROOT=$here "$tmp/gcon" lsp 2>/dev/null | "$tmp/lspsession" split | grep '"id":2,' >"$tmp/hover2"
+grep -q 'general category or script' "$tmp/hover2" && grep -q 'gcon doc uclass' "$tmp/hover2" || {
+	echo "FAIL hover on uclass: not its reference entry"
+	head -c 400 "$tmp/hover2"
+	fail=$((fail + 1))
+}
 fail=$((fail + hfail))
 fail=$((fail + wfail))
 [ $fail -eq 0 ]
