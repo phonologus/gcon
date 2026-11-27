@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.1
+
+With Gcon v0.4.1, whose `gcon doc` serves the documentation, with
+runnable examples (no change to the extension itself).
+
 ## 0.4.0
 
 With Gcon v0.4.0, which documents itself (`gcon help`, `gcon doc`). The

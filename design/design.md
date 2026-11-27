@@ -1993,7 +1993,9 @@ Next, after v0.1.0 (Sean, 2026-11-26):
   v0.4.0 (2026-11-27), a minor version by Go's rules: new commands
   (`gcon help`, `gcon doc`), doc comments, vet's doc comment warnings,
   and `&version` now "Icon Version 9.5 (Gcon)"; the editor extensions
-  and the grammar at 0.4.0 too.
+  and the grammar at 0.4.0 too. v0.4.1 (2026-11-27), a patch: `gcon doc`
+  serves the documentation, so the IPL opens in the browser and examples
+  can be edited and run (see "Served, with Run").
 - Side quest, parked (Sean, 2026-11-27): a display server that draws
   on a terminal, so graphics programs approximate where there is no
   framebuffer. The protocol reference (doc/internals) is what it needs.
