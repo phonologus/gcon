@@ -1013,6 +1013,15 @@ exactly.
     the generated file is not committed (as `lib/libcfunc.so`).
     `vm/tools/mkunicode.sh` then reads the vendored `UnicodeData.txt`
     rather than fetching it.
+  - **Updating, on demand.** `deps/update.sh unicode [VERSION]` fetches
+    `UnicodeData.txt` and `Scripts.txt` from unicode.org (VERSION, or
+    the latest: `Public/UCD/latest`, whose concrete version is read from
+    `Scripts.txt`'s header, so that the lock always names a version),
+    replaces `deps/unicode/`, and records the version and SHA-256s in
+    `deps/deps.lock`. The next `build.sh` regenerates `uclass.icn`; the
+    same update reruns `vm/tools/mkunicode.sh` on the new file, so that
+    gcon-vm's printable table (`image`) moves to the same version. It is
+    the only step that uses the network, and it is never run by a build.
   - Each class is a `u'...'` literal of code-point ranges, so the module
     needs usets first. A program that links it builds the classes it
     names from constants, as any uset literal.
