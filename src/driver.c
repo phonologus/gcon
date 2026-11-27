@@ -2,7 +2,7 @@
  * The driver (driver.h), as the Go reference's internal/run (run.go,
  * build.go, gconvm.go, exec_unix.go) and internal/root: gcon's
  * infrastructure, which is gcon's own design, not icont's
- * (docs/design.md, "the driver and infrastructure are gcon's").
+ * (design/design.md, "the driver and infrastructure are gcon's").
  */
 #if defined(__APPLE__)
 #define _DARWIN_C_SOURCE
@@ -468,7 +468,7 @@ Prog *translate(const char *path, const char *src, size_t n, const Config *c, St
 
 /* ------------------------------------------------------------------ */
 /* Built programs: a shell script that runs gcon-vm (or gcon) on
- * itself, then the encoded program (docs/design.md, "Decision: the
+ * itself, then the encoded program (design/design.md, "Decision: the
  * built program is an icont-style script"). */
 
 /* marker ends the shell header, as "[executable Icon binary follows]"

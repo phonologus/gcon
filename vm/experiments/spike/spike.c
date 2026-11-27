@@ -7,7 +7,7 @@
  * loop. Values are 16-byte tagged structs; dispatch is by computed goto
  * (or a switch, with -DSWITCH); frames come from a contiguous stack and
  * are released on return. It is an experiment, not part of gcon-vm; see
- * docs/design.md for the results.
+ * design/design.md for the results.
  *
  *	cc -O2 -o spike spike.c && ./spike [iterations]
  */

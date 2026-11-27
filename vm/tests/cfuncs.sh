@@ -48,7 +48,7 @@ if [ -x "${ICONBIN:-}/iconx" ]; then
 	"$ICONBIN/icont" -s -o cfuncs-x cfuncs.icn
 	FPATH=$tmp "$ICONBIN/iconx" ./cfuncs-x >iconx.out 2>/dev/null || true
 	# Expected: iconx's default image of an external without data is
-	# garbled (docs/design.md, "loadfunc").
+	# garbled (design/design.md, "loadfunc").
 	if diff iconx.out got.out >diff.out; then
 		echo "cfuncs: identical to iconx"
 	else

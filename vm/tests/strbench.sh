@@ -3,7 +3,7 @@
 # of 1,000 bytes, built once by gcon and timed on gcon-vm, and built by
 # icont and timed on iconx; ns per iteration (wall clock, the best of
 # three), and gcon-vm's time as a fraction of iconx's: the bar the byte
-# paths are measured against (docs/design.md, "Implementation: the byte
+# paths are measured against (design/design.md, "Implementation: the byte
 # path is iconx's"). As tests/bench.sh, which times single operations.
 #
 #   tests/strbench.sh [iterations]    # default 100000

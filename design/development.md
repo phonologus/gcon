@@ -143,7 +143,7 @@ alone, a minor version for anything a program must adapt to (while X
 is 0). `build.sh` takes gcon's own version from the tag; the editor
 extensions and the grammar carry the same version in their own files.
 To release, write the `## X.Y.Z` entry in `editors/vscode/CHANGELOG.md`
-(and the release in `docs/design.md`'s plan) and commit, put the tag's
+(and the release in `design/design.md`'s plan) and commit, put the tag's
 message in a file, then
 
 ```sh

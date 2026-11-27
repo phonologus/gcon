@@ -11,7 +11,7 @@ it). Memory is managed by a precise mark-and-sweep collector. It has
 every Icon 9.5 function, including `loadfunc`: C functions written to
 9.5's `icall.h` (`include/icall.h`) recompile unchanged. Graphics goes
 to gcon's display server (`../graphics`). See
-[docs/design.md](docs/design.md) for why the VM is in C and how it is
+[design/design.md](design/design.md) for why the VM is in C and how it is
 built.
 
 ## Building

@@ -676,7 +676,7 @@ repository's `experiments/valuerep`) measured C at about twice Go's
 speed for the same design: `x := i + 407` 2.1 ns against 3.7, `L[3]`
 2.7 against 5.2, a call with frames on a stack 3.5 against 7.4. The Go
 VM stays as the reference implementation, and as a second oracle in
-testing, until gcon-vm passes the tests; gcon-vm's `docs/design.md`
+testing, until gcon-vm passes the tests; gcon-vm's `design/design.md`
 has the plan.
 
 ### Decision (2026-11-26): gcon run uses gcon-vm
@@ -2012,7 +2012,7 @@ case (Sean, 2026-11-27). As Go, two commands:
   gcon by an sh/awk generator, so help is always the installed
   version's and works without a root. Variables for developers and
   tests (GCONVMDEBUG, GCONVMSTRESS, ICONSDL_TEST_*, LSPCOMPLETE) are
-  in docs/development.md, not in help.
+  in design/development.md, not in help.
 - **`gcon doc [name|topic]`**, the documentation tree, Markdown,
   shipped in the root as Go's `doc/`, shown as plain text through
   $PAGER on a terminal. A name is looked up as `go doc` looks: a
@@ -2024,7 +2024,7 @@ case (Sean, 2026-11-27). As Go, two commands:
   and **internals**, for the curious and for anyone writing another
   display server: the built program's format and the instruction set,
   values, the interpreter, the collector, the `loadfunc` interface,
-  and the graphics wire protocol (graphics/docs/protocol.md moves
+  and the graphics wire protocol (graphics/design/protocol.md moves
   there and becomes the reference; the design notes keep the history
   and link to it). `gcon lsp` hovers the same Markdown, so `fetch-docs`
   becomes optional.
@@ -2082,7 +2082,7 @@ command appears in its help page; help output has golden files, as
    display names (not released changelog entries, not code).
 1. `gcon help`, its pages and topics; the `getenv` check.
 2. The doc tree and `gcon doc` topics: README split, internal sections
-   to docs/development.md, the internals pages (protocol moved; the
+   to design/development.md, the internals pages (protocol moved; the
    built program's format brought up to date: it still names the Go
    reference's files; the instruction set).
 3. The reference's machinery: entry format, the extractor, the example
@@ -2091,5 +2091,5 @@ command appears in its help page; help output has golden files, as
    functions and attributes.
 5. IPL procedures from their header comments.
 
-Open: whether the internal `docs/` is renamed (to `design/`) so that
-`doc/` and `docs/` do not sit side by side.
+Decided (Sean, 2026-11-27): the internal notes are in `design/` (and
+`vm/design/`, `graphics/design/`), so that `doc/` is only what ships.

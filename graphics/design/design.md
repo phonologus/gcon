@@ -3,7 +3,7 @@
 ## Role
 
 gcon-graphics is gcon's display server. The decision and its reasons are
-in gcon's `docs/design.md` ("Graphics: a separate display server"). In
+in gcon's `design/design.md` ("Graphics: a separate display server"). In
 brief: gcon-vm owns Icon's graphics semantics (the event queue as an Icon
 list, `Event()`, polling, `&x`, `&y`, `&interval`, `WDelay`, window
 and context values); the server owns windows, canvases, drawing and
@@ -55,7 +55,7 @@ child), or a named socket.
 
 ## Done (2026-11-26)
 
-1. The protocol specification (`docs/protocol.md`, version 2; events
+1. The protocol specification (`design/protocol.md`, version 2; events
    are fetched by the client with `WAIT` rather than sent unsolicited:
    see below), with fonts, text, window requests, icons and image
    files.

@@ -1,7 +1,7 @@
 /*
  * The run-time system: values, structures, builtins and the interpreter,
  * ported from gcon's Go VM (gcon's internal/vm), whose semantics it
- * follows exactly; the Go VM is the reference (docs/design.md).
+ * follows exactly; the Go VM is the reference (design/design.md).
  *
  * Memory is managed by the collector (gc.c): objects are made with gcnew.
  */

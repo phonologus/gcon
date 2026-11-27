@@ -1,5 +1,5 @@
 /*
- * The built program's format (gcon's docs/design.md, "The built
+ * The built program's format (gcon's design/design.md, "The built
  * program's format"; the Go reference's internal/vm/encode.go and
  * instr.go): what gcon-vm's loader reads and the front end's encoder
  * (../../src/encode.c) writes, defined once for both.

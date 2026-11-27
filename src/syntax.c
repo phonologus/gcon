@@ -3,7 +3,7 @@
  * whose trees and error messages it reproduces, but not recursive:
  * expressions are parsed by a machine with its stack on the heap, as
  * icont's parser keeps its stack, so nesting has no ceiling but memory
- * (docs/design.md, "Two oracles").
+ * (design/design.md, "Two oracles").
  */
 #include "syntax.h"
 

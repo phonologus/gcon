@@ -13,7 +13,7 @@
  * resolved when the procedure is finished.
  *
  * The Go compiles an expression by recursion. Here, as in the parser,
- * nothing recurses (docs/design.md, "the compiler is iterative too"):
+ * nothing recurses (design/design.md, "the compiler is iterative too"):
  * each Go function that compiles a subexpression is a kind of Frame on
  * the compiler's own stack, with a state saying where it resumes; a
  * frame calls another by setting its resume state and pushing the callee

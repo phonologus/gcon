@@ -2,7 +2,7 @@
  * main.c -- gcon-graphics, the display server for gcon.
  * MIT licence, see LICENSE.md.
  *
- * Reads requests of the gcon graphics protocol (docs/protocol.md) from
+ * Reads requests of the gcon graphics protocol (design/protocol.md) from
  * a socket and carries them out with the canvas and platform layers.
  * The reader runs where icon-sdl ran its interpreter: on the thread
  * pl_main starts, while SDL keeps the main thread (plat.c).

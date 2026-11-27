@@ -1,5 +1,5 @@
 /*
- * The garbage collector (docs/design.md, "The collector"): precise mark
+ * The garbage collector (design/design.md, "The collector"): precise mark
  * and sweep, run only at the interpreter's safe point (the top of its
  * loop, between instructions), when no C code holds a heap pointer
  * that the roots do not. So builtins allocate freely, and the roots are

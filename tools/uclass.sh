@@ -2,7 +2,7 @@
 # uclass.sh: write lib/gcon/uclass.icn, the uclass module, from the
 # Unicode Character Database vendored in deps/unicode, after checking
 # its SHA-256s against deps/deps.lock. Run by build.sh; never uses the
-# network (deps/update.sh fetches). docs/design.md, "Csets and usets".
+# network (deps/update.sh fetches). design/design.md, "Csets and usets".
 #
 # uclass(name) produces, as a uset, a general category (L, Lu, Nd, ...;
 # a one-letter major category is the union of its subcategories) from

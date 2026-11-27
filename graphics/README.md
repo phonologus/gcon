@@ -10,7 +10,7 @@ C++ out of the runtime, and lets a display server be written in any
 language.
 
 **Status: serving the whole protocol** in
-[docs/protocol.md](docs/protocol.md) (version 2): canvases and their
+[design/protocol.md](design/protocol.md) (version 2): canvases and their
 windows, graphics contexts, drawing, reading and writing pixels, X
 colour names, events, fonts and text, window management, window icons,
 and image files (PNG, JPEG, BMP and QOI encoded and decoded in memory;
@@ -28,7 +28,7 @@ colour-name tools (`sdl/tools/`, now `tools/`) and the Linux package
 lists. The canvas layer's behaviour was checked there against Icon's X11
 backend, pixel for pixel where possible, and gcon keeps that check
 (`../vm/tests/ref.sh`). Its design notes are in icon-sdl's
-`sdl/design.md`; this server's are in [docs/design.md](docs/design.md).
+`sdl/design.md`; this server's are in [design/design.md](design/design.md).
 
 ## Building
 
@@ -63,8 +63,8 @@ window opens, pushes scripted keystrokes, clicks and a close into it
 | `src/sdlgfx.h` | The C interface to all of the above |
 | `src/main.c` | The server: reads protocol requests, calls the layers above |
 | `deps/` | Vendored sources and `deps.lock` |
-| `docs/protocol.md` | The protocol |
-| `docs/design.md` | Design notes |
+| `design/protocol.md` | The protocol |
+| `design/design.md` | Design notes |
 
 ## Licence
 

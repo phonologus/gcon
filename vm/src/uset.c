@@ -1,7 +1,7 @@
 /*
  * Usets: sets of characters drawn from the ASCII characters, the 128
  * non-ASCII bytes and the code points from 0x80 (less the surrogates):
- * one universe, so usets form a Boolean algebra (docs/design.md, "Csets
+ * one universe, so usets form a Boolean algebra (design/design.md, "Csets
  * and usets"). The ASCII characters and the bytes are in bits, as in a
  * cset; code points in sorted, disjoint, non-adjacent ranges.
  */

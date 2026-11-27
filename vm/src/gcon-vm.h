@@ -1,5 +1,5 @@
 /*
- * gcon-vm: the virtual machine for gcon's bytecode (docs/design.md).
+ * gcon-vm: the virtual machine for gcon's bytecode (design/design.md).
  * Declarations shared by the sources.
  */
 #ifndef GCON_VM_H
@@ -44,7 +44,7 @@ int utf8encode(uint8_t *p, int32_t r);
 bool isprint_rune(int32_t r); /* Go's strconv.IsPrint */
 
 /* Values: 16 bytes, a header (kind, flags, a 48-bit field) and a word
- * (docs/design.md, "Values"). Kinds as gcon's valuecore.go. */
+ * (design/design.md, "Values"). Kinds as gcon's valuecore.go. */
 enum Kind {
 	KNone, KNull, KInt, KReal, KBig, KString, KCset, KList, KTable, KSet,
 	KRecord, KProc, KBuiltin, KRecordType, KCoexp, KFile,

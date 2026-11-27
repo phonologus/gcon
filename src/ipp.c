@@ -11,7 +11,7 @@
  *    a character stream with #line markers (pushline is gone);
  *  - errors are collected, not printed;
  *  - the nested $if skip (skipcode) counts its depth instead of
- *    recursing, so nesting has no ceiling (docs/design.md, "Two
+ *    recursing, so nesting has no ceiling (design/design.md, "Two
  *    oracles");
  *  - character classes are ASCII's, whatever the locale or signedness
  *    of char; and in ordinary lines a NUL byte is an ordinary character,

@@ -1,6 +1,6 @@
 /*
  * gcon vet: as Go's vet, it reports what is almost certainly a mistake
- * (docs/design.md, "gcon vet"). The first checks find code that fails
+ * (design/design.md, "gcon vet"). The first checks find code that fails
  * at run time:
  *
  *   - a field reference x.name where no record has a field name

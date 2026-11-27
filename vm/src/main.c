@@ -1,5 +1,5 @@
 /*
- * gcon-vm: the virtual machine for gcon's bytecode (docs/design.md).
+ * gcon-vm: the virtual machine for gcon's bytecode (design/design.md).
  * It loads a built program and runs it, or lists it.
  */
 #include "vm.h"

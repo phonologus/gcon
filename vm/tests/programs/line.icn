@@ -1,6 +1,6 @@
 # &line and &file. (Not tested: iconx reports the line of the next
 # line-table entry when one starts right after the keyword, which gcon
-# does not reproduce; see docs/design.md.)
+# does not reproduce; see design/design.md.)
 procedure main()
    write(&line, " ", &file[-8:0])  # &file is the path as given
    write(

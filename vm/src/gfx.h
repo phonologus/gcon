@@ -3,14 +3,14 @@
  * layer (fwindow.r, rwindow.r, rcolor.r) and icon-sdl's SDL backend
  * (rsdlwin.ri, rsdlrsc.ri) have them, with the display in a separate
  * server (gcon-graphics) reached through its protocol (gfxproto.c). See
- * docs/design.md, "Graphics".
+ * design/design.md, "Graphics".
  */
 #ifndef GCON_VM_GFX_H
 #define GCON_VM_GFX_H
 
 #include "vm.h"
 
-/* ---- The protocol (gcon-graphics's docs/protocol.md) ---- */
+/* ---- The protocol (gcon-graphics's design/protocol.md) ---- */
 
 enum {
 	P_HELLO, P_CANVAS, P_FREE, P_RESIZE, P_GC, P_POINTS, P_LINES, P_FILLPOLY,

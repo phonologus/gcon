@@ -8,7 +8,7 @@
  *
  * Forked from tree-sitter-icon (github.com/phonologus/tree-sitter-icon,
  * at 6070fd3). gcon's syntax is Icon 9.5's, with two lexical additions
- * (gcon's docs/design.md, "Strings and Unicode"): the escapes \uXXXX and
+ * (gcon's design/design.md, "Strings and Unicode"): the escapes \uXXXX and
  * \UXXXXXX, and ranges a..z in cset literals. So that editors can show
  * them, a string or cset is not one token here, as it is in
  * tree-sitter-icon: its escapes are escape_sequence nodes, and a cset's

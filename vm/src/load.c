@@ -1,6 +1,6 @@
 /*
  * The loader: decodes a built program (gcon's internal/vm/encode.go;
- * gcon's docs/design.md, "The built program's format") and checks it as
+ * gcon's design/design.md, "The built program's format") and checks it as
  * gcon's vm.Decode and vm.Validate do, with the same messages, so that
  * a damaged file, or one built by another version of gcon, is reported
  * rather than run.

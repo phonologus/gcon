@@ -1,5 +1,5 @@
 # Tables and sets. Iteration order is not printed directly: gcon uses
-# insertion order where iconx uses its hash order (see docs/design.md).
+# insertion order where iconx uses its hash order (see design/design.md).
 record r(a, b)
 
 procedure main()

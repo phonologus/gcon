@@ -4,8 +4,8 @@ Between a client (gcon-vm, which owns Icon's graphics semantics) and a
 display server (gcon-graphics, which owns windows, canvases and drawing).
 Modelled on Plan 9's draw(3): binary messages, objects named by ids the
 client chooses, drawing requests without replies. The rules behind it
-are in gcon's `docs/design.md` ("Graphics: a separate display server")
-and this repository's `docs/design.md`.
+are in gcon's `design/design.md` ("Graphics: a separate display server")
+and this repository's `design/design.md`.
 
 Version 1. Everything here is implemented unless marked *(later)*.
 

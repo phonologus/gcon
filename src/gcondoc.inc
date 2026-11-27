@@ -1,7 +1,7 @@
 /* Hover documentation for gcon's additions to Icon 9.5, which have no
  * page in the Icon reference: Markdown, shown by gcon lsp in place of
  * the catalogue's one-line summary (builtin.inc). Each entry is checked
- * against gcon's behaviour; the design is in docs/design.md, "Strings
+ * against gcon's behaviour; the design is in design/design.md, "Strings
  * and Unicode". Strings are bytes, as in Icon 9.5; these read them as
  * UTF-8 where asked. (The sources are ASCII: \xc3\xa9 is "e" with an
  * acute accent.) */
@@ -39,4 +39,4 @@ static const struct {
 };
 
 /* The design notes, for the hover's footer. */
-#define GCONDOC_URL "https://github.com/phonologus/gcon/blob/trunk/docs/design.md#strings-and-unicode"
+#define GCONDOC_URL "https://github.com/phonologus/gcon/blob/trunk/design/design.md#strings-and-unicode"

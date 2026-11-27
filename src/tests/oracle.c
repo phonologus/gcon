@@ -2,7 +2,7 @@
  * oracle: the C front end's view of an Icon source file in the forms
  * of icont's own front end, as printed by tools/icontok, for
  * src/tests/oracle.sh, which compares the two over the reference
- * corpus. icont is the authority here, not the Go (docs/design.md,
+ * corpus. icont is the authority here, not the Go (design/design.md,
  * "Two oracles"); this is the C of the Go's oracle tests
  * (tag go-reference: internal/lexer/oracle_test.go,
  * internal/syntax/icontree_test.go

@@ -2,7 +2,7 @@
 
 Facts about Icon's surface syntax and name resolution that the gcon front
 end depends on, with their source in the reference tree. Carried over
-from icontools (`docs/design.md` at 9cf9615); keep it up to date here.
+from icontools (`design/design.md` at 9cf9615); keep it up to date here.
 
 ## Semicolon insertion
 

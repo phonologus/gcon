@@ -2,7 +2,7 @@
 
 gcon's translator and tools in C, built as `../bin/gcon`. They were
 ported part by part from the Go reference (the tag `go-reference`),
-each part proved identical before the next (`../docs/design.md`, "gcon
+each part proved identical before the next (`../design/design.md`, "gcon
 in C"), and the Go then removed, all at once; this file records how
 each part was proved. Going forward the oracles are icont and iconx
 for what Icon defines, and gcon's own recorded results for what it adds.
@@ -54,7 +54,7 @@ reaches. At the parser's port: 2,784 files identical (and 1,626 more
 mutants with byte runs deleted or duplicated, once, reaching some 50
 distinct error messages).
 
-The parser does not recurse (`../docs/design.md`, "Two oracles"):
+The parser does not recurse (`../design/design.md`, "Two oracles"):
 its expression machine keeps its stack on the heap, as icont's parser
 does, so nesting has no ceiling but memory, where the Go's goroutine
 stack fails at 1 GB (about a million nested parentheses). The `walk`
@@ -67,7 +67,7 @@ trees 3,000 deep, and the C alone parses them 2,000,000 deep.
     tests/oracle.sh [MUTANTS]
 
 checks the C against icont itself, the authority on Icon's syntax
-(`../docs/design.md`, "Two oracles"), with no Go involved:
+(`../design/design.md`, "Two oracles"), with no Go involved:
 `tests/oracle.c` writes the C front end's view in the forms of
 `../tools/icontok` (icont's own lexer and parser, linked from a scratch
 build of the Icon tree), the token stream and a tree per procedure as
@@ -91,7 +91,7 @@ circular, and by icont's rule of the name's last component on the
 path). At its port: 1,208 files identical, 181,001 lines with their
 positions, 101 errors. `diff.sh pp` checked it against the Go (2,795
 files identical); the port found three places where the Go was not
-icont's, fixed in both (`../docs/design.md`). Deep nesting (a million
+icont's, fixed in both (`../design/design.md`). Deep nesting (a million
 `$if`s, or a chain of a million definitions) has no ceiling; the chain
 is slow, as icont's 256-bin definition table makes it.
 
@@ -109,7 +109,7 @@ compared there. `diff.sh sema` checked it against the Go (each file
 resolved preprocessed and raw: 2,809 identical), and whole directories
 as one program (the IPL's procs, gprocs and progs, the reference tests,
 `../icn`) are identical too. The port found the Go's wording of five
-diagnostics not icont's, fixed in both (`../docs/design.md`).
+diagnostics not icont's, fixed in both (`../design/design.md`).
 
 The compiler (`compile.c`) keeps its own stack of frames, one kind for
 each function of the Go's recursive compiler, each making its side
@@ -151,7 +151,7 @@ variants (2,822, 1,838 of them changed by formatting), the token
 sequence of every formatted file kept (inserted semicolons included),
 and the flags (`-l`, `-w`, `-d`, standard input, errors). gcon's
 literals (`\u`, `\U`, cset ranges) are tokens like any other, kept
-byte for byte. Now gcon is its own oracle (`../docs/design.md`):
+byte for byte. Now gcon is its own oracle (`../design/design.md`):
 `tests/fmt.sh` checks golden output for the repository's own sources
 and the flags (`tests/fmt/`), and, over the corpus and its variants,
 that formatting never crashes, keeps every token and is idempotent.
@@ -178,7 +178,7 @@ gcon's additions to the language are checked against gcon itself:
 the probes in `tests/lit` (every literal error, and good literals) are
 the errors `gcon build` reports.
 
-`gcon vet` (`vet.c`; `../docs/design.md`, "gcon vet") is checked by
+`gcon vet` (`vet.c`; `../design/design.md`, "gcon vet") is checked by
 `tests/vet.sh`: golden findings for the probes in `tests/vet` and for
 the programs of the Icon tree and `../icn` it was tuned on, the
 language server reporting the probes' findings, and no crash over the

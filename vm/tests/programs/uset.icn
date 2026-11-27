@@ -1,4 +1,4 @@
-# Usets (docs/design.md, "Csets and usets"): gcon's own, so the expected
+# Usets (design/design.md, "Csets and usets"): gcon's own, so the expected
 # output is recorded from gcon, not iconx; do not regenerate it with
 # tools/iconx/expect.sh. Positions are bytes; a uset makes the scanning
 # functions read UTF-8 characters.

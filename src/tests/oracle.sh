@@ -1,6 +1,6 @@
 #!/bin/sh
 # The C front end against icont's own, the authority on Icon's syntax
-# (docs/design.md, "Two oracles"): for every .icn file of the Icon tree
+# (design/design.md, "Two oracles"): for every .icn file of the Icon tree
 # beside the checkout (../icon, or $ICON_SRC), the C (src/tests/oracle.c,
 # built with the address and undefined-behaviour sanitizers) and icont's
 # lexer and parser (tools/icontok, linked from a scratch build of that

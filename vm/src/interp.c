@@ -141,7 +141,7 @@ static _Noreturn void report(void) {
 /* ---- Frames ---- */
 
 /* Frames that return or fail without ever having suspended are recycled
- * at once (docs/design.md, "Frames"): nothing else can refer to them.
+ * at once (design/design.md, "Frames"): nothing else can refer to them.
  * Free frames are kept by their number of slots, linked through caller;
  * a collection forgets them (the collector then frees them). */
 enum { MaxRecycled = 64 };

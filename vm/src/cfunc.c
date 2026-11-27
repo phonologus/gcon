@@ -1,6 +1,6 @@
 /*
  * loadfunc: C functions loaded at run time, written to Icon 9.5's
- * icall.h (ipl/cfuncs), which gcon-vm ships in include/ (docs/design.md,
+ * icall.h (ipl/cfuncs), which gcon-vm ships in include/ (design/design.md,
  * "loadfunc").
  *
  * A C function sees iconx's descriptors, so the shim builds them: for

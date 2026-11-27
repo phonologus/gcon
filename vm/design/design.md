@@ -15,7 +15,7 @@ every store of a value (which holds a pointer) into a frame, list or
 table pays a write barrier while the collector marks; frames that may
 outlive a call must be on the heap; dispatch is a `switch`, with bounds
 checks; allocation goes through the collector rather than a bump
-pointer. See gcon's `docs/design.md` ("Decision: the VM in C") for the
+pointer. See gcon's `design/design.md` ("Decision: the VM in C") for the
 stock-take.
 
 Extending iconx instead was considered and set aside. iconx switches
@@ -49,7 +49,7 @@ which gcon-vm avoids as below.
 ## Plan
 
 - **Input.** gcon's built-program format (`gcon/internal/vm/encode.go`,
-  `docs/design.md` "The built program's format"): versioned, sectioned,
+  `design/design.md` "The built program's format"): versioned, sectioned,
   checksummed, with builtins by name. gcon-vm's loader checks it as
   `vm.Decode` does. gcon passes a program to gcon-vm (`gcon run`
   translates then hands the bytecode over; a built program's header runs
@@ -71,7 +71,7 @@ which gcon-vm avoids as below.
 - **Built-in functions.** Ported from gcon's Go VM, keeping its Unicode
   semantics (units, csets with code-point ranges; revised 2026-11-27 to
   byte strings, 9.5 csets, usets and the `u` functions, gcon's
-  `docs/design.md`, "Strings and Unicode"); large integers and
+  `design/design.md`, "Strings and Unicode"); large integers and
   real formatting from iconx's public-domain sources where they fit.
 - **Graphics.** A client of gcon-graphics' protocol.
 - **Testing.** gcon's program tests, the reference conformance tests and
@@ -376,7 +376,7 @@ the generator, which a later pass can take on.
 
 ## Running from gcon (2026-11-26)
 
-`gcon run` hands programs to gcon-vm (gcon's `docs/design.md`,
+`gcon run` hands programs to gcon-vm (gcon's `design/design.md`,
 "Decision: gcon run uses gcon-vm"): a built program by `exec`ing
 `gcon-vm program args...`; source by translating it, writing the
 encoded program to a file deleted at once, and `exec`ing `gcon-vm
@@ -577,11 +577,11 @@ function.
 ## Graphics, first part (2026-11-26)
 
 gcon's design puts graphics in a separate display server (gcon's
-`docs/design.md`, "Graphics: a separate display server"); with the VM
+`design/design.md`, "Graphics: a separate display server"); with the VM
 now in C, gcon-vm takes the part that design gives "gconx": it owns
 Icon's graphics semantics, and gcon-graphics (icon-sdl's SDL3 + Blend2D
 backend) owns windows, canvases and drawing, behind the protocol in
-gcon-graphics's `docs/protocol.md`. Of the reasons for the split, only
+gcon-graphics's `design/protocol.md`. Of the reasons for the split, only
 "gcon stays pure Go" has gone; gcon-vm still builds with nothing but a
 C compiler (the server needs C++, CMake and SDL3), the macOS main-thread
 rule stays in the server, a server crash cannot corrupt the
