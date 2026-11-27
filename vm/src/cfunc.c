@@ -216,27 +216,8 @@ static void todesc(Value v, descriptor *d) {
 
 /* ---- Descriptors to values ---- */
 
-/* A string from C has the unit its contents give it, as a literal's:
- * ASCII, else text if it is valid UTF-8, else bytes (so a 9.5 function
- * giving Latin-1 behaves as in 9.5). */
-static Value strfromc(const char *p, word n) {
-	bool ascii = true, valid = true;
-	for (word i = 0; i < n;) {
-		if ((uint8_t)p[i] < 0x80) {
-			i++;
-			continue;
-		}
-		ascii = false;
-		int w;
-		if (utf8decode((const uint8_t *)p + i, (size_t)(n - i), &w) == RuneError && w == 1) {
-			valid = false;
-			break;
-		}
-		i += w;
-	}
-	String s = strcopy(p, n, ascii || valid ? TextUnit : BytesUnit);
-	return strval(s);
-}
+/* A string from C: its bytes. */
+static Value strfromc(const char *p, word n) { return strval(strcopy(p, n)); }
 
 static Value bigfromc(const bignumblock *g) {
 	int k = (int)(g->lsd - g->msd + 1);

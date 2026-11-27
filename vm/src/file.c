@@ -172,13 +172,13 @@ static IOBuf *writer(File *f) {
 }
 
 /* nextentry reads a directory's next entry: whole (n < 0), or cut to n
- * bytes, or to n characters if runes (code points in a text file). */
+ * bytes, or to n UTF-8 characters if runes. */
 static bool nextentry(File *f, int64_t n, bool runes, String *out) {
 	if (f->idir >= f->ndir)
 		return false;
 	char *e = f->dir[f->idir++];
 	int64_t k = (int64_t)strlen(e);
-	if (n >= 0 && runes && f->unit == TextUnit) {
+	if (n >= 0 && runes) {
 		int64_t p = 0;
 		for (int64_t i = 0; i < n && p < k; i++) {
 			int w;
@@ -188,7 +188,7 @@ static bool nextentry(File *f, int64_t n, bool runes, String *out) {
 		k = p;
 	} else if (n >= 0 && k > n)
 		k = n;
-	*out = mkstr(e, k, f->unit);
+	*out = mkstr(e, k);
 	return true;
 }
 
@@ -212,14 +212,14 @@ bool readline_(File *f, String *out) {
 		any = true;
 		if (c == '\n')
 			break;
-		if (c == '\r' && f->unit == TextUnit) {
+		if (c == '\r' && !f->untrans) {
 			if (rfill(r, 1) > 0 && r->b[r->pos] == '\n')
 				r->pos++;
 			break;
 		}
 		sbputc(&b, c);
 	}
-	*out = sbstring(&b, f->unit);
+	*out = sbstring(&b);
 	return true;
 }
 
@@ -271,7 +271,7 @@ static String readgrow(IOBuf *r, const char *p, size_t n, size_t want) {
 	char *s = gcraw(n);
 	memcpy(s, m, n);
 	free(m);
-	return mkstr(s, (int64_t)n, BytesUnit);
+	return mkstr(s, (int64_t)n);
 }
 
 /* readbytes reads up to k bytes, until k or the end of the file, into
@@ -287,7 +287,7 @@ static bool readbytes(IOBuf *r, int64_t k, String *out) {
 		return false;
 	size_t want = (size_t)k;
 	if (want <= avail) {
-		*out = strcopy(r->b + r->pos, (int64_t)want, BytesUnit);
+		*out = strcopy(r->b + r->pos, (int64_t)want);
 		r->pos += want;
 		return true;
 	}
@@ -314,12 +314,12 @@ static bool readbytes(IOBuf *r, int64_t k, String *out) {
 		*out = readgrow(r, p, n, want); /* the file has grown */
 		return true;
 	}
-	*out = mkstr(p, (int64_t)n, BytesUnit);
+	*out = mkstr(p, (int64_t)n);
 	return true;
 }
 
-/* readcodes reads up to k characters of a text file: code points,
- * never splitting one (a byte that is not part of valid UTF-8 is one
+/* readcodes reads up to k UTF-8 characters: code points, never
+ * splitting one (a byte that is not part of valid UTF-8 is one
  * character). It decodes what the buffer holds and copies whole runs
  * of it, not a character at a time; a result found within the buffer
  * is a single copy of it. */
@@ -340,7 +340,7 @@ static bool readcodes(IOBuf *r, int64_t k, String *out) {
 			i++;
 		}
 		if (i == k && b.n == 0) { /* all within the buffer */
-			*out = strcopy(r->b + r->pos, (int64_t)j, TextUnit);
+			*out = strcopy(r->b + r->pos, (int64_t)j);
 			r->pos += j;
 			return true;
 		}
@@ -349,21 +349,20 @@ static bool readcodes(IOBuf *r, int64_t k, String *out) {
 	}
 	if (b.n == 0)
 		return false;
-	*out = sbstring(&b, TextUnit);
+	*out = sbstring(&b);
 	return true;
 }
 
-/* readchars reads up to k bytes (reads), or k characters if runes
- * (readrunes: code points in a text file; bytes in a bytes file). A
- * file's bytes are a bytes string; its code points are text. A window's
- * keystrokes are one byte each, so both read k keystrokes. */
+/* readchars reads up to k bytes (reads), or k UTF-8 characters if runes
+ * (readrunes). A window's keystrokes are one byte each, so both read k
+ * keystrokes. */
 static bool readchars(File *f, int64_t k, bool runes, String *out) {
 	if (f->gfx && !f->closed)
 		return gfx_read(f, k, out);
 	IOBuf *r = reader(f);
 	if (f->isdir)
 		return nextentry(f, k, runes, out);
-	if (runes && f->unit == TextUnit)
+	if (runes)
 		return readcodes(r, k, out);
 	return readbytes(r, k, out);
 }
@@ -388,7 +387,7 @@ static void writerun(File *f, Value *a, int m, bool nl, bool end) {
 	String *s = m <= 16 ? local : xmalloc((size_t)m * sizeof *s);
 	size_t total = 0;
 	for (int i = 0; i < m; i++) {
-		s[i] = (String){"", 0, TextUnit, 1};
+		s[i] = (String){"", 0};
 		if (VKIND(a[i]) != KNull && !cvstr(a[i], &s[i])) {
 			/* the arguments before this one are written first: at
 			 * once to &errout or a window, else after the message */
@@ -461,7 +460,6 @@ static int cmpstr(const void *a, const void *b) { return strcmp(*(char *const *)
 static bool openfile(String name, String mode, File **out) {
 	File *f = newfile("", false);
 	f->name = name;
-	f->unit = TextUnit;
 	char *cname = cstr(name);
 	bool has[128] = {0};
 	for (int64_t i = 0; i < mode.n; i++) {
@@ -471,9 +469,9 @@ static bool openfile(String name, String mode, File **out) {
 		if (c >= 'A' && c <= 'Z')
 			c = (char)(c - 'A' + 'a');
 		has[(int)c] = true;
+		if (c == 'u' || c == 't')
+			f->untrans = c == 'u'; /* the last of "u" and "t" counts, as in iconx */
 	}
-	if (has['u'])
-		f->unit = BytesUnit;
 	if (has['p']) {
 		wflush(WB(vm.output));
 		wflush(WB(vm.errfile));
@@ -619,8 +617,8 @@ FN(f_read) {
 	return true;
 }
 
-/* readn implements reads (k bytes, always a bytes string, as Icon 9.5's
- * low-level reader) and readrunes (k characters, in the file's unit). */
+/* readn implements reads (k bytes, as Icon 9.5's low-level reader) and
+ * readrunes (k UTF-8 characters). */
 static bool readn(Value *a, int n, bool runes, Value *out) {
 	File *f = filearg(a, n, 0, vm.input);
 	int64_t k = 1;
@@ -631,8 +629,6 @@ static bool readn(Value *a, int n, bool runes, Value *out) {
 	String s;
 	if (!readchars(f, k, runes, &s))
 		return false;
-	if (!runes)
-		s.unit = BytesUnit;
 	*out = strval(s);
 	return true;
 }
@@ -748,7 +744,7 @@ static bool getkey(bool echo, Value *out) {
 	if (c < 0)
 		return false;
 	char ch = (char)c;
-	*out = strval(strcopy(&ch, 1, c < 0x80 ? TextUnit : BytesUnit));
+	*out = strval(strcopy(&ch, 1));
 	return true;
 }
 
@@ -825,7 +821,6 @@ int file_lend(File *f, int *stat) {
 File *file_adopt(FILE *fp, int stat, String name) {
 	File *f = newfile("", false);
 	f->name = name;
-	f->unit = TextUnit;
 	int fd;
 	fflush(fp);
 	if (stat & 020) {
@@ -854,7 +849,6 @@ File *file_adopt(FILE *fp, int stat, String name) {
 File *file_window(String name, void *binding) {
 	File *f = newfile("", false);
 	f->name = name;
-	f->unit = TextUnit;
 	f->gfx = binding;
 	return f;
 }

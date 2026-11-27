@@ -12,99 +12,43 @@
 
 /* ---- Strings ---- */
 
-static int8_t asciiflag(const char *s, int64_t n) {
-	for (int64_t i = 0; i < n; i++)
-		if ((uint8_t)s[i] >= 0x80)
-			return -1;
-	return 1;
-}
+String mkstr(const char *s, int64_t n) { return (String){s, n}; }
 
-String mkstr(const char *s, int64_t n, int unit) {
-	return (String){s, n, (uint8_t)unit, asciiflag(s, n)};
-}
+String textc(const char *s) { return mkstr(s, (int64_t)strlen(s)); }
 
-String mkstrf(const char *s, int64_t n, int unit, int8_t ascii) {
-	return (String){s, n, (uint8_t)unit, ascii};
-}
-
-String textc(const char *s) { return mkstr(s, (int64_t)strlen(s), TextUnit); }
-
-String strcopy(const char *s, int64_t n, int unit) {
+String strcopy(const char *s, int64_t n) {
 	char *p = gcraw((size_t)n);
 	memcpy(p, s, (size_t)n);
-	return mkstr(p, n, unit);
+	return mkstr(p, n);
 }
 
-bool isascii_(String *s) {
-	if (s->ascii == 0)
-		s->ascii = asciiflag(s->s, s->n);
-	return s->ascii > 0;
-}
-
-int64_t runes(String s) {
-	if (s.unit == BytesUnit || isascii_(&s))
-		return s.n;
+/* utf8count returns the number of characters in s read as UTF-8, each
+ * invalid byte one, as Go's utf8.RuneCountInString. */
+int64_t utf8count(String s) {
 	int64_t k = 0;
-	for (int64_t i = 0; i < s.n;) {
+	for (int64_t i = 0; i < s.n; k++) {
+		if ((uint8_t)s.s[i] < 0x80) {
+			i++;
+			continue;
+		}
 		int w;
 		utf8decode((const uint8_t *)s.s + i, (size_t)(s.n - i), &w);
 		i += w;
-		k++;
 	}
 	return k;
 }
 
-String slice(String s, int64_t i, int64_t j) {
-	String r = {s.s + i - 1, j - i, s.unit, 0};
-	if (s.ascii > 0)
-		r.ascii = 1;
-	return r;
-}
+String slice(String s, int64_t i, int64_t j) { return (String){s.s + i - 1, j - i}; }
 
-/* concat: text if either operand is non-ASCII text, else bytes if
- * either is non-ASCII bytes. */
 String concat(String a, String b) {
-	bool aa = isascii_(&a), ba = isascii_(&b);
-	int u = TextUnit;
-	if ((a.unit == TextUnit && !aa) || (b.unit == TextUnit && !ba))
-		u = TextUnit;
-	else if (!aa || !ba)
-		u = BytesUnit;
-	if (b.n == 0 && a.unit == u)
+	if (b.n == 0)
 		return a;
-	if (a.n == 0 && b.unit == u)
+	if (a.n == 0)
 		return b;
 	char *p = gcraw((size_t)(a.n + b.n));
 	memcpy(p, a.s, (size_t)a.n);
 	memcpy(p + a.n, b.s, (size_t)b.n);
-	return (String){p, a.n + b.n, (uint8_t)u, (int8_t)(aa && ba ? 1 : -1)};
-}
-
-int width(String s, int64_t off) {
-	if (s.unit == BytesUnit || (uint8_t)s.s[off] < 0x80)
-		return 1;
-	int w;
-	utf8decode((const uint8_t *)s.s + off, (size_t)(s.n - off), &w);
-	return w;
-}
-
-/* widthbefore returns the width of the character ending at off, as Go's
- * utf8.DecodeLastRuneInString. */
-int widthbefore(String s, int64_t off) {
-	if (s.unit == BytesUnit || (uint8_t)s.s[off - 1] < 0x80)
-		return 1;
-	int64_t start = off - 1;
-	int64_t lim = off - 4 < 0 ? 0 : off - 4;
-	for (start--; start >= lim; start--)
-		if (((uint8_t)s.s[start] & 0xC0) != 0x80)
-			break;
-	if (start < lim)
-		start = lim;
-	int w;
-	utf8decode((const uint8_t *)s.s + start, (size_t)(off - start), &w);
-	if (start + w != off)
-		return 1;
-	return w;
+	return (String){p, a.n + b.n};
 }
 
 bool streq_(String a, const char *t) {
@@ -119,12 +63,11 @@ char *cstr(String s) {
 }
 
 Value strval(String s) {
-	return (Value){MKH(KString, s.unit | (s.ascii + 1) << 1, s.n), {.s = s.s}};
+	return (Value){MKH(KString, 0, s.n), {.s = s.s}};
 }
 
 String vstr(Value v) {
-	int f = VFLAGS(v);
-	return (String){v.w.s, (int64_t)VN(v), (uint8_t)(f & 1), (int8_t)(((f >> 1) & 3) - 1)};
+	return (String){v.w.s, (int64_t)VN(v)};
 }
 
 void itoa_(Buf *b, int64_t i) { bufprintf(b, "%lld", (long long)i); }
@@ -474,19 +417,19 @@ bool cvstr(Value v, String *out) {
 	case KInt: {
 		char buf[24];
 		int k = snprintf(buf, sizeof buf, "%lld", (long long)v.w.i);
-		*out = strcopy(buf, k, TextUnit);
+		*out = strcopy(buf, k);
 		return true;
 	}
 	case KBig: {
 		Buf b = {0};
 		bigstr(&b, v.w.p);
-		*out = bufstring(&b, TextUnit);
+		*out = bufstring(&b);
 		return true;
 	}
 	case KReal: {
 		Buf b = {0};
 		rtos(&b, v.w.r);
-		*out = bufstring(&b, TextUnit);
+		*out = bufstring(&b);
 		return true;
 	}
 	case KCset:
@@ -588,8 +531,7 @@ bool identical(Value x, Value y) {
 		if (VKIND(y) != KString)
 			return false;
 		String a = vstr(x), b = vstr(y);
-		return a.n == b.n && memcmp(a.s, b.s, (size_t)a.n) == 0 &&
-		       (a.unit == b.unit || isascii_(&a));
+		return a.n == b.n && memcmp(a.s, b.s, (size_t)a.n) == 0;
 	}
 	case KCset:
 		return VKIND(y) == KCset && cset_equal(x.w.p, y.w.p);
@@ -610,7 +552,7 @@ const char *typename_(Value v) {
 	case KReal: return "real";
 	case KRecord: {
 		Record *r = v.w.p;
-		return cstr(mkstr(r->t->name.s, (int64_t)r->t->name.n, TextUnit));
+		return cstr(mkstr(r->t->name.s, (int64_t)r->t->name.n));
 	}
 	case KFile: return ((File *)v.w.p)->gfx ? "window" : "file";
 	case KTable: return "table";
@@ -620,8 +562,8 @@ const char *typename_(Value v) {
 }
 
 /* bufstring returns the bytes of b as a string in the heap, and frees b. */
-String bufstring(Buf *b, int unit) {
-	String s = b->n == 0 ? mkstr("", 0, unit) : strcopy(b->b, (int64_t)b->n, unit);
+String bufstring(Buf *b) {
+	String s = b->n == 0 ? mkstr("", 0) : strcopy(b->b, (int64_t)b->n);
 	free(b->b);
 	*b = (Buf){0};
 	return s;
@@ -640,8 +582,8 @@ void sbgrow_(SB *s, size_t k) {
 	s->cap = cap;
 }
 
-String sbstring(SB *s, int unit) {
+String sbstring(SB *s) {
 	if (s->n == 0)
-		return mkstr("", 0, unit);
-	return mkstr(s->b, (int64_t)s->n, unit);
+		return mkstr("", 0);
+	return mkstr(s->b, (int64_t)s->n);
 }

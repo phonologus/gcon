@@ -60,14 +60,9 @@ typedef struct RecordType {
 	StrVec fields;
 } RecordType;
 
-/* A cset: the ASCII characters and non-ASCII bytes in bits, code points
- * (>= 0x80) in ranges, sorted, disjoint, not adjacent. */
-typedef struct CsetRange {
-	int32_t lo, hi;
-} CsetRange;
+/* A cset: a set of the 256 byte values, in bits, as Icon 9.5's. */
 typedef struct Cset {
 	uint64_t bits[4];
-	VEC(CsetRange) ranges;
 } Cset;
 
 typedef enum ValKind { V_NULL, V_INT, V_BIG, V_REAL, V_STRING, V_CSET, V_BUILTIN, V_PROC, V_RECORD } ValKind;
@@ -80,7 +75,6 @@ typedef struct Value {
 	double r;           /* V_REAL */
 	const char *s;      /* V_STRING: the bytes */
 	size_t n;           /* V_STRING: their number */
-	int unit;           /* V_STRING: 0 text, 1 bytes */
 	Cset *cset;         /* V_CSET */
 	Builtin *builtin;   /* V_BUILTIN */
 	Proc *proc;         /* V_PROC */
@@ -95,12 +89,10 @@ typedef struct Prog {
 	bool *invocable; /* by global; NULL: all (invocable all) */
 } Prog;
 
-/* Csets, as the Go reference's vm/cset.go builds them. */
+/* Csets. */
 Cset *cset_new(void);
 Cset *cset_union(const Cset *a, const Cset *b);
-Cset *cset_complement(const Cset *c);
-Cset *cset_from(const char *s, size_t n, int unit);
-void cset_addrunes(Cset *c, const CsetRange *rs, size_t n);
+Cset *cset_from(const char *s, size_t n); /* the cset of the bytes of s */
 
 /* encode writes p's encoding to out, with the build information keys
  * and values (ninfo of each, written sorted by key). It returns an error

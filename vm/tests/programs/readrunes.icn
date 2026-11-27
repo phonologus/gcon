@@ -1,5 +1,5 @@
 # reads counts bytes, as in Icon 9.5; readrunes counts characters
-# (code points in a text file, bytes in a bytes file).
+# (UTF-8 characters, never splitting a sequence).
 procedure main()
    local f, s, t
    f := open("rr.tmp", "w") | stop("cannot open")
@@ -29,16 +29,15 @@ procedure main()
    seek(f, where(f) - 1)
    write(image(s), " ", where(f), " ", image(readrunes(f)))
 
-   # reads produces bytes even from a text file, as binary readers
-   # need; runes reads them as text again
+   # reads produces the bytes, as binary readers need
    seek(f, 4)
    s := reads(f, 2)
-   write(ord(s[1]), " ", ord(s[2]), " ", len(s), " ", image(runes(s)))
+   write(ord(s[1]), " ", ord(s[2]), " ", len(s), " ", image(s))
    close(f)
 
    f := open("rr.tmp", "u")
    write(image(readrunes(f, 4)), " ", image(reads(f, 3)), " ", where(f))
-   write(image(bytes(readrunes(f, 2))), " ", ord(reads(f)), " ", where(f))
+   write(image(readrunes(f, 2)), " ", ord(reads(f)), " ", where(f))
    close(f)
    remove("rr.tmp")
 
@@ -57,7 +56,7 @@ procedure main()
    write(*s, " ", len(s), " ", image(s[-3:0]), " ", where(f))
    seek(f, 1)
    s := reads(f, 2 ^ 40)
-   write(*s, " ", type(s), " ", same(s, bytes(t)), " ", image(reads(f)) | "eof")
+   write(*s, " ", type(s), " ", same(s, t), " ", image(reads(f)) | "eof")
    close(f)
    f := open("cat rr.tmp rr.tmp rr.tmp", "p")
    s := reads(f, 500000)

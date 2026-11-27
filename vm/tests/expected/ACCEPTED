@@ -22,3 +22,8 @@ tests-general/kwds       &features includes "SDL graphics" (gcon predefines
                          _SDL_GRAPHICS, as icon-sdl does), which this copy
                          of the test does not drop as optional (icon-sdl's
                          does; tests/conformance.sh makes that change)
+ipl-progs/ifncsgen       (2026-11-27) strings are bytes again: gcon's
+                         runes and bytes are gone, leaving len,
+                         readrunes, uchar and utf8valid
+tests-general/checkc     (2026-11-27) csets are Icon 9.5's 256 bytes
+tests-general/scan       again: the output is now iconx's .std exactly

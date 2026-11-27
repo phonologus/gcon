@@ -23,7 +23,7 @@ void image(Buf *b, Value v) {
 		return;
 	case KString: {
 		String s = vstr(v);
-		quote(b, s.s, (size_t)s.n, s.unit == BytesUnit, '"');
+		quote(b, s.s, (size_t)s.n, false, '"');
 		return;
 	}
 	case KList: {
@@ -141,15 +141,13 @@ void outimage(Buf *b, Value v, int noimage) {
 	switch (VKIND(v)) {
 	case KString: {
 		String s = vstr(v);
-		if (runes(s) <= StringLimit) {
-			quote(b, s.s, (size_t)s.n, s.unit == BytesUnit, '"');
+		if (s.n <= StringLimit) {
+			quote(b, s.s, (size_t)s.n, false, '"');
 			return;
 		}
-		int64_t i = 1;
-		for (int k = 0; k < StringLimit; k++)
-			i += width(s, i - 1);
+		int64_t i = StringLimit + 1;
 		Buf q = {0};
-		quote(&q, s.s, (size_t)(i - 1), s.unit == BytesUnit, '"');
+		quote(&q, s.s, (size_t)(i - 1), false, '"');
 		bufadd(b, q.b, q.n - 1);
 		bufputs(b, "...\"");
 		free(q.b);
@@ -161,30 +159,10 @@ void outimage(Buf *b, Value v, int noimage) {
 			imagecset(b, c);
 			return;
 		}
-		/* The first StringLimit members, as text. */
+		/* The first StringLimit members. */
 		String all = cset_string(c);
-		Buf m = {0};
-		int64_t k = 0;
-		if (c->nranges == 0) {
-			bufadd(&m, all.s, StringLimit);
-		} else {
-			for (int64_t i = 0; i < all.n && k < StringLimit; k++) {
-				/* members: ASCII and lone bytes are one byte; code points their encoding */
-				uint8_t ch = (uint8_t)all.s[i];
-				int w = 1;
-				if (ch >= 0x80) {
-					int32_t r = utf8decode((const uint8_t *)all.s + i, (size_t)(all.n - i), &w);
-					if (r == RuneError && w == 1)
-						w = 1;
-					else if (!cset_hasrune(c, r))
-						w = 1;
-				}
-				bufadd(&m, all.s + i, (size_t)w);
-				i += w;
-			}
-		}
 		Buf q = {0};
-		quote(&q, m.b, m.n, false, '\'');
+		quote(&q, all.s, StringLimit, true, '\'');
 		bufadd(b, q.b, q.n - 1);
 		bufputs(b, "...'");
 		return;

@@ -545,7 +545,7 @@ static Value *applyargs(Value x, int *n) {
 static char *fromstr(Frame *f) {
 	Buf b = {0};
 	calledfrom(&b, f);
-	return cstr(bufstring(&b, TextUnit));
+	return cstr(bufstring(&b));
 }
 
 /* ---- The loop ---- */
@@ -921,7 +921,7 @@ static void run(Frame *f) {
 /* ---- Linking and starting ---- */
 
 static Builtin *resolve(BuiltinRef *r) {
-	char *name = cstr(mkstr(r->name.s, (int64_t)r->name.n, TextUnit));
+	char *name = cstr(mkstr(r->name.s, (int64_t)r->name.n));
 	Builtin *b = NULL;
 	switch (r->kind) {
 	case BuiltinOp:
@@ -953,8 +953,6 @@ static Builtin *resolve(BuiltinRef *r) {
 static void linkvalue(Value *v) {
 	if (VKIND(*v) == KBuiltin)
 		*v = ptrval(KBuiltin, vm.builtins[VN(*v)]);
-	else if (VKIND(*v) == KString) /* the loader leaves the ASCII flag unset */
-		*v = strval(mkstr(v->w.s, (int64_t)VN(*v), VFLAGS(*v) & SBytes));
 }
 
 void link_program(Program *p) {

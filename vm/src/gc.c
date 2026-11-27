@@ -266,7 +266,6 @@ static void markomap(OMap *m) {
 
 static void markcset(Cset *c) {
 	if (!markptr(c)) { /* a constant's: not in the heap, but its cache is */
-		markptr(c->ranges);
 		markptr(c->str);
 	}
 }
@@ -351,7 +350,6 @@ static void trace(Work w) {
 		break;
 	}
 	case T_CSET:
-		markptr(((Cset *)w.p)->ranges);
 		markptr(((Cset *)w.p)->str);
 		break;
 	case T_STRHDR:

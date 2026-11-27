@@ -45,7 +45,7 @@ static char *salloc(const char *s) { return strdup(s ? s : ""); }
 
 /* cstrval: a C string as an Icon string, copied into the heap (the
  * buffers here change or go). */
-static Value cstrval(const char *s) { return strval(strcopy(s, (int64_t)strlen(s), TextUnit)); }
+static Value cstrval(const char *s) { return strval(strcopy(s, (int64_t)strlen(s))); }
 
 /* ---- string-integer tables (rwindow.r's stringint) ---- */
 
@@ -1179,7 +1179,7 @@ static int process_events(int timeout) {
 			char c = (char)(code & 0xFF);
 			ws->pointerx = x, ws->pointery = y;
 			/* copied: mkstr would keep a pointer to c, on the stack */
-			qevent(ws, strval(strcopy(&c, 1, (uint8_t)c < 0x80 ? TextUnit : BytesUnit)), x, y, ms, mods);
+			qevent(ws, strval(strcopy(&c, 1)), x, y, ms, mods);
 			break;
 		}
 		case PL_KEYSYM:
@@ -1399,7 +1399,7 @@ bool gfx_read(File *f, int64_t k, String *out) {
 			break;
 		bufputc(&b, c);
 	}
-	*out = strcopy(b.b ? b.b : "", (int64_t)b.n, TextUnit);
+	*out = strcopy(b.b ? b.b : "", (int64_t)b.n);
 	free(b.b);
 	return true;
 }
@@ -3762,14 +3762,8 @@ static bool iswindowarg(Value *a, int n) {
 	return n > 0 && VKIND(a[0]) == KFile && ((File *)a[0].w.p)->gfx;
 }
 
-/* bytesorstr: a string of n bytes, text unless some are not ASCII. */
-static Value bytesorstr(const char *s, size_t n) {
-	int unit = TextUnit;
-	for (size_t i = 0; i < n; i++)
-		if ((unsigned char)s[i] >= 0x80)
-			unit = BytesUnit;
-	return strval(strcopy(s, (int64_t)n, unit));
-}
+/* bytesorstr: a string of n bytes. */
+static Value bytesorstr(const char *s, size_t n) { return strval(strcopy(s, (int64_t)n)); }
 
 FN(f_PaletteChars) {
 	(void)b;
@@ -3808,7 +3802,7 @@ FN(f_PaletteColor) {
 		return false;
 	char tmp[48];
 	snprintf(tmp, sizeof tmp, "%ld,%ld,%ld", e->clr.red, e->clr.green, e->clr.blue);
-	*out = strval(strcopy(tmp, (int64_t)strlen(tmp), TextUnit));
+	*out = strval(strcopy(tmp, (int64_t)strlen(tmp)));
 	return true;
 }
 

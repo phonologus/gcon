@@ -103,7 +103,6 @@ const char *const gen_functions[] = {
 	"asin",
 	"atan",
 	"bal",
-	"bytes",
 	"center",
 	"char",
 	"chdir",
@@ -168,7 +167,6 @@ const char *const gen_functions[] = {
 	"right",
 	"rtod",
 	"runerr",
-	"runes",
 	"seek",
 	"seq",
 	"serial",
@@ -193,4 +191,4 @@ const char *const gen_functions[] = {
 	"write",
 	"writes",
 };
-const int gen_nfunctions = 96;
+const int gen_nfunctions = 94;

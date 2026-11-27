@@ -1,5 +1,5 @@
 /*
- * String scanning and the string analysis functions (gcon's scan.go).
+ * String scanning and the string analysis functions, as iconx's.
  * &subject and &pos are global, as in iconx. Positions are bytes.
  */
 #include "vm.h"
@@ -177,19 +177,9 @@ RESTFN(f_tab) {
 RESTFN(f_move) {
 	(void)b;
 	int64_t k = mustint(ARG(0));
-	String s = vm.subject;
-	int64_t off = vm.pos - 1;
-	for (; k > 0; k--) {
-		if (off >= s.n)
-			return false;
-		off += width(s, off);
-	}
-	for (; k < 0; k++) {
-		if (off <= 0)
-			return false;
-		off -= widthbefore(s, off);
-	}
-	return tabto(off + 1, out, old);
+	if (k < 1 - vm.pos || k > vm.subject.n + 1 - vm.pos)
+		return false;
+	return tabto(vm.pos + k, out, old);
 }
 
 FN(f_pos) {
@@ -264,31 +254,15 @@ typedef struct UptoGen {
 
 static bool uptonext(Gen *gg, Value *out) {
 	UptoGen *g = (UptoGen *)gg;
-	/* One byte per character, each tested in the bits: an ASCII string,
-	 * or bytes against a cset of bytes only (as matchat). */
-	if (g->s.ascii == 1 || (g->s.unit == BytesUnit && g->c->nranges == 0)) {
-		const uint64_t *bits = g->c->bits;
-		for (int64_t o = g->off; o < g->end; o++) {
-			uint8_t b = (uint8_t)g->s.s[o];
-			if (bits[b >> 6] >> (b & 63) & 1) {
-				g->off = o + 1;
-				*out = intval(o + 1);
-				return true;
-			}
-		}
-		g->off = g->end;
-		return false;
-	}
-	while (g->off < g->end) {
-		int w;
-		bool in = matchat(g->c, g->s, g->off, &w);
-		int64_t p = g->off + 1;
-		g->off += w;
-		if (in) {
-			*out = intval(p);
+	const Cset *c = g->c;
+	const uint8_t *s = (const uint8_t *)g->s.s;
+	for (int64_t o = g->off; o < g->end; o++)
+		if (cset_has(c, s[o])) {
+			g->off = o + 1;
+			*out = intval(o + 1);
 			return true;
 		}
-	}
+	g->off = g->end;
 	return false;
 }
 
@@ -322,13 +296,10 @@ FN(f_many) {
 	int64_t i, j;
 	if (!scanargs(a, n, 1, &s, &i, &j))
 		return false;
+	const uint8_t *p = (const uint8_t *)s.s;
 	int64_t off = i - 1, end = j - 1;
-	while (off < end) {
-		int w;
-		if (!matchat(c, s, off, &w))
-			break;
-		off += w;
-	}
+	while (off < end && cset_has(c, p[off]))
+		off++;
 	*out = intval(off + 1);
 	return off > i - 1;
 }
@@ -340,10 +311,8 @@ FN(f_any) {
 	int64_t i, j;
 	if (!scanargs(a, n, 1, &s, &i, &j) || i >= j)
 		return false;
-	int w;
-	bool in = matchat(c, s, i - 1, &w);
-	*out = intval(i + w);
-	return in;
+	*out = intval(i + 1);
+	return cset_has(c, (uint8_t)s.s[i - 1]);
 }
 
 typedef struct BalGen {
@@ -356,16 +325,12 @@ typedef struct BalGen {
 static bool balnext(Gen *gg, Value *out) {
 	BalGen *g = (BalGen *)gg;
 	while (g->off < g->end) {
-		int64_t o = g->off;
-		int w, w2;
-		bool in1 = matchat(g->c1, g->s, o, &w);
-		bool in2 = matchat(g->c2, g->s, o, &w2);
-		bool in3 = matchat(g->c3, g->s, o, &w2);
-		g->off += w;
-		bool suspend = g->cnt == 0 && in1;
-		if (in2)
+		int64_t o = g->off++;
+		uint8_t ch = (uint8_t)g->s.s[o];
+		bool suspend = g->cnt == 0 && cset_has(g->c1, ch);
+		if (cset_has(g->c2, ch))
 			g->cnt++;
-		else if (in3)
+		else if (cset_has(g->c3, ch))
 			g->cnt--;
 		if (suspend) {
 			if (g->cnt < 0)
@@ -430,8 +395,8 @@ static Builtin fns[] = {
 };
 
 void scan_init(void) {
-	lparen = csetfrom("(", 1, TextUnit);
-	rparen = csetfrom(")", 1, TextUnit);
+	lparen = csetfrom("(", 1);
+	rparen = csetfrom(")", 1);
 	gcroot((void **)&lparen);
 	gcroot((void **)&rparen);
 	for (size_t i = 0; i < sizeof ops / sizeof ops[0]; i++)

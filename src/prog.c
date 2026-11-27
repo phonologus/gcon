@@ -1,6 +1,6 @@
 /*
- * Built programs (prog.h): builtins by reference, csets as the Go
- * reference's vm/cset.go builds them, and the encoder (vm/encode.go).
+ * Built programs (prog.h): builtins by reference, csets of bytes, and
+ * the encoder (the Go reference's vm/encode.go).
  */
 #include "prog.h"
 
@@ -71,149 +71,21 @@ Builtin *apply_builtin(void) { return builtin_ref(BuiltinApply, "", 0); }
 /* ------------------------------------------------------------------ */
 /* Csets */
 
-enum { SurrLo = 0xD800, SurrHi = 0xDFFF };
-
-typedef VEC(CsetRange) Ranges;
-
-static const CsetRange universe[] = {{0x80, SurrLo - 1}, {SurrHi + 1, MaxRune}};
-
 Cset *cset_new(void) { return xcalloc(1, sizeof(Cset)); }
 
 static void cset_set(Cset *c, unsigned b) { c->bits[b >> 6] |= (uint64_t)1 << (b & 63); }
-
-/* normalize merges sorted ranges that overlap or touch. */
-static Ranges normalize(const CsetRange *rs, size_t n) {
-	Ranges out = {0};
-	for (size_t i = 0; i < n; i++) {
-		CsetRange r = rs[i];
-		if (out.n > 0 && r.lo <= out.v[out.n - 1].hi + 1) {
-			if (r.hi > out.v[out.n - 1].hi)
-				out.v[out.n - 1].hi = r.hi;
-			continue;
-		}
-		VPUSH(out, r);
-	}
-	return out;
-}
-
-/* A stable sort by lo (Go's sort.Slice is not stable, but ranges with
- * equal lo merge to the same result whatever their order). */
-static void sortranges(CsetRange *rs, size_t n) {
-	for (size_t i = 1; i < n; i++) {
-		CsetRange r = rs[i];
-		size_t j = i;
-		for (; j > 0 && rs[j - 1].lo > r.lo; j--)
-			rs[j] = rs[j - 1];
-		rs[j] = r;
-	}
-}
-
-static Ranges unionranges(const CsetRange *a, size_t na, const CsetRange *b, size_t nb) {
-	CsetRange *all = xmalloc((na + nb + 1) * sizeof *all);
-	if (na)
-		memcpy(all, a, na * sizeof *all);
-	if (nb)
-		memcpy(all + na, b, nb * sizeof *all);
-	sortranges(all, na + nb);
-	Ranges out = normalize(all, na + nb);
-	free(all);
-	return out;
-}
-
-static Ranges interranges(const CsetRange *a, size_t na, const CsetRange *b, size_t nb) {
-	Ranges out = {0};
-	for (size_t i = 0, j = 0; i < na && j < nb;) {
-		int32_t lo = a[i].lo > b[j].lo ? a[i].lo : b[j].lo;
-		int32_t hi = a[i].hi < b[j].hi ? a[i].hi : b[j].hi;
-		if (lo <= hi) {
-			CsetRange r = {lo, hi};
-			VPUSH(out, r);
-		}
-		if (a[i].hi < b[j].hi)
-			i++;
-		else
-			j++;
-	}
-	return out;
-}
-
-/* invert returns the complement of rs within 0x80..MaxRune. */
-static Ranges invert(const CsetRange *rs, size_t n) {
-	Ranges out = {0};
-	int32_t next = 0x80;
-	for (size_t i = 0; i < n; i++) {
-		if (rs[i].lo > next) {
-			CsetRange r = {next, rs[i].lo - 1};
-			VPUSH(out, r);
-		}
-		next = rs[i].hi + 1;
-	}
-	if (next <= MaxRune) {
-		CsetRange r = {next, MaxRune};
-		VPUSH(out, r);
-	}
-	return out;
-}
 
 Cset *cset_union(const Cset *a, const Cset *b) {
 	Cset *r = cset_new();
 	for (int i = 0; i < 4; i++)
 		r->bits[i] = a->bits[i] | b->bits[i];
-	Ranges u = unionranges(a->ranges.v, a->ranges.n, b->ranges.v, b->ranges.n);
-	r->ranges.v = u.v, r->ranges.n = u.n, r->ranges.cap = u.cap;
 	return r;
 }
 
-Cset *cset_complement(const Cset *c) {
-	Cset *r = cset_new();
-	Ranges inv = invert(c->ranges.v, c->ranges.n);
-	Ranges cr = interranges(universe, 2, inv.v, inv.n);
-	r->ranges.v = cr.v, r->ranges.n = cr.n, r->ranges.cap = cr.cap;
-	for (int i = 0; i < 4; i++)
-		r->bits[i] = ~c->bits[i];
-	return r;
-}
-
-/* addrunes adds code points (>= 0x80, valid) to c's ranges. */
-void cset_addrunes(Cset *c, const CsetRange *rs, size_t n) {
-	CsetRange *sorted = xmalloc((n + 1) * sizeof *sorted);
-	if (n)
-		memcpy(sorted, rs, n * sizeof *sorted);
-	sortranges(sorted, n);
-	Ranges norm = normalize(sorted, n);
-	Ranges in = interranges(universe, 2, norm.v, norm.n);
-	Ranges u = unionranges(c->ranges.v, c->ranges.n, in.v, in.n);
-	c->ranges.v = u.v, c->ranges.n = u.n, c->ranges.cap = u.cap;
-	free(sorted);
-}
-
-Cset *cset_from(const char *s, size_t n, int unit) {
+Cset *cset_from(const char *s, size_t n) {
 	Cset *c = cset_new();
-	if (unit == 1) {
-		for (size_t i = 0; i < n; i++)
-			cset_set(c, (unsigned char)s[i]);
-		return c;
-	}
-	Ranges rs = {0};
-	for (size_t i = 0; i < n;) {
-		unsigned char b = (unsigned char)s[i];
-		if (b < RuneSelf) {
-			cset_set(c, b);
-			i++;
-			continue;
-		}
-		int w;
-		int32_t r = utf8decode((const uint8_t *)s + i, n - i, &w);
-		if (r == RuneError && w == 1)
-			cset_set(c, b);
-		else {
-			CsetRange x = {r, r};
-			VPUSH(rs, x);
-		}
-		i += (size_t)w;
-	}
-	if (rs.n)
-		cset_addrunes(c, rs.v, rs.n);
+	for (size_t i = 0; i < n; i++)
+		cset_set(c, (unsigned char)s[i]);
 	return c;
 }
 
@@ -406,18 +278,12 @@ static void value(Encoder *e, const Value *v) {
 	}
 	case V_STRING:
 		bufputc(b, ValString);
-		bufputc(b, v->unit);
 		estr(b, v->s, v->n);
 		break;
 	case V_CSET:
 		bufputc(b, ValCset);
 		for (int i = 0; i < 4; i++)
 			eu64(b, v->cset->bits[i]);
-		euint(b, v->cset->ranges.n);
-		for (size_t i = 0; i < v->cset->ranges.n; i++) {
-			euint(b, (uint64_t)v->cset->ranges.v[i].lo);
-			euint(b, (uint64_t)v->cset->ranges.v[i].hi);
-		}
 		break;
 	case V_BUILTIN:
 		bufputc(b, ValBuiltin);

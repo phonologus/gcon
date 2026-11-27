@@ -103,15 +103,11 @@ static uint64_t hashval(Value v) {
 	}
 	case KString: {
 		String s = vstr(v);
-		uint64_t h = hashbytes(s.s, (size_t)s.n, 0xcbf29ce484222325ULL);
-		if (!isascii_(&s))
-			h = mix(h + s.unit);
-		return h;
+		return hashbytes(s.s, (size_t)s.n, 0xcbf29ce484222325ULL);
 	}
 	case KCset: {
 		Cset *c = v.w.p;
-		uint64_t h = hashbytes(c->bits, sizeof c->bits, 0x1234);
-		return hashbytes(c->ranges, (size_t)c->nranges * 8, h);
+		return hashbytes(c->bits, sizeof c->bits, 0x1234);
 	}
 	}
 	return mix((uint64_t)(uintptr_t)v.w.p ^ (uint64_t)VKIND(v) << 56 ^ VN(v));

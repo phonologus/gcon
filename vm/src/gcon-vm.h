@@ -68,16 +68,9 @@ typedef struct Value {
 #define VN(v) ((v).h >> 16)
 #define MKH(k, f, n) ((uint64_t)(k) | (uint64_t)(f) << 8 | (uint64_t)(n) << 16)
 
-/* A string's flags: its unit. */
-enum { SBytes = 1 };
-
-/* Cset: the ASCII characters and the non-ASCII bytes in bits, code
- * points from 0x80 in ranges (sorted, disjoint, not adjacent), as
- * gcon's cset.go. */
+/* Cset: a set of the 256 byte values, in bits, as Icon 9.5's. */
 typedef struct Cset {
 	uint64_t bits[4];
-	int nranges;
-	uint32_t (*ranges)[2];
 	void *str; /* run time: the cset as a string, once made (a cset never changes) */
 } Cset;
 

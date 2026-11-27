@@ -532,61 +532,31 @@ static Operand literal(PComp *p, Node *e) {
 	case T_STRINGLIT: {
 		char *s;
 		size_t n;
-		LitUnit u;
-		if ((err = lit_string(text, t->len, &s, &n, &u)))
+		if ((err = lit_string(text, t->len, &s, &n)))
 			break;
-		int unit = u == U_BYTES ? 1 : 0;
 		Buf key = {0};
-		bufprintf(&key, "s%d", unit);
+		bufputc(&key, 's');
 		bufadd(&key, s, n);
 		Value v = {0};
 		v.kind = V_STRING;
 		v.s = s;
 		v.n = n;
-		v.unit = unit;
 		return constant(p->c, key.b, key.n, v);
 	}
 	case T_CSETLIT: {
 		LitCset lc;
 		if ((err = lit_cset(text, t->len, &lc)))
 			break;
-		int unit = lc.unit == U_BYTES ? 1 : 0;
-		/* the key: the unit, the segments and the ranges */
-		Buf key = {0};
-		bufprintf(&key, "c%d %zu", unit, lc.nsegs);
-		for (size_t i = 0; i < lc.nsegs; i++) {
-			bufprintf(&key, " %zu:", lc.seglens[i]);
-			bufadd(&key, lc.segs[i], lc.seglens[i]);
-		}
-		for (size_t i = 0; i < lc.nranges; i++)
-			bufprintf(&key, " %d-%d%c", (int)lc.ranges[i].lo, (int)lc.ranges[i].hi,
-				lc.ranges[i].lonebytes ? 'b' : 'r');
-		/* NewCsetLiteral: the characters of each segment (read
-		 * separately, so that bytes never fuse across a range), then
-		 * the ranges */
 		Cset *cs = cset_new();
 		for (size_t i = 0; i < lc.nsegs; i++)
-			cs = cset_union(cs, cset_from(lc.segs[i], lc.seglens[i], unit));
-		VEC(CsetRange) rs = {0};
-		for (size_t i = 0; i < lc.nranges; i++) {
-			LitRange r = lc.ranges[i];
-			if (r.lonebytes || r.hi < RuneSelf) {
-				for (int32_t x = r.lo; x <= r.hi && x <= 0xFF; x++)
-					cs->bits[x >> 6] |= (uint64_t)1 << (x & 63);
-				continue;
-			}
-			if (r.lo < RuneSelf) {
-				for (int32_t x = r.lo; x < RuneSelf; x++)
-					cs->bits[x >> 6] |= (uint64_t)1 << (x & 63);
-				CsetRange cr = {RuneSelf, r.hi};
-				VPUSH(rs, cr);
-			} else {
-				CsetRange cr = {r.lo, r.hi};
-				VPUSH(rs, cr);
-			}
-		}
-		if (rs.n)
-			cset_addrunes(cs, rs.v, rs.n);
+			cs = cset_union(cs, cset_from(lc.segs[i], lc.seglens[i]));
+		for (size_t i = 0; i < lc.nranges; i++)
+			for (int32_t x = lc.ranges[i].lo; x <= lc.ranges[i].hi; x++)
+				cs->bits[x >> 6] |= (uint64_t)1 << (x & 63);
+		/* the key: the members */
+		Buf key = {0};
+		bufputc(&key, 'c');
+		bufadd(&key, cs->bits, sizeof cs->bits);
 		Value v = {0};
 		v.kind = V_CSET;
 		v.cset = cs;
@@ -716,18 +686,16 @@ static Res keyword(PComp *p, Node *e, Label fail, Label succ) {
 	if (streq(name, "ascii"))
 		return res3(succ, fail, constz(c, "&ascii", csetv(fullcset(2))));
 	if (streq(name, "digits"))
-		return res3(succ, fail, constz(c, "&digits", csetv(cset_from("0123456789", 10, 0))));
+		return res3(succ, fail, constz(c, "&digits", csetv(cset_from("0123456789", 10))));
 	if (streq(name, "lcase"))
-		return res3(succ, fail, constz(c, "&lcase", csetv(cset_from("abcdefghijklmnopqrstuvwxyz", 26, 0))));
+		return res3(succ, fail, constz(c, "&lcase", csetv(cset_from("abcdefghijklmnopqrstuvwxyz", 26))));
 	if (streq(name, "ucase"))
-		return res3(succ, fail, constz(c, "&ucase", csetv(cset_from("ABCDEFGHIJKLMNOPQRSTUVWXYZ", 26, 0))));
+		return res3(succ, fail, constz(c, "&ucase", csetv(cset_from("ABCDEFGHIJKLMNOPQRSTUVWXYZ", 26))));
 	if (streq(name, "letters"))
 		return res3(succ, fail,
 			constz(c, "&letters",
-				csetv(cset_union(cset_from("abcdefghijklmnopqrstuvwxyz", 26, 0),
-					cset_from("ABCDEFGHIJKLMNOPQRSTUVWXYZ", 26, 0)))));
-	if (streq(name, "uset"))
-		return res3(succ, fail, constz(c, "&uset", csetv(cset_complement(cset_new()))));
+				csetv(cset_union(cset_from("abcdefghijklmnopqrstuvwxyz", 26),
+					cset_from("ABCDEFGHIJKLMNOPQRSTUVWXYZ", 26)))));
 	for (size_t i = 0; i < sizeof kwops / sizeof kwops[0]; i++)
 		if (streq(name, kwops[i])) {
 			Label s = newlabel(p);
@@ -2390,8 +2358,7 @@ Prog *compile_program(Program *sp, CompileFile *files, size_t nfiles, StrVec *er
 					if (t->kind == T_STRINGLIT) {
 						char *s;
 						size_t sn;
-						LitUnit u;
-						if (!lit_string(syn->src + t->offset, t->len, &s, &sn, &u))
+						if (!lit_string(syn->src + t->offset, t->len, &s, &sn))
 							name = xstrndup(s, sn);
 						else
 							name = "";

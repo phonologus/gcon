@@ -10,7 +10,7 @@
 /* The version of the format. It changes with any change to the
  * encoding, to the instruction set, or to what an instruction does with
  * its fields. */
-enum { FormatVersion = 1 };
+enum { FormatVersion = 2 };
 
 /* Magic begins an encoded program. As in PNG, the first byte is not
  * ASCII and the line endings catch a file mangled as text. */

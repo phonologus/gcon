@@ -356,8 +356,7 @@ Front *front_end(const char *path, const char *src, size_t n, const Config *c, S
 				if (t->kind == T_STRINGLIT) {
 					char *s;
 					size_t sn;
-					LitUnit lu;
-					if (!lit_string(u->file->src + t->offset, t->len, &s, &sn, &lu))
+					if (!lit_string(u->file->src + t->offset, t->len, &s, &sn))
 						name = xstrndup(s, sn);
 					else
 						name = "";

@@ -17,20 +17,15 @@
 /* ---- Strings ---- */
 
 /* String is an Icon string: its bytes (not NUL-terminated, shared, never
- * changed), its length, its unit and whether it is all ASCII. */
+ * changed) and its length. */
 typedef struct String {
 	const char *s;
 	int64_t n;
-	uint8_t unit; /* TextUnit or BytesUnit */
-	int8_t ascii; /* 0 unknown, 1 all ASCII, -1 not */
 } String;
 
-enum { TextUnit = 0, BytesUnit = 1 };
-
-String mkstr(const char *s, int64_t n, int unit);
-String mkstrf(const char *s, int64_t n, int unit, int8_t ascii); /* ASCII flag known */
-String textc(const char *s); /* a C string as text */
-String strcopy(const char *s, int64_t n, int unit);
+String mkstr(const char *s, int64_t n);
+String textc(const char *s); /* a C string */
+String strcopy(const char *s, int64_t n);
 
 /* SB builds a string in the heap: its buffer becomes the string, uncopied.
  * Safe because the collector runs only between instructions. */
@@ -52,18 +47,14 @@ static inline void sbadd(SB *s, const void *p, size_t k) {
 	memcpy(s->b + s->n, p, k);
 	s->n += k;
 }
-String sbstring(SB *s, int unit);
-bool isascii_(String *s);
-int64_t runes(String s);
+String sbstring(SB *s);
+int64_t utf8count(String s); /* the characters of s read as UTF-8 */
 String slice(String s, int64_t i, int64_t j); /* 1-based, i <= j */
 String concat(String a, String b);
-int width(String s, int64_t off);
-int widthbefore(String s, int64_t off);
 bool streq_(String a, const char *t);
 char *cstr(String s); /* a NUL-terminated copy */
 
-/* A string Value: n is the length; flags hold the unit (bit 0) and the
- * ASCII flag plus one (bits 1 and 2). */
+/* A string Value: n is the length, w.s the bytes. */
 Value strval(String s);
 String vstr(Value v);
 
@@ -143,7 +134,7 @@ typedef struct File {
 	void *r, *w;  /* buffers for reading, writing (either may be NULL) */
 	int fd;       /* the file opened, for seek, where and close; -1 for streams */
 	bool pipe;
-	int unit;
+	bool untrans; /* mode "u": only "\n" ends a line, as iconx's Fs_Untrans */
 	bool closed;
 	bool errout;
 	bool isdir;
@@ -406,18 +397,15 @@ Value neg_(Value x);
 
 Cset *newcset(void);
 Cset *csetof(String s);
-Cset *csetfrom(const char *s, int64_t n, int unit);
+Cset *csetfrom(const char *s, int64_t n);
 Cset *csetop(int op, const Cset *a, const Cset *b);
 Cset *complement(const Cset *c);
-bool cset_has(const Cset *c, int b);
-void cset_set(Cset *c, int b);
-bool cset_hasrune(const Cset *c, int32_t r);
+static inline bool cset_has(const Cset *c, int b) { return c->bits[b >> 6] >> (b & 63) & 1; }
+static inline void cset_set(Cset *c, int b) { c->bits[b >> 6] |= (uint64_t)1 << (b & 63); }
 int64_t cset_size(const Cset *c);
 bool cset_equal(const Cset *a, const Cset *b);
 String cset_string(const Cset *c);
-bool matchat(const Cset *c, String s, int64_t off, int *w);
-Cset *cset_asbytes(const Cset *c);
-extern Cset *CsetAll, *CsetASCII, *CsetDigits, *CsetLcase, *CsetUcase, *CsetLetters, *CsetUniv;
+extern Cset *CsetAll, *CsetASCII, *CsetDigits, *CsetLcase, *CsetUcase, *CsetLetters;
 void cset_init(void);
 const char *csetname_(const Cset *c);
 
@@ -445,7 +433,7 @@ int anycmp(Value x, Value y);
 
 void image(Buf *b, Value v);
 void outimage(Buf *b, Value v, int noimage);
-String bufstring(Buf *b, int unit);
+String bufstring(Buf *b);
 
 /* ---- Scanning and generators (scan.c) ---- */
 

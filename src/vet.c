@@ -125,8 +125,7 @@ static bool nonnumeric(Vet *v, Token *t) {
 	if (t->kind == T_STRINGLIT) {
 		char *s;
 		size_t n;
-		LitUnit u;
-		if (lit_string(src, t->len, &s, &n, &u))
+		if (lit_string(src, t->len, &s, &n))
 			return false;
 		for (size_t i = 0; i < n; i++)
 			if (s[i] >= '0' && s[i] <= '9')
@@ -292,8 +291,7 @@ static StrMap *kept(Vet *v, bool ignoreall) {
 				}
 				char *s;
 				size_t n;
-				LitUnit u;
-				if (t->kind == T_STRINGLIT && !lit_string(syn->src + t->offset, t->len, &s, &n, &u))
+				if (t->kind == T_STRINGLIT && !lit_string(syn->src + t->offset, t->len, &s, &n))
 					VPUSH(work, xstrndup(s, n));
 			}
 		}
@@ -382,8 +380,7 @@ void vet_file(Program *p, SemaInfo *info, VetResolver *resolve, void *ctx, VetOp
 			Token *t = v.strinv.v[i];
 			char *s;
 			size_t n;
-			LitUnit u;
-			if (lit_string(ttext(&v, t), t->len, &s, &n, &u))
+			if (lit_string(ttext(&v, t), t->len, &s, &n))
 				continue;
 			Symbol *g = sema_global(p, s, n);
 			if (!g || (g->kind != S_PROCEDURE && g->kind != S_RECORD) || strmap_get(keep, s, n))

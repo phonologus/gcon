@@ -396,32 +396,13 @@ static Value value(Decoder *d) {
 		return (Value){MKH(KReal, 0, 0), {.r = r}};
 	}
 	case ValString: {
-		uint8_t u = byte(d);
-		if (u != 0 && u != 1)
-			fail(d, "bad string unit %d", u);
 		Str s = str(d);
-		return (Value){MKH(KString, u == 1 ? SBytes : 0, s.n), {.s = s.s}};
+		return (Value){MKH(KString, 0, s.n), {.s = s.s}};
 	}
 	case ValCset: {
 		Cset *c = xcalloc(1, sizeof *c);
 		for (int i = 0; i < 4; i++)
 			c->bits[i] = u64(d);
-		int n = count(d);
-		if (n > 0) {
-			c->ranges = xcalloc((size_t)n, sizeof *c->ranges);
-			uint64_t prev = 0x7F;
-			for (int i = 0; i < n; i++) {
-				uint64_t lo = uvarint(d), hi = uvarint(d);
-				if (lo > hi || hi > MaxRune || lo <= prev) {
-					fail(d, "bad cset range");
-					break;
-				}
-				c->ranges[i][0] = (uint32_t)lo;
-				c->ranges[i][1] = (uint32_t)hi;
-				c->nranges++;
-				prev = hi;
-			}
-		}
 		return (Value){MKH(KCset, 0, 0), {.p = c}};
 	}
 	case ValBuiltin: {

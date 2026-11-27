@@ -181,7 +181,7 @@ static const struct {
 	{"stop", -1}, {"string", 1}, {"system", 1}, {"tab", 1}, {"table", 1}, {"tan", 1},
 	{"trim", 2}, {"type", 1}, {"upto", 4}, {"variable", 1}, {"where", 1}, {"write", -1},
 	{"writes", -1},
-	{"bytes", 1}, {"len", 1}, {"readrunes", 2}, {"runes", 1}, {"uchar", 1}, {"utf8valid", 1},
+	{"len", 1}, {"readrunes", 2}, {"uchar", 1}, {"utf8valid", 1},
 	/* the graphics functions, as a graphics iconx declares them */
 	{"Active", 0}, {"Alert", -1}, {"Bg", -1}, {"Clip", -1}, {"Clone", -1}, {"Color", -1},
 	{"ColorValue", -1}, {"CopyArea", -1}, {"Couple", 2}, {"DrawArc", -1}, {"DrawCircle", -1},
@@ -302,7 +302,7 @@ FN(f_image) {
 	(void)b;
 	Buf r = {0};
 	image(&r, ARG(0));
-	*out = strval(bufstring(&r, TextUnit));
+	*out = strval(bufstring(&r));
 	return true;
 }
 
@@ -417,7 +417,7 @@ FN(f_name) {
 		runerrv(111, v);
 	Buf r = {0};
 	varname(&r, v);
-	*out = strval(bufstring(&r, TextUnit));
+	*out = strval(bufstring(&r));
 	return true;
 }
 
@@ -587,7 +587,7 @@ FN(k_file) {
 	(void)b; (void)a; (void)n;
 	size_t k;
 	const char *s = fileat(vm.cur->proc, vm.cur->pc, &k);
-	*out = strval(mkstr(s, (int64_t)k, TextUnit));
+	*out = strval(mkstr(s, (int64_t)k));
 	return true;
 }
 
@@ -667,7 +667,7 @@ static Value timestr(const char *fmt) {
 	localtime_r(&t, &tm);
 	char buf[64];
 	strftime(buf, sizeof buf, fmt, &tm);
-	return strval(strcopy(buf, (int64_t)strlen(buf), TextUnit));
+	return strval(strcopy(buf, (int64_t)strlen(buf)));
 }
 
 FN(k_clock) { (void)b; (void)a; (void)n; *out = timestr("%H:%M:%S"); return true; }
@@ -692,7 +692,7 @@ FN(k_dateline) {
 	Buf r = {0};
 	bufprintf(&r, "%s, %s %d, %d  %d:%02d %s", days[tm.tm_wday], months[tm.tm_mon], tm.tm_mday,
 		  tm.tm_year + 1900, h, tm.tm_min, merid);
-	*out = strval(bufstring(&r, TextUnit));
+	*out = strval(bufstring(&r));
 	return true;
 }
 
@@ -710,7 +710,7 @@ FN(k_host) {
 	(void)b; (void)a; (void)n;
 	char h[256] = "";
 	gethostname(h, sizeof h - 1);
-	*out = strval(strcopy(h, (int64_t)strlen(h), TextUnit));
+	*out = strval(strcopy(h, (int64_t)strlen(h)));
 	return true;
 }
 

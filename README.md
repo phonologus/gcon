@@ -12,8 +12,8 @@ icont/iconx, it:
   of times faster ([Performance](#performance)).
 - **Uses a modern graphics backend:** SDL3 and Blend2D, in place of X11,
   with antialiasing, HiDPI and native windows.
-- **Treats strings as Unicode text:** UTF-8, with byte strings kept
-  alongside ([Differences from Icon 9.5](#differences-from-icon-95)).
+- **Keeps Icon 9.5's byte strings,** with UTF-8 help where asked for
+  ([Differences from Icon 9.5](#differences-from-icon-95)).
 - **Comes with modern tools:** one `gcon` command that runs, builds,
   formats and checks programs and serves as a language server.
 
@@ -124,48 +124,33 @@ over standard input and output. The tree-sitter grammar is in
 
 ## Differences from Icon 9.5
 
-Any Icon 9.5 program that uses only ASCII text behaves as it does under
-iconx. The differences below are deliberate. `gcon vet -icon95` reports
-any use of gcon's additions, for code that must also run under Arizona
-Icon.
+Icon 9.5 programs behave as they do under iconx. The differences below
+are deliberate additions. `gcon vet -icon95` reports any use of them,
+for code that must also run under Arizona Icon.
 
 ### Strings and Unicode
 
-Icon 9.5 strings are bytes. In gcon, a string is either **text**
-(UTF-8) or **bytes**. Both are stored as bytes, the same as before; the
-difference is only in how the characters are read. ASCII reads the same
-either way, which is why ASCII programs don't change.
+Strings are bytes, and csets are sets of the 256 byte values, exactly as
+in Icon 9.5 (and as strings are in Go). Every string operation counts
+and reads bytes, so binary data and Latin-1 text behave as under iconx.
+Positions are always byte positions.
 
-- **Positions, subscripts and `*s` count bytes**, as in 9.5 (and Go).
-  `s[i:j]`, `&pos`, `tab` and the positions that `find` and `upto`
-  produce are byte offsets.
-- **Operations that read characters read code points in text:** `!s`,
-  `move(n)`, `map`, `reverse`, `trim`, `ord`, `image`, and the widths
-  in `left`, `right` and `center`. The new built-in `len(s)` counts
-  characters; `*s` still counts bytes.
-- **`reads(f, n)` reads n bytes and produces bytes**, as in 9.5, from
-  any file, so it agrees with `seek` and `where` and reads binary data
-  (`ord(reads(f))` is the byte's value); it may split a character, and
-  the pieces rejoin. `runes(s)` reads its result as text. The new
-  built-in `readrunes(f, n)` reads n characters without splitting one,
-  as text from a text file. `writes` writes a string's bytes unchanged.
-- **Literals:** a literal is text if it contains non-ASCII UTF-8 or a
-  `\u` or `\U` escape, which are new; `\x80` to `\xff` are bytes. A
-  Latin-1 source file keeps its 9.5 meaning.
-- **Files** are read as text by default. Open mode `"u"` reads bytes (in
-  9.5 `"u"` meant untranslated, and was ignored on Unix). Data is never
-  rewritten: malformed UTF-8 round-trips unchanged.
-- **Csets** cover every Unicode code point as well as the 256 bytes. The
-  new range syntax, `'a..z'` and `'Ͱ..Ͽ'`, writes them, and
-  `&uset` is every character. A complement is taken over this whole
-  set, so `~&cset` is no longer empty. These complements are why two of
-  Icon's tests, `checkc` and `scan`, differ.
-- **New built-ins:** `len`, `uchar(i)` (a character from a code point),
-  `runes(s)` and `bytes(s)` (read the same bytes as text or as bytes),
-  `utf8valid(s)` and `readrunes(f, n)`.
+- **Literals** gain Go's `\u` and `\U` escapes, which give a code
+  point's UTF-8 bytes: `"caf\u00e9"` is the same 5 bytes as `"café"` in
+  a UTF-8 source file.
+- **Csets** gain ranges: `'a..zA..Z_'`, `'\x00..\x1f'`. Both ends of a
+  range are single bytes.
+- **`image`** shows a valid, printable UTF-8 sequence as itself, so
+  `image("café")` is `"café"`; iconx writes `"caf\xc3\xa9"`. Both are
+  literals of the same bytes. Other bytes from `\x80` are escaped as in
+  9.5.
+- **New built-ins** that read a string's bytes as UTF-8: `len(s)` (the
+  number of characters), `uchar(i)` (the UTF-8 encoding of a code
+  point), `utf8valid(s)` and `readrunes(f, n)` (n characters, never
+  splitting one).
 
-The details are in [docs/design.md](docs/design.md), "Strings and
-Unicode".
+Unicode-aware scanning, with csets of code points, is being designed:
+see [docs/design.md](docs/design.md), "Strings and Unicode".
 
 ### Graphics
 
@@ -253,10 +238,9 @@ world" starts in 6.6 ms, against iconx's 11.2.
 Icon's own C sources are the authority on the language, so gcon is
 checked against Arizona's icont and iconx:
 
-- **The language:** 86 of the 89 programs in Icon's test suite give
-  iconx's output exactly (`vm/tests/conformance.sh`). Of the other
-  three, `checkc` and `scan` differ only in the cset complements
-  described above, and `ilib` only in a line that depends on the clock.
+- **The language:** 88 of the 89 programs in Icon's test suite give
+  iconx's output exactly (`vm/tests/conformance.sh`); the other,
+  `ilib`, differs only in a line that depends on the clock.
 - **The front end** (preprocessor, parser and name resolution) is
   compared with icont itself on every Icon file in Arizona's source tree
   (`src/tests/oracle.sh`).

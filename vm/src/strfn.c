@@ -1,7 +1,6 @@
 /*
- * String functions (gcon's strfuncs.go and builtins.go's Unicode
- * functions), following iconx's fstr.r, in characters of the strings'
- * units.
+ * String functions, as iconx's fstr.r: on bytes. gcon's UTF-8 helpers
+ * (len, utf8valid, uchar) read a string's bytes as UTF-8 where asked.
  */
 #include "vm.h"
 
@@ -10,41 +9,6 @@
 
 #define FN(f) static bool f(Builtin *b, Value *a, int n, Value *out)
 
-/* Chars gives a string's characters by index. */
-typedef struct Chars {
-	const char *s;
-	int64_t *offs; /* each character's offset, then the length; NULL if each is a byte */
-	int64_t n;
-} Chars;
-
-static bool onebyte(String s) { return s.unit == BytesUnit || isascii_(&s); }
-
-static Chars charsin(String s) {
-	Chars c = {s.s, NULL, s.n};
-	if (onebyte(s))
-		return c;
-	c.offs = gcraw((size_t)(s.n + 1) * sizeof(int64_t));
-	int64_t k = 0;
-	for (int64_t i = 0; i < s.n; i += width(s, i))
-		c.offs[k++] = i;
-	c.offs[k] = s.n;
-	c.n = k;
-	return c;
-}
-
-static int64_t coff(Chars c, int64_t i) { return c.offs ? c.offs[i] : i; }
-
-static int joinunit(String *ss, int k) {
-	int u = TextUnit;
-	for (int i = 0; i < k; i++)
-		if (!isascii_(&ss[i])) {
-			if (ss[i].unit == TextUnit)
-				return TextUnit;
-			u = BytesUnit;
-		}
-	return u;
-}
-
 static void padargs(Value *a, int n, String *s1, int64_t *w, String *s2) {
 	*s1 = muststr(ARG(0));
 	*w = 1;
@@ -52,7 +16,7 @@ static void padargs(Value *a, int n, String *s1, int64_t *w, String *s2) {
 		*w = mustint(a[1]);
 	if (*w < 0)
 		runerrv(205, intval(*w));
-	static const String blank = {" ", 1, TextUnit, 1};
+	static const String blank = {" ", 1};
 	*s2 = blank;
 	if (!ISNULL(ARG(2))) {
 		String s = muststr(a[2]);
@@ -61,47 +25,23 @@ static void padargs(Value *a, int n, String *s1, int64_t *w, String *s2) {
 	}
 }
 
-static void padchar(SB *b, Chars c, int64_t i) {
-	sbadd(b, c.s + coff(c, i), (size_t)(coff(c, i + 1) - coff(c, i)));
-}
-
-/* pad lays out a result of w characters, as iconx's left, right and
- * center do: s1 (l characters) at position start, and in the other
- * positions characters of the pad s2, counted in copies of s2 from the
- * left end before position h and from the right end after it. */
+/* pad lays out a result of w bytes, as iconx's left, right and center
+ * do: s1 (l bytes) at position start, and in the other positions bytes
+ * of the pad s2, counted in copies of s2 from the left end before
+ * position h and from the right end after it. */
 static String pad(String s1, int64_t l, String s2, int64_t w, int64_t start, int64_t h) {
-	String ss[2] = {s1, s2};
-	int unit = joinunit(ss, 2);
-	int8_t ascii = isascii_(&s1) && isascii_(&s2) ? 1 : -1;
-	if (onebyte(s1) && onebyte(s2)) {
-		/* Every character a byte: the result is w bytes, written directly. */
-		int64_t m = s2.n;
-		char *r = gcraw((size_t)w);
-		for (int64_t p = 0; p < w; p++) {
-			if (p == start && l > 0) {
-				memcpy(r + p, s1.s, (size_t)l);
-				p += l - 1;
-			} else if (p < h)
-				r[p] = s2.s[p % m];
-			else
-				r[p] = s2.s[m - 1 - (w - 1 - p) % m];
-		}
-		return mkstrf(r, w, unit, ascii);
-	}
-	Chars pd = charsin(s2);
-	int64_t m = pd.n;
-	SB r = {0};
-	sbgrow(&r, (size_t)(s1.n + (w - l) * (s2.n / m + 1)));
+	int64_t m = s2.n;
+	char *r = gcraw((size_t)w);
 	for (int64_t p = 0; p < w; p++) {
 		if (p == start && l > 0) {
-			sbadd(&r, s1.s, (size_t)s1.n);
+			memcpy(r + p, s1.s, (size_t)l);
 			p += l - 1;
 		} else if (p < h)
-			padchar(&r, pd, p % m);
+			r[p] = s2.s[p % m];
 		else
-			padchar(&r, pd, m - 1 - (w - 1 - p) % m);
+			r[p] = s2.s[m - 1 - (w - 1 - p) % m];
 	}
-	return mkstrf(r.b, (int64_t)r.n, unit, ascii);
+	return mkstr(r, w);
 }
 
 FN(f_left) {
@@ -109,13 +49,11 @@ FN(f_left) {
 	String s1, s2;
 	int64_t w;
 	padargs(a, n, &s1, &w, &s2);
-	Chars c1 = charsin(s1);
-	int64_t l = c1.n;
-	if (w <= l) {
-		*out = strval(mkstr(s1.s, coff(c1, w), s1.unit));
+	if (w <= s1.n) {
+		*out = strval(mkstr(s1.s, w));
 		return true;
 	}
-	*out = strval(pad(s1, l, s2, w, 0, 0));
+	*out = strval(pad(s1, s1.n, s2, w, 0, 0));
 	return true;
 }
 
@@ -124,11 +62,9 @@ FN(f_right) {
 	String s1, s2;
 	int64_t w;
 	padargs(a, n, &s1, &w, &s2);
-	Chars c1 = charsin(s1);
-	int64_t l = c1.n;
+	int64_t l = s1.n;
 	if (w <= l) {
-		int64_t o = coff(c1, l - w);
-		*out = strval(mkstr(s1.s + o, s1.n - o, s1.unit));
+		*out = strval(mkstr(s1.s + l - w, w));
 		return true;
 	}
 	*out = strval(pad(s1, l, s2, w, w - l, w));
@@ -140,12 +76,9 @@ FN(f_center) {
 	String s1, s2;
 	int64_t w;
 	padargs(a, n, &s1, &w, &s2);
-	Chars c1 = charsin(s1);
-	int64_t l = c1.n;
+	int64_t l = s1.n;
 	if (w <= l) {
-		int64_t i = (l - w + 1) >> 1;
-		int64_t o = coff(c1, i);
-		*out = strval(mkstr(s1.s + o, coff(c1, i + w) - o, s1.unit));
+		*out = strval(mkstr(s1.s + ((l - w + 1) >> 1), w));
 		return true;
 	}
 	int64_t h = w / 2, start = h - l / 2;
@@ -161,10 +94,14 @@ FN(f_repl) {
 	int64_t k = mustint(ARG(1));
 	if (k < 0 || (s.n > 0 && k > ((int64_t)1 << 31) / s.n))
 		runerrv(205, intval(k));
-	SB r = {0};
+	if (s.n == 0 || k == 0) {
+		*out = strval(mkstr("", 0));
+		return true;
+	}
+	char *r = gcraw((size_t)(s.n * k));
 	for (int64_t i = 0; i < k; i++)
-		sbadd(&r, s.s, (size_t)s.n);
-	*out = strval(sbstring(&r, s.unit));
+		memcpy(r + i * s.n, s.s, (size_t)s.n);
+	*out = strval(mkstr(r, s.n * k));
 	return true;
 }
 
@@ -172,19 +109,9 @@ FN(f_reverse) {
 	(void)b;
 	String s = muststr(ARG(0));
 	char *r = gcraw((size_t)s.n + 1);
-	if (onebyte(s)) {
-		for (int64_t i = 0; i < s.n; i++)
-			r[i] = s.s[s.n - 1 - i];
-	} else {
-		int64_t p = s.n;
-		for (int64_t i = 0; i < s.n;) {
-			int w = width(s, i);
-			p -= w;
-			memcpy(r + p, s.s + i, (size_t)w);
-			i += w;
-		}
-	}
-	*out = strval(mkstr(r, s.n, s.unit));
+	for (int64_t i = 0; i < s.n; i++)
+		r[i] = s.s[s.n - 1 - i];
+	*out = strval(mkstr(r, s.n));
 	return true;
 }
 
@@ -195,17 +122,8 @@ FN(f_trim) {
 	String s = muststr(ARG(0));
 	Cset *c = ISNULL(ARG(1)) ? trimspace : mustcset(a[1]);
 	int64_t end = s.n;
-	int w;
-	if (onebyte(s)) {
-		while (end > 0 && matchat(c, s, end - 1, &w))
-			end--;
-	} else {
-		Chars cs = charsin(s);
-		int64_t k = cs.n;
-		while (k > 0 && matchat(c, s, cs.offs[k - 1], &w))
-			k--;
-		end = cs.offs[k];
-	}
+	while (end > 0 && cset_has(c, (uint8_t)s.s[end - 1]))
+		end--;
 	*out = strval(slice(s, 1, end + 1));
 	return true;
 }
@@ -214,40 +132,30 @@ FN(f_trim) {
 typedef struct MapTab {
 	Gen g; /* only its mark function: a map table is traced as a generator is */
 	String s2, s3;
-	bool bytes;
 	uint8_t tab[256];
-	Chars c2, c3; /* otherwise: characters of s2 map to those of s3 */
 } MapTab;
 
 static void mapmark(Gen *g) {
 	MapTab *t = (MapTab *)g;
 	markptr(t->s2.s);
 	markptr(t->s3.s);
-	markptr(t->c2.offs);
-	markptr(t->c3.offs);
 }
 
 static MapTab *newmaptab(String s2, String s3) {
-	Chars c2 = charsin(s2), c3 = charsin(s3);
-	if (c2.n != c3.n)
+	if (s2.n != s3.n)
 		runerr(208);
 	MapTab *t = gcnew(sizeof *t, T_GEN);
 	t->g.mark = mapmark;
 	t->s2 = s2, t->s3 = s3;
-	if (!c2.offs && !c3.offs) {
-		t->bytes = true;
-		for (int i = 0; i < 256; i++)
-			t->tab[i] = (uint8_t)i;
-		for (int64_t i = 0; i < s2.n; i++)
-			t->tab[(uint8_t)s2.s[i]] = (uint8_t)s3.s[i];
-		return t;
-	}
-	t->c2 = c2, t->c3 = c3;
+	for (int i = 0; i < 256; i++)
+		t->tab[i] = (uint8_t)i;
+	for (int64_t i = 0; i < s2.n; i++)
+		t->tab[(uint8_t)s2.s[i]] = (uint8_t)s3.s[i];
 	return t;
 }
 
 static bool samestr(String a, String b) {
-	return a.n == b.n && a.unit == b.unit && memcmp(a.s, b.s, (size_t)a.n) == 0;
+	return a.n == b.n && (a.s == b.s || memcmp(a.s, b.s, (size_t)a.n) == 0);
 }
 
 FN(f_map) {
@@ -267,42 +175,10 @@ FN(f_map) {
 		t = newmaptab(s2, s3);
 		vm.maptab = t;
 	}
-	String ss[2] = {s1, s3};
-	if (t->bytes && onebyte(s1)) {
-		char *r = gcraw((size_t)s1.n + 1);
-		for (int64_t i = 0; i < s1.n; i++)
-			r[i] = (char)t->tab[(uint8_t)s1.s[i]];
-		*out = strval(mkstrf(r, s1.n, joinunit(ss, 2), 0));
-		return true;
-	}
-	SB r = {0};
-	{
-		for (int64_t i = 0; i < s1.n;) {
-			int w = width(s1, i);
-			const char *c = s1.s + i;
-			if (t->bytes && w == 1)
-				sbputc(&r, t->tab[(uint8_t)c[0]]);
-			else if (t->bytes)
-				sbadd(&r, c, (size_t)w);
-			else {
-				/* the last occurrence in s2 takes precedence */
-				int64_t found = -1;
-				for (int64_t k = t->c2.n - 1; k >= 0; k--) {
-					int64_t o = coff(t->c2, k), e = coff(t->c2, k + 1);
-					if (e - o == w && memcmp(t->c2.s + o, c, (size_t)w) == 0) {
-						found = k;
-						break;
-					}
-				}
-				if (found >= 0)
-					padchar(&r, t->c3, found);
-				else
-					sbadd(&r, c, (size_t)w);
-			}
-			i += w;
-		}
-	}
-	*out = strval(sbstring(&r, joinunit(ss, 2)));
+	char *r = gcraw((size_t)s1.n + 1);
+	for (int64_t i = 0; i < s1.n; i++)
+		r[i] = (char)t->tab[(uint8_t)s1.s[i]];
+	*out = strval(mkstr(r, s1.n));
 	return true;
 }
 
@@ -328,14 +204,6 @@ static int64_t tabafter(Tabs *t, int64_t col) {
 	return t->stops[t->next];
 }
 
-static bool printable(const char *c, int w, int unit) {
-	if (w == 1)
-		return (uint8_t)c[0] >= ' ' && (uint8_t)c[0] < 0x7F;
-	int ww;
-	int32_t r = utf8decode((const uint8_t *)c, (size_t)w, &ww);
-	return unit == TextUnit && r != RuneError && isprint_rune(r);
-}
-
 static String tabs(Value *a, int n, bool entab) {
 	String s = muststr(ARG(0));
 	Tabs t = {0};
@@ -350,10 +218,7 @@ static String tabs(Value *a, int n, bool entab) {
 	SB b = {0};
 	int64_t col = 1;
 	for (int64_t k = 0; k < s.n;) {
-		int w = width(s, k);
-		const char *c = s.s + k;
-		k += w;
-		char ch = w == 1 ? c[0] : 0;
+		char ch = s.s[k++];
 		if (ch == '\b') {
 			sbputc(&b, ch);
 			col--;
@@ -396,46 +261,41 @@ static String tabs(Value *a, int n, bool entab) {
 				sbputc(&b, ' ');
 			col = target;
 		} else {
-			sbadd(&b, c, (size_t)w);
-			if (printable(c, w, s.unit))
+			sbputc(&b, ch);
+			if ((uint8_t)ch >= ' ' && (uint8_t)ch < 0x7F) /* isprint, as iconx */
 				col++;
 		}
 	}
-	return sbstring(&b, s.unit);
+	return sbstring(&b);
 }
 
 FN(f_detab) { (void)b; *out = strval(tabs(a, n, false)); return true; }
 FN(f_entab) { (void)b; *out = strval(tabs(a, n, true)); return true; }
 
-/* ---- Unicode functions ---- */
-
-FN(f_runes) {
+FN(f_char) {
 	(void)b;
-	if (VKIND(ARG(0)) == KCset) {
-		*out = a[0];
-		return true;
-	}
-	String s = muststr(ARG(0));
-	s.unit = TextUnit;
-	*out = strval(s);
+	int64_t i = mustint(ARG(0));
+	if (i < 0 || i > 255)
+		runerrv(205, intval(i));
+	char c = (char)i;
+	*out = strval(strcopy(&c, 1));
 	return true;
 }
 
-FN(f_bytes) {
+FN(f_ord) {
 	(void)b;
-	if (VKIND(ARG(0)) == KCset) {
-		*out = ptrval(KCset, cset_asbytes(a[0].w.p));
-		return true;
-	}
 	String s = muststr(ARG(0));
-	s.unit = BytesUnit;
-	*out = strval(s);
+	if (s.n != 1)
+		runerrv(205, strval(s));
+	*out = intval((uint8_t)s.s[0]);
 	return true;
 }
+
+/* ---- UTF-8 ---- */
 
 FN(f_len) {
 	(void)b;
-	*out = intval(runes(muststr(ARG(0))));
+	*out = intval(utf8count(muststr(ARG(0))));
 	return true;
 }
 
@@ -444,6 +304,10 @@ FN(f_utf8valid) {
 	String s = muststr(ARG(0));
 	*out = strval(s);
 	for (int64_t i = 0; i < s.n;) {
+		if ((uint8_t)s.s[i] < 0x80) {
+			i++;
+			continue;
+		}
 		int w;
 		int32_t r = utf8decode((const uint8_t *)s.s + i, (size_t)(s.n - i), &w);
 		if (r == RuneError && w == 1)
@@ -461,31 +325,7 @@ FN(f_uchar) {
 		r = (int32_t)i;
 	uint8_t e[4];
 	int k = utf8encode(e, r);
-	*out = strval(strcopy((char *)e, k, TextUnit));
-	return true;
-}
-
-FN(f_char) {
-	(void)b;
-	int64_t i = mustint(ARG(0));
-	if (i < 0 || i > 255)
-		runerrv(205, intval(i));
-	char c = (char)i;
-	*out = strval(strcopy(&c, 1, i < 0x80 ? TextUnit : BytesUnit));
-	return true;
-}
-
-FN(f_ord) {
-	(void)b;
-	String s = muststr(ARG(0));
-	if (runes(s) != 1)
-		runerrv(205, strval(s));
-	if (s.unit == BytesUnit || isascii_(&s)) {
-		*out = intval((uint8_t)s.s[0]);
-		return true;
-	}
-	int w;
-	*out = intval(utf8decode((const uint8_t *)s.s, (size_t)s.n, &w));
+	*out = strval(strcopy((char *)e, k));
 	return true;
 }
 
@@ -494,14 +334,13 @@ static Builtin fns[] = {
 	{.name = "center", .fn = f_center}, {.name = "repl", .fn = f_repl},
 	{.name = "reverse", .fn = f_reverse}, {.name = "trim", .fn = f_trim},
 	{.name = "map", .fn = f_map}, {.name = "detab", .fn = f_detab},
-	{.name = "entab", .fn = f_entab}, {.name = "runes", .fn = f_runes},
-	{.name = "bytes", .fn = f_bytes}, {.name = "len", .fn = f_len},
+	{.name = "entab", .fn = f_entab}, {.name = "len", .fn = f_len},
 	{.name = "utf8valid", .fn = f_utf8valid}, {.name = "uchar", .fn = f_uchar},
 	{.name = "char", .fn = f_char}, {.name = "ord", .fn = f_ord},
 };
 
 void strfn_init(void) {
-	trimspace = csetfrom(" ", 1, TextUnit);
+	trimspace = csetfrom(" ", 1);
 	gcroot((void **)&trimspace);
 	for (size_t i = 0; i < sizeof fns / sizeof fns[0]; i++)
 		reg(&fns[i], BuiltinFunction);

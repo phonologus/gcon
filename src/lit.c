@@ -10,11 +10,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-const char *lit_unit_name(LitUnit u) {
-	static const char *const n[] = {"ascii", "text", "bytes"};
-	return n[u];
-}
-
 static LitError *errorf(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 static LitError *errorf(const char *fmt, ...) {
 	va_list ap;
@@ -100,17 +95,14 @@ static void add1(Pieces *ps, int c, bool e) {
 	add(ps, &b, 1, e);
 }
 
-/* decode decodes a string or cset literal token into pieces and its
- * unit. */
-static LitError *decode(const char *tok, size_t tn, Pieces *out, LitUnit *unit) {
+/* decode decodes a string or cset literal token into pieces. */
+static LitError *decode(const char *tok, size_t tn, Pieces *out) {
 	if (tn < 2 || (tok[0] != '"' && tok[0] != '\'') || tok[tn - 1] != tok[0]) {
 		return errtok("malformed literal ", tok, tn);
 	}
 	const uint8_t *src = (const uint8_t *)tok + 1;
 	size_t n = tn - 2;
 	Pieces ps = {0};
-	bool codePoint = false; /* a non-ASCII code point has been seen */
-	bool highByte = false;  /* a non-ASCII byte that is not part of a code point */
 	long cont = -1;         /* ps.n at a '_' followed only by blanks, else -1 */
 	for (size_t i = 0; i < n;) {
 		uint8_t c = src[i];
@@ -138,8 +130,6 @@ static LitError *decode(const char *tok, size_t tn, Pieces *out, LitUnit *unit) 
 					i++;
 				}
 				v &= 0377;
-				if (v >= 0x80)
-					highByte = true;
 				add1(&ps, v, true);
 			} else if (e == 'x' || e == 'X') {
 				/* up to two hex digits; none gives NUL, as in icont */
@@ -150,8 +140,6 @@ static LitError *decode(const char *tok, size_t tn, Pieces *out, LitUnit *unit) 
 					v = v << 4 | d;
 					i++;
 				}
-				if (v >= 0x80)
-					highByte = true;
 				add1(&ps, v, true);
 			} else if (e == '^' && i < n) {
 				add1(&ps, src[i] & 037, true);
@@ -177,8 +165,6 @@ static LitError *decode(const char *tok, size_t tn, Pieces *out, LitUnit *unit) 
 					free(ps.v);
 					return errorf("invalid code point U+%X", (unsigned)v);
 				}
-				if (v >= 0x80)
-					codePoint = true;
 				uint8_t b[4];
 				add(&ps, b, (size_t)utf8encode(b, v), true);
 			} else {
@@ -188,11 +174,7 @@ static LitError *decode(const char *tok, size_t tn, Pieces *out, LitUnit *unit) 
 				else if (e >= 0x80) {
 					i--; /* an escaped non-ASCII character */
 					int w;
-					int32_t r = utf8decode(src + i, n - i, &w);
-					if (r == RuneError && w == 1)
-						highByte = true;
-					else
-						codePoint = true;
+					utf8decode(src + i, n - i, &w); /* a UTF-8 character is one piece */
 					add(&ps, src + i, (size_t)w, true);
 					i += (size_t)w;
 				} else
@@ -202,11 +184,7 @@ static LitError *decode(const char *tok, size_t tn, Pieces *out, LitUnit *unit) 
 		}
 		if (c >= 0x80) {
 			int w;
-			int32_t r = utf8decode(src + i, n - i, &w);
-			if (r == RuneError && w == 1)
-				highByte = true;
-			else
-				codePoint = true;
+			utf8decode(src + i, n - i, &w); /* a UTF-8 character is one piece */
 			add(&ps, src + i, (size_t)w, false);
 			i += (size_t)w;
 			cont = -1;
@@ -219,14 +197,13 @@ static LitError *decode(const char *tok, size_t tn, Pieces *out, LitUnit *unit) 
 		add1(&ps, c, false);
 		i++;
 	}
-	*unit = codePoint ? U_TEXT : highByte ? U_BYTES : U_ASCII;
 	*out = ps;
 	return NULL;
 }
 
-LitError *lit_string(const char *tok, size_t n, char **out, size_t *outn, LitUnit *unit) {
+LitError *lit_string(const char *tok, size_t n, char **out, size_t *outn) {
 	Pieces ps;
-	LitError *err = decode(tok, n, &ps, unit);
+	LitError *err = decode(tok, n, &ps);
 	if (err)
 		return err;
 	Buf b = {0};
@@ -239,66 +216,32 @@ LitError *lit_string(const char *tok, size_t n, char **out, size_t *outn, LitUni
 	return NULL;
 }
 
-/* firstChar and lastChar: the first or last character of s read in
- * unit u, and whether it is a byte (in bytes) or a lone byte (in
- * text); false if s is empty. */
-static bool firstChar(const uint8_t *s, size_t n, LitUnit u, int32_t *r, bool *lone) {
-	if (n == 0)
-		return false;
-	if (u == U_BYTES || s[0] < RuneSelf) {
-		*r = s[0];
-		*lone = u == U_BYTES && s[0] >= RuneSelf;
-		return true;
-	}
-	int w;
-	int32_t c = utf8decode(s, n, &w);
-	if (c == RuneError && w == 1) {
-		*r = s[0];
-		*lone = true;
-		return true;
-	}
-	*r = c;
-	*lone = false;
-	return true;
-}
-
-static bool lastChar(const uint8_t *s, size_t n, LitUnit u, int32_t *r, bool *lone) {
-	if (n == 0)
-		return false;
-	size_t k = n - 1;
-	if (u == U_BYTES || s[k] < RuneSelf) {
-		*r = s[k];
-		*lone = u == U_BYTES && s[k] >= RuneSelf;
-		return true;
-	}
-	int w;
-	int32_t c = utf8decodelast(s, n, &w);
-	if (c == RuneError && w == 1) {
-		*r = s[k];
-		*lone = true;
-		return true;
-	}
-	*r = c;
-	*lone = false;
-	return true;
-}
-
+/* lit_cset: a range's ends are the pieces on either side of an
+ * unescaped "..", and each must be one byte: a \u escape or a UTF-8
+ * character is several members of a cset, so it cannot end a range. */
 LitError *lit_cset(const char *tok, size_t n, LitCset *out) {
 	Pieces ps;
-	LitUnit u;
-	LitError *err = decode(tok, n, &ps, &u);
+	LitError *err = decode(tok, n, &ps);
 	if (err)
 		return err;
 #define DOT(i) ((i) < ps.n && ps.v[i].n == 1 && ps.v[i].b[0] == '.' && !ps.v[i].esc)
 	VEC(char *) segs = {0};
 	VEC(size_t) lens = {0};
+	VEC(LitRange) ranges = {0};
 	Buf b = {0};
 	bufadd(&b, "", 0);
 	for (size_t i = 0; i < ps.n; i++) {
 		if (DOT(i) && DOT(i + 1)) {
-			if (DOT(i + 2)) {
+			if (DOT(i + 2))
 				return errtok("three dots in cset literal ", tok, n);
-			}
+			if (i == 0 || i + 2 >= ps.n)
+				return errtok("\"..\" needs a character on each side in ", tok, n);
+			Piece lo = ps.v[i - 1], hi = ps.v[i + 2];
+			if (lo.n != 1 || hi.n != 1)
+				return errtok("range end is not a single byte in ", tok, n);
+			if (lo.b[0] > hi.b[0])
+				return errtok("descending range in ", tok, n);
+			VPUSH(ranges, ((LitRange){lo.b[0], hi.b[0]}));
 			VPUSH(segs, b.b);
 			VPUSH(lens, b.n);
 			b = (Buf){0};
@@ -311,22 +254,8 @@ LitError *lit_cset(const char *tok, size_t n, LitCset *out) {
 #undef DOT
 	VPUSH(segs, b.b);
 	VPUSH(lens, b.n);
-	VEC(LitRange) ranges = {0};
-	for (size_t k = 0; k + 1 < segs.n; k++) {
-		int32_t lo, hi;
-		bool loLone, hiLone;
-		bool ok1 = lastChar((const uint8_t *)segs.v[k], lens.v[k], u, &lo, &loLone);
-		bool ok2 = firstChar((const uint8_t *)segs.v[k + 1], lens.v[k + 1], u, &hi, &hiLone);
-		if (!ok1 || !ok2)
-			return errtok("\"..\" needs a character on each side in ", tok, n);
-		if (u != U_BYTES && loLone != hiLone)
-			return errtok("range mixes a code point and a byte in ", tok, n);
-		if (lo > hi)
-			return errtok("descending range in ", tok, n);
-		VPUSH(ranges, ((LitRange){lo, hi, u == U_BYTES || loLone}));
-	}
 	free(ps.v);
-	*out = (LitCset){segs.v, lens.v, segs.n, ranges.v, ranges.n, u};
+	*out = (LitCset){segs.v, lens.v, segs.n, ranges.v, ranges.n};
 	return NULL;
 }
 

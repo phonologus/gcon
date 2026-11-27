@@ -328,12 +328,6 @@ procedure Bal(a1, a2, a3, a4, a5, a6)
    suspend __fnc_bal(a1, a2, a3, a4, a5, a6)
 end
 
-procedure Bytes(a1)
-   static __fnc_bytes
-   initial __fnc_bytes := proc("bytes", 0)
-   suspend __fnc_bytes(a1)
-end
-
 procedure Center(a1, a2, a3)
    static __fnc_center
    initial __fnc_center := proc("center", 0)
@@ -722,12 +716,6 @@ procedure Runerr(a[])
    static __fnc_runerr
    initial __fnc_runerr := proc("runerr", 0)
    suspend __fnc_runerr ! a
-end
-
-procedure Runes(a1)
-   static __fnc_runes
-   initial __fnc_runes := proc("runes", 0)
-   suspend __fnc_runes(a1)
 end
 
 procedure Seek(a1, a2)

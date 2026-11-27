@@ -793,8 +793,7 @@ static void diagnostics(Server *s, Doc *d, Buf *b) {
 			if (t->kind == T_STRINGLIT) {
 				char *s;
 				size_t n;
-				LitUnit u;
-				err = lit_string(d->text + t->offset, t->len, &s, &n, &u);
+				err = lit_string(d->text + t->offset, t->len, &s, &n);
 			} else {
 				LitCset lc;
 				err = lit_cset(d->text + t->offset, t->len, &lc);

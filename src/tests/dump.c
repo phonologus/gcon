@@ -70,12 +70,11 @@ static void lex(const char *src, size_t n) {
 			char *s;
 			LitError *err;
 			size_t sn;
-			LitUnit u;
-			if ((err = lit_string(text, t->len, &s, &sn, &u))) {
+			if ((err = lit_string(text, t->len, &s, &sn))) {
 				bufputs(&out, "  s err ");
 				esc(err->msg, err->len);
 			} else {
-				bufprintf(&out, "  s %s ", lit_unit_name(u));
+				bufputs(&out, "  s ");
 				esc(s, sn);
 			}
 			bufputc(&out, '\n');
@@ -86,15 +85,14 @@ static void lex(const char *src, size_t n) {
 					esc(err->msg, err->len);
 					bufputc(&out, '\n');
 				} else {
-					bufprintf(&out, "  c %s %zu\n", lit_unit_name(c.unit), c.nsegs);
+					bufprintf(&out, "  c %zu\n", c.nsegs);
 					for (size_t i = 0; i < c.nsegs; i++) {
 						bufputs(&out, "   seg ");
 						esc(c.segs[i], c.seglens[i]);
 						bufputc(&out, '\n');
 					}
 					for (size_t i = 0; i < c.nranges; i++)
-						bufprintf(&out, "   range %d %d %s\n", (int)c.ranges[i].lo,
-							(int)c.ranges[i].hi, c.ranges[i].lonebytes ? "true" : "false");
+						bufprintf(&out, "   range %d %d\n", (int)c.ranges[i].lo, (int)c.ranges[i].hi);
 				}
 			}
 		} else if (t->kind == T_INTLIT || t->kind == T_REALLIT) {

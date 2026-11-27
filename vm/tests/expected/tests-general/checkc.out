@@ -111,7 +111,7 @@ cset sizes and images:
 128 &ascii
 128 &ascii
 256 &cset
-192 &uset
+256 &cset
 
 &ascii
 &cset

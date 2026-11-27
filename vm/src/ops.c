@@ -187,9 +187,8 @@ static bool strnext(Gen *gg, Value *out) {
 	String s = vstr(g->v);
 	if (g->i >= s.n)
 		return false;
-	int w = width(s, g->i);
-	g->i += w;
-	*out = strval(slice(s, g->i - w + 1, g->i + 1));
+	g->i++;
+	*out = strval(slice(s, g->i, g->i + 1));
 	return true;
 }
 
@@ -201,9 +200,8 @@ static bool strvarnext(Gen *gg, Value *out) {
 	String s = vstr(d);
 	if (g->i >= s.n)
 		return false;
-	int w = width(s, g->i);
-	g->i += w;
-	*out = newsubstr(g->v, g->i - w + 1, w);
+	g->i++;
+	*out = newsubstr(g->v, g->i, 1);
 	return true;
 }
 
@@ -260,20 +258,12 @@ double randval(void) {
 static int64_t randindex(int64_t k) { return (int64_t)(randval() * (double)k); }
 
 static bool randomchar(String s, Value *out) {
-	int64_t k = runes(s);
+	int64_t k = s.n;
 	if (k == 0)
 		return false;
 	int64_t r = randindex(k);
-	if (k == s.n) {
-		vm.lastcharpos = r + 1;
-		*out = strval(slice(s, r + 1, r + 2));
-		return true;
-	}
-	int64_t i = 1;
-	for (; r > 0; r--)
-		i += width(s, i - 1);
-	vm.lastcharpos = i;
-	*out = strval(slice(s, i, i + width(s, i - 1)));
+	vm.lastcharpos = r + 1;
+	*out = strval(slice(s, r + 1, r + 2));
 	return true;
 }
 
