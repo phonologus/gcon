@@ -271,6 +271,12 @@ static TokKind scan(Lexer *l) {
 		size_t start = l->pos;
 		while (l->pos < l->n && (isAlnum((unsigned char)l->src[l->pos]) || l->src[l->pos] == '_'))
 			l->pos++;
+		/* gcon's uset literal: u directly followed by a cset literal (in
+		 * 9.5 an identifier followed by a literal is a syntax error) */
+		if (l->pos - start == 1 && c == 'u' && l->pos < l->n && l->src[l->pos] == '\'') {
+			quoted(l);
+			return T_USETLIT;
+		}
 		return tok_lookup(l->src + start, l->pos - start);
 	}
 	if (isDigit(c) || c == '.')

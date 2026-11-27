@@ -75,6 +75,14 @@ suite("TextMate grammar", () => {
     }
   });
 
+  test("gcon's uset literal", async () => {
+    const g = await loadGrammar();
+    const s = scopes(g, `   x := u'a..z' ++ uset(c)`);
+    assert.strictEqual(s.get("u'"), "string.quoted.single.uset.icon");
+    assert.strictEqual(s.get(".."), "keyword.operator.range.icon");
+    assert.strictEqual(s.get("uset"), "support.function.builtin.icon");
+  });
+
   test("gcon's additions: \\u and \\U escapes, cset ranges, built-ins", async () => {
     const g = await loadGrammar();
     const bs = "\\";

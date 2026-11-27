@@ -1,0 +1,8 @@
+setmix.icn:6: a cset and a uset mixed: run-time error 128 (uset(c) converts a cset)
+setmix.icn:7: a cset and a uset mixed: run-time error 128 (uset(c) converts a cset)
+setmix.icn:8: a cset and a uset mixed: run-time error 128 (uset(c) converts a cset)
+setmix.icn:9: a cset and a uset mixed: run-time error 128 (uset(c) converts a cset)
+setmix.icn:12: a cset and a uset are never identical
+setmix.icn:13: cset of a uset: run-time error 128
+setmix.icn:14: bal with a cset and a uset: run-time error 128
+status 1

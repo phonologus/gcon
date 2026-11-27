@@ -787,13 +787,18 @@ static void diagnostics(Server *s, Doc *d, Buf *b) {
 		 * \U escapes, cset ranges), with its messages */
 		for (size_t i = 0; i < d->file->toks.n; i++) {
 			Token *t = &d->file->toks.v[i];
-			if (t->implicit || (t->kind != T_STRINGLIT && t->kind != T_CSETLIT))
+			if (t->implicit || (t->kind != T_STRINGLIT && t->kind != T_CSETLIT && t->kind != T_USETLIT))
 				continue;
 			LitError *err;
 			if (t->kind == T_STRINGLIT) {
 				char *s;
 				size_t n;
 				err = lit_string(d->text + t->offset, t->len, &s, &n);
+			} else if (t->kind == T_USETLIT) {
+				LitUset lu;
+				err = lit_uset(d->text + t->offset, t->len, &lu);
+				if (!err)
+					free(lu.ranges);
 			} else {
 				LitCset lc;
 				err = lit_cset(d->text + t->offset, t->len, &lc);

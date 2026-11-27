@@ -74,6 +74,9 @@ const grammar = {
       patterns: [
         { include: "#comment" },
         literal('"', "string.quoted.double.icon"),
+        // gcon's uset literal, u'...': before the cset literal, and so
+        // before u is taken as an identifier.
+        { ...literal("'", "string.quoted.single.uset.icon", [range]), begin: "\\bu'" },
         literal("'", "string.quoted.single.cset.icon", [range]),
         {
           name: "keyword.control.icon",

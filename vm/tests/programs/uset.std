@@ -1,0 +1,26 @@
+uset 3 u'aé世' '\xa9\xc3'
+&uset 1112192 u'\x00..`b..\U10ffff\x80..\xff'
+u'αβγδεζηθικλμνξοπρςστυφχψω' 25 u'abcde\x80\x81\x82\x83'
+u'' 0 u'é\xe9' 2
+16 17
+15 16
+15 16
+"a" "b" "é" "c" "d" "\xe9" "e" "f" "世" "界" "!" 
+1 2 3 5 6 7 8 9 10 13 16 
+3 7 13 
+7 
+"abécd\xe9ef" 10
+5 fails 4
+5 fails
+6 7 
+1 2 5 
+"abc" "ab" "abé" "ab\xc3"
+233 19990 65533 97 "世"
+u'abcdexyz' uset u'αγ' u'β' u'é'
+u'hloé' u'\xa9\xc3' u'abcdef' "aé" differ
+"a" "z" "é" "\xe9" 
+"x" 'a' u'a' u'b' u'é' 
+'\xa9\xc3'=1 u'é'=2 
+"é" fails
+same 256
+128 128 128 128 128 128 128 ok ok 128 ok 128 fails 127 differ 

@@ -182,11 +182,13 @@ const char *const gen_functions[] = {
 	"trim",
 	"type",
 	"uchar",
+	"uord",
 	"upto",
+	"uset",
 	"utf8valid",
 	"variable",
 	"where",
 	"write",
 	"writes",
 };
-const int gen_nfunctions = 92;
+const int gen_nfunctions = 94;

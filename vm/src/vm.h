@@ -159,7 +159,7 @@ enum {
 	T_VALUES,  /* an array of Values */
 	T_LIST, T_RECORD, T_TABLE, T_SET, T_SUBSTR, T_VAR, T_SCANENV,
 	T_GEN,     /* begins with a Gen: its mark function traces it */
-	T_FRAME, T_COEXP, T_CSET,
+	T_FRAME, T_COEXP, T_CSET, T_USET,
 	T_STRHDR,  /* a String */
 	T_FILE,
 	T_GCVOID,  /* an array of pointers to heap objects */
@@ -407,6 +407,31 @@ String cset_string(const Cset *c);
 extern Cset *CsetAll, *CsetASCII, *CsetDigits, *CsetLcase, *CsetUcase, *CsetLetters;
 void cset_init(void);
 const char *csetname_(const Cset *c);
+
+/* ---- Usets (uset.c) ---- */
+
+Uset *newuset(void);
+Uset *usetof(String s);           /* the characters of s read as UTF-8 */
+Uset *usetofcset(const Cset *c);
+Uset *usetop(int op, const Uset *a, const Uset *b);
+Uset *ucomplement(const Uset *c);
+static inline bool uset_hasbyte(const Uset *c, int b) { return c->bits[b >> 6] >> (b & 63) & 1; }
+bool uset_hasrune(const Uset *c, int32_t r);
+int64_t uset_size(const Uset *c);
+bool uset_equal(const Uset *a, const Uset *b);
+bool uset_isuniv(const Uset *c);
+String uset_string(const Uset *c);
+bool umatch(const Uset *c, String s, int64_t off, int *w);
+typedef struct UsetIter {
+	int next, ri;
+	uint32_t x;
+} UsetIter;
+bool uset_next(const Uset *c, UsetIter *it, String *out);
+String uset_nth(const Uset *c, int64_t k); /* member k, 0-based, for ?u */
+extern Uset *UsetUniv;
+void uset_init(void);
+bool cvuset(Value v, Uset **out);
+Uset *mustuset(Value v);
 
 /* ---- Structures (struct.c) ---- */
 

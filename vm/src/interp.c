@@ -33,6 +33,7 @@ static const struct {
 	{120, "two csets or two sets expected"}, {121, "function not supported"},
 	{122, "set or table expected"}, {123, "invalid type"}, {124, "table expected"},
 	{125, "list, record, or set expected"}, {126, "list or record expected"},
+	{127, "uset expected"}, {128, "cset and uset mixed"}, /* gcon */
 	{131, "external expected"}, {132, "incorrect external type"},
 	{133, "invalid external value"}, {134, "malformed external value"},
 	{140, "window expected"}, {141, "program terminated by window manager"},
@@ -427,6 +428,7 @@ static bool operint(Frame *f, Instr *in, Builtin *b) {
 			case KSet: v = intval(((Set *)x.w.p)->m.live); break;
 			case KRecord: v = intval(((Record *)x.w.p)->t->nfields); break;
 			case KCset: v = intval(cset_size(x.w.p)); break;
+			case KUset: v = intval(uset_size(x.w.p)); break;
 			default: return false;
 			}
 			ok = true;

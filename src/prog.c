@@ -89,6 +89,100 @@ Cset *cset_from(const char *s, size_t n) {
 	return c;
 }
 
+
+/* ------------------------------------------------------------------ */
+/* Usets */
+
+enum { SurrLo = 0xD800, SurrHi = 0xDFFF };
+
+typedef VEC(UsetRange) Ranges;
+
+static const UsetRange universe[] = {{0x80, SurrLo - 1}, {SurrHi + 1, MaxRune}};
+
+Uset *uset_new(void) { return xcalloc(1, sizeof(Uset)); }
+
+/* normalize merges sorted ranges that overlap or touch. */
+static Ranges normalize(const UsetRange *rs, size_t n) {
+	Ranges out = {0};
+	for (size_t i = 0; i < n; i++) {
+		UsetRange r = rs[i];
+		if (out.n > 0 && r.lo <= out.v[out.n - 1].hi + 1) {
+			if (r.hi > out.v[out.n - 1].hi)
+				out.v[out.n - 1].hi = r.hi;
+			continue;
+		}
+		VPUSH(out, r);
+	}
+	return out;
+}
+
+/* A stable sort by lo (Go's sort.Slice is not stable, but ranges with
+ * equal lo merge to the same result whatever their order). */
+static void sortranges(UsetRange *rs, size_t n) {
+	for (size_t i = 1; i < n; i++) {
+		UsetRange r = rs[i];
+		size_t j = i;
+		for (; j > 0 && rs[j - 1].lo > r.lo; j--)
+			rs[j] = rs[j - 1];
+		rs[j] = r;
+	}
+}
+
+static Ranges unionranges(const UsetRange *a, size_t na, const UsetRange *b, size_t nb) {
+	UsetRange *all = xmalloc((na + nb + 1) * sizeof *all);
+	if (na)
+		memcpy(all, a, na * sizeof *all);
+	if (nb)
+		memcpy(all + na, b, nb * sizeof *all);
+	sortranges(all, na + nb);
+	Ranges out = normalize(all, na + nb);
+	free(all);
+	return out;
+}
+
+static Ranges interranges(const UsetRange *a, size_t na, const UsetRange *b, size_t nb) {
+	Ranges out = {0};
+	for (size_t i = 0, j = 0; i < na && j < nb;) {
+		int32_t lo = a[i].lo > b[j].lo ? a[i].lo : b[j].lo;
+		int32_t hi = a[i].hi < b[j].hi ? a[i].hi : b[j].hi;
+		if (lo <= hi) {
+			UsetRange r = {lo, hi};
+			VPUSH(out, r);
+		}
+		if (a[i].hi < b[j].hi)
+			i++;
+		else
+			j++;
+	}
+	return out;
+}
+
+Uset *uset_univ(void) {
+	Uset *u = uset_new();
+	for (int i = 0; i < 4; i++)
+		u->bits[i] = ~(uint64_t)0;
+	VPUSH(u->ranges, universe[0]);
+	VPUSH(u->ranges, universe[1]);
+	return u;
+}
+
+/* uset_addrunes adds code points (from 0x80) to u's ranges, less any
+ * surrogates. */
+void uset_addrunes(Uset *u, const UsetRange *rs, size_t n) {
+	UsetRange *sorted = xmalloc((n + 1) * sizeof *sorted);
+	if (n)
+		memcpy(sorted, rs, n * sizeof *sorted);
+	sortranges(sorted, n);
+	Ranges norm = normalize(sorted, n);
+	Ranges in = interranges(universe, 2, norm.v, norm.n);
+	Ranges un = unionranges(u->ranges.v, u->ranges.n, in.v, in.n);
+	free(u->ranges.v);
+	u->ranges.v = un.v, u->ranges.n = un.n, u->ranges.cap = un.cap;
+	free(sorted);
+	free(norm.v);
+	free(in.v);
+}
+
 /* ------------------------------------------------------------------ */
 /* The encoder */
 
@@ -284,6 +378,16 @@ static void value(Encoder *e, const Value *v) {
 		bufputc(b, ValCset);
 		for (int i = 0; i < 4; i++)
 			eu64(b, v->cset->bits[i]);
+		break;
+	case V_USET:
+		bufputc(b, ValUset);
+		for (int i = 0; i < 4; i++)
+			eu64(b, v->uset->bits[i]);
+		euint(b, v->uset->ranges.n);
+		for (size_t i = 0; i < v->uset->ranges.n; i++) {
+			euint(b, (uint64_t)v->uset->ranges.v[i].lo);
+			euint(b, (uint64_t)v->uset->ranges.v[i].hi);
+		}
 		break;
 	case V_BUILTIN:
 		bufputc(b, ValBuiltin);

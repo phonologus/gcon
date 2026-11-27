@@ -229,6 +229,24 @@ static Gen *idxgen(bool (*next)(Gen *, Value *), void *p, Value v) {
 	return &g->g;
 }
 
+/* !u generates a uset's members, in canonical order. */
+typedef struct UsetGen {
+	Gen g;
+	Uset *u;
+	UsetIter it;
+} UsetGen;
+
+static bool usetnext(Gen *gg, Value *out) {
+	UsetGen *g = (UsetGen *)gg;
+	String s;
+	if (!uset_next(g->u, &g->it, &s))
+		return false;
+	*out = strval(s);
+	return true;
+}
+
+static void usetmark(Gen *gg) { markvalue(ptrval(KUset, ((UsetGen *)gg)->u)); }
+
 GENFN(o_bang) {
 	(void)b;
 	(void)n;
@@ -241,6 +259,13 @@ GENFN(o_bang) {
 	case KFile: return idxgen(linenext, x.w.p, NONE);
 	case KTable: return omapgen(&((Table *)x.w.p)->m, x.w.p, 0);
 	case KSet: return omapgen(&((Set *)x.w.p)->m, NULL, 1);
+	case KUset: {
+		UsetGen *g = gcnew(sizeof *g, T_GEN);
+		g->g.next = usetnext;
+		g->g.mark = usetmark;
+		g->u = x.w.p;
+		return &g->g;
+	}
 	}
 	String s;
 	if (!cvstr(x, &s))
@@ -299,6 +324,13 @@ FN(o_random) {
 		return randomchar(vstr(x), out);
 	case KCset:
 		return randomchar(cset_string(x.w.p), out);
+	case KUset: {
+		int64_t k = uset_size(x.w.p);
+		if (k == 0)
+			return false;
+		*out = strval(uset_nth(x.w.p, randindex(k)));
+		return true;
+	}
 	case KList: {
 		List *l = x.w.p;
 		if (l->n == 0)

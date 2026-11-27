@@ -101,3 +101,37 @@ end
       function: (identifier)
       arguments: (argument_list
         (cset)))))
+
+================================================================================
+Uset literals
+================================================================================
+
+procedure main()
+   u := u'aé\x80..\xff'
+   x := u ++ u'α..ω'
+   write(u, u'')
+end
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (procedure_declaration
+    name: (identifier)
+    parameters: (parameter_list)
+    (assignment_expression
+      left: (identifier)
+      right: (uset
+        (escape_sequence)
+        (range_operator)
+        (escape_sequence)))
+    (assignment_expression
+      left: (identifier)
+      right: (binary_expression
+        left: (identifier)
+        right: (uset
+          (range_operator))))
+    (call_expression
+      function: (identifier)
+      arguments: (argument_list
+        (identifier)
+        (uset)))))

@@ -148,8 +148,112 @@ static bool nonnumeric(Vet *v, Token *t) {
 	return false;
 }
 
+/* ---- setmix: a cset and a uset mixed ---- */
+
+enum { SetUnknown, SetCset, SetUset };
+
+/* builtinnamed reports whether n names the built-in function name (not
+ * hidden by a declaration). */
+static bool builtinnamed(Vet *v, Node *n, const char *name) {
+	Symbol *s = identsym(v, n);
+	return s && s->kind == S_BUILTIN && !strcmp(s->name, name);
+}
+
+/* settype gives the kind of set n certainly produces, if it is a cset
+ * or a uset: literals, the cset keywords and &uset, cset(...) and
+ * uset(...), and ~, ++, -- and ** of these (a string literal takes the
+ * kind of the other operand). */
+static int settype(Vet *v, Node *n) {
+	if (!n)
+		return SetUnknown;
+	switch (n->kind) {
+	case N_PAREN:
+		return n->group.list.elems.n == 1 ? settype(v, n->group.list.elems.v[0]) : SetUnknown;
+	case N_LITERAL:
+		if (!n->literal.tok)
+			return SetUnknown;
+		return n->literal.tok->kind == T_CSETLIT ? SetCset : n->literal.tok->kind == T_USETLIT ? SetUset : SetUnknown;
+	case N_KEYWORD: {
+		Token *t = n->keyword.name;
+		if (!t)
+			return SetUnknown;
+		static const char *const csets[] = {"cset", "ascii", "digits", "letters", "lcase", "ucase"};
+		for (size_t i = 0; i < sizeof csets / sizeof csets[0]; i++)
+			if (t->len == strlen(csets[i]) && !memcmp(ttext(v, t), csets[i], t->len))
+				return SetCset;
+		if (t->len == 4 && !memcmp(ttext(v, t), "uset", 4))
+			return SetUset;
+		return SetUnknown;
+	}
+	case N_UNARY:
+		return n->unary.op && n->unary.op->kind == T_TILDE ? settype(v, n->unary.x) : SetUnknown;
+	case N_BINARY: {
+		TokKind op = n->binary.op ? n->binary.op->kind : T_ILLEGAL;
+		if (op != T_UNION && op != T_INTER && op != T_DIFF)
+			return SetUnknown;
+		int x = settype(v, n->binary.x), y = settype(v, n->binary.y);
+		bool xs = n->binary.x && n->binary.x->kind == N_LITERAL && n->binary.x->literal.tok &&
+			  n->binary.x->literal.tok->kind == T_STRINGLIT;
+		bool ys = n->binary.y && n->binary.y->kind == N_LITERAL && n->binary.y->literal.tok &&
+			  n->binary.y->literal.tok->kind == T_STRINGLIT;
+		if (x == y || ys)
+			return x;
+		return xs ? y : SetUnknown;
+	}
+	case N_CALL:
+		if (builtinnamed(v, n->call.fun, "cset"))
+			return SetCset;
+		if (builtinnamed(v, n->call.fun, "uset"))
+			return SetUset;
+		return SetUnknown;
+	default:
+		return SetUnknown;
+	}
+}
+
+static bool mixed(int a, int b) { return (a == SetCset && b == SetUset) || (a == SetUset && b == SetCset); }
+
+/* setmix reports a cset and a uset that meet where gcon raises run-time
+ * error 128 (++, --, **, their assignments, bal's arguments, cset of a
+ * uset), and === or ~=== of the two, which compare values that can
+ * never be identical. */
+static void setmix(Vet *v, Node *n) {
+	if (n->kind == N_BINARY && n->binary.op) {
+		TokKind op = n->binary.op->kind;
+		int x = settype(v, n->binary.x), y = settype(v, n->binary.y);
+		if (!mixed(x, y))
+			return;
+		if (op == T_UNION || op == T_INTER || op == T_DIFF || op == T_AUGUNION || op == T_AUGINTER ||
+		    op == T_AUGDIFF)
+			report(v, n->binary.op, xstrndup("a cset and a uset mixed: run-time error 128 (uset(c) converts a cset)", strlen("a cset and a uset mixed: run-time error 128 (uset(c) converts a cset)")));
+		else if (op == T_EQUIV || op == T_NEQUIV)
+			report(v, n->binary.op, xstrndup("a cset and a uset are never identical", strlen("a cset and a uset are never identical")));
+		return;
+	}
+	if (n->kind != N_CALL)
+		return;
+	NodeVec *args = &n->call.args.elems;
+	if (builtinnamed(v, n->call.fun, "cset") && args->n >= 1 && settype(v, args->v[0]) == SetUset) {
+		report(v, n->call.fun->ident.name, xstrndup("cset of a uset: run-time error 128", strlen("cset of a uset: run-time error 128")));
+		return;
+	}
+	if (builtinnamed(v, n->call.fun, "bal")) {
+		int seen = SetUnknown;
+		for (size_t i = 0; i < args->n && i < 3; i++) {
+			int t = settype(v, args->v[i]);
+			if (mixed(seen, t)) {
+				report(v, n->call.fun->ident.name, xstrndup("bal with a cset and a uset: run-time error 128", strlen("bal with a cset and a uset: run-time error 128")));
+				return;
+			}
+			if (t != SetUnknown)
+				seen = t;
+		}
+	}
+}
+
 static void visit(void *ctx, Node *n) {
 	Vet *v = ctx;
+	setmix(v, n);
 	switch (n->kind) {
 	case N_PROC:
 		v->proc = n;
@@ -232,6 +336,10 @@ static void visit(void *ctx, Node *n) {
 static void literals95(Vet *v) {
 	for (size_t i = 0; i < v->syn->toks.n; i++) {
 		Token *t = &v->syn->toks.v[i];
+		if (!t->implicit && t->kind == T_USETLIT) {
+			report(v, t, xstrndup("uset literal: not in Icon 9.5", 29));
+			continue;
+		}
 		if (t->implicit || (t->kind != T_STRINGLIT && t->kind != T_CSETLIT))
 			continue;
 		const char *s = ttext(v, t);

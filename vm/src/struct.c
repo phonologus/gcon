@@ -109,6 +109,11 @@ static uint64_t hashval(Value v) {
 		Cset *c = v.w.p;
 		return hashbytes(c->bits, sizeof c->bits, 0x1234);
 	}
+	case KUset: {
+		Uset *c = v.w.p;
+		uint64_t h = hashbytes(c->bits, sizeof c->bits, 0x4321);
+		return hashbytes(c->ranges, (size_t)c->nranges * 8, h);
+	}
 	}
 	return mix((uint64_t)(uintptr_t)v.w.p ^ (uint64_t)VKIND(v) << 56 ^ VN(v));
 }
@@ -357,16 +362,17 @@ static int order(Value v) {
 	case KReal: return 2;
 	case KString: return 3;
 	case KCset: return 4;
-	case KFile: return 5;
-	case KCoexp: return 6;
-	case KProc: case KBuiltin: case KRecordType: return 7;
-	case KList: return 8;
-	case KSet: return 9;
-	case KTable: return 10;
-	case KRecord: return 11;
-	case KExternal: return 12;
+	case KUset: return 5; /* after csets */
+	case KFile: return 6;
+	case KCoexp: return 7;
+	case KProc: case KBuiltin: case KRecordType: return 8;
+	case KList: return 9;
+	case KSet: return 10;
+	case KTable: return 11;
+	case KRecord: return 12;
+	case KExternal: return 13;
 	}
-	return 12;
+	return 13;
 }
 
 static int cmpi(int64_t a, int64_t b) { return (a > b) - (a < b); }
@@ -404,6 +410,10 @@ int anycmp(Value x, Value y) {
 		String a = cset_string(x.w.p), b = cset_string(y.w.p);
 		return cmpbytes(a.s, a.n, b.s, b.n);
 	}
+	case KUset: {
+		String a = uset_string(x.w.p), b = uset_string(y.w.p);
+		return cmpbytes(a.s, a.n, b.s, b.n);
+	}
 	case KFile: {
 		File *a = x.w.p, *b = y.w.p;
 		return cmpbytes(a->name.s, a->name.n, b->name.s, b->name.n);
@@ -419,7 +429,7 @@ int anycmp(Value x, Value y) {
 		return c ? c : cmpi(a->serial, b->serial);
 	}
 	}
-	if (ox == 7) {
+	if (VKIND(x) == KProc || VKIND(x) == KBuiltin || VKIND(x) == KRecordType) {
 		Str a = procname(x), b = procname(y);
 		return cmpbytes(a.s, (int64_t)a.n, b.s, (int64_t)b.n);
 	}
@@ -821,10 +831,25 @@ FN(o_listlit) {
 	return true;
 }
 
-/* x ++ y, x ** y, x -- y: two sets, or else both converted to csets. */
+/* x ++ y, x ** y, x -- y: two sets; else, if either is a uset, two
+ * usets (a string converted); else two csets. A cset and a uset never
+ * mix (error 128): only uset(c) makes a cset a uset. */
 static bool setcset(int op, Value *a, Value *out) {
 	if (VKIND(a[0]) == KSet && VKIND(a[1]) == KSet) {
 		*out = ptrval(KSet, setop(op, a[0].w.p, a[1].w.p));
+		return true;
+	}
+	if (VKIND(a[0]) == KUset || VKIND(a[1]) == KUset) {
+		if (VKIND(a[0]) == KCset)
+			runerrv(128, a[0]);
+		if (VKIND(a[1]) == KCset)
+			runerrv(128, a[1]);
+		Uset *x, *y;
+		if (!cvuset(a[0], &x))
+			runerrv(120, a[0]);
+		if (!cvuset(a[1], &y))
+			runerrv(120, a[1]);
+		*out = ptrval(KUset, usetop(op, x, y));
 		return true;
 	}
 	Cset *x, *y;

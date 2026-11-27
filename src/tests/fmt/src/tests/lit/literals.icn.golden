@@ -12,5 +12,9 @@ procedure main()
    write('a...b')
    write('\xff..\u0100')
    write("fine", 'a..cx..z')
+   write(u'α..ω', u'\x80..\xff', u'a..é', u'')
+   write(u'é..\xff')
+   write(u'ω..α')
+   write(u'a...b')
 end
 status 0

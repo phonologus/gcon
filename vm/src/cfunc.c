@@ -204,6 +204,7 @@ static void todesc(Value v, descriptor *d) {
 		d->vword = (word)v.w.p;
 		return;
 	case KCset: opaque(v, T_Cset, 0, d); return;
+	case KUset: opaque(v, T_Cset, 0, d); return; /* Icon 9.5 has none: passed as a cset C cannot take apart */
 	case KProc: case KBuiltin: case KRecordType: opaque(v, T_Proc, 0, d); return;
 	case KRecord: opaque(v, T_Record, 0, d); return;
 	case KList: opaque(v, T_List, (word)((List *)v.w.p)->n, d); return;

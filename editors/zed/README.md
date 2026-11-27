@@ -1,7 +1,7 @@
 # Icon (gcon) for Zed
 
 Icon language support for [Zed](https://zed.dev), as gcon reads Icon:
-syntax highlighting (with gcon's `\u` escapes, cset ranges and
+syntax highlighting (with gcon's `\u` escapes, cset ranges, uset literals and
 built-ins), outline and bracket matching, from the grammar in
 `../tree-sitter-gcon`, and gcon's language server, `gcon lsp`:
 diagnostics and `gcon vet` warnings, hover with documentation, go to

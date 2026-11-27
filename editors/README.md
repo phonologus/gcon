@@ -5,7 +5,7 @@ Editor support for Icon as gcon reads it, around gcon's language server,
 
 | Path | Contents |
 |---|---|
-| `tree-sitter-gcon/` | the tree-sitter grammar: Icon 9.5 with gcon's escapes and cset ranges ([README](tree-sitter-gcon/README.md)) |
+| `tree-sitter-gcon/` | the tree-sitter grammar: Icon 9.5 with gcon's escapes, cset ranges and uset literals ([README](tree-sitter-gcon/README.md)) |
 | `zed/` | the Zed extension: the grammar's highlighting and outline, and `gcon lsp` ([README](zed/README.md)) |
 | `vscode/` | the VS Code extension: a TextMate grammar, and `gcon lsp` ([README](vscode/README.md)) |
 | `gen.sh` | writes gcon's built-in function names, from `../src/builtin.inc`, into the highlight queries |

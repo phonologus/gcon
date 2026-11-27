@@ -28,3 +28,6 @@ ipl-progs/ifncsgen       (2026-11-27) strings are bytes again: gcon's
 tests-general/checkc     (2026-11-27) csets are Icon 9.5's 256 bytes
 tests-general/scan       again: the output is now iconx's .std exactly
 ipl-progs/ifncsgen       (2026-11-27) len and readrunes are removed too
+ipl-progs/ifncsgen       (2026-11-27) gcon's uord and uset
+ipl-progs/irunerr        (2026-11-27) gcon's errors 127 (uset expected) and
+                         128 (cset and uset mixed)

@@ -3,4 +3,7 @@ icon95.icn:3: \U escape: not in Icon 9.5
 icon95.icn:4: cset range: not in Icon 9.5
 icon95.icn:6: utf8valid: a gcon built-in function, not in Icon 9.5
 icon95.icn:6: uchar: a gcon built-in function, not in Icon 9.5
+icon95.icn:7: uset literal: not in Icon 9.5
+icon95.icn:7: uord: a gcon built-in function, not in Icon 9.5
+icon95.icn:7: &uset: a gcon keyword, not in Icon 9.5
 status 1

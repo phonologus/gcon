@@ -184,6 +184,7 @@ module.exports = grammar({
       $.real,
       $.string,
       $.cset,
+      $.uset,
       $.parenthesized_expression,
       $.block,
       $.list,
@@ -338,6 +339,14 @@ module.exports = grammar({
     // escape for a "." at either end of a range.
     cset: $ => seq(
       "'",
+      repeat(choice($._cset_text, $.escape_sequence, $.range_operator)),
+      token.immediate("'"),
+    ),
+
+    // gcon's uset literal, u'...': a cset literal's parts after "u'" (one
+    // token, so that u is not an identifier there).
+    uset: $ => seq(
+      token(prec(2, "u'")),
       repeat(choice($._cset_text, $.escape_sequence, $.range_operator)),
       token.immediate("'"),
     ),

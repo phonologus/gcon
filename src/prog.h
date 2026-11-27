@@ -65,7 +65,18 @@ typedef struct Cset {
 	uint64_t bits[4];
 } Cset;
 
-typedef enum ValKind { V_NULL, V_INT, V_BIG, V_REAL, V_STRING, V_CSET, V_BUILTIN, V_PROC, V_RECORD } ValKind;
+/* A uset: the ASCII characters and the bytes from 0x80 in bits, as a
+ * cset, and code points (from 0x80, no surrogates) in ranges, sorted,
+ * disjoint, not adjacent. */
+typedef struct UsetRange {
+	int32_t lo, hi;
+} UsetRange;
+typedef struct Uset {
+	uint64_t bits[4];
+	VEC(UsetRange) ranges;
+} Uset;
+
+typedef enum ValKind { V_NULL, V_INT, V_BIG, V_REAL, V_STRING, V_CSET, V_BUILTIN, V_PROC, V_RECORD, V_USET } ValKind;
 
 typedef struct Value {
 	ValKind kind;
@@ -76,6 +87,7 @@ typedef struct Value {
 	const char *s;      /* V_STRING: the bytes */
 	size_t n;           /* V_STRING: their number */
 	Cset *cset;         /* V_CSET */
+	Uset *uset;         /* V_USET */
 	Builtin *builtin;   /* V_BUILTIN */
 	Proc *proc;         /* V_PROC */
 	RecordType *record; /* V_RECORD */
@@ -93,6 +105,11 @@ typedef struct Prog {
 Cset *cset_new(void);
 Cset *cset_union(const Cset *a, const Cset *b);
 Cset *cset_from(const char *s, size_t n); /* the cset of the bytes of s */
+
+/* Usets. */
+Uset *uset_new(void);
+Uset *uset_univ(void);                                     /* &uset */
+void uset_addrunes(Uset *u, const UsetRange *rs, size_t n); /* code points from 0x80 */
 
 /* encode writes p's encoding to out, with the build information keys
  * and values (ninfo of each, written sorted by key). It returns an error

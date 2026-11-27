@@ -895,12 +895,14 @@ substring cannot:
   built-in's; none of `uord`, `uchar`, `uset` or `utf8valid` occurs in
   `icon/tests`, `icon/ipl` or `icn/`.
 
-**Status (2026-11-27).** The byte half is implemented: strings without
-units, 9.5's csets, `image`, I/O with iconx's untranslated mode `"u"`,
-and the built program's format at version 2 (no unit byte on strings, no
-ranges on csets). `runes`, `bytes`, `len`, `readrunes` and `&uset` are
-removed (`&uset` returns as a uset). `uchar` and `utf8valid` remain.
-Usets, `u'...'`, `uord` and uset matching are next.
+**Status (2026-11-27).** Implemented: strings without units, 9.5's
+csets, `image`, I/O with iconx's untranslated mode `"u"`; usets (the
+type, `u'...'`, `uset(x)`, `uord`, `&uset`, the algebra, matching with
+the ASCII fast path, errors 127 and 128, `gcon vet`'s check) through
+gcon-vm, the front end, `gcon fmt`, `gcon lsp`, tree-sitter-gcon and the
+editors; the built program's format at version 3 (no unit byte on
+strings, a cset its 256 bits, a uset its bits and ranges). `runes`,
+`bytes`, `len` and `readrunes` are removed. Next: `uclass`.
 
 ### Positions are bytes
 
@@ -945,29 +947,44 @@ literals in the reference tree and `icn/` contains it.
 - the non-ASCII **code points**: 0x80–0x10FFFF less the 2,048 surrogates.
 
 That makes 1,112,192 characters. The byte 0xE9 and the code point U+00E9
-are different members: `u'\xe9é'` has two. A cset's members are a subset
-of this universe (ASCII and the bytes), so a cset converts to a uset
-exactly.
+are different members: `u'\xe9é'` has two. A cset's members are a part
+of this universe (ASCII and the bytes), so `uset(c)` has exactly the
+members of `c`.
+
+**Decision (Sean, 2026-11-27): csets and usets do not mix.** As in Go,
+which converts between types only when told to, there is no silent
+conversion from a cset to a uset or from a uset to a cset. `uset(c)` is
+the one conversion, from a cset to a uset; nothing converts a uset to a
+cset. Where the two meet, gcon raises run-time error 128, "cset and uset
+mixed" (127, "uset expected", is a value that cannot be a uset), and
+`gcon vet` reports the mixes it can be sure of (below). Strings still
+convert to whichever is wanted, as they convert to csets in 9.5.
 
 - **Type.** `type(u)` is `"uset"`. A uset and a cset are never `===`,
-  even with the same members (as `'abc'` and `"abc"` are not in 9.5):
-  their complements differ. `sort` orders usets after csets.
+  even with the same members (as `'abc'` and `"abc"` are not in 9.5);
+  `===` and `~===` compare any two values, so this fails rather than
+  raising an error, and `gcon vet` reports it. `sort` orders usets after
+  csets.
 - **Literals** `u'...'`: a UTF-8 character in the source is a code point
   member, `\u`/`\U` a code point, `\x80`–`\xff` a byte; invalid source
   bytes are byte members. Ranges are as in csets, but both ends are code
   points (a range spanning the surrogates skips them) or both bytes
-  (`u'\x80..\xff'`); a mixed range is a compile-time error. `u'` is free
-  syntax: in 9.5 an identifier directly followed by a literal is a
-  syntax error, and `u'` never occurs as a prefix in the corpus.
-- **Algebra.** Complement is over the whole universe; `++`, `--` and
-  `**` give a uset when either operand is one, converting a cset
-  exactly. So usets form a Boolean algebra: `~~u === u`, De Morgan's laws
-  hold, `a -- b === a ** ~b`, and `===` is equality of members.
+  (`u'\x80..\xff'`), ASCII counting as either; a mixed range is a
+  compile-time error. `u'` is free syntax: in 9.5 an identifier directly
+  followed by a literal is a syntax error, and `u'` never occurs as a
+  prefix in the corpus.
+- **Algebra.** Complement is over the whole universe. `++`, `--` and
+  `**` of two usets give a uset (a string operand is converted); of a
+  uset and a cset, error 128. So usets form a Boolean algebra:
+  `~~u === u`, De Morgan's laws hold, `a -- b === a ** ~b`, and `===` is
+  equality of members.
 - **Conversions.** `uset(x)` converts a string by reading its characters
   as UTF-8 (valid sequences are code points, invalid bytes are bytes),
-  and a cset exactly. Where a cset is required, a uset converts through
-  its string, as any value does: the cset of the bytes of its members'
-  encodings, so `cset(u'é')` is `'\xa9\xc3'`, which is what `'é'` is.
+  and a cset exactly; it fails for a value with no string, as `cset`
+  does. `cset(u)` is error 128, as is a uset given where a cset is
+  required (`many(c)` with a cset is 9.5's; a uset there is read as a
+  uset, below). `string(u)` and the other string conversions are as for
+  a cset: its canonical string.
 - **The value is a string.** A uset's canonical string is its members
   sorted in string (`<<`) order and concatenated, a code point by its
   UTF-8 encoding and a byte as itself. Read as UTF-8, it is exactly its
@@ -982,8 +999,19 @@ exactly.
   characters as UTF-8. A character is a code point or an invalid byte
   (as `utf8.DecodeRuneInString` splits it), and matches when it is a
   member: an invalid byte matches only that byte member, and a real
-  U+FFFD only the code point U+FFFD. `bal` steps by characters when any
-  of its cset arguments is a uset. `trim(s, u)` trims whole characters.
+  U+FFFD only the code point U+FFFD; an ASCII byte is tested with no
+  decoding. `bal` steps by characters when any of its cset arguments is
+  a uset; then all must be (a cset among them is error 128), and its
+  first defaults to `&uset`. `trim(s, u)` trims whole characters. The
+  region of `s` the positions give ends the subject: a sequence its end
+  splits is read as bytes.
+- **`gcon vet`** reports a cset and a uset that certainly meet: where
+  the kinds of both operands are known (literals, the cset keywords and
+  `&uset`, `cset(...)` and `uset(...)`, and `~`, `++`, `--` and `**` of
+  these), in `++`, `--`, `**` and their assignments, `bal`'s arguments
+  and `cset(u)` (error 128), and in `===` and `~===` (never identical).
+  It does not follow variables. The check is always on, not only with
+  `-icon95` (`src/tests/vet/setmix.icn`).
 - **Representation.** The canonical string is the meaning, not the
   storage: `~u'a'` would be about 4 MB as a string. Storage is a 256-bit
   set for ASCII and the bytes, and a sorted list of code-point ranges.
@@ -1230,7 +1258,8 @@ source) in full. The file is the shell header, the marker line
   by a newer gcon?"), not left to fail when called.
 - **Values** are tagged: null, integer, large integer (sign and
   magnitude), real (its IEEE bits, so exact), string (its bytes),
-  cset (its 256-bit bitmap), and builtin,
+  cset (its 256-bit bitmap), uset (its bitmap and code-point ranges),
+  and builtin,
   procedure or record type by index in their sections, so that each
   stays one shared object.
 - **Instructions**: the opcode, a byte of flags saying which fields
@@ -1504,13 +1533,12 @@ a procedure, `$line`, the predefined symbols and digraphs against iconx.
   `Record`. Field references are looked up by name when they run, so
   `x.f` works on any record type with a field `f`; `r[i]` and `r["f"]`
   subscript by position or field name.
-- gcon's extra built-ins (`uchar`, `utf8valid`) are in the catalogue
-  marked `Gcon` ("Strings and Unicode"; `runes`, `bytes`, `len`,
-  `readrunes` and the keyword `&uset` were removed on 2026-11-27, and
-  the uset functions are to come). Like any built-in, they are hidden
-  by a declaration of the same name but not by an undeclared use,
-  which would assign to the global. Neither occurs in the reference
-  tree or `icn/`.
+- gcon's extra built-ins (`uchar`, `uord`, `uset`, `utf8valid`) and the
+  keyword `&uset` are in the catalogue marked `Gcon` ("Strings and
+  Unicode"; `runes`, `bytes`, `len` and `readrunes` were removed on
+  2026-11-27). Like any built-in, they are hidden by a declaration of
+  the same name but not by an undeclared use, which would assign to
+  the global. None occurs in the reference tree or `icn/`.
   `text`, an earlier choice, was rejected: it is a natural variable
   name, used undeclared in `tests/general/diffwrds.icn`.
 - Error conversion (`internal/vm/errors.go`) follows iconx's `err_msg`
@@ -1885,13 +1913,14 @@ Next, after v0.1.0 (Sean, 2026-11-26):
   `writes` allocate once and no longer leak.
 - Linux: the display server has package lists, but gcon has not been
   built or tested there.
-- Strings are bytes (decision 2026-11-27, "Strings and Unicode"):
-  gcon-vm without units, 9.5 csets beside usets; the `u` functions and
-  `u'...'` through the front end, `gcon fmt`, `gcon lsp`, tree-sitter-gcon
-  and the README; then the byte paths audited against iconx, measured.
-  A breaking change, so a minor version.
+- Strings are bytes (decision 2026-11-27, "Strings and Unicode"): done
+  (2026-11-27): gcon-vm without units, 9.5's csets, usets beside them
+  through the front end, `gcon fmt`, `gcon lsp`, `gcon vet`,
+  tree-sitter-gcon and the editors. Left: the byte paths audited
+  against iconx, measured. A breaking change, so a minor version.
 - Unicode classes: `link uclass`, `uclass(name)` a uset, generated by
-  build.sh from the vendored Unicode database (see "Csets and usets").
+  build.sh from the Unicode database vendored in `deps/unicode`, which
+  `deps/update.sh unicode [VERSION]` refreshes (see "Csets and usets").
 - Built-in documentation, the modern man page: a `gcon doc`, as `go
   doc` is for Go. `gcon doc uchar` or `gcon doc &subject` shows what the
   language server's hover shows (the catalogue, the reference pages

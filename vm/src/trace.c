@@ -50,6 +50,9 @@ void image(Buf *b, Value v) {
 	case KCset:
 		imagecset(b, v.w.p);
 		return;
+	case KUset:
+		imageuset(b, v.w.p);
+		return;
 	case KReal:
 		rtos(b, v.w.r);
 		return;
@@ -165,6 +168,27 @@ void outimage(Buf *b, Value v, int noimage) {
 		quote(&q, all.s, StringLimit, true, '\'');
 		bufadd(b, q.b, q.n - 1);
 		bufputs(b, "...'");
+		return;
+	}
+	case KUset: {
+		Uset *c = v.w.p;
+		if (uset_isuniv(c) || uset_size(c) <= StringLimit) {
+			imageuset(b, c);
+			return;
+		}
+		/* The first StringLimit members. */
+		Buf m = {0};
+		UsetIter it = {0};
+		String s;
+		for (int k = 0; k < StringLimit && uset_next(c, &it, &s); k++)
+			bufadd(&m, s.s, (size_t)s.n);
+		Buf q = {0};
+		quote(&q, m.b, m.n, false, '\'');
+		bufputc(b, 'u');
+		bufadd(b, q.b, q.n - 1);
+		bufputs(b, "...'");
+		free(m.b);
+		free(q.b);
 		return;
 	}
 	case KList: {
@@ -361,7 +385,7 @@ static void converted(Buf *b, const char *op, Value x) {
 		if (ok)
 			c = strval(s);
 	} else if (!strcmp(op, "++") || !strcmp(op, "--") || !strcmp(op, "**")) {
-		if (VKIND(x) != KSet) {
+		if (VKIND(x) != KSet && VKIND(x) != KUset) {
 			Cset *cs;
 			ok = cvcset(x, &cs);
 			if (ok)

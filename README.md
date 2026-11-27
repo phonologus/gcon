@@ -144,11 +144,23 @@ Positions are always byte positions.
   `image("café")` is `"café"`; iconx writes `"caf\xc3\xa9"`. Both are
   literals of the same bytes. Other bytes from `\x80` are escaped as in
   9.5.
-- **New built-ins:** `uchar(i)` (the UTF-8 encoding of a code point)
-  and `utf8valid(s)`.
+- **Usets** are gcon's sets of characters for UTF-8 text, beside the
+  cset: their members are the ASCII characters, the 128 bytes from
+  `\x80` and every Unicode code point. A uset literal is written
+  `u'...'` (`u'α..ω'`, `u'é'`), `uset(x)` converts, and `&uset` is
+  every character. Given a uset, `any`, `many`, `upto`, `bal` and
+  `trim` step over whole UTF-8 characters, so `tab(any(&uset))` is the
+  next character of the subject; given a cset, they step over bytes, as
+  in 9.5. Positions are always byte positions.
+- **Csets and usets never mix:** `c ++ u`, `cset(u)` or a cset and a
+  uset in one `bal` is run-time error 128, and `gcon vet` reports such
+  mixes. `uset(c)` is the one conversion between them.
+- **New built-ins:** `uset(x)`, `uord(s)` (the code point of one UTF-8
+  character), `uchar(i)` (the UTF-8 encoding of a code point) and
+  `utf8valid(s)`.
 
-Unicode-aware scanning, with csets of code points, is being designed:
-see [docs/design.md](docs/design.md), "Strings and Unicode".
+The details are in [docs/design.md](docs/design.md), "Strings and
+Unicode".
 
 ### Graphics
 

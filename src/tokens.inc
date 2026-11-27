@@ -11,6 +11,7 @@ enum TokKind {
 	T_REALLIT,
 	T_STRINGLIT,
 	T_CSETLIT,
+	T_USETLIT, /* gcon: u'...' */
 	T_keywordBeg,
 	T_BREAK,
 	T_BY,
@@ -133,6 +134,7 @@ static const struct TokInfo tokinfo[T_NKINDS] = {
 	[T_REALLIT] = {"real-literal", TF_BEGINNER | TF_ENDER},
 	[T_STRINGLIT] = {"string-literal", TF_BEGINNER | TF_ENDER},
 	[T_CSETLIT] = {"cset-literal", TF_BEGINNER | TF_ENDER},
+	[T_USETLIT] = {"uset-literal", TF_BEGINNER | TF_ENDER},
 	[T_BREAK] = {"break", TF_BEGINNER | TF_ENDER},
 	[T_BY] = {"by", 0},
 	[T_CASE] = {"case", TF_BEGINNER},

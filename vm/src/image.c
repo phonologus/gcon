@@ -159,6 +159,159 @@ void imagecset(Buf *b, const Cset *c) {
 	quote(b, t, n, true, '\'');
 }
 
+/* ---- Usets ---- */
+
+static bool uhasbyte(const Uset *c, int x) { return c->bits[x >> 6] >> (x & 63) & 1; }
+
+static int64_t usetsize(const Uset *c) {
+	int64_t n = 0;
+	for (int i = 0; i < 4; i++)
+		n += __builtin_popcountll(c->bits[i]);
+	for (int i = 0; i < c->nranges; i++)
+		n += c->ranges[i][1] - c->ranges[i][0] + 1;
+	return n;
+}
+
+/* usetstring writes c's members in canonical order, and reports whether
+ * they are all bytes. */
+static bool usetstring(Buf *b, const Uset *c) {
+	if (c->nranges == 0) {
+		for (int x = 0; x < 256; x++)
+			if (uhasbyte(c, x))
+				bufputc(b, x);
+		return true;
+	}
+	for (int x = 0; x < RuneSelf; x++)
+		if (uhasbyte(c, x))
+			bufputc(b, x);
+	/* Lone bytes and code points, merged in byte-string order: a lone
+	 * byte precedes the code points whose encodings it starts. */
+	int next = 0x80;
+	for (int i = 0; i < c->nranges; i++)
+		for (uint32_t x = c->ranges[i][0]; x <= c->ranges[i][1]; x++) {
+			uint8_t e[4];
+			int n = utf8encode(e, (int32_t)x);
+			for (; next <= e[0]; next++)
+				if (uhasbyte(c, next))
+					bufputc(b, next);
+			bufadd(b, e, (size_t)n);
+		}
+	for (; next < 256; next++)
+		if (uhasbyte(c, next))
+			bufputc(b, next);
+	return false;
+}
+
+static bool isuniv(const Uset *c) {
+	const uint64_t all = ~(uint64_t)0;
+	return c->bits[0] == all && c->bits[1] == all && c->bits[2] == all && c->bits[3] == all &&
+	       c->nranges == 2 && c->ranges[0][0] == 0x80 && c->ranges[0][1] == SurrLo - 1 &&
+	       c->ranges[1][0] == SurrHi + 1 && c->ranges[1][1] == MaxRune;
+}
+
+typedef struct Range {
+	int32_t lo, hi;
+} Range;
+
+/* normalize merges sorted ranges that overlap or are adjacent, in place. */
+static int normalize(Range *r, int n) {
+	int m = 0;
+	for (int i = 0; i < n; i++) {
+		if (m > 0 && r[i].lo <= r[m - 1].hi + 1) {
+			if (r[i].hi > r[m - 1].hi)
+				r[m - 1].hi = r[i].hi;
+			continue;
+		}
+		r[m++] = r[i];
+	}
+	return m;
+}
+
+static void imagechar(Buf *b, int32_t r, bool lone) {
+	if (lone) {
+		quotebyte(b, (uint8_t)r, '\'');
+		return;
+	}
+	uint8_t e[4];
+	int n = utf8encode(e, r);
+	Buf t = {0};
+	quote(&t, (const char *)e, (size_t)n, false, '\'');
+	bufadd(b, t.b + 1, t.n - 2);
+	free(t.b);
+}
+
+static void runend(Buf *b, int32_t r, bool lone) {
+	if (r == '.')
+		bufputs(b, "\\.");
+	else
+		imagechar(b, r, lone);
+}
+
+/* writeruns writes runs of 4 or more as x..y, shorter runs listed. */
+static void writeruns(Buf *b, const Range *runs, int n, bool lone) {
+	for (int i = 0; i < n; i++) {
+		const Range r = runs[i];
+		int64_t size = (int64_t)r.hi - r.lo + 1;
+		if (r.lo < SurrLo && r.hi > SurrHi)
+			size -= SurrHi - SurrLo + 1;
+		if (size >= 4) {
+			runend(b, r.lo, lone);
+			bufputs(b, "..");
+			runend(b, r.hi, lone);
+			continue;
+		}
+		for (int32_t x = r.lo; x <= r.hi; x++)
+			if (x < SurrLo || x > SurrHi)
+				imagechar(b, x, lone);
+	}
+}
+
+/* imageuset writes image(c) as a uset literal, u'...': &uset by name;
+ * else, for up to 256 members, every member listed; else ranges, code
+ * points first, then bytes, runs of 4 or more as x..y. */
+void imageuset(Buf *b, const Uset *c) {
+	if (isuniv(c)) {
+		bufputs(b, "&uset");
+		return;
+	}
+	bufputc(b, 'u');
+	if (usetsize(c) <= 256) {
+		Buf t = {0};
+		bool bytes = usetstring(&t, c);
+		quote(b, t.b ? t.b : "", t.n, bytes, '\'');
+		free(t.b);
+		return;
+	}
+	bufputc(b, '\'');
+	/* Code points, with ASCII members joined to the ranges above them and
+	 * runs across the surrogates joined. */
+	Range *cps = xcalloc((size_t)RuneSelf + (size_t)c->nranges, sizeof *cps);
+	int n = 0;
+	for (int x = 0; x < RuneSelf; x++)
+		if (uhasbyte(c, x))
+			cps[n++] = (Range){x, x};
+	for (int i = 0; i < c->nranges; i++)
+		cps[n++] = (Range){(int32_t)c->ranges[i][0], (int32_t)c->ranges[i][1]};
+	n = normalize(cps, n);
+	int m = 0;
+	for (int i = 0; i < n; i++) {
+		if (m > 0 && cps[m - 1].hi == SurrLo - 1 && cps[i].lo == SurrHi + 1) {
+			cps[m - 1].hi = cps[i].hi;
+			continue;
+		}
+		cps[m++] = cps[i];
+	}
+	writeruns(b, cps, m, false);
+	Range lone[128];
+	n = 0;
+	for (int x = 0x80; x < 256; x++)
+		if (uhasbyte(c, x))
+			lone[n++] = (Range){x, x};
+	writeruns(b, lone, normalize(lone, n), true);
+	free(cps);
+	bufputc(b, '\'');
+}
+
 /* rtos writes a real as iconx's rtos: C's "%.10g", with ".0" added when
  * there is neither a decimal point nor an exponent. */
 void rtos(Buf *b, double f) {
@@ -234,6 +387,9 @@ void constimage(Buf *b, const Program *p, Value v) {
 		break;
 	case KCset:
 		imagecset(b, v.w.p);
+		break;
+	case KUset:
+		imageuset(b, v.w.p);
 		break;
 	case KProc: {
 		const Proc *pr = v.w.p;

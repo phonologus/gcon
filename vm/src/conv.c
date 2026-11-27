@@ -334,6 +334,8 @@ bool cvnum(Value v, Value *out) {
 		return str2num(vstr(v), out);
 	case KCset:
 		return str2num(cset_string(v.w.p), out);
+	case KUset:
+		return str2num(uset_string(v.w.p), out);
 	}
 	return false;
 }
@@ -419,11 +421,18 @@ bool cvstr(Value v, String *out) {
 	case KCset:
 		*out = cset_string(v.w.p);
 		return true;
+	case KUset:
+		*out = uset_string(v.w.p);
+		return true;
 	}
 	return false;
 }
 
+/* cvcset converts v to a cset; never a uset, which no conversion makes
+ * a cset. */
 bool cvcset(Value v, Cset **out) {
+	if (VKIND(v) == KUset)
+		return false;
 	if (VKIND(v) == KCset) {
 		*out = v.w.p;
 		return true;
@@ -471,8 +480,37 @@ String muststr(Value v) {
 	return s;
 }
 
+/* cvuset converts v to a uset: a uset is itself; a string its
+ * characters, read as UTF-8. Never a cset, which only uset(c) makes a
+ * uset (no silent conversion between csets and usets, as in Go). */
+bool cvuset(Value v, Uset **out) {
+	switch (VKIND(v)) {
+	case KUset:
+		*out = v.w.p;
+		return true;
+	case KCset:
+		return false;
+	}
+	String s;
+	if (!cvstr(v, &s))
+		return false;
+	*out = usetof(s);
+	return true;
+}
+
+Uset *mustuset(Value v) {
+	Uset *c;
+	if (VKIND(v) == KCset)
+		runerrv(128, v);
+	if (!cvuset(v, &c))
+		runerrv(127, v);
+	return c;
+}
+
 Cset *mustcset(Value v) {
 	Cset *c;
+	if (VKIND(v) == KUset)
+		runerrv(128, v);
 	if (!cvcset(v, &c))
 		runerrv(104, v);
 	return c;
@@ -519,6 +557,8 @@ bool identical(Value x, Value y) {
 	}
 	case KCset:
 		return VKIND(y) == KCset && cset_equal(x.w.p, y.w.p);
+	case KUset:
+		return VKIND(y) == KUset && uset_equal(x.w.p, y.w.p);
 	}
 	return x.h == y.h && x.w.p == y.w.p;
 }
@@ -533,6 +573,7 @@ const char *typename_(Value v) {
 	case KCoexp: return "co-expression";
 	case KExternal: return ext_typename(v);
 	case KCset: return "cset";
+	case KUset: return "uset";
 	case KReal: return "real";
 	case KRecord: {
 		Record *r = v.w.p;

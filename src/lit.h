@@ -37,6 +37,24 @@ typedef struct LitCset {
 
 LitError *lit_cset(const char *tok, size_t n, LitCset *out);
 
+/* A uset literal's members: the ASCII characters and the bytes from
+ * 0x80 in bits, and code-point ranges (each from 0x80, unsorted, as
+ * written: the compiler normalizes them). */
+typedef struct LitUrange {
+	int32_t lo, hi;
+} LitUrange;
+typedef struct LitUset {
+	uint64_t bits[4];
+	LitUrange *ranges;
+	size_t nranges;
+} LitUset;
+
+/* lit_uset decodes a uset literal token, u'...' (the u included): a
+ * UTF-8 character or a \u or \U escape is a code point, any other
+ * byte from 0x80 a byte; a range's ends are both code points or both
+ * bytes (ASCII is either). */
+LitError *lit_uset(const char *tok, size_t n, LitUset *out);
+
 /* A numeric literal: an integer (in i, or big if beyond int64) or a
  * real. */
 typedef struct LitNumber {

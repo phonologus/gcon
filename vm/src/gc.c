@@ -270,6 +270,11 @@ static void markcset(Cset *c) {
 	}
 }
 
+static void markuset(Uset *c) {
+	if (!markptr(c)) /* a constant's: not in the heap, but its cache is */
+		markptr(c->str);
+}
+
 void markvalue(Value v) {
 	switch (VKIND(v)) {
 	case KString:
@@ -277,6 +282,9 @@ void markvalue(Value v) {
 		break;
 	case KCset:
 		markcset(v.w.p);
+		break;
+	case KUset:
+		markuset(v.w.p);
 		break;
 	case KBig: case KList: case KTable: case KSet: case KRecord: case KCoexp:
 	case KFile: case KRef: case KListElem: case KField: case KSubstr: case KVar:
@@ -351,6 +359,10 @@ static void trace(Work w) {
 	}
 	case T_CSET:
 		markptr(((Cset *)w.p)->str);
+		break;
+	case T_USET:
+		markptr(((Uset *)w.p)->ranges);
+		markptr(((Uset *)w.p)->str);
 		break;
 	case T_STRHDR:
 		markptr(((String *)w.p)->s);

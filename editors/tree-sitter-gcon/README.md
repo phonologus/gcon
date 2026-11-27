@@ -1,8 +1,9 @@
 # tree-sitter-gcon
 
 A [tree-sitter](https://tree-sitter.github.io/) grammar for Icon as gcon
-reads it: Icon 9.5, with gcon's two lexical additions, the escapes
-`\uXXXX` and `\UXXXXXX` and ranges in cset literals (`'a..z'`). The
+reads it: Icon 9.5, with gcon's lexical additions: the escapes
+`\uXXXX` and `\UXXXXXX`, ranges in cset literals (`'a..z'`), and uset
+literals (`u'...'`, a `uset` node with a cset's parts). The
 editors' extensions in `../zed` use it.
 
 It is a fork of [tree-sitter-icon](https://github.com/phonologus/tree-sitter-icon)

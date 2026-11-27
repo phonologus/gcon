@@ -502,7 +502,7 @@ static void step(Parser *p, Node **r) {
 			n->ident.name = next(p);
 			done(p, r, n);
 			return;
-		case T_INTLIT: case T_REALLIT: case T_STRINGLIT: case T_CSETLIT:
+		case T_INTLIT: case T_REALLIT: case T_STRINGLIT: case T_CSETLIT: case T_USETLIT:
 			n = newnode(N_LITERAL);
 			n->literal.tok = next(p);
 			done(p, r, n);

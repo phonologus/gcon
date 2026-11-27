@@ -24,6 +24,8 @@
 124  table expected
 125  list, record, or set expected
 126  list or record expected
+127  uset expected
+128  cset and uset mixed
 131  external expected
 132  incorrect external type
 133  invalid external value

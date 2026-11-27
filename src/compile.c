@@ -524,6 +524,15 @@ static Operand ident(PComp *p, Token *t) {
 	return null(p);
 }
 
+/* usetkey: a uset constant's key, its members. */
+static Buf usetkey(const Uset *u) {
+	Buf key = {0};
+	bufputc(&key, 'u');
+	bufadd(&key, u->bits, sizeof u->bits);
+	bufadd(&key, u->ranges.v, u->ranges.n * sizeof *u->ranges.v);
+	return key;
+}
+
 static Operand literal(PComp *p, Node *e) {
 	Token *t = e->literal.tok;
 	const char *text = p->sf->syn->src + t->offset;
@@ -560,6 +569,21 @@ static Operand literal(PComp *p, Node *e) {
 		Value v = {0};
 		v.kind = V_CSET;
 		v.cset = cs;
+		return constant(p->c, key.b, key.n, v);
+	}
+	case T_USETLIT: {
+		LitUset lu;
+		if ((err = lit_uset(text, t->len, &lu)))
+			break;
+		Uset *us = uset_new();
+		memcpy(us->bits, lu.bits, sizeof us->bits);
+		if (lu.nranges)
+			uset_addrunes(us, (const UsetRange *)lu.ranges, lu.nranges);
+		free(lu.ranges);
+		Value v = {0};
+		v.kind = V_USET;
+		v.uset = us;
+		Buf key = usetkey(us);
 		return constant(p->c, key.b, key.n, v);
 	}
 	case T_INTLIT:
@@ -696,6 +720,12 @@ static Res keyword(PComp *p, Node *e, Label fail, Label succ) {
 			constz(c, "&letters",
 				csetv(cset_union(cset_from("abcdefghijklmnopqrstuvwxyz", 26),
 					cset_from("ABCDEFGHIJKLMNOPQRSTUVWXYZ", 26)))));
+	if (streq(name, "uset")) {
+		Value v = {0};
+		v.kind = V_USET;
+		v.uset = uset_univ();
+		return res3(succ, fail, constz(c, "&uset", v));
+	}
 	for (size_t i = 0; i < sizeof kwops / sizeof kwops[0]; i++)
 		if (streq(name, kwops[i])) {
 			Label s = newlabel(p);

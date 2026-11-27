@@ -259,6 +259,68 @@ LitError *lit_cset(const char *tok, size_t n, LitCset *out) {
 	return NULL;
 }
 
+/* A uset literal's piece: a code point (several bytes: raw UTF-8, or a
+ * \u or \U escape from 0x80) or a single byte (ASCII, or a byte from
+ * 0x80). */
+static void upiece(Piece p, int32_t *v, bool *cp) {
+	*cp = p.n > 1;
+	if (*cp) {
+		int w;
+		*v = utf8decode(p.b, p.n, &w);
+	} else
+		*v = p.b[0];
+}
+
+static void ubit(LitUset *u, int b) { u->bits[b >> 6] |= (uint64_t)1 << (b & 63); }
+
+LitError *lit_uset(const char *tok, size_t n, LitUset *out) {
+	if (n < 3 || tok[0] != 'u')
+		return errtok("malformed literal ", tok, n);
+	Pieces ps;
+	LitError *err = decode(tok + 1, n - 1, &ps);
+	if (err)
+		return err;
+#define DOT(i) ((i) < ps.n && ps.v[i].n == 1 && ps.v[i].b[0] == '.' && !ps.v[i].esc)
+	memset(out, 0, sizeof *out);
+	VEC(LitUrange) rs = {0};
+	for (size_t i = 0; i < ps.n; i++) {
+		int32_t v;
+		bool cp;
+		if (DOT(i) && DOT(i + 1)) {
+			if (DOT(i + 2))
+				return errtok("three dots in cset literal ", tok, n);
+			if (i == 0 || i + 2 >= ps.n)
+				return errtok("\"..\" needs a character on each side in ", tok, n);
+			int32_t lo, hi;
+			bool locp, hicp;
+			upiece(ps.v[i - 1], &lo, &locp);
+			upiece(ps.v[i + 2], &hi, &hicp);
+			/* ASCII is either; otherwise both code points or both bytes */
+			if ((locp && !hicp && hi >= 0x80) || (hicp && !locp && lo >= 0x80))
+				return errtok("range mixes a code point and a byte in ", tok, n);
+			if (lo > hi)
+				return errtok("descending range in ", tok, n);
+			bool bytes = !locp && !hicp;
+			for (int32_t x = lo; x <= hi && (bytes ? x <= 0xFF : x < 0x80); x++)
+				ubit(out, x);
+			if (!bytes && hi >= 0x80)
+				VPUSH(rs, ((LitUrange){lo < 0x80 ? 0x80 : lo, hi}));
+			i += 2; /* the second dot and the range's end, already added */
+			continue;
+		}
+		upiece(ps.v[i], &v, &cp);
+		if (cp)
+			VPUSH(rs, ((LitUrange){v, v}));
+		else
+			ubit(out, v);
+	}
+#undef DOT
+	free(ps.v);
+	out->ranges = rs.v;
+	out->nranges = rs.n;
+	return NULL;
+}
+
 /* parseInt decodes the digits of the integer literal tok in base. */
 static LitError *parseInt(const char *tok, size_t tn, const char *digits, size_t n, int base, LitNumber *out) {
 	for (size_t i = 0; i < n; i++) {

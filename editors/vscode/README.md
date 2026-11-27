@@ -3,8 +3,8 @@
 Support for the [Icon programming language](https://www.cs.arizona.edu/icon/)
 as [gcon](https://github.com/phonologus/gcon) reads it:
 
-- syntax highlighting, with gcon's `\u` escapes, cset ranges and
-  built-in functions;
+- syntax highlighting, with gcon's `\u` escapes, cset ranges, uset
+  literals and built-in functions;
 - diagnostics as you type: syntax errors, the Icon translator's checks
   (undeclared identifiers, redeclarations, invalid keywords) and
   `gcon vet`'s warnings of likely run-time errors;

@@ -51,6 +51,7 @@ enum Kind {
 	KRef, KListElem, KField, KSubstr, KVar,
 	KFrame, KGen, KScanEnv, KScanEnvBox,
 	KExternal, /* a C function's external value (cfunc.c): gcon-vm only */
+	KUset,     /* a uset (uset.c) */
 };
 
 typedef struct Value {
@@ -73,6 +74,16 @@ typedef struct Cset {
 	uint64_t bits[4];
 	void *str; /* run time: the cset as a string, once made (a cset never changes) */
 } Cset;
+
+/* Uset: the ASCII characters and the non-ASCII bytes in bits, as a
+ * cset, and code points from 0x80 in ranges (sorted, disjoint, not
+ * adjacent, no surrogates). */
+typedef struct Uset {
+	uint64_t bits[4];
+	int nranges;
+	uint32_t (*ranges)[2];
+	void *str; /* run time: the uset as a string, once made */
+} Uset;
 
 /* Big: a large integer, sign and magnitude in base 2^32 digits, least
  * significant first, with no leading zero digits. */
@@ -160,6 +171,7 @@ void builtinref(Buf *b, const BuiltinRef *r);
 void goquote(Buf *b, const char *s, size_t n);
 void quote(Buf *b, const char *s, size_t n, bool bytes, char q);
 void imagecset(Buf *b, const Cset *c);
+void imageuset(Buf *b, const Uset *c);
 void rtos(Buf *b, double f);
 void bigimage(Buf *b, const Big *x);
 void constimage(Buf *b, const Program *p, Value v);

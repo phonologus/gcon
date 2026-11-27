@@ -808,10 +808,22 @@ procedure Uchar(a1)
    suspend __fnc_uchar(a1)
 end
 
+procedure Uord(a1)
+   static __fnc_uord
+   initial __fnc_uord := proc("uord", 0)
+   suspend __fnc_uord(a1)
+end
+
 procedure Upto(a1, a2, a3, a4)
    static __fnc_upto
    initial __fnc_upto := proc("upto", 0)
    suspend __fnc_upto(a1, a2, a3, a4)
+end
+
+procedure Uset(a1)
+   static __fnc_uset
+   initial __fnc_uset := proc("uset", 0)
+   suspend __fnc_uset(a1)
 end
 
 procedure Utf8valid(a1)

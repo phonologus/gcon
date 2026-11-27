@@ -181,7 +181,7 @@ static const struct {
 	{"stop", -1}, {"string", 1}, {"system", 1}, {"tab", 1}, {"table", 1}, {"tan", 1},
 	{"trim", 2}, {"type", 1}, {"upto", 4}, {"variable", 1}, {"where", 1}, {"write", -1},
 	{"writes", -1},
-	{"uchar", 1}, {"utf8valid", 1},
+	{"uchar", 1}, {"uord", 1}, {"uset", 1}, {"utf8valid", 1},
 	/* the graphics functions, as a graphics iconx declares them */
 	{"Active", 0}, {"Alert", -1}, {"Bg", -1}, {"Clip", -1}, {"Clone", -1}, {"Color", -1},
 	{"ColorValue", -1}, {"CopyArea", -1}, {"Couple", 2}, {"DrawArc", -1}, {"DrawCircle", -1},
@@ -773,6 +773,7 @@ void cfunc_init(void);
 void builtins_init(void) {
 	gc_init();
 	cset_init();
+	uset_init();
 	num_init();
 	struct_init();
 	scan_init();

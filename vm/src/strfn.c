@@ -117,13 +117,48 @@ FN(f_reverse) {
 
 static Cset *trimspace;
 
+/* lastchar reads the UTF-8 character ending at byte offset end of s, as
+ * Go's utf8.DecodeLastRuneInString: its width, and the code point, or
+ * the byte (*byte) if the bytes before end are not a whole sequence. */
+static int32_t lastchar(String s, int64_t end, int *w, bool *byte) {
+	uint8_t b = (uint8_t)s.s[end - 1];
+	*w = 1;
+	*byte = true;
+	if (b < 0x80)
+		return b;
+	int64_t start = end - 1, lim = end - 4 < 0 ? 0 : end - 4;
+	while (start > lim && ((uint8_t)s.s[start] & 0xC0) == 0x80)
+		start--;
+	int k;
+	int32_t r = utf8decode((const uint8_t *)s.s + start, (size_t)(end - start), &k);
+	if (start + k != end || (r == RuneError && k == 1))
+		return b;
+	*w = k;
+	*byte = false;
+	return r;
+}
+
+/* trim removes the trailing characters in c: bytes with a cset, UTF-8
+ * characters with a uset (an ASCII byte tested with no decoding). */
 FN(f_trim) {
 	(void)b;
 	String s = muststr(ARG(0));
-	Cset *c = ISNULL(ARG(1)) ? trimspace : mustcset(a[1]);
 	int64_t end = s.n;
-	while (end > 0 && cset_has(c, (uint8_t)s.s[end - 1]))
-		end--;
+	if (VKIND(ARG(1)) == KUset) {
+		Uset *u = a[1].w.p;
+		while (end > 0) {
+			int w;
+			bool byte;
+			int32_t r = lastchar(s, end, &w, &byte);
+			if (!(byte ? uset_hasbyte(u, r) : uset_hasrune(u, r)))
+				break;
+			end -= w;
+		}
+	} else {
+		Cset *c = ISNULL(ARG(1)) ? trimspace : mustcset(a[1]);
+		while (end > 0 && cset_has(c, (uint8_t)s.s[end - 1]))
+			end--;
+	}
 	*out = strval(slice(s, 1, end + 1));
 	return true;
 }
@@ -323,6 +358,21 @@ FN(f_uchar) {
 	return true;
 }
 
+/* uord returns the code point of the one UTF-8 character s (error 205
+ * otherwise, as ord); U+FFFD for a byte that is not valid UTF-8, as Go. */
+FN(f_uord) {
+	(void)b;
+	String s = muststr(ARG(0));
+	if (s.n == 0)
+		runerrv(205, strval(s));
+	int w;
+	int32_t r = utf8decode((const uint8_t *)s.s, (size_t)s.n, &w);
+	if (w != s.n)
+		runerrv(205, strval(s));
+	*out = intval(r);
+	return true;
+}
+
 static Builtin fns[] = {
 	{.name = "left", .fn = f_left}, {.name = "right", .fn = f_right},
 	{.name = "center", .fn = f_center}, {.name = "repl", .fn = f_repl},
@@ -330,7 +380,7 @@ static Builtin fns[] = {
 	{.name = "map", .fn = f_map}, {.name = "detab", .fn = f_detab},
 	{.name = "entab", .fn = f_entab},
 	{.name = "utf8valid", .fn = f_utf8valid}, {.name = "uchar", .fn = f_uchar},
-	{.name = "char", .fn = f_char}, {.name = "ord", .fn = f_ord},
+	{.name = "char", .fn = f_char}, {.name = "ord", .fn = f_ord}, {.name = "uord", .fn = f_uord},
 };
 
 void strfn_init(void) {

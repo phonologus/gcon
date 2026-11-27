@@ -1,0 +1,76 @@
+# Usets (docs/design.md, "Csets and usets"): gcon's own, so the expected
+# output is recorded from gcon, not iconx; do not regenerate it with
+# tools/iconx/expect.sh. Positions are bytes; a uset makes the scanning
+# functions read UTF-8 characters.
+procedure main()
+   local s, c, t, x
+   s := "abécd\xe9ef世界!"
+
+   # literals, images, sizes
+   write(type(u'é'), " ", *u'aé世', " ", image(u'aé世'), " ", image('é'))
+   write(image(&uset), " ", *&uset, " ", image(~u'a'))
+   write(image(u'α..ω'), " ", *u'α..ω', " ", image(u'a..e\x80..\x83'))
+   write(image(u''), " ", *~&uset, " ", image(u'\xe9é'), " ", *u'\xe9é')
+
+   # scanning: bytes with csets, characters with usets
+   s ? write(*tab(many(&uset)), " ", &pos)
+   s ? write(*tab(many(~u'!')), " ", &pos)
+   s ? write(*tab(many(~'!')), " ", &pos)
+   s ? while c := tab(any(&uset)) do writes(image(c), " ")
+   write()
+   every writes(upto(&uset, s), " ")
+   write()
+   every writes(upto(u'é界\xe9', s), " ")
+   write()
+   every writes(upto('\xe9', s), " ")
+   write()
+   s ? write(image(tab(upto(u'世'))), " ", &pos)
+   write(any(u'é', s, 3), " ", (any(u'é', s, 4) | "fails"), " ", any(&uset, s, 3, 4))
+   write(many(u'é', "ééx"), " ", (many(u'é', "\xc3x") | "fails"))
+   "a(é)bé" ? every writes(bal(u'bé', u'(', u')'), " ")
+   write()
+   "x(y)é" ? every writes(bal(, u'(', u')'), " ")
+   write()
+
+   # trim, uord, uchar
+   write(image(trim("abcé  é", u' é')), " ", image(trim("ab\xe9", u'\xe9')),
+      " ", image(trim("abé", u'\xa9')), " ", image(trim("abé", '\xa9')))
+   write(uord("é"), " ", uord("世"), " ", uord("\xe9"), " ", uord("a"),
+      " ", image(uchar(19990)))
+
+   # the algebra, conversions, comparison
+   write(image(u'a..e' ++ "xyz"), " ", type("a" ++ u'b'), " ", image(u'αβγ' -- u'β'),
+      " ", image(u'αβγ' ** "aβ"), " ", image(~~u'é' === u'é'))
+   write(image(uset("héllo")), " ", image(uset('é')), " ", image(uset(&letters) ** u'a..f'),
+      " ", image(string(u'éa')), " ", (u'a' === 'a') | "differ")
+   every writes(image(!u'zé\xe9a'), " ")
+   write()
+   every writes(image(!sort([u'b', 'a', "x", u'a', u'é'])), " ")
+   write()
+   t := table(0)
+   every t[u'é' | u'é' | 'é'] +:= 1
+   every c := !sort(t) do writes(image(c[1]), "=", c[2], " ")
+   write()
+   write(image(?u'é'), " ", (?u'' | "fails"))
+   write(uset(&cset) === u'\x00..\xff' & "same", " ", *uset(&cset))
+
+   # a cset and a uset never mix: error 128 (no silent conversion either
+   # way); uset(c) is the one conversion
+   &error := -1
+   every x := [u'a', 'b'] | ['a', u'b'] do {
+      (x[1] ++ x[2]) | writes(&errornumber, " ")
+      (x[1] ** x[2]) | writes(&errornumber, " ")
+      (x[1] -- x[2]) | writes(&errornumber, " ")
+   }
+   cset(u'a') | writes(&errornumber, " ")
+   any(u'a' ++ "b", "b") & writes("ok ")
+   upto('(', "a(b") & writes("ok ")
+   bal(u'a', '(', ')', "a") | writes(&errornumber, " ")
+   bal(u'a', "(", ")", "a") & writes("ok ")
+   bal('a', u'(', ')', "a") | writes(&errornumber, " ")
+   uset([]) | writes("fails ")
+   bal(u'a', [],, "a") | writes(&errornumber, " ")
+   (u'a' === 'a') | writes("differ ")
+   write()
+end
+status 0

@@ -69,6 +69,10 @@ Confirmed against icont's own lexer on the whole corpus (see
   - Otherwise an unescaped newline ends the literal with "unclosed quote".
   - A newline inside a continued literal does not count for semicolon
     insertion.
+  - gcon's uset literal, `u'...'`, is one token: an identifier that is
+    exactly `u` directly followed by `'` begins it (in 9.5 an
+    identifier followed by a literal is a syntax error), and the rest is
+    read as a cset literal. `u 'x'` (with a blank) is `u` then a cset.
 - **Invalid characters** are skipped by icont without resetting the
   semicolon-insertion state; we emit ILLEGAL tokens with the same
   behaviour. An implicit semicolon is placed immediately before the

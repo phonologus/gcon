@@ -1,0 +1,20 @@
+# A cset and a uset never mix (run-time error 128), and are never
+# identical; uset(c) converts a cset. Findings where the kinds are
+# certain; none where they are not.
+procedure main(args)
+   local c, u
+   write(u'é' ++ 'a')              # mixed
+   write(&letters -- &uset)        # mixed
+   write(~u'a' ** cset("b"))       # mixed
+   write((u'a' ++ "b") ++ &digits) # mixed: a string takes the other's kind
+   c := 'abc'
+   c ++:= u'd'                     # not found: c's kind is not certain
+   write(u'a' === 'a')             # never identical
+   write(cset(u'é'))               # cset of a uset
+   write(bal(u'a', '(', ')', "a")) # bal mixed
+   write(uset(&letters) ++ u'é')   # fine: converted
+   write(u'a' ++ "b", 'a' ++ "b")  # fine: strings convert
+   u := args[1]
+   write(u ++ 'a', c ++ u'b') # fine as far as vet knows
+end
+status 0

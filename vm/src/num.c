@@ -231,6 +231,7 @@ FN(o_size) {
 	case KList: *out = intval(((List *)x.w.p)->n); return true;
 	case KCoexp: *out = intval(((Coexp *)x.w.p)->results); return true;
 	case KCset: *out = intval(cset_size(x.w.p)); return true;
+	case KUset: *out = intval(uset_size(x.w.p)); return true;
 	case KRecord: *out = intval(((Record *)x.w.p)->t->nfields); return true;
 	case KTable: *out = intval(((Table *)x.w.p)->m.live); return true;
 	case KSet: *out = intval(((Set *)x.w.p)->m.live); return true;
