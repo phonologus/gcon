@@ -6,6 +6,76 @@ and the range to look in, as its last three arguments; omitting the
 string means `&subject` from `&pos`, so in a scanning expression they
 look at the rest of the subject.
 
+## any
+
+```
+any(c, s, i1, i2)
+```
+
+Produces `i1 + 1` if the character at `i1` in `s[i1:i2]` is in `c`;
+fails otherwise, and if the range is empty. Given a uset, `any` takes
+one whole UTF-8 character, and produces the position after it.
+
+**Defaults:** `s` `&subject`; `i1` `&pos` if `s` is defaulted, else 1;
+`i2` 0.
+
+**Errors:** 101 if `i1` or `i2` is not an integer; 103 if `s` is not a
+string; 104 if `c` is not a cset.
+
+```icon
+procedure main()
+   write(any('ab', "banana"))
+   write(any('xy', "banana") | "no")
+   "é!" ? write(tab(any(u'é')))
+end
+```
+
+Output:
+
+```
+2
+no
+é
+```
+
+**See also:** [many](#many), [tab](#tab), [upto](#upto).
+
+## bal
+
+```
+bal(c1, c2, c3, s, i1, i2)
+```
+
+Generates the positions in `s[i1:i2]` of the characters in `c1` that are
+balanced: where, in the part of the range before them, characters in
+`c2` and `c3` (opening and closing) pair up, and no closing character
+came first. Fails if there are none. A position where the count goes
+negative ends the search.
+
+**Defaults:** `c1` `&cset` (every position that is balanced); `c2`
+`'('`; `c3` `')'`; `s` `&subject`; `i1` `&pos` if `s` is defaulted, else
+1; `i2` 0.
+
+**Errors:** 101 if `i1` or `i2` is not an integer; 103 if `s` is not a
+string; 104 if `c1`, `c2` or `c3` is not a cset.
+
+```icon
+procedure main()
+   every writes(bal('+', '(', ')', "a+(b+c)+d"), " ")
+   write()
+   "f(x, g(y, z)), w" ? write(tab(bal(',')))
+end
+```
+
+Output:
+
+```
+2 8 
+f(x, g(y, z))
+```
+
+**See also:** [upto](#upto).
+
 ## find
 
 ```
@@ -139,6 +209,39 @@ too far
 ```
 
 **See also:** [tab](#tab).
+
+## pos
+
+```
+pos(i)
+```
+
+Produces `&pos` if it is position `i` of `&subject` (0 and negative
+positions counting from the end); fails otherwise. `pos(0)` succeeds at
+the end of the subject.
+
+**Errors:** 101 if `i` is not an integer.
+
+```icon
+procedure main()
+   "hello" ? {
+      write(pos(1))
+      write(pos(0) | "not at the end")
+      tab(0)
+      write(pos(0))
+   }
+end
+```
+
+Output:
+
+```
+1
+not at the end
+6
+```
+
+**See also:** [&pos](keywords.md#pos), [tab](#tab).
 
 ## tab
 

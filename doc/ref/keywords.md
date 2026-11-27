@@ -61,3 +61,32 @@ outer
 ```
 
 **See also:** [&pos](#pos).
+
+## &uset
+
+```
+&uset
+```
+
+The uset of every character: the ASCII characters, the 128 bytes from
+0x80, and every Unicode code point but the surrogates. A Gcon addition,
+not in Icon 9.5. `tab(any(&uset))` is the next whole character of the
+subject.
+
+```icon
+procedure main()
+   "é!" ? {
+      write(tab(any(&uset)))
+      write(&pos)
+   }
+end
+```
+
+Output:
+
+```
+é
+3
+```
+
+**See also:** [uset](unicode.md#uset).

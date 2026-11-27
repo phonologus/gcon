@@ -5,9 +5,17 @@ NAME` shows one entry: `gcon doc find`, `gcon doc '&subject'`.
 
 ## Pages
 
-- [String scanning](scanning.md): `find`, `upto`, `many`, `tab`,
-  `move`, ...
-- [Keywords](keywords.md): `&subject`, `&pos`, ...
+- [Strings](strings.md): `center`, `char`, `detab`, `entab`, `left`, `map`,
+  `ord`, `repl`, `reverse`, `right`, `trim`
+- [String scanning](scanning.md): `any`, `bal`, `find`, `many`, `match`,
+  `move`, `pos`, `tab`, `upto`
+- [Unicode](unicode.md): `uchar`, `uord`, `uset`, `uvalid` (Gcon's)
+- [Values and types](values.md): `args`, `copy`, `cset`, `function`,
+  `image`, `integer`, `name`, `numeric`, `proc`, `real`, `serial`,
+  `string`, `type`, `variable`
+- [Structures](structures.md): `delete`, `get`, `insert`, `key`, `list`,
+  `member`, `pop`, `pull`, `push`, `put`, `set`, `sort`, `sortf`, `table`
+- [Keywords](keywords.md): `&pos`, `&subject`, `&uset`, ...
 
 ## Reading an entry
 
