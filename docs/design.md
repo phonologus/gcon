@@ -2029,6 +2029,25 @@ case (Sean, 2026-11-27). As Go, two commands:
   and link to it). `gcon lsp` hovers the same Markdown, so `fetch-docs`
   becomes optional.
 
+### Delivery: one tree, more than one reader (2026-11-27)
+
+The Markdown tree is the source; delivery is a renderer over it, to be
+tried both ways and perhaps combined (Sean, 2026-11-27): Go's (`go
+doc`: plain text in the terminal, by name) and rustup's (`rustup doc`:
+the toolchain's own documentation as local HTML, opened in a browser,
+offline, `rustup doc std::vec::Vec` going straight to that page). A
+combination might be `gcon doc find` in the terminal and `gcon doc
+-open find` for the same page as HTML, rendered at build time into the
+root or on demand. What that asks of the tree, from the start:
+
+- A small, written-down subset of Markdown (headings, paragraphs,
+  lists, fenced code, inline code, emphasis, links, simple tables),
+  checked, so that both renderers stay small C, libc only.
+- Links between pages as relative `.md` paths, and each entry a
+  heading with a stable anchor, so a link resolves to a topic in the
+  terminal and to a file and anchor in HTML.
+- Nothing that only one reader can show.
+
 ### The reference, and copyright
 
 Icon's source tree declares itself public domain (its README),
