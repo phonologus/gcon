@@ -36,10 +36,23 @@ Cset *complement(const Cset *c) {
 
 /* csetfrom returns the cset of the bytes of s. */
 Cset *csetfrom(const char *s, int64_t n) {
-	Cset *c = newcset();
+	/* Four sets of bits, for bytes i, i+1, i+2 and i+3, merged at the
+	 * end: one set would make each byte wait on the previous byte's
+	 * store to the same word. */
+	uint64_t b[4][4] = {{0}};
 	const uint8_t *p = (const uint8_t *)s;
-	for (int64_t i = 0; i < n; i++)
-		cset_set(c, p[i]);
+	int64_t i = 0;
+	for (; i + 4 <= n; i += 4) {
+		b[0][p[i] >> 6] |= (uint64_t)1 << (p[i] & 63);
+		b[1][p[i + 1] >> 6] |= (uint64_t)1 << (p[i + 1] & 63);
+		b[2][p[i + 2] >> 6] |= (uint64_t)1 << (p[i + 2] & 63);
+		b[3][p[i + 3] >> 6] |= (uint64_t)1 << (p[i + 3] & 63);
+	}
+	for (; i < n; i++)
+		b[0][p[i] >> 6] |= (uint64_t)1 << (p[i] & 63);
+	Cset *c = newcset();
+	for (int w = 0; w < 4; w++)
+		c->bits[w] = b[0][w] | b[1][w] | b[2][w] | b[3][w];
 	return c;
 }
 

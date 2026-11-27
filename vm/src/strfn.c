@@ -25,22 +25,42 @@ static void padargs(Value *a, int n, String *s1, int64_t *w, String *s2) {
 	}
 }
 
+/* fillfwd fills r[0..n) with copies of t from the left (r[p] is
+ * t[p % m]) and fillback with copies from the right (r[n-1] is
+ * t[m-1]): one copy of t, then the filled part copied onto the rest,
+ * doubling, at a shift that is a multiple of m, so alignment holds. */
+static void fillfwd(char *r, int64_t n, String t) {
+	int64_t f = t.n < n ? t.n : n;
+	memcpy(r, t.s, (size_t)f);
+	while (f < n) {
+		int64_t c = f < n - f ? f : n - f;
+		memcpy(r + f, r, (size_t)c);
+		f += c;
+	}
+}
+
+static void fillback(char *r, int64_t n, String t) {
+	int64_t f = t.n < n ? t.n : n;
+	memcpy(r + n - f, t.s + t.n - f, (size_t)f);
+	while (f < n) {
+		int64_t c = f < n - f ? f : n - f;
+		memcpy(r + n - f - c, r + n - c, (size_t)c);
+		f += c;
+	}
+}
+
 /* pad lays out a result of w bytes, as iconx's left, right and center
  * do: s1 (l bytes) at position start, and in the other positions bytes
  * of the pad s2, counted in copies of s2 from the left end before
  * position h and from the right end after it. */
 static String pad(String s1, int64_t l, String s2, int64_t w, int64_t start, int64_t h) {
-	int64_t m = s2.n;
 	char *r = gcraw((size_t)w);
-	for (int64_t p = 0; p < w; p++) {
-		if (p == start && l > 0) {
-			memcpy(r + p, s1.s, (size_t)l);
-			p += l - 1;
-		} else if (p < h)
-			r[p] = s2.s[p % m];
-		else
-			r[p] = s2.s[m - 1 - (w - 1 - p) % m];
-	}
+	if (h > 0)
+		fillfwd(r, h, s2);
+	if (h < w)
+		fillback(r + h, w - h, s2);
+	if (l > 0)
+		memcpy(r + start, s1.s, (size_t)l);
 	return mkstr(r, w);
 }
 
@@ -99,8 +119,7 @@ FN(f_repl) {
 		return true;
 	}
 	char *r = gcraw((size_t)(s.n * k));
-	for (int64_t i = 0; i < k; i++)
-		memcpy(r + i * s.n, s.s, (size_t)s.n);
+	fillfwd(r, s.n * k, s);
 	*out = strval(mkstr(r, s.n * k));
 	return true;
 }
@@ -242,7 +261,8 @@ static int64_t tabafter(Tabs *t, int64_t col) {
 static String tabs(Value *a, int n, bool entab) {
 	String s = muststr(ARG(0));
 	Tabs t = {0};
-	t.stops = gcnew((size_t)(n + 1) * sizeof(int64_t), T_RAW);
+	int64_t local[16];
+	t.stops = n + 1 <= 16 ? local : gcnew((size_t)(n + 1) * sizeof(int64_t), T_RAW);
 	for (int k = 1; k < n; k++) {
 		int64_t i = mustint(a[k]);
 		if ((k == 1 && i <= 1) || (k > 1 && i <= t.stops[k - 2]))
@@ -251,6 +271,7 @@ static String tabs(Value *a, int n, bool entab) {
 	}
 	t.last = 1, t.interval = 8;
 	SB b = {0};
+	sbgrow(&b, (size_t)s.n + 16);
 	int64_t col = 1;
 	for (int64_t k = 0; k < s.n;) {
 		char ch = s.s[k++];
