@@ -2,7 +2,7 @@
 {"jsonrpc":"2.0","method":"textDocument/publishDiagnostics","params":{"uri":"file://ROOT/src/tests/lsp/docs.icn","version":1,"diagnostics":[]}}
 {"jsonrpc":"2.0","id":2,"result":[{"name":"main","detail":"procedure()","kind":12,"range":{"start":{"line":5,"character":0},"end":{"line":10,"character":3}},"selectionRange":{"start":{"line":5,"character":10},"end":{"line":5,"character":14}}}]}
 {"jsonrpc":"2.0","id":3,"result":[]}
-{"jsonrpc":"2.0","id":4,"result":{"contents":{"kind":"markdown","value":"```icon\nprocedure main()\n```\n\nHovers with reference pages: src/tests/lsp/ref holds fixtures in  \nthe pages' formats (written for icontools), which src/tests/lsp.sh  \ngives the server. left, Clone, \u0026col, \u0026allocated and \u0026fail have  \nentries; right falls back to the catalogue; uvalid and uchar are  \ngcon's own."},"range":{"start":{"line":5,"character":10},"end":{"line":5,"character":14}}}}
+{"jsonrpc":"2.0","id":4,"result":{"contents":{"kind":"markdown","value":"```icon\nprocedure main()\n```\n\nHovers with reference pages: src/tests/lsp/ref holds fixtures in the pages' formats (written for icontools), which src/tests/lsp.sh gives the server. left, Clone, \u0026col, \u0026allocated and \u0026fail have entries; right falls back to the catalogue; uvalid and uchar are gcon's own."},"range":{"start":{"line":5,"character":10},"end":{"line":5,"character":14}}}}
 {"jsonrpc":"2.0","id":5,"result":[{"uri":"file://ROOT/src/tests/lsp/docs.icn","range":{"start":{"line":5,"character":10},"end":{"line":5,"character":14}}}]}
 {"jsonrpc":"2.0","id":6,"result":[{"uri":"file://ROOT/src/tests/lsp/docs.icn","range":{"start":{"line":5,"character":10},"end":{"line":5,"character":14}}}]}
 {"jsonrpc":"2.0","id":7,"result":[]}

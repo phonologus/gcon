@@ -5,6 +5,8 @@
 #   - Golden: src/tests/doc/probe.md, every construct of the
 #     documentation's Markdown, as HTML, text and roff (PROBE.html,
 #     .txt, .man); errors.md's errors, one of each kind (errors.golden).
+#   - Doc comments: golden files of comments.icn's, as Markdown and
+#     text; the corpus's Icon files all give Markdown in the subset.
 #   - The tree: gcon doc -check passes (the subset, the links and
 #     anchors); -build writes a page for every topic, the stylesheet,
 #     the script and the search index; with mandoc, every page's roff
@@ -68,6 +70,29 @@ checks=$((checks + 1))
 "$G" doc -raw "$probes/probe.md" | cmp -s - "$probes/probe.md" || problem "probe.md: -raw is not the file"
 (cd "$probes" && "$G" doc -text errors.md >/dev/null 2>"$tmp/out"; echo "status $?" >>"$tmp/out")
 golden errors.golden "$tmp/out"
+
+# Doc comments: src/tests/doc/comments.icn as Markdown (comments.md) and
+# as text (comments.txt); one declaration alone; and the Markdown made of
+# every Icon file of the corpus (the Icon tree beside the checkout, ../icn)
+# within the documentation's subset.
+(cd "$probes" && "$G" doc -raw comments.icn >"$tmp/out" 2>&1)
+golden comments.md "$tmp/out"
+(cd "$probes" && "$G" doc -text comments.icn >"$tmp/out" 2>&1)
+golden comments.txt "$tmp/out"
+checks=$((checks + 2))
+(cd "$probes" && "$G" doc -raw comments.icn total) | head -1 | grep -qx '# total' || problem "gcon doc comments.icn total: not the procedure alone"
+(cd "$probes" && "$G" doc comments.icn nosuch >/dev/null 2>&1; [ $? = 2 ]) || problem "gcon doc comments.icn nosuch: not refused"
+cn=0 cbad=0
+for f in $(find "$here/../icon/ipl" "$here/../icon/tests" "$here/../icn" -name '*.icn' 2>/dev/null); do
+	cn=$((cn + 1))
+	"$G" doc -raw "$f" >"$tmp/c.md" 2>"$tmp/c.err" && "$G" doc -text "$tmp/c.md" >/dev/null 2>>"$tmp/c.err"
+	if [ -s "$tmp/c.err" ]; then
+		cbad=$((cbad + 1))
+		[ $cbad -le 5 ] && { echo "doc comments of $f:"; head -3 "$tmp/c.err"; }
+	fi
+done
+checks=$((checks + 1))
+[ $cbad = 0 ] || problem "doc comments: $cbad of $cn corpus files give Markdown outside the subset"
 
 # The tree.
 checks=$((checks + 1))

@@ -38,6 +38,7 @@ static const HelpPage helppages[] = {
 	},
 	{"doc",
 	 "usage: gcon doc [-raw | -html | -man | -text] [-path] [name]\n"
+	 "       gcon doc [-raw | -html | -man | -text] file.icn [name]\n"
 	 "       gcon doc -list\n"
 	 "       gcon doc ipl\n"
 	 "       gcon doc -check\n"
@@ -63,6 +64,12 @@ static const HelpPage helppages[] = {
 	 "from Gcon's own pages. gcon doc ipl lists its files; those marked\n"
 	 "\"candidate\" are candidates for Gcon's standard library\n"
 	 "(doc/ipl-candidates.txt).\n"
+	 "\n"
+	 "Given an Icon source file, doc shows its doc comments, as go doc shows a\n"
+	 "package's: the comment at the top of the file, and each procedure,\n"
+	 "record and global with the comment directly above it (or an IPL-style\n"
+	 "\"#:\" on its line); given a name too, that declaration alone. gcon doc\n"
+	 "comments says how to write them.\n"
 	 "\n"
 	 "The flags are:\n"
 	 "\n"

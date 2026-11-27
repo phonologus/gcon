@@ -17,6 +17,7 @@
 
 #include "builtin.h"
 #include "doc.h"
+#include "doccomment.h"
 #include "driver.h"
 #include "format.h"
 #include "help.h"
@@ -1682,27 +1683,7 @@ static char *doccomment(Doc *d, Symbol *sym) {
 		}
 		break;
 	}
-	Buf b = {0};
-	bool any = false;
-	for (size_t i = 0; i < lines.n; i++) {
-		char *l = lines.v[i];
-		while (*l == '#')
-			l++;
-		if (*l == ':')
-			l++;
-		bool rule = true;
-		for (char *p = l; *p; p++)
-			if (!strchr("#=-*_ \t", *p))
-				rule = false;
-		if (rule)
-			continue; /* a rule, not text */
-		char *t = trimspace(l, strlen(l));
-		if (any)
-			bufputs(&b, "  \n");
-		any = true;
-		bufputs(&b, t);
-	}
-	return b.b ? b.b : xstrndup("", 0);
+	return doccomment_md(lines.v, lines.n); /* Go's rules (doccomment.h) */
 }
 
 static void addpart(CharVec *parts, char *s) { VPUSH(*parts, s); }

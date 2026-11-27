@@ -1,0 +1,54 @@
+# comments: a probe of doc comments (src/tests/doc.sh), each of Go's rules.
+#
+# It has a file comment, at its top.
+
+link strings
+
+# total adds up the numbers in L.
+#
+# The numbers may be integers or reals:
+#
+#     total([1, 2.5])   # 3.5
+#
+# It fails for an empty list.
+procedure total(L)
+   local t
+   every (/t := 0) +:= !L
+   return \t
+end
+
+## Records
+
+# point is a place, with x and y.
+record point(x, y)
+
+global count, limit
+
+procedure helper(s)	#: trims s, both ends
+   return trim(s)
+end
+
+# Options:
+# - "a" for all
+# - "b" for some,
+#   continued
+# Done.
+procedure main()
+end
+
+# Markup that must stay text: *stars*, `ticks`, [brackets], <angles>,
+# a_b, and a line that begins
+# - with a dash but continues a list, then
+# 1. a number,
+#   ------------------
+# and a rule above to drop.
+#
+# # A heading
+#
+# After the heading.
+#
+#     code
+#
+#     more code, after a blank line
+procedure markup()
+end

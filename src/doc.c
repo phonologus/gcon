@@ -14,6 +14,7 @@
 #endif
 #include "doc.h"
 
+#include "doccomment.h"
 #include "driver.h"
 #include "help.h"
 #include "markdown.h"
@@ -730,9 +731,12 @@ static const char iplnote[] =
 	"that Icon programs run unchanged.";
 
 /* iplheader is a file's header comment: its leading comment lines, the
- * # taken off, a rule of #s as a blank line, tabs expanded. */
+ * # taken off, tabs expanded as in the file (the # in the first column),
+ * a rule of #s as a blank line; and each section between rules dedented
+ * by its least indentation, so that a tab-indented section and a
+ * space-indented one both start at the margin, their own layout kept. */
 static char *iplheader(const char *src) {
-	Buf b = {0};
+	VEC(char *) lines = {0};
 	for (const char *s = src; *s == '#';) {
 		const char *nl = strchr(s, '\n');
 		size_t n = nl ? (size_t)(nl - s) : strlen(s);
@@ -740,9 +744,10 @@ static char *iplheader(const char *src) {
 		while (k < n && s[k] == '#')
 			k++;
 		if (k >= 10)
-			bufputc(&b, '\n');
+			VPUSH(lines, NULL); /* a rule */
 		else {
-			int col = 0;
+			Buf b = {0};
+			int col = 1;
 			for (size_t i = 1; i < n; i++) {
 				if (s[i] == '\t') {
 					do
@@ -753,16 +758,36 @@ static char *iplheader(const char *src) {
 			}
 			while (b.n && b.b[b.n - 1] == ' ')
 				b.b[--b.n] = 0;
-			bufputc(&b, '\n');
+			VPUSH(lines, b.b ? b.b : xstrndup("", 0));
 		}
 		s += n + (nl ? 1 : 0);
 	}
-	/* blank lines: none at the ends, at most one in a row */
+	/* dedent each section */
+	for (size_t i = 0; i < lines.n;) {
+		size_t j = i;
+		size_t min = (size_t)-1;
+		for (; j < lines.n && lines.v[j]; j++)
+			if (*lines.v[j] && strspn(lines.v[j], " ") < min)
+				min = strspn(lines.v[j], " ");
+		for (size_t k = i; k < j; k++)
+			if (*lines.v[k])
+				lines.v[k] += min;
+		i = j + 1;
+	}
+	/* rules and empty lines as blank lines: none at the ends, at most
+	 * one in a row */
 	Buf c = {0};
-	for (size_t i = 0; i < b.n; i++) {
-		if (b.b[i] == '\n' && (c.n == 0 || (c.n >= 2 && c.b[c.n - 1] == '\n' && c.b[c.n - 2] == '\n')))
+	bool blank = true;
+	for (size_t i = 0; i < lines.n; i++) {
+		if (!lines.v[i] || !*lines.v[i]) {
+			if (!blank)
+				bufputc(&c, '\n');
+			blank = true;
 			continue;
-		bufputc(&c, b.b[i]);
+		}
+		bufputs(&c, lines.v[i]);
+		bufputc(&c, '\n');
+		blank = false;
 	}
 	while (c.n >= 2 && c.b[c.n - 1] == '\n' && c.b[c.n - 2] == '\n')
 		c.b[--c.n] = 0;
@@ -996,13 +1021,16 @@ static char *manname(const char *topic) {
 int doc_main(int argc, char **argv) {
 	enum { Browse, Raw, Html, Man, Text } mode = Browse;
 	bool path = false, list = false, check = false, dobuild = false, test = false;
-	const char *outdir = NULL, *name = NULL;
+	const char *outdir = NULL, *name = NULL, *decl = NULL;
 	for (int i = 1; i < argc; i++) {
 		const char *a = argv[i];
 		if (a[0] != '-' || !a[1]) {
-			if (name)
+			if (name && !decl && hassuffix(name, ".icn"))
+				decl = a; /* gcon doc file.icn name */
+			else if (name)
 				docusage();
-			name = a;
+			else
+				name = a;
 			continue;
 		}
 		if (help_isflag(a))
@@ -1033,6 +1061,55 @@ int doc_main(int argc, char **argv) {
 			docusage();
 		}
 	}
+
+	/* an Icon source file: its comment and its declarations' doc comments */
+	if (name && hassuffix(name, ".icn") && !check && !dobuild && !list && !test) {
+		Buf b = {0};
+		if (!readall(name, &b)) {
+			fprintf(stderr, "gcon doc: %s: %s\n", name, strerror(errno));
+			return 1;
+		}
+		char *filedoc;
+		DocDecls ds = doccomment_file(b.b, b.n, &filedoc);
+		const char *base = strrchr(name, '/');
+		base = base ? base + 1 : name;
+		Buf md = {0};
+		int found = 0;
+		if (!decl)
+			bufprintf(&md, "# %s\n\n%s%s", base, filedoc, *filedoc ? "\n\n" : "");
+		for (size_t i = 0; i < ds.n; i++) {
+			if (decl && strcmp(ds.v[i].name, decl))
+				continue;
+			found++;
+			bufprintf(&md, "%s %s\n\n```\n%s\n```\n\n%s%s", decl ? "#" : "##", ds.v[i].name, ds.v[i].decl, ds.v[i].doc, *ds.v[i].doc ? "\n\n" : "");
+		}
+		if (decl && !found) {
+			fprintf(stderr, "gcon doc: %s declares no %s\n", name, decl);
+			return 2;
+		}
+		MdDoc *d = md_parse(md.b ? md.b : "", md.n);
+		Buf out = {0};
+		switch (mode) {
+		case Raw: fputs(md.b ? md.b : "", stdout); break;
+		case Html: {
+			Page p = {(char *)base, (char *)name, -1};
+			htmlpage(&out, &p, d);
+			fputs(out.b, stdout);
+			break;
+		}
+		case Man:
+			md_roff(&out, d, manname(decl ? decl : base), "Gcon " GCON_VERSION);
+			fputs(out.b, stdout);
+			break;
+		case Browse: /* a program's own: as text */
+		case Text:
+			md_text(&out, d, TextWidth);
+			pager(out.b);
+		}
+		return 0;
+	}
+	if (decl)
+		docusage();
 
 	/* a Markdown file named by its path, outside the tree */
 	if (name && hassuffix(name, ".md") && access(name, R_OK) == 0 && !check && !dobuild && !list && !path && !test) {

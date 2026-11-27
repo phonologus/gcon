@@ -1,4 +1,5 @@
 usage: gcon doc [-raw | -html | -man | -text] [-path] [name]
+       gcon doc [-raw | -html | -man | -text] file.icn [name]
        gcon doc -list
        gcon doc ipl
        gcon doc -check
@@ -24,6 +25,12 @@ ipl/strings, shown from its header comment as Arizona wrote it, apart
 from Gcon's own pages. gcon doc ipl lists its files; those marked
 "candidate" are candidates for Gcon's standard library
 (doc/ipl-candidates.txt).
+
+Given an Icon source file, doc shows its doc comments, as go doc shows a
+package's: the comment at the top of the file, and each procedure,
+record and global with the comment directly above it (or an IPL-style
+"#:" on its line); given a name too, that declaration alone. gcon doc
+comments says how to write them.
 
 The flags are:
 

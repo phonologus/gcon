@@ -16,6 +16,8 @@ opens it in your browser; `gcon doc NAME` opens one page, and `gcon doc
   building programs
 - [Editors](editors.md): the language server, and the Zed and VS Code
   extensions
+- [Doc comments](comments.md): documenting your own procedures, for
+  `gcon doc` and your editor
 - [The commands](help/index.md): `gcon help` and a page for each command
 
 ## The language

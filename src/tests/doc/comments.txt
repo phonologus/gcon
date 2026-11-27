@@ -1,0 +1,73 @@
+comments.icn
+============
+
+comments: a probe of doc comments (src/tests/doc.sh), each of Go's
+rules.
+
+It has a file comment, at its top.
+
+total
+-----
+
+    procedure total(L)
+
+total adds up the numbers in L.
+
+The numbers may be integers or reals:
+
+    total([1, 2.5])   # 3.5
+
+It fails for an empty list.
+
+point
+-----
+
+    record point(x, y)
+
+point is a place, with x and y.
+
+count
+-----
+
+    global count, limit
+
+helper
+------
+
+    procedure helper(s)
+
+trims s, both ends
+
+main
+----
+
+    procedure main()
+
+Options:
+
+  - "a" for all
+  - "b" for some, continued
+
+Done.
+
+markup
+------
+
+    procedure markup()
+
+Markup that must stay text: *stars*, `ticks`, [brackets], <angles>, a_b,
+and a line that begins
+
+  - with a dash but continues a list, then
+
+ 1. a number,
+
+and a rule above to drop.
+
+A heading
+
+After the heading.
+
+    code
+
+    more code, after a blank line

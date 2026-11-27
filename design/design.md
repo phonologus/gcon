@@ -2164,7 +2164,13 @@ command appears in its help page; help output has golden files, as
    declarations (as `go doc` does for a package), `gcon lsp`'s hover
    (which shows the comment as it is now) and perhaps `gcon vet` (a
    comment that names another declaration). The IPL's header
-   convention (step 5) is read the same way.
+   convention (step 5) is read the same way. Done (2026-11-27):
+   `src/doccomment.c` (the reader, Go's rules), `gcon doc file.icn
+   [name]`, hover in `gcon lsp`, the guide's `doc/comments.md`; doc.sh
+   checks golden files and that every Icon file of the corpus (1221)
+   gives Markdown in the subset. A vet check of comments is left for
+   later. IPL headers are dedented section by section, their layout
+   kept.
 
 Decided (Sean, 2026-11-27): the internal notes are in `design/` (and
 `vm/design/`, `graphics/design/`), so that `doc/` is only what ships.
