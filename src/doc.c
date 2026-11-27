@@ -21,6 +21,7 @@
 
 #include <dirent.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -133,9 +134,44 @@ static char *source(const Page *p, size_t *n) {
 	return b.b;
 }
 
-/* lookup finds the page a name means: a topic, or the one page whose
- * topic's last element it is ("protocol" for "internals/protocol"). */
-static Page *lookup(Tree *t, const char *name) {
+static bool isref(const char *topic) { return !strncmp(topic, "ref/", 4); }
+
+/* entryname is the name a reference entry's heading gives (its plain
+ * text: "find", "&subject"), or NULL if the block is not an entry: a
+ * level-2 heading on a reference page that is one word. */
+static char *entryname(const Page *p, const MdBlock *b) {
+	if (!isref(p->topic) || b->kind != MB_HEADING || b->level != 2)
+		return NULL;
+	Buf t = {0};
+	md_plain(&t, &b->spans);
+	if (!t.b || strchr(t.b, ' '))
+		return NULL;
+	return t.b;
+}
+
+/* tier orders the pages a topic's last element may name: the guide and
+ * the internals, then help, then the reference. */
+static int tier(const char *topic) { return !strncmp(topic, "help/", 5) ? 1 : isref(topic) ? 2 : 0; }
+
+/* A target: the page a name means, and the reference entry in it (its
+ * heading's block), or -1 for the whole page. */
+typedef struct Target {
+	Page *page;
+	MdDoc *doc;
+	int entry;
+} Target;
+
+static MdDoc *parsepage(const Page *p) {
+	size_t n;
+	char *src = source(p, &n);
+	return md_parse(src, n);
+}
+
+/* lookup finds what a name means: a topic; else a reference entry
+ * ("find", "&subject"); else the page whose topic's last element it is
+ * ("protocol" for "internals/protocol"), trying the guide before help
+ * and help before the reference. */
+static Target lookup(Tree *t, const char *name) {
 	char *nm = xstrndup(name, strlen(name));
 	if (hassuffix(nm, ".md"))
 		nm[strlen(nm) - 3] = 0;
@@ -143,34 +179,272 @@ static Page *lookup(Tree *t, const char *name) {
 		nm += 2;
 	if (!*nm)
 		nm = "index";
-	Page *p = findtopic(t, nm);
-	if (p)
-		return p;
-	Page *found = NULL;
+	Target r = {findtopic(t, nm), NULL, -1};
+	if (r.page)
+		return r;
 	int count = 0;
 	for (size_t i = 0; i < t->pages.n; i++) {
-		const char *tp = t->pages.v[i].topic;
-		const char *slash = strrchr(tp, '/');
-		if (!strcmp(slash ? slash + 1 : tp, nm)) {
-			found = &t->pages.v[i];
-			count++;
+		Page *p = &t->pages.v[i];
+		if (!isref(p->topic))
+			continue;
+		MdDoc *d = parsepage(p);
+		for (size_t bi = 0; bi < d->blocks.n; bi++) {
+			char *en = entryname(p, &d->blocks.v[bi]);
+			if (en && !strcmp(en, nm)) {
+				if (count++)
+					fprintf(stderr, "gcon doc %s: an entry in both %s and %s\n", name, r.page->topic, p->topic);
+				r = (Target){p, d, (int)bi};
+			}
 		}
 	}
 	if (count == 1)
-		return found;
-	if (count > 1) {
-		fprintf(stderr, "gcon doc %s: more than one page:", name);
+		return r;
+	if (count > 1)
+		exit(2);
+	for (int tr = 0; tr < 3; tr++) {
+		count = 0;
 		for (size_t i = 0; i < t->pages.n; i++) {
 			const char *tp = t->pages.v[i].topic;
 			const char *slash = strrchr(tp, '/');
-			if (!strcmp(slash ? slash + 1 : tp, nm))
-				fprintf(stderr, " %s", tp);
+			if (tier(tp) == tr && !strcmp(slash ? slash + 1 : tp, nm)) {
+				r.page = &t->pages.v[i];
+				count++;
+			}
 		}
-		fputc('\n', stderr);
-		exit(2);
+		if (count == 1)
+			return r;
+		if (count > 1) {
+			fprintf(stderr, "gcon doc %s: more than one page:", name);
+			for (size_t i = 0; i < t->pages.n; i++) {
+				const char *tp = t->pages.v[i].topic;
+				const char *slash = strrchr(tp, '/');
+				if (tier(tp) == tr && !strcmp(slash ? slash + 1 : tp, nm))
+					fprintf(stderr, " %s", tp);
+			}
+			fputc('\n', stderr);
+			exit(2);
+		}
 	}
-	fprintf(stderr, "gcon doc %s: no such page; gcon doc -list lists them\n", name);
+	fprintf(stderr, "gcon doc %s: no such page or entry; gcon doc -list lists the pages\n", name);
 	exit(2);
+}
+
+/* entryend is the block after entry e's last: the next heading of its
+ * level or above. */
+static size_t entryend(const MdDoc *d, int e) {
+	int level = d->blocks.v[e].level;
+	size_t j = (size_t)e + 1;
+	while (j < d->blocks.n && !(d->blocks.v[j].kind == MB_HEADING && d->blocks.v[j].level <= level))
+		j++;
+	return j;
+}
+
+/* entrydoc is entry e of d as a page of its own. */
+static MdDoc *entrydoc(const MdDoc *d, int e) {
+	MdDoc *s = xcalloc(1, sizeof *s);
+	size_t end = entryend(d, e);
+	for (size_t i = (size_t)e; i < end; i++)
+		VPUSH(s->blocks, d->blocks.v[i]);
+	s->blocks.v[0].level = 1; /* the entry's title, as a page's */
+	Buf t = {0};
+	md_plain(&t, &d->blocks.v[e].spans);
+	s->title = t.b ? t.b : "";
+	return s;
+}
+
+/* entrysource is entry e's Markdown, from src: from its heading's line
+ * (or the line after, without it) to the line before the next entry,
+ * trailing blank lines dropped. */
+static char *entrysource(const char *src, const MdDoc *d, int e, bool heading) {
+	size_t end = entryend(d, e);
+	int from = d->blocks.v[e].line + (heading ? 0 : 1);
+	int to = end < d->blocks.n ? d->blocks.v[end].line : 1 << 30; /* exclusive */
+	Buf b = {0};
+	int line = 1;
+	for (const char *s = src; *s && line < to;) {
+		const char *nl = strchr(s, '\n');
+		size_t n = nl ? (size_t)(nl - s) + 1 : strlen(s);
+		if (line >= from)
+			bufadd(&b, s, n);
+		s += n;
+		line++;
+	}
+	while (b.n && (b.b[b.n - 1] == '\n' || b.b[b.n - 1] == ' '))
+		b.b[--b.n] = 0;
+	while (b.n && b.b[0] == '\n')
+		memmove(b.b, b.b + 1, b.n--);
+	if (b.b)
+		bufputc(&b, '\n');
+	return b.b ? b.b : "";
+}
+
+struct DocRef {
+	StrMap entries; /* name -> its Markdown */
+};
+
+DocRef *docref_load(const char *root) {
+	if (!root)
+		return NULL;
+	Tree t = loadtree(pathjoin(root, "doc"));
+	DocRef *r = NULL;
+	for (size_t i = 0; i < t.pages.n; i++) {
+		Page *p = &t.pages.v[i];
+		if (!isref(p->topic))
+			continue;
+		size_t n;
+		char *src = source(p, &n);
+		MdDoc *d = md_parse(src, n);
+		for (size_t bi = 0; bi < d->blocks.n; bi++) {
+			char *en = entryname(p, &d->blocks.v[bi]);
+			if (!en)
+				continue;
+			if (!r)
+				r = xcalloc(1, sizeof *r);
+			strmap_put(&r->entries, en, strlen(en), entrysource(src, d, (int)bi, false));
+		}
+	}
+	return r;
+}
+
+const char *docref_entry(DocRef *r, const char *name) { return r ? strmap_get(&r->entries, name, strlen(name)) : NULL; }
+
+/* ------------------------------------------------------------------ */
+/* Examples */
+
+/* An example: an icon code block, and the output it must give if an
+ * "Output:" paragraph and a code block follow it. */
+typedef struct Example {
+	const char *code;
+	const char *want; /* NULL: it need only translate */
+	int line;
+} Example;
+
+typedef VEC(Example) Examples;
+
+static bool isoutput(const MdBlock *b) {
+	if (b->kind != MB_PARA)
+		return false;
+	Buf t = {0};
+	md_plain(&t, &b->spans);
+	return t.b && !strcmp(t.b, "Output:");
+}
+
+/* examples lists the examples of blocks [from, to) of d: icon code
+ * blocks that are whole programs (they declare main). */
+static Examples examples(const MdDoc *d, size_t from, size_t to) {
+	Examples v = {0};
+	for (size_t i = from; i < to; i++) {
+		const MdBlock *b = &d->blocks.v[i];
+		if (b->kind != MB_CODE || !b->lang || strcmp(b->lang, "icon") || !strstr(b->code, "procedure main"))
+			continue;
+		Example e = {b->code, NULL, b->line};
+		if (i + 2 < to && isoutput(&d->blocks.v[i + 1]) && d->blocks.v[i + 2].kind == MB_CODE)
+			e.want = d->blocks.v[i + 2].code;
+		VPUSH(v, e);
+	}
+	return v;
+}
+
+/* runself runs gcon with argv (argv[0] ignored), standard input empty,
+ * and returns its standard output and error together, and its status. */
+static char *runself(char **argv, int *status) {
+	int fds[2];
+	if (pipe(fds) != 0)
+		return NULL;
+	fflush(stdout);
+	pid_t pid = fork();
+	if (pid < 0)
+		return NULL;
+	if (pid == 0) {
+		close(fds[0]);
+		dup2(fds[1], 1);
+		dup2(fds[1], 2);
+		close(fds[1]);
+		int in = open("/dev/null", O_RDONLY);
+		if (in >= 0)
+			dup2(in, 0);
+		execv(executable("gcon"), argv);
+		_exit(127);
+	}
+	close(fds[1]);
+	Buf b = {0};
+	char chunk[4096];
+	ssize_t k;
+	while ((k = read(fds[0], chunk, sizeof chunk)) > 0 || (k < 0 && errno == EINTR))
+		if (k > 0)
+			bufadd(&b, chunk, (size_t)k);
+	close(fds[0]);
+	int st;
+	while (waitpid(pid, &st, 0) < 0 && errno == EINTR)
+		;
+	*status = WIFEXITED(st) ? WEXITSTATUS(st) : 128;
+	return b.b ? b.b : xstrndup("", 0);
+}
+
+static void indented(const char *label, const char *s) {
+	fprintf(stderr, "\t%s:\n", label);
+	for (; *s;) {
+		const char *nl = strchr(s, '\n');
+		size_t n = nl ? (size_t)(nl - s) : strlen(s);
+		fprintf(stderr, "\t\t%.*s\n", (int)n, s);
+		s += n + (nl ? 1 : 0);
+	}
+}
+
+/* testexamples runs the examples of the pages (or of one target): each
+ * with an output must give it, under gcon run; each without must
+ * translate (gcon dis). Returns the number that failed. */
+static int testexamples(Tree *t, Target *only, int *nrun, int *ntrans) {
+	const char *tmpdir = getenv("TMPDIR");
+	Buf tmpl = {0};
+	bufprintf(&tmpl, "%s/gcondocXXXXXX", tmpdir && *tmpdir ? tmpdir : "/tmp");
+	char *d0 = mkdtemp(tmpl.b);
+	if (!d0) {
+		fprintf(stderr, "gcon doc: %s: %s\n", tmpl.b, strerror(errno));
+		return 1;
+	}
+	char *file = pathjoin(d0, "example.icn");
+	int bad = 0;
+	for (size_t i = 0; i < t->pages.n; i++) {
+		Page *p = &t->pages.v[i];
+		if (only && only->page != p)
+			continue;
+		MdDoc *d = only && only->doc ? only->doc : parsepage(p);
+		size_t from = 0, to = d->blocks.n;
+		if (only && only->entry >= 0)
+			from = (size_t)only->entry, to = entryend(d, only->entry);
+		Examples ex = examples(d, from, to);
+		for (size_t k = 0; k < ex.n; k++) {
+			const Example *e = &ex.v[k];
+			FILE *f = fopen(file, "w");
+			if (!f || fputs(e->code, f) == EOF || fclose(f) != 0) {
+				fprintf(stderr, "gcon doc: write %s: %s\n", file, strerror(errno));
+				return bad + 1;
+			}
+			char *argv[] = {"gcon", e->want ? "run" : "dis", file, NULL};
+			int st;
+			char *got = runself(argv, &st);
+			if (e->want) {
+				(*nrun)++;
+				if (!got || strcmp(got, e->want)) {
+					fprintf(stderr, "%s.md:%d: the example's output is not what the page says\n", p->topic, e->line);
+					indented("want", e->want);
+					indented("got", got ? got : "");
+					bad++;
+				}
+			} else {
+				(*ntrans)++;
+				if (st != 0) {
+					fprintf(stderr, "%s.md:%d: the example does not translate\n", p->topic, e->line);
+					indented("gcon dis", got ? got : "");
+					bad++;
+				}
+			}
+		}
+	}
+	unlink(file);
+	rmdir(d0);
+	return bad;
 }
 
 /* ------------------------------------------------------------------ */
@@ -459,7 +733,7 @@ static char *manname(const char *topic) {
 
 int doc_main(int argc, char **argv) {
 	enum { Browse, Raw, Html, Man, Text } mode = Browse;
-	bool path = false, list = false, check = false, dobuild = false;
+	bool path = false, list = false, check = false, dobuild = false, test = false;
 	const char *outdir = NULL, *name = NULL;
 	for (int i = 1; i < argc; i++) {
 		const char *a = argv[i];
@@ -486,6 +760,8 @@ int doc_main(int argc, char **argv) {
 			list = true;
 		else if (!strcmp(f, "check"))
 			check = true;
+		else if (!strcmp(f, "test"))
+			test = true;
 		else if (!strcmp(f, "build"))
 			dobuild = true;
 		else if (!strcmp(f, "o") && i + 1 < argc)
@@ -497,7 +773,7 @@ int doc_main(int argc, char **argv) {
 	}
 
 	/* a Markdown file named by its path, outside the tree */
-	if (name && hassuffix(name, ".md") && access(name, R_OK) == 0 && !check && !dobuild && !list && !path) {
+	if (name && hassuffix(name, ".md") && access(name, R_OK) == 0 && !check && !dobuild && !list && !path && !test) {
 		Buf b = {0};
 		if (!readall(name, &b)) {
 			fprintf(stderr, "gcon doc: %s: %s\n", name, strerror(errno));
@@ -560,10 +836,31 @@ int doc_main(int argc, char **argv) {
 		return dobuild ? build(&t, docs, html) : 0;
 	}
 
-	Page *p = lookup(&t, name ? name : "index");
+	if (test) {
+		Target tg, *only = NULL;
+		if (name) {
+			tg = lookup(&t, name);
+			only = &tg;
+		}
+		int nrun = 0, ntrans = 0;
+		int bad = testexamples(&t, only, &nrun, &ntrans);
+		printf("gcon doc: %d example%s run, %d translated; %d failed\n", nrun, nrun == 1 ? "" : "s", ntrans, bad);
+		return bad ? 1 : 0;
+	}
+
+	Target tg = lookup(&t, name ? name : "index");
+	Page *p = tg.page;
 	size_t n;
 	char *src = source(p, &n);
-	MdDoc *d = md_parse(src, n);
+	MdDoc *d = tg.doc ? tg.doc : md_parse(src, n);
+	const char *anchor = NULL, *mname = manname(p->topic);
+	if (tg.entry >= 0) {
+		/* one reference entry: shown alone, or at its anchor */
+		anchor = d->blocks.v[tg.entry].anchor;
+		src = entrysource(src, d, tg.entry, true);
+		mname = manname(d->blocks.v[tg.entry].anchor);
+		d = entrydoc(d, tg.entry);
+	}
 	Buf out = {0};
 	Buf file = {0};
 	bufprintf(&file, "%s/%s.html", html, p->topic);
@@ -578,7 +875,7 @@ int doc_main(int argc, char **argv) {
 		fputs(out.b, stdout);
 		return 0;
 	case Man:
-		md_roff(&out, d, manname(p->topic), "Gcon " GCON_VERSION);
+		md_roff(&out, d, mname, "Gcon " GCON_VERSION);
 		fputs(out.b, stdout);
 		return 0;
 	case Browse: {
@@ -588,6 +885,8 @@ int doc_main(int argc, char **argv) {
 		} else {
 			Buf url = {0};
 			bufprintf(&url, "file://%s", pathabs(file.b));
+			if (anchor)
+				bufprintf(&url, "#%s", anchor);
 			if (browse(url.b))
 				return 0;
 			fprintf(stderr, "gcon doc: no browser to open (set BROWSER); showing text\n");

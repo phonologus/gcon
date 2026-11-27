@@ -2117,7 +2117,12 @@ command appears in its help page; help output has golden files, as
    instruction, the format version). The search index is built with the
    HTML, so 2c folded into 2a.
 3. The reference's machinery: entry format, the extractor, the example
-   runner, lookup by name in `gcon doc` and `gcon lsp`.
+   runner, lookup by name in `gcon doc` and `gcon lsp`. Done
+   (2026-11-27): entries in `doc/ref` (format in development.md, "The
+   reference"); `tools/refskel.sh`; `gcon doc -test`; `gcon doc NAME`
+   for an entry (alone, or at its anchor); hover from the entries, the
+   fetched pages as a fallback. Seeded with the scanning functions and
+   two keywords.
 4. The reference in batches: core functions, keywords, graphics
    functions and attributes.
 5. IPL procedures from their header comments.

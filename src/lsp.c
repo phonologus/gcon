@@ -16,6 +16,7 @@
 #include "lsp.h"
 
 #include "builtin.h"
+#include "doc.h"
 #include "driver.h"
 #include "format.h"
 #include "help.h"
@@ -645,6 +646,7 @@ typedef struct Server {
 	bool icon95; /* initializationOptions.icon95: vet for Icon 9.5 too */
 	const char *docsdir; /* reference pages, or NULL */
 	RefDocs *refdocs;
+	DocRef *docref; /* the reference in the root's doc/ref (gcon doc) */
 } Server;
 
 static void logf_(Server *s, const char *fmt, ...) __attribute__((format(printf, 2, 3)));
@@ -1761,6 +1763,14 @@ static const char *gcondoc(const char *name) {
 
 static char *builtindoc(Server *s, const BuiltinFunc *f) {
 	CharVec parts = {0};
+	const char *ref = docref_entry(s->docref, f->name);
+	if (ref) {
+		addpart(&parts, xstrndup(ref, strlen(ref)));
+		Buf k = {0};
+		bufprintf(&k, "%s \xc2\xb7 `gcon doc %s`", f->gcon ? "Gcon built-in function (not in Icon 9.5)" : f->graphics ? "Built-in graphics function" : "Built-in function", f->name);
+		addpart(&parts, k.b);
+		return joinparts(&parts);
+	}
 	const char *md = f->gcon ? gcondoc(f->name)
 		: s->refdocs ? strmap_get(&s->refdocs->functions, f->name, strlen(f->name)) : NULL;
 	if (md)
@@ -1783,6 +1793,16 @@ static char *builtindoc(Server *s, const BuiltinFunc *f) {
 
 static char *keyworddoc(Server *s, const Keyword *k) {
 	CharVec parts = {0};
+	Buf kn = {0};
+	bufprintf(&kn, "&%s", k->name);
+	const char *ref = docref_entry(s->docref, kn.b);
+	if (ref) {
+		addpart(&parts, xstrndup(ref, strlen(ref)));
+		Buf f = {0};
+		bufprintf(&f, "%s \xc2\xb7 `gcon doc '%s'`", k->gcon ? "Gcon keyword (not in Icon 9.5)" : "Keyword", kn.b);
+		addpart(&parts, f.b);
+		return joinparts(&parts);
+	}
 	const char *md = NULL;
 	if (k->gcon) {
 		Buf n = {0};
@@ -2769,5 +2789,6 @@ int lsp_main(int argc, char **argv) {
 	s.docsdir = docs ? docs : cachedir();
 	s.refdocs = refdocs_load(s.docsdir);
 	s.ws.root = root_find().dir;
+	s.docref = docref_load(s.ws.root);
 	return serve(&s);
 }

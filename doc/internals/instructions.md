@@ -35,6 +35,14 @@ procedure main()
 end
 ```
 
+Output:
+
+```
+1
+2
+3
+```
+
 `gcon dis` lists it so (the constants and globals first, then each
 procedure; on each line the instruction's index, its source line, the
 instruction):

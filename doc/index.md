@@ -26,6 +26,7 @@ opens it in your browser; `gcon doc NAME` opens one page, and `gcon doc
 - [Graphics](graphics.md): the display server, fonts, images and keys
 - [Environment variables](help/environment.md)
 - [Where linked files are found](help/library.md)
+- [The reference](ref/index.md): the built-in functions and keywords
 
 ## About Gcon
 

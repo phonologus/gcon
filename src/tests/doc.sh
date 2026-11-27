@@ -131,6 +131,24 @@ checks=$((checks + 1))
 "$G" doc -path nosuch >/dev/null 2>"$tmp/err"
 [ $? = 2 ] && grep -q 'no such page' "$tmp/err" || problem "gcon doc nosuch: not refused"
 
+# Reference entries: found by name, shown alone, opened at their anchor.
+checks=$((checks + 3))
+[ "$("$G" doc -path upto)" = "$here/doc/html/ref/scanning.html" ] || problem "gcon doc -path upto: not ref/scanning.html"
+"$G" doc -raw '&pos' | head -1 | grep -qx '## &pos' || problem "gcon doc -raw &pos: not the entry"
+"$G" doc -text find | grep -q '^See also' && ! "$G" doc -text find | grep -q '^many$' || problem "gcon doc -text find: not the entry alone"
+
+# The examples: each with an output gives it; each without translates
+# (gcon run needs the root's gcon-vm, which build.sh builds).
+if [ -x "$here/libexec/gcon-vm" ]; then
+	checks=$((checks + 1))
+	"$G" doc -test >"$tmp/out" 2>&1 || {
+		problem "gcon doc -test"
+		head -20 "$tmp/out"
+	}
+else
+	echo "doc: no libexec/gcon-vm (run build.sh): examples not run"
+fi
+
 # The browser, in a root of its own, its HTML built.
 root=$tmp/root
 mkdir -p "$root/lib/ipl/procs"
@@ -149,6 +167,9 @@ BROWSER=$tmp/browser "$G" doc run >"$tmp/out" 2>&1
 [ "$(cat "$tmp/url" 2>/dev/null)" = "file://$root/doc/html/help/run.html" ] && [ ! -s "$tmp/out" ] ||
 	problem "BROWSER was not given help/run's URL: $(cat "$tmp/url" 2>/dev/null) $(cat "$tmp/out")"
 checks=$((checks + 1))
+BROWSER=$tmp/browser "$G" doc upto >"$tmp/out" 2>&1
+[ "$(cat "$tmp/url" 2>/dev/null)" = "file://$root/doc/html/ref/scanning.html#upto" ] ||
+	problem "BROWSER was not given upto's URL, at its anchor: $(cat "$tmp/url" 2>/dev/null)"
 BROWSER=false "$G" doc run >"$tmp/out" 2>"$tmp/err"
 cmp -s "$tmp/out" "$tmp/text" && grep -q 'no browser' "$tmp/err" || problem "a failing browser: not the page as text, with a note"
 

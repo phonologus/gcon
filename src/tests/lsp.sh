@@ -184,5 +184,24 @@ session '"rootUri":null' | grep -q 'lib.icn' && {
 	wfail=$((wfail + 1))
 }
 echo "lsp: link lookup through workspace folders, $wfail problems"
+# Hover on a built-in with a reference entry (doc/ref) shows the entry.
+printf 'procedure main()\n   find("a", "b")\nend\n' >"$ws/hover.icn"
+text=$(awk '{ gsub(/"/, "\\\""); printf "%s\\n", $0 }' "$ws/hover.icn")
+{
+	frame '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"processId":null,"rootUri":null,"capabilities":{}}}'
+	frame '{"jsonrpc":"2.0","method":"initialized","params":{}}'
+	frame "{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{\"textDocument\":{\"uri\":\"file://$ws/hover.icn\",\"languageId\":\"icon\",\"version\":1,\"text\":\"$text\"}}}"
+	frame "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/hover\",\"params\":{\"textDocument\":{\"uri\":\"file://$ws/hover.icn\"},\"position\":{\"line\":1,\"character\":4}}}"
+	frame '{"jsonrpc":"2.0","id":3,"method":"shutdown"}'
+	frame '{"jsonrpc":"2.0","method":"exit"}'
+} | GCONROOT=$here "$tmp/gcon" lsp 2>/dev/null | "$tmp/lspsession" split | grep '"id":2,' >"$tmp/hover"
+hfail=0
+grep -q 'Generates the positions' "$tmp/hover" && grep -q 'gcon doc find' "$tmp/hover" || {
+	echo "FAIL hover on find: not its reference entry"
+	head -c 400 "$tmp/hover"
+	hfail=1
+}
+echo "lsp: hover from the reference, $hfail problems"
+fail=$((fail + hfail))
 fail=$((fail + wfail))
 [ $fail -eq 0 ]

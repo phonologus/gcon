@@ -1,6 +1,7 @@
 usage: gcon doc [-raw | -html | -man | -text] [-path] [name]
        gcon doc -list
        gcon doc -check
+       gcon doc -test [name]
        gcon doc -build [-o dir]
 
 Doc shows Gcon's documentation: the pages in the root's doc directory,
@@ -11,7 +12,9 @@ is a display; where there is none, doc shows the page as text.
 
 With no name, doc shows the index. A name is a page's topic, its path
 in the tree without ".md" (internals/protocol), or the last element of
-one (protocol), or a Markdown file's path. The help pages are
+one (protocol), a built-in function or keyword with an entry in the
+reference (find, '&subject'), or a Markdown file's path. An entry is
+shown alone, or opened at its place in its page. The help pages are
 help/index and help/NAME (help/run). gcon doc -list lists the topics.
 
 The flags are:
@@ -38,5 +41,9 @@ The flags are:
 	-text
 		print the page as plain text, through $PAGER (default less)
 		on a terminal.
+	-test
+		run the examples (in the whole tree, or of one page or entry):
+		each Icon program followed by "Output:" must give that output
+		under gcon run, and each other must translate.
 
 See also: gcon help help.

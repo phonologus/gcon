@@ -163,6 +163,34 @@ renderer shows in full; `gcon doc` reports anything else, with its line:
   `-`, other punctuation dropped (as GitHub's), `-1`, `-2` for repeats.
   `-check` reports a link to a page or heading that does not exist.
 
+## The reference
+
+The reference (`doc/ref`) has a page for each area (`scanning.md`,
+`keywords.md`, ...), and on it an entry for each built-in function or
+keyword: a `## name` heading (the function's name, or the keyword's
+with its `&`), which `gcon doc NAME` and `gcon lsp`'s hover find. An
+entry, in this order:
+
+1. the synopsis, a plain code block: `find(s1, s2, i1, i2)`, with the
+   argument names of `ref/index.md`'s table;
+2. what it does, the first sentence a summary: whether it produces one
+   result, can fail, or generates;
+3. `**Defaults:**`, the value of each argument that may be omitted;
+4. `**Errors:**`, the run-time errors an argument of the wrong type
+   raises;
+5. an example: an `icon` code block that is a whole program, then a
+   paragraph `Output:` and a plain code block with exactly what it
+   writes; `gcon doc -test` (and `src/tests/doc.sh`) runs it;
+6. `**See also:**`, links to related entries (`[tab](#tab)`).
+
+The facts come from Icon's runtime sources, which are public domain;
+`tools/refskel.sh NAME ...` prints a skeleton entry from them (synopsis,
+summary, results, defaults through the runtime's macros, errors). The
+description is written fresh, in Gcon's own words, and never with the
+Arizona website's pages or the Icon books open: they are not ours to
+copy. Every fact is checked against Gcon itself, by the example and by
+trying the cases the entry states.
+
 ## Environment variables for development
 
 Not in `gcon help environment`, which is for users:

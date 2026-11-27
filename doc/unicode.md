@@ -36,7 +36,15 @@ procedure main()
 end
 ```
 
-writes `naïve` and `café`: the letters, each a whole UTF-8 character.
+Output:
+
+```
+naïve
+café
+```
+
+The letters, each a whole UTF-8 character: the euro sign and the digit
+are not letters.
 
 ## Code points
 
