@@ -15,6 +15,7 @@
 #     and of all the Icon files in Arizona Icon's tree (../../icon, or
 #     $ICON_SRC) and gcon's tests and library, exactly those listed in
 #     tree-sitter-gcon/failing.txt fail to parse (-update rewrites it);
+#   - the versioned files agree (tools/release.sh -check);
 #   - Zed's extension.toml pins the grammar as it is now, and (with cargo
 #     and its wasm32-wasip2 target) the extension builds;
 #   - (with vscode's node_modules: npm install there) the TextMate
@@ -94,6 +95,10 @@ else
 	fi
 	echo "grammar: $n files parsed, $(wc -l <"$tmp/failing" | tr -d ' ') fail as listed"
 fi
+
+# Every versioned file says the same version, not older than the latest
+# release (tools/release.sh keeps them so).
+"$root/tools/release.sh" -check >"$tmp/release.out" 2>&1 || { bad "versions (tools/release.sh -check)"; cat "$tmp/release.out"; }
 
 # Zed: the pinned grammar is the current one.
 rev=$(sed -n 's/^rev = "\(.*\)"$/\1/p' "$here/zed/extension.toml")

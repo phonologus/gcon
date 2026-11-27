@@ -24,6 +24,7 @@ the SDL backend; it stops if upstream has changed a line it replaces).
 | `lib/ipl` | the Icon Program Library's source (public domain), searched after `IPATH`/`LPATH` |
 | `tools/icontok` | C driver exposing icont's token stream and parse trees |
 | `tools/iconx` | builds the reference icont and iconx; generates expected test output |
+| `tools/release.sh` | makes a release: the versioned files, the grammar, Zed's pin, the tag (below, "Releases") |
 | `tools/ipl` | copies the IPL into `lib/ipl`, recording `lib/ipl/UPSTREAM`, and makes gcon's changes (`patch.sh`) |
 | `editors/` | editor support: the tree-sitter grammar, the Zed and VS Code extensions; not built by `build.sh` ([editors/README.md](../editors/README.md)) |
 | `experiments/` | measurements behind design decisions; not part of gcon |
@@ -112,3 +113,26 @@ when touching `editors/`, and after changing the built-in functions
 changing the grammar, commit it and pin that commit in
 `editors/zed/extension.toml`: the test checks that the pinned grammar is
 the current one.
+
+## Releases
+
+Sean chooses each version, by Go's rules: vX.Y.Z, a patch for fixes
+alone, a minor version for anything a program must adapt to (while X
+is 0). `build.sh` takes gcon's own version from the tag; the editor
+extensions and the grammar carry the same version in their own files.
+To release, write the `## X.Y.Z` entry in `editors/vscode/CHANGELOG.md`
+(and the release in `docs/design.md`'s plan) and commit, put the tag's
+message in a file, then
+
+```sh
+tools/release.sh vX.Y.Z NOTES          # EDITORS_TEST_FLAGS=-vscode to add VS Code's tests
+git push origin trunk vX.Y.Z
+```
+
+`release.sh` checks the tree is clean on trunk and the version is after
+the last release, writes it into every versioned file (its table lists
+them), regenerates the grammar (`tree-sitter generate` copies the
+version into `parser.c`), commits, pins that commit for Zed and commits
+again, runs `editors/test.sh`, and only then tags. `tools/release.sh
+-check` (run by `editors/test.sh`) checks that the versioned files
+agree; a new file with a version of its own goes into the table.
