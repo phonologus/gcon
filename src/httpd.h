@@ -27,8 +27,14 @@ typedef struct HttpReq {
 int http_listen(const char *addr, char **bound);
 
 /* http_serve accepts connections on fd for ever, calling h for each
- * request in a child process of its own. */
-_Noreturn void http_serve(int fd, void (*h)(HttpReq *r, void *arg), void *arg);
+ * request in a child process of its own. tick, if not NULL, is called
+ * in the server's own process with each message a child sends with
+ * http_notify, and with NULL about once a second. */
+_Noreturn void http_serve(int fd, void (*h)(HttpReq *r, void *arg), void (*tick)(const char *msg, void *arg), void *arg);
+
+/* http_notify sends msg, a short line, from a request's handler to
+ * the server's process (http_serve's tick). */
+void http_notify(const char *msg);
 
 /* http_header is the value of the request's header name (lower case),
  * or NULL. */

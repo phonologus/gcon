@@ -33,6 +33,7 @@
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <sys/wait.h>
+#include <time.h>
 #include <unistd.h>
 
 enum { TextWidth = 72 };
@@ -1234,6 +1235,8 @@ static void runreq(HttpReq *r) {
 	http_reply(r, 200, "text/plain; charset=utf-8", hdr.b, out.b ? out.b : "", out.n);
 }
 
+static void aliveq(HttpReq *r);
+
 static void serve(HttpReq *r, void *arg) {
 	Site *s = arg;
 	if (s->hosts.n) {
@@ -1245,6 +1248,10 @@ static void serve(HttpReq *r, void *arg) {
 			http_reply(r, 403, "text/plain", NULL, "unknown host\n", 13);
 			return;
 		}
+	}
+	if (!strcmp(r->path, "/alive")) {
+		aliveq(r);
+		return;
 	}
 	if (!strcmp(r->path, "/run")) {
 		runreq(r);
@@ -1306,6 +1313,78 @@ static void serve(HttpReq *r, void *arg) {
 	replyhtml(r, 404, topic.b, md.b);
 }
 
+/* aliveq passes on a page's news (POST /alive, "TOKEN hello|ping|bye
+ * ID", sent by its script) to the server's process, for pagestick. */
+static void aliveq(HttpReq *r) {
+	char tok[40], what[8], id[48];
+	char *body = xstrndup(r->body, r->nbody);
+	if (strcmp(r->method, "POST") || !runtoken || sscanf(body, "%39s %7s %47s", tok, what, id) != 3 || strcmp(tok, runtoken) ||
+	    (strcmp(what, "hello") && strcmp(what, "ping") && strcmp(what, "bye")) || strspn(id, "abcdefghijklmnopqrstuvwxyz0123456789") != strlen(id)) {
+		http_reply(r, 403, "text/plain", NULL, "no\n", 3);
+		return;
+	}
+	Buf m = {0};
+	bufprintf(&m, "%s %s", what, id);
+	http_notify(m.b);
+	http_reply(r, 200, "text/plain", NULL, "", 0);
+}
+
+/* The pages open in the browser, by the ids their scripts chose: the
+ * server stops when the last has gone (a bye, or no ping for
+ * PageExpire seconds) and none comes for PageGrace seconds, enough to
+ * go from page to page or reload. Until the first page says hello it
+ * waits. Only when gcon doc opened the browser itself, not with -http. */
+enum { PageGrace = 5, PageExpire = 300 };
+
+typedef struct OpenPage {
+	char *id;
+	time_t seen;
+} OpenPage;
+
+static VEC(OpenPage) openpages;
+static bool autostop;
+
+static void pagestick(const char *msg, void *arg) {
+	(void)arg;
+	static bool greeted;
+	static time_t empty; /* when the last page went, or 0 */
+	time_t now = time(NULL);
+	if (msg) {
+		const char *sp = strchr(msg, ' ');
+		if (!sp)
+			return;
+		const char *id = sp + 1;
+		size_t i = 0;
+		while (i < openpages.n && strcmp(openpages.v[i].id, id))
+			i++;
+		if (!strncmp(msg, "bye ", 4)) {
+			if (i < openpages.n)
+				openpages.v[i] = openpages.v[--openpages.n];
+		} else if (i < openpages.n)
+			openpages.v[i].seen = now;
+		else {
+			OpenPage p = {xstrndup(id, strlen(id)), now};
+			VPUSH(openpages, p);
+			greeted = true;
+		}
+	}
+	for (size_t i = 0; i < openpages.n;)
+		if (now - openpages.v[i].seen > PageExpire)
+			openpages.v[i] = openpages.v[--openpages.n];
+		else
+			i++;
+	if (!autostop || !greeted || openpages.n) {
+		empty = 0;
+		return;
+	}
+	if (!empty)
+		empty = now;
+	else if (now - empty >= PageGrace) {
+		fprintf(stderr, "gcon doc: the browser has closed its pages; stopping\n");
+		exit(0);
+	}
+}
+
 /* newtoken is a secret: 128 random bits, in hex. */
 static char *newtoken(void) {
 	unsigned char k[16];
@@ -1357,10 +1436,11 @@ static int serveat(Site *s, const char *addr, const char *page, const char *extr
 		fprintf(stderr, "gcon doc: no browser to open (set BROWSER, or use -http); showing text\n");
 		return -1;
 	}
-	fprintf(stderr, "gcon doc: serving %s (interrupt to stop)\n", url.b);
+	fprintf(stderr, open ? "gcon doc: serving %s (it stops when the browser closes its pages)\n" : "gcon doc: serving %s (interrupt to stop)\n", url.b);
 	if (!runtoken)
 		fprintf(stderr, "gcon doc: examples cannot be run when served beyond this machine\n");
-	http_serve(fd, serve, s);
+	autostop = open;
+	http_serve(fd, serve, pagestick, s);
 }
 
 /* loadsite gives the site the root's tree, if there is a root. */

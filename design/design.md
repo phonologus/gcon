@@ -2127,9 +2127,16 @@ so there was nothing to open), and examples had no Run button, which a
 `file://` page cannot have (something must run the program).
 
 - By default `gcon doc [name]` listens on the loopback address, on a
-  free port, opens the browser at the page, and serves until it is
-  interrupted. `-http addr` serves on addr and opens nothing. Where
-  there is no browser to open, the page is shown as text, as before.
+  free port, opens the browser at the page, and serves until the
+  browser has closed its pages (or it is interrupted): each page
+  POSTs `/alive` with hello when it loads, a ping every 30 seconds,
+  and bye on `pagehide` (`sendBeacon`), and the server stops 5
+  seconds after the last has gone (a bye, or 5 minutes without a
+  ping), never before the first hello. Not a held connection per
+  page: browsers allow six per host, so a seventh tab would hang.
+  `-http addr` serves on addr, opens nothing and stops only when
+  interrupted. Where there is no browser to open, the page is shown as
+  text, as before.
 - Pages are rendered on request from the tree (the stylesheet, script
   and search index from memory), so the server needs no built HTML.
   The IPL is served too, at `/ipl/index.html` and `/ipl/NAME.html` (a

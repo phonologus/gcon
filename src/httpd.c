@@ -11,8 +11,10 @@
 #include <arpa/inet.h>
 #include <ctype.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <netdb.h>
 #include <netinet/in.h>
+#include <poll.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -222,10 +224,51 @@ void http_reply(HttpReq *r, int status, const char *ctype, const char *extra, co
 		writeall(r->fd, body, n);
 }
 
-_Noreturn void http_serve(int fd, void (*h)(HttpReq *r, void *arg), void *arg) {
+/* notifyfd is the write end of the pipe from the children to the
+ * server's process, for http_notify. */
+static int notifyfd = -1;
+
+void http_notify(const char *msg) {
+	Buf b = {0};
+	bufprintf(&b, "%.*s\n", 200, msg); /* short: one atomic write */
+	if (notifyfd >= 0)
+		writeall(notifyfd, b.b, b.n);
+}
+
+_Noreturn void http_serve(int fd, void (*h)(HttpReq *r, void *arg), void (*tick)(const char *msg, void *arg), void *arg) {
 	signal(SIGCHLD, SIG_IGN); /* children reaped by the system */
 	signal(SIGPIPE, SIG_IGN);
+	int np[2];
+	if (pipe(np) != 0) {
+		perror("gcon doc: pipe");
+		exit(1);
+	}
+	notifyfd = np[1];
+	fcntl(np[0], F_SETFD, FD_CLOEXEC);
+	fcntl(np[1], F_SETFD, FD_CLOEXEC); /* not for the programs a run starts */
+	Buf pending = {0};
 	for (;;) {
+		struct pollfd pf[2] = {{fd, POLLIN, 0}, {np[0], POLLIN, 0}};
+		int n = poll(pf, 2, 1000);
+		if (n > 0 && pf[1].revents) {
+			char chunk[4096];
+			ssize_t k = read(np[0], chunk, sizeof chunk);
+			if (k > 0)
+				bufadd(&pending, chunk, (size_t)k);
+			char *nl;
+			while (pending.n && (nl = memchr(pending.b, '\n', pending.n))) {
+				*nl = 0;
+				if (tick)
+					tick(pending.b, arg);
+				size_t used = (size_t)(nl - pending.b) + 1;
+				memmove(pending.b, pending.b + used, pending.n - used);
+				pending.n -= used;
+			}
+		}
+		if (tick)
+			tick(NULL, arg);
+		if (n <= 0 || !pf[0].revents)
+			continue;
 		int c = accept(fd, NULL, NULL);
 		if (c < 0) {
 			if (errno != EINTR && errno != ECONNABORTED)
@@ -235,6 +278,7 @@ _Noreturn void http_serve(int fd, void (*h)(HttpReq *r, void *arg), void *arg) {
 		pid_t pid = fork();
 		if (pid == 0) {
 			close(fd);
+			close(np[0]);
 			signal(SIGCHLD, SIG_DFL); /* the handler waits for its own */
 			struct timeval tv = {10, 0};
 			setsockopt(c, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv);

@@ -11,10 +11,10 @@ and these help pages. By default it serves the documentation on this
 machine and opens the page in the web browser, as go doc -http does:
 the installed version's documentation, offline, with every example
 program editable and runnable (Run gives it to gcon run, Stop kills
-it; a run is killed after 60 seconds). Doc keeps serving until it is
-interrupted. The browser is $BROWSER, else open on macOS, else
-xdg-open where there is a display; where there is none, doc shows the
-page as text.
+it; a run is killed after 60 seconds). Doc keeps serving until the
+browser has closed its pages (or it is interrupted). The browser is
+$BROWSER, else open on macOS, else xdg-open where there is a display;
+where there is none, doc shows the page as text.
 
 With no name, doc shows the index. A name is a page's topic, its path
 in the tree without ".md" (internals/protocol), or the last element of

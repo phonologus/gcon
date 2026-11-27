@@ -20,7 +20,8 @@
 #   - The IPL: gcon doc -text ipl, a file and a procedure from their header
 #     comments, the candidates marked; every candidate a file of lib/ipl.
 #   - The server: $BROWSER is given the served page's URL; its pages,
-#     the IPL's, a run, Stop, and the guards on running; a browser
+#     the IPL's, a run, Stop, the guards on running, stopping when
+#     the browser's pages have gone (not with -http); a browser
 #     that fails gives the page as text.
 #
 #   src/tests/doc.sh            check
@@ -288,6 +289,31 @@ if command -v curl >/dev/null 2>&1 && [ -n "$base" ]; then
 		[ -z "$(ls "$tmp/t")" ] || problem "the server: a stopped run left $(ls "$tmp/t")"
 		unset GCONVM
 	fi
+	# the server stops when its last page has said bye (after a grace),
+	# not before any page has said hello; with -http, never by itself
+	checks=$((checks + 2))
+	stop
+	serve index
+	token=$(curl -s "$base/index.html" | sed -n 's/.*data-run="\([0-9a-f]*\)".*/\1/p')
+	curl -s -X POST --data "$token hello p1" "$base/alive" >/dev/null
+	curl -s -X POST --data "$token bye p1" "$base/alive" >/dev/null
+	n=0
+	while kill -0 $server 2>/dev/null && [ $n -lt 100 ]; do
+		sleep 0.1
+		n=$((n + 1))
+	done
+	! kill -0 $server 2>/dev/null && [ $n -ge 30 ] && grep -q 'closed its pages' "$tmp/err" ||
+		problem "the server: not stopped a grace after its last page went ($n tenths)"
+	server=
+	TMPDIR=$tmp/t "$G" doc -http 127.0.0.1:0 index >/dev/null 2>"$tmp/err" &
+	server=$!
+	sleep 1
+	port=$(sed -n 's|.*http://127\.0\.0\.1:\([0-9]*\)/.*|\1|p' "$tmp/err")
+	token=$(curl -s "http://127.0.0.1:$port/index.html" | sed -n 's/.*data-run="\([0-9a-f]*\)".*/\1/p')
+	curl -s -X POST --data "$token hello p2" "http://127.0.0.1:$port/alive" >/dev/null
+	curl -s -X POST --data "$token bye p2" "http://127.0.0.1:$port/alive" >/dev/null
+	sleep 6
+	kill -0 $server 2>/dev/null || problem "gcon doc -http: stopped by itself"
 else
 	echo "doc: no curl: the server's pages not checked"
 fi

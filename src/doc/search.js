@@ -203,3 +203,25 @@
     });
   });
 })();
+
+// Served by gcon doc: the page tells the server it is open (hello, and
+// a ping now and then) and when it goes (bye), so that the server stops
+// when the browser has closed its pages.
+(function () {
+  var token = document.body.getAttribute("data-run");
+  if (!token) return;
+  var url = (document.body.getAttribute("data-root") || "") + "alive";
+  var id = Math.random().toString(36).slice(2) + Date.now().toString(36);
+  function tell(what) {
+    var body = token + " " + what + " " + id;
+    if (what === "bye" && navigator.sendBeacon && navigator.sendBeacon(url, body)) return;
+    fetch(url, { method: "POST", body: body, keepalive: true }).catch(function () {});
+  }
+  tell("hello");
+  setInterval(function () { tell("ping"); }, 30000);
+  addEventListener("pagehide", function () { tell("bye"); });
+  addEventListener("pageshow", function (e) { if (e.persisted) tell("hello"); });
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "visible") tell("hello");
+  });
+})();
