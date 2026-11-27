@@ -12,11 +12,13 @@ Linux*|GNU*) EXPORT="-rdynamic -ldl" ;;
 *BSD*) EXPORT="-rdynamic" ;;
 *) EXPORT= ;;
 esac
-# Link-time optimization: gcc takes -flto=auto, which links in parallel
-# (a plain -flto makes it warn that it links serially); clang -flto.
+# gcc: -flto=auto links in parallel (a plain -flto makes gcc warn that it
+# links serially); and, as gcc's manual advises for computed gotos,
+# -fno-gcse -fno-crossjumping keep each opcode's own dispatch jump, which
+# gcc otherwise merges into one (2% on phwbi, Fedora x86_64). clang: -flto.
 LTO=-flto
 if $CC --version 2>/dev/null | grep -qi 'gcc\|free software foundation' && ! $CC --version 2>/dev/null | grep -qi clang; then
-	LTO=-flto=auto
+	LTO="-flto=auto -fno-gcse -fno-crossjumping"
 fi
 mkdir -p bin
 $CC -std=gnu11 -O2 $LTO -Wall -Wextra ${CFLAGS:-} -o bin/gcon-vm src/*.c -lm $EXPORT
