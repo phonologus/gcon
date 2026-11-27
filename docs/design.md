@@ -1971,6 +1971,10 @@ Next, after v0.1.0 (Sean, 2026-11-26):
   grammar at 0.3.0 too: a minor version, by Go's rules, since programs
   that relied on v0.2.0's text strings or its removed built-ins must
   adapt ("Strings and Unicode").
+- Faster, after v0.3.0 (2026-11-27): the byte paths audited against
+  iconx (`repl`, padding, `cset(s)`, `detab`), and the collector's
+  slowdown from usets removed. Released as v0.3.1, a patch version: no
+  change to the language.
 - Linux: built from a fresh checkout and run on Fedora (gcc, x86_64;
   Sean, 2026-11-27), phwbi included. gcc's two warnings (lto-wrapper,
   scan.c) fixed. Not yet run there: the test suites, and a

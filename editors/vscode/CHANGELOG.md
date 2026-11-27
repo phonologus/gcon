@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.1
+
+With gcon v0.3.1, which is faster (no change to the extension itself).
+
 ## 0.3.0
 
 With gcon v0.3.0: highlights uset literals (`u'...'`) and the new built-ins
