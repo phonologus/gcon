@@ -24,6 +24,12 @@ A directive "$include file" includes the first found of:
 IPATH and LPATH hold directories separated by spaces or colons, as
 icont's do. "gcon env" prints both search paths in full.
 
+The language server, gcon lsp, searches the same places, except that an
+editor may start it in any directory: in place of the current
+directory, it searches the linking file's own directory, then the
+editor's workspace folders (and before IPATH, the directories the
+editor's "ipath" setting names). It finds $include files the same way.
+
 Gcon's own library is searched last, so it never hides a file of the
 IPL. It holds uclass (Unicode character classes; gcon help unicode).
 

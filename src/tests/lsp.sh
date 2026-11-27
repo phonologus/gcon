@@ -149,4 +149,40 @@ for f in "$here"/src/tests/lit/*.icn; do
 done
 echo "lsp: $(ls "$here"/src/tests/lit/*.icn | wc -l | tr -d ' ') literal probes, $lfail differ from gcon build"
 fail=$((fail + lfail))
+# Linked files are found in the linking file's directory, then in the
+# workspace folders (gcon help library): a file in sub/ links lib, which
+# is only in the workspace's top directory; definition must reach it,
+# with the folder named by workspaceFolders and by rootUri, and must not
+# without one.
+ws=$tmp/ws
+mkdir -p "$ws/sub"
+printf 'procedure helper()\n   return 1\nend\n' >"$ws/lib.icn"
+printf 'link lib\n\nprocedure main()\n   helper()\nend\n' >"$ws/sub/main.icn"
+# frame JSON: the message with its header.
+frame() { printf 'Content-Length: %d\r\n\r\n%s' "$(printf '%s' "$1" | wc -c | tr -d ' ')" "$1"; }
+# session INIT: the reply to definition at helper() in sub/main.icn.
+session() {
+	text=$(awk '{ gsub(/"/, "\\\""); printf "%s\\n", $0 }' "$ws/sub/main.icn")
+	{
+		frame "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"processId\":null,$1,\"capabilities\":{}}}"
+		frame '{"jsonrpc":"2.0","method":"initialized","params":{}}'
+		frame "{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{\"textDocument\":{\"uri\":\"file://$ws/sub/main.icn\",\"languageId\":\"icon\",\"version\":1,\"text\":\"$text\"}}}"
+		frame "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/definition\",\"params\":{\"textDocument\":{\"uri\":\"file://$ws/sub/main.icn\"},\"position\":{\"line\":3,\"character\":4}}}"
+		frame '{"jsonrpc":"2.0","id":3,"method":"shutdown"}'
+		frame '{"jsonrpc":"2.0","method":"exit"}'
+	} | (cd / && "$tmp/gcon" lsp 2>/dev/null) | "$tmp/lspsession" split | grep '"id":2,'
+}
+wfail=0
+for init in "\"workspaceFolders\":[{\"uri\":\"file://$ws\",\"name\":\"ws\"}],\"rootUri\":null" "\"rootUri\":\"file://$ws\""; do
+	session "$init" | grep -q "file://$ws/lib.icn" || {
+		echo "FAIL link lookup: lib.icn not found through the workspace ($init)"
+		wfail=$((wfail + 1))
+	}
+done
+session '"rootUri":null' | grep -q 'lib.icn' && {
+	echo "FAIL link lookup: lib.icn found with no workspace folder"
+	wfail=$((wfail + 1))
+}
+echo "lsp: link lookup through workspace folders, $wfail problems"
+fail=$((fail + wfail))
 [ $fail -eq 0 ]

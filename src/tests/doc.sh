@@ -10,7 +10,8 @@
 #     the script and the search index; with mandoc, every page's roff
 #     lints clean (but for the version in .TH's date).
 #   - The internals and the code: a row for every instruction in
-#     doc/internals/instructions.md; format.h's version in program.md.
+#     doc/internals/instructions.md; format.h's version in program.md;
+#     every graphics request, with its number, in protocol.md.
 #   - Lookup: a topic, its last element, a file; an unknown name.
 #   - The browser: $BROWSER is given the page's file URL; a browser
 #     that fails, or no HTML built, gives the page as text.
@@ -109,6 +110,15 @@ fv=$(sed -n 's/^enum { FormatVersion = \([0-9]*\) };$/\1/p' "$here/vm/src/format
 checks=$((checks + 1))
 grep -q "format version $fv:" "$here/doc/internals/program.md" && grep -q "a varint: $fv\\." "$here/doc/internals/program.md" ||
 	problem "doc/internals/program.md does not give format version $fv"
+
+# doc/internals/protocol.md gives every request of vm/src/gfx.h's enum
+# its number.
+i=0
+for op in $(awk '/P_HELLO,/ { on = 1 } on { print } on && /};/ { exit }' "$here/vm/src/gfx.h" | grep -o 'P_[A-Z]*' | sed 's/^P_//'); do
+	checks=$((checks + 1))
+	grep -q "\`$op\` ($i)" "$here/doc/internals/protocol.md" || problem "doc/internals/protocol.md does not give request $op as ($i)"
+	i=$((i + 1))
+done
 
 # Lookup.
 want=$here/doc/html/help/run.html

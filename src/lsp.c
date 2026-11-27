@@ -234,6 +234,7 @@ typedef struct Workspace {
 	StrMap open;  /* path -> Doc *, open in the editor */
 	StrMap cache; /* path -> DiskFile * */
 	StrVec ipath; /* directories the client names for linked files */
+	StrVec folders; /* the client's workspace folders */
 	bool utf8;
 	const char *root; /* gcon's root, or NULL */
 } Workspace;
@@ -302,13 +303,24 @@ static void splitpath(StrVec *v, const char *s) {
 	}
 }
 
+/* sourcedirs adds the directories searched first for a linked or
+ * included file: the linking file's own, then the workspace folders.
+ * gcon run and gcon build search the current directory first, as
+ * icont does; an editor starts the server anywhere, so these stand
+ * for it (gcon help library). */
+static void sourcedirs(StrVec *v, Workspace *w, Doc *from) {
+	if (from->path[0])
+		VPUSH(*v, dirname_(from->path));
+	for (size_t i = 0; i < w->folders.n; i++)
+		VPUSH(*v, w->folders.v[i]);
+}
+
 /* linkdirs returns the directories searched for a file linked from
- * from: its own, the client's ipath, IPATH, then the root's library
- * (the IPL's, then gcon's own). */
+ * from: its own, the workspace folders, the client's ipath, IPATH, then
+ * the root's library (the IPL's, then gcon's own). */
 static StrVec linkdirs(Workspace *w, Doc *from) {
 	StrVec v = {0};
-	if (from->path[0])
-		VPUSH(v, dirname_(from->path));
+	sourcedirs(&v, w, from);
 	for (size_t i = 0; i < w->ipath.n; i++)
 		VPUSH(v, w->ipath.v[i]);
 	splitpath(&v, getenv("IPATH"));
@@ -338,13 +350,13 @@ static Doc *findlink(Workspace *w, const char *name, Doc *from) {
 }
 
 /* findinclude locates a $include file: relative to the including file,
- * then in the client's ipath, LPATH and the root's include files. */
+ * then in the workspace folders, the client's ipath, LPATH and the
+ * root's include files. */
 static Doc *findinclude(Workspace *w, const char *name, Doc *from) {
 	if (name[0] == '/')
 		return load(w, name);
 	StrVec dirs = {0};
-	if (from->path[0])
-		VPUSH(dirs, dirname_(from->path));
+	sourcedirs(&dirs, w, from);
 	for (size_t i = 0; i < w->ipath.n; i++)
 		VPUSH(dirs, w->ipath.v[i]);
 	splitpath(&dirs, getenv("LPATH"));
@@ -1187,6 +1199,20 @@ static void initialize(Server *s, JVal *p, Buf *b) {
 			s->utf8 = true;
 	s->ws.utf8 = s->utf8;
 	s->icon95 = json_bool(p, "initializationOptions.icon95");
+	s->ws.folders.n = 0;
+	JVal *wf = json_get(p, "workspaceFolders");
+	for (size_t i = 0; wf && wf->kind == J_ARR && i < wf->items.n; i++) {
+		char *path = uritopath(json_str(wf->items.v[i], "uri"));
+		if (*path)
+			VPUSH(s->ws.folders, path);
+	}
+	if (!s->ws.folders.n) {
+		char *path = uritopath(json_str(p, "rootUri"));
+		if (!*path)
+			path = (char *)json_str(p, "rootPath");
+		if (*path)
+			VPUSH(s->ws.folders, path);
+	}
 	JVal *ip = json_get(p, "initializationOptions.ipath");
 	s->ws.ipath.n = 0;
 	for (size_t i = 0; ip && ip->kind == J_ARR && i < ip->items.n; i++)

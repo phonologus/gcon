@@ -152,8 +152,6 @@ bg.
 `WRITE` (14): `u32 canvas, u32 gc, i32 x, y, w, h, u32 px[w*h], u8
 opaque[w*h]`: pixels 0xRRGGBB, drawn where opaque is nonzero.
 
-*(later)* `TEXT`.
-
 ### Reading
 
 `READ` (15) **reply**: `u32 canvas, i32 x, y, w, h, u32 bg`. Reply:
