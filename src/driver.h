@@ -47,11 +47,20 @@ StrVec cfg_includepath(const Config *c);
  * main file is path (n bytes of source src) and the files it links,
  * transitively: its program and, for each file, its resolution and
  * preprocessor map; NULL, with errors in errs, if there are some. */
+/* LinkRes: how a link declaration's file resolved (vet's VetLinkKind:
+ * 1 the program's own main file, 2 a file of the root's lib/gcon). */
+typedef struct LinkRes {
+	Token *tok;
+	int kind;
+} LinkRes;
+
 typedef struct Front {
 	Program *prog;
 	CompileFile *files;
 	char **paths; /* where each file was read from */
 	size_t n;
+	LinkRes *links; /* each link declaration's resolution, when not an ordinary file */
+	size_t nlinks;
 } Front;
 Front *front_end(const char *path, const char *src, size_t n, const Config *c, StrVec *errs);
 

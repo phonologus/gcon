@@ -123,13 +123,22 @@ run time:
   constructor or built-in function and is never assigned (106);
   parameters are passed values, so are not reported;
 - string invocation of a procedure or record constructor that
-  icont's linker (and gcon's) discards (106).
+  icont's linker (and gcon's) discards (106);
+- (2026-11-27) a cset and a uset that certainly meet (error 128, or
+  `===` that can never succeed; "Csets and usets");
+- (2026-11-27) a link declaration that resolves to the program's own
+  main file, which is already part of the program, so that nothing is
+  linked, silently, as in icont: `link uclass` in a program named
+  `uclass.icn` finds the program itself before `lib/gcon/uclass.icn`.
+  The driver records how each link resolved (`Front.links`) and the
+  language server answers from its own search (`VetOptions.link`).
 
 The checks of the whole program are made only for a complete program
 (every link found) that declares main. With `-icon95`, also what Icon
-9.5 lacks: `\u` and `\U` escapes, cset ranges, gcon's built-ins and
-keywords. File mode `"u"`, first planned as a check, is 9.5's too
-("untranslated"), and the IPL uses it, so it is not reported.
+9.5 lacks: `\u` and `\U` escapes, cset ranges, uset literals, gcon's
+built-ins and keywords, and links to gcon's own library (`lib/gcon`). File
+mode `"u"`, first planned as a check, is 9.5's too ("untranslated"),
+and the IPL uses it, so it is not reported.
 
 Tuned on the IPL's programs and packages, Icon's tests and `icn/`
 (809 programs), every finding read: ten, all real. Seven are

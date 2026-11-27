@@ -123,6 +123,17 @@ static SemaInfo *frontinfo(void *ctx, SemaFile *f) {
 	return NULL;
 }
 
+/* frontlink is vet's link resolver for a program the driver translated:
+ * what front_end recorded for the link declaration's token. */
+static VetLinkKind frontlink(void *ctx, SemaInfo *from, Token *name) {
+	(void)from;
+	Front *fe = ctx;
+	for (size_t i = 0; i < fe->nlinks; i++)
+		if (fe->links[i].tok == name)
+			return (VetLinkKind)fe->links[i].kind;
+	return VetLinkOther;
+}
+
 /* inlib reports whether path is in the root's library. */
 static bool inlib(const char *path) {
 	if (!root.dir)
@@ -187,6 +198,7 @@ static int vet(int argc, char **argv) {
 			if (inlib(fe->paths[j]))
 				continue;
 			VetFindings out = {0};
+			opts.link = frontlink, opts.linkctx = fe;
 			vet_file(fe->prog, fe->files[j].info, frontinfo, fe, opts, &out);
 			for (size_t m = 0; m < out.n; m++) {
 				const char *file;

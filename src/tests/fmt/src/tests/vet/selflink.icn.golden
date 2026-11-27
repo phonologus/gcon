@@ -1,0 +1,10 @@
+# A link that resolves to the program's own file links nothing (as in
+# icont): here link selflink finds this file, so selflink2 is never
+# called and nothing else is linked; vet says so. link strings, found
+# in the IPL, is fine.
+link selflink, strings
+
+procedure main()
+   write(selflink2(1))
+end
+status 0

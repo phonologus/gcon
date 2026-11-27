@@ -10,10 +10,13 @@
  *     constructor or built-in function and is never assigned (106);
  *   - string invocation ("name"(...)) of a procedure or record the
  *     linker discards, not being reached from main or declared
- *     invocable (106).
+ *     invocable (106);
+ *   - a link declaration whose file is the program's own main file, so
+ *     that nothing is linked.
  *
  * and, if asked (icon95), what is not Icon 9.5: gcon's \u and \U
- * escapes and cset ranges, and its built-ins and keywords (not file
+ * escapes, cset ranges and uset literals, its built-ins and keywords,
+ * and links to its own library, lib/gcon (not file
  * mode "u", which is 9.5's too). The checks of the whole program
  * (fields, string invocation) are made only for a complete program
  * that declares main.
@@ -30,8 +33,17 @@ typedef struct VetFinding {
 } VetFinding;
 typedef VEC(VetFinding) VetFindings;
 
+/* How a link declaration's file resolved, as the caller's linker sees
+ * it: VetLinkSelf, to the program's own main file (already part of the
+ * program, so nothing is linked, as in icont); VetLinkGcon, to gcon's
+ * own library (lib/gcon), which is not Icon 9.5's. */
+typedef enum VetLinkKind { VetLinkOther, VetLinkSelf, VetLinkGcon } VetLinkKind;
+typedef VetLinkKind VetLink(void *ctx, SemaInfo *from, Token *name);
+
 typedef struct VetOptions {
 	bool icon95; /* also report what is not Icon 9.5 */
+	VetLink *link; /* how link declarations resolved; NULL if not known */
+	void *linkctx;
 } VetOptions;
 
 /* VetResolver returns the resolution of a file of the program; vet

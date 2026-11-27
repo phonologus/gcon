@@ -255,6 +255,24 @@ static void visit(void *ctx, Node *n) {
 	Vet *v = ctx;
 	setmix(v, n);
 	switch (n->kind) {
+	case N_LINK:
+		if (!v->opts.link)
+			break;
+		for (size_t i = 0; i < n->link.files.elems.n; i++) {
+			Token *t = n->link.files.elems.v[i];
+			if (!t)
+				continue;
+			VetLinkKind k = v->opts.link(v->opts.linkctx, v->info, t);
+			Buf m = {0};
+			if (k == VetLinkSelf)
+				bufprintf(&m, "link %s: this is the program's own file, so nothing is linked", quoted(v, t));
+			else if (k == VetLinkGcon && v->opts.icon95)
+				bufprintf(&m, "link %s: a gcon library module, not in Icon 9.5", quoted(v, t));
+			else
+				continue;
+			report(v, t, m.b);
+		}
+		break;
 	case N_PROC:
 		v->proc = n;
 		break;

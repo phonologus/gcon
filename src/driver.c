@@ -345,6 +345,16 @@ Front *front_end(const char *path, const char *src, size_t n, const Config *c, S
 	VEC(Unit *) units = {0};
 	VPUSH(units, load(path, path, src, n, &incpath));
 	StrMap seen = {0};
+	VEC(LinkRes) lres = {0};
+	/* gcon's own library, to tell its files (a trailing / so as to match
+	 * only files inside it) */
+	char *gconlib = NULL;
+	if (c->root) {
+		gconlib = pathabs(pathjoin(c->root, "lib/gcon"));
+		size_t gl = strlen(gconlib);
+		gconlib = xrealloc(gconlib, gl + 2);
+		gconlib[gl] = '/', gconlib[gl + 1] = 0;
+	}
 	char *ap = pathabs(path);
 	strmap_put(&seen, ap, strlen(ap), (void *)1);
 	for (size_t i = 0; i < units.n; i++) {
@@ -380,6 +390,8 @@ Front *front_end(const char *path, const char *src, size_t n, const Config *c, S
 					char *ac = pathabs(cands.v[m]);
 					if (strmap_get(&seen, ac, strlen(ac))) {
 						already = true; /* already part of the program */
+						if (!strcmp(ac, ap)) /* the program's own main file */
+							VPUSH(lres, ((LinkRes){t, 1}));
 						break;
 					}
 					Buf b = {0};
@@ -403,6 +415,8 @@ Front *front_end(const char *path, const char *src, size_t n, const Config *c, S
 					VPUSH(*errs, errline(file, line, m.b));
 				} else if (found) {
 					char *af = pathabs(found->path);
+					if (gconlib && !strncmp(af, gconlib, strlen(gconlib)))
+						VPUSH(lres, ((LinkRes){t, 2}));
 					strmap_put(&seen, af, strlen(af), (void *)1);
 					VPUSH(units, found);
 				}
@@ -440,6 +454,7 @@ Front *front_end(const char *path, const char *src, size_t n, const Config *c, S
 	f->paths = xcalloc(units.n, sizeof *f->paths);
 	for (size_t i = 0; i < units.n; i++)
 		f->paths[i] = units.v[i]->path;
+	f->links = lres.v, f->nlinks = lres.n;
 	return f;
 }
 

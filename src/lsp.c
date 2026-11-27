@@ -302,7 +302,8 @@ static void splitpath(StrVec *v, const char *s) {
 }
 
 /* linkdirs returns the directories searched for a file linked from
- * from: its own, the client's ipath, IPATH, then the root's library. */
+ * from: its own, the client's ipath, IPATH, then the root's library
+ * (the IPL's, then gcon's own). */
 static StrVec linkdirs(Workspace *w, Doc *from) {
 	StrVec v = {0};
 	if (from->path[0])
@@ -313,6 +314,7 @@ static StrVec linkdirs(Workspace *w, Doc *from) {
 	if (w->root) {
 		VPUSH(v, pathjoin(w->root, "lib/ipl/procs"));
 		VPUSH(v, pathjoin(w->root, "lib/ipl/gprocs"));
+		VPUSH(v, pathjoin(w->root, "lib/gcon")); /* gcon's own library, last */
 	}
 	return v;
 }
@@ -753,6 +755,38 @@ static void diagnostic(Buf *b, const Mapper *m, size_t a, size_t z, int sev, con
 /* vetresolve resolves another file of the program, for vet. */
 static SemaInfo *vetresolve(void *ctx, SemaFile *f) { return sema_resolve(ctx, f); }
 
+/* vet's link resolver here: where the workspace finds a link
+ * declaration's file. VetLinkSelf if it is a file of the program that
+ * defines main (the program's own main file); VetLinkGcon if it is in
+ * the root's lib/gcon. */
+typedef struct VetLinkCtx {
+	Workspace *w;
+	DocVec *order;
+} VetLinkCtx;
+
+static VetLinkKind wslink(void *ctx, SemaInfo *from, Token *name) {
+	VetLinkCtx *c = ctx;
+	Doc *d = docof(from->file);
+	const char *s = d->text + name->offset;
+	size_t n = name->len;
+	while (n && *s == '"')
+		s++, n--;
+	while (n && s[n - 1] == '"')
+		n--;
+	Doc *x = findlink(c->w, xstrndup(s, n), d);
+	if (!x)
+		return VetLinkOther;
+	for (size_t i = 0; i < c->order->n; i++)
+		if (c->order->v[i] == x && definesmain(x))
+			return VetLinkSelf;
+	if (c->w->root && x->path[0]) {
+		char *lib = pathjoin(c->w->root, "lib/gcon/");
+		if (!strncmp(x->path, lib, strlen(lib)))
+			return VetLinkGcon;
+	}
+	return VetLinkOther;
+}
+
 /* diagnostics returns d's syntax errors or, if it has none, the semantic
  * problems found by resolving its names in its program. */
 static void diagnostics(Server *s, Doc *d, Buf *b) {
@@ -816,7 +850,8 @@ static void diagnostics(Server *s, Doc *d, Buf *b) {
 		}
 		/* gcon vet's findings, as warnings */
 		VetFindings vf = {0};
-		VetOptions vo = {s->icon95};
+		VetLinkCtx lc = {&s->ws, &order};
+		VetOptions vo = {s->icon95, wslink, &lc};
 		vet_file(p, info, vetresolve, p, vo, &vf);
 		for (size_t i = 0; i < vf.n; i++) {
 			if (!first)
