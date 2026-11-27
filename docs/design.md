@@ -780,8 +780,23 @@ Go's handling of UTF-8 throughout. All encoding and decoding goes through
   (In 9.5, `"u"` means "untranslated", i.e. binary, and is ignored on
   Unix; `"b"` already means "both", read and write, so it cannot mean
   bytes.) Reading does no validation or rewriting; it only sets the
-  unit. In text mode `reads(f, n)` reads n characters and never splits
-  a sequence; `read` strips `"\n"` or `"\r\n"`, as iconx does.
+  unit. `read` strips `"\n"` or `"\r\n"`, as iconx does.
+- **`reads` counts bytes; `readrunes` counts characters.** (Revised
+  2026-11-27; `reads(f, n)` first read n characters in text mode.)
+  `reads(f, n)` is Icon's low-level reader and reads n bytes in either
+  unit, as in 9.5: it is what binary formats are read with, and its
+  counts must agree with `seek` and `where` (the IPL's `abkform.icn`
+  reads a byte with `reads(f)` and backs over it with
+  `seek(f, where(f) - 1)`), and with the 9.5 programs that read a file
+  in fixed-size blocks. It may split a sequence, which is safe by the
+  malformed-UTF-8 rule above: the pieces rejoin. `readrunes(f, n)` is
+  gcon's built-in for n characters: code points in a text file, never
+  splitting a sequence (an invalid byte is one character), and bytes in
+  a bytes file, where it is `reads`. Both produce a string of the file's
+  unit. There is no counterpart for writing: `writes` takes no count,
+  and writes a string's bytes unchanged in either unit (the first n
+  characters of `s` are `s ? move(n)`). On a window both read n
+  keystrokes, which are one byte each, as in iconx.
 - **Csets** have no unit; their characters are ASCII, bytes and code
   points (see "Csets" below).
 - Out of scope: normalization, grapheme clusters and display width. The
@@ -806,7 +821,8 @@ unit, characters in text.)
 | `s[i]`, `s[i:j]`, `s[i+:n]` | `!s` (Go's `range`) |
 | `&pos`, `tab(i)`, `pos(i)` | `move(n)`: n characters, forward or back |
 | positions produced by `upto`, `many`, `any`, `find`, `match`, `bal` | the tests those functions make, and their steps |
-| the `i, j` range arguments of the string analysis functions | `reads(f, n)` |
+| the `i, j` range arguments of the string analysis functions | `readrunes(f, n)` |
+| `reads(f, n)`, `seek(f, i)`, `where(f)` | |
 | | `map`, `reverse`, `trim`, `cset(s)`, `ord`, `image` |
 | | widths in `left`, `right`, `center`; `detab`/`entab` columns |
 
@@ -1294,7 +1310,7 @@ a procedure, `$line`, the predefined symbols and digraphs against iconx.
   printable code point as one column in text.
 - Files (`internal/vm/file.go`): `open` (modes `r w a b c u p`, pipes
   through `/bin/sh`), `close` (a pipe's close returns its command's exit
-  status), `read`, `reads`, `write` and `writes` with file arguments,
+  status), `read`, `reads`, `readrunes`, `write` and `writes` with file arguments,
   `stop`, `flush`, `seek`, `where`, `remove`, `rename`, `getenv`,
   `system`, `!f`, and `&input`, `&output`, `&errout`. As in iconx,
   standard output is flushed before anything is written to `&errout`, so
@@ -1367,8 +1383,8 @@ a procedure, `$line`, the predefined symbols and digraphs against iconx.
   `Record`. Field references are looked up by name when they run, so
   `x.f` works on any record type with a field `f`; `r[i]` and `r["f"]`
   subscript by position or field name.
-- gcon's extra built-ins (`len`, `runes`, `bytes`, `uchar`, `utf8valid`) and
-  the keyword `&uset` are in the catalogue marked `Gcon`. Like any
+- gcon's extra built-ins (`len`, `runes`, `bytes`, `uchar`, `utf8valid`,
+  `readrunes`) and the keyword `&uset` are in the catalogue marked `Gcon`. Like any
   built-in, they are hidden by a declaration of the same name but not by
   an undeclared use, which would assign to the global. None of these
   names is used undeclared in the reference tree or `icn/` (`runes`,
@@ -1549,7 +1565,7 @@ a procedure, `$line`, the predefined symbols and digraphs against iconx.
   activations, and the kept globals, sorted, as `xdisp`.
 - `open` of a directory for reading reads its entries (with "." and
   "..", sorted): `read` and `!f` an entry, `reads(f, n)` an entry cut to
-  n bytes; `seek` and `where` fail, as iconx's `ReadDirectory`.
+  n bytes (`readrunes(f, n)` to n characters); `seek` and `where` fail, as iconx's `ReadDirectory`.
   `x[]` is `x[&null]`, as icont compiles an empty subscript list.
 - The keyboard functions `getch`, `getche` and `kbhit` (`kbd*.go`) put a
   terminal on standard input into non-canonical mode while they run, as

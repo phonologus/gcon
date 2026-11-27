@@ -171,12 +171,22 @@ static IOBuf *writer(File *f) {
 	return WB(f);
 }
 
-static bool nextentry(File *f, int64_t n, String *out) {
+/* nextentry reads a directory's next entry: whole (n < 0), or cut to n
+ * bytes, or to n characters if runes (code points in a text file). */
+static bool nextentry(File *f, int64_t n, bool runes, String *out) {
 	if (f->idir >= f->ndir)
 		return false;
 	char *e = f->dir[f->idir++];
 	int64_t k = (int64_t)strlen(e);
-	if (n >= 0 && k > n)
+	if (n >= 0 && runes && f->unit == TextUnit) {
+		int64_t p = 0;
+		for (int64_t i = 0; i < n && p < k; i++) {
+			int w;
+			utf8decode((const uint8_t *)e + p, (size_t)(k - p), &w);
+			p += w;
+		}
+		k = p;
+	} else if (n >= 0 && k > n)
 		k = n;
 	*out = mkstr(e, k, f->unit);
 	return true;
@@ -189,7 +199,7 @@ bool readline_(File *f, String *out) {
 		return gfx_read(f, -1, out);
 	IOBuf *r = reader(f);
 	if (f->isdir)
-		return nextentry(f, -1, out);
+		return nextentry(f, -1, false, out);
 	SB b = {0};
 	bool any = false;
 	for (;;) {
@@ -213,15 +223,19 @@ bool readline_(File *f, String *out) {
 	return true;
 }
 
-static bool readchars(File *f, int64_t k, String *out) {
+/* readchars reads up to k bytes (reads), or k characters if runes
+ * (readrunes: code points in a text file, never splitting one; bytes
+ * in a bytes file). The result has the file's unit either way. A
+ * window's keystrokes are one byte each, so both read k keystrokes. */
+static bool readchars(File *f, int64_t k, bool runes, String *out) {
 	if (f->gfx && !f->closed)
 		return gfx_read(f, k, out);
 	IOBuf *r = reader(f);
 	if (f->isdir)
-		return nextentry(f, k, out);
+		return nextentry(f, k, runes, out);
 	SB b = {0};
 	for (int64_t i = 0; i < k; i++) {
-		if (f->unit == BytesUnit) {
+		if (!runes || f->unit == BytesUnit) {
 			int c = rgetc(r);
 			if (c < 0)
 				break;
@@ -470,8 +484,8 @@ FN(f_read) {
 	return true;
 }
 
-FN(f_reads) {
-	(void)b;
+/* readn implements reads (k bytes) and readrunes (k characters). */
+static bool readn(Value *a, int n, bool runes, Value *out) {
 	File *f = filearg(a, n, 0, vm.input);
 	int64_t k = 1;
 	if (!ISNULL(ARG(1)))
@@ -479,10 +493,20 @@ FN(f_reads) {
 	if (k <= 0)
 		runerrv(205, intval(k));
 	String s;
-	if (!readchars(f, k, &s))
+	if (!readchars(f, k, runes, &s))
 		return false;
 	*out = strval(s);
 	return true;
+}
+
+FN(f_reads) {
+	(void)b;
+	return readn(a, n, false, out);
+}
+
+FN(f_readrunes) {
+	(void)b;
+	return readn(a, n, true, out);
 }
 
 FN(f_seek) {
@@ -620,6 +644,7 @@ static Builtin fns[] = {
 	{.name = "stop", .fn = f_stop}, {.name = "open", .fn = f_open},
 	{.name = "close", .fn = f_close}, {.name = "flush", .fn = f_flush},
 	{.name = "read", .fn = f_read}, {.name = "reads", .fn = f_reads},
+	{.name = "readrunes", .fn = f_readrunes},
 	{.name = "seek", .fn = f_seek}, {.name = "where", .fn = f_where},
 	{.name = "remove", .fn = f_remove}, {.name = "rename", .fn = f_rename},
 	{.name = "getenv", .fn = f_getenv}, {.name = "system", .fn = f_system},

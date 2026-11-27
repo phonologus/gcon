@@ -39,6 +39,14 @@ static const struct {
 	 "```icon\nutf8valid(s)\n```\n\n"
 	 "Produces `s` if it is valid UTF-8, and fails otherwise. Nothing else in gcon checks: text that is "
 	 "not valid UTF-8 is kept as it is, its stray bytes reading as single characters."},
+	{"readrunes",
+	 "```icon\nreadrunes(f,i)\n```\n\n"
+	 "Reads `i` characters from file `f` (default `&input`, `i` defaults to 1), as `reads` reads `i` bytes. "
+	 "In a text file a character is a UTF-8 code point, and a sequence is never split; each byte that is "
+	 "not part of valid UTF-8 counts as one character. In a bytes file (open mode `\"u\"`) "
+	 "`readrunes(f,i)` is `reads(f,i)`. Fails at end of file; at the end it produces what is left.\n\n"
+	 "`reads` always counts bytes, as in Icon 9.5, so it reads binary data in either unit "
+	 "and agrees with `seek` and `where`."},
 	{"&uset",
 	 "```icon\n&uset\n```\n\n"
 	 "The cset of every character: the 128 ASCII characters, the 128 non-ASCII bytes and every Unicode "

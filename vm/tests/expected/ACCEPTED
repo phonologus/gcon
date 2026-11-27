@@ -16,8 +16,8 @@ ipl-progs/ifncsgen       function() now generates DrawCurve, DrawImage,
                          PaletteChars, PaletteColor, PaletteKey, ReadImage
                          and WriteImage, and the graphics functions have
                          iconx's arities (args()): identical to icon-sdl's
-                         iconx but for gcon's own bytes, len, runes, uchar
-                         and utf8valid
+                         iconx but for gcon's own bytes, len, readrunes,
+                         runes, uchar and utf8valid
 tests-general/kwds       &features includes "SDL graphics" (gcon predefines
                          _SDL_GRAPHICS, as icon-sdl does), which this copy
                          of the test does not drop as optional (icon-sdl's

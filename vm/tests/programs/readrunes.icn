@@ -1,0 +1,48 @@
+# reads counts bytes, as in Icon 9.5; readrunes counts characters
+# (code points in a text file, bytes in a bytes file).
+procedure main()
+   local f, s, t
+   f := open("rr.tmp", "w") | stop("cannot open")
+   # c a f C3A9 " " E4B896 E7958C 80 ! : 10 characters, 14 bytes
+   writes(f, "café 世界\x80!")
+   close(f)
+
+   f := open("rr.tmp")
+   s := reads(f, 4)
+   write(image(s), " ", *s, " ", len(s), " ", where(f))
+   t := reads(f)
+   write(image(t), " ", *t, " ", where(f))
+   write(image(s || t), " ", s || t == "café")
+   write(image(reads(f, 100)), " ", where(f))
+   write(image(reads(f)) | "eof")
+
+   seek(f, 1)
+   write(image(readrunes(f, 4)), " ", where(f))
+   write(image(readrunes(f, 3)), " ", where(f))
+   write(image(readrunes(f)), " ", where(f))
+   write(image(readrunes(f, 5)), " ", where(f))
+   write(image(readrunes(f)) | "eof")
+
+   # a byte read and backed over, as the IPL's binary readers do
+   seek(f, 5)
+   s := reads(f)
+   seek(f, where(f) - 1)
+   write(image(s), " ", where(f), " ", image(readrunes(f)))
+   close(f)
+
+   f := open("rr.tmp", "u")
+   write(image(readrunes(f, 4)), " ", image(reads(f, 3)), " ", where(f))
+   write(image(bytes(readrunes(f, 2))), " ", ord(reads(f)), " ", where(f))
+   close(f)
+   remove("rr.tmp")
+
+   # a directory's entries are cut likewise
+   system("mkdir rr.d && : >rr.d/éa && : >rr.d/éb")
+   f := open("rr.d") | stop("cannot open rr.d")
+   read(f) & read(f)
+   write(image(readrunes(f, 1)), " ", image(reads(f, 1)), " ", image(reads(f)) | "eof")
+   close(f)
+   system("rm -r rr.d")
+
+   write(image(reads(, 3)), " ", image(readrunes(&input, 3)), " ", image(read()))
+end

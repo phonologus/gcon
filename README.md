@@ -140,9 +140,14 @@ either way, which is why ASCII programs don't change.
   `s[i:j]`, `&pos`, `tab` and the positions that `find` and `upto`
   produce are byte offsets.
 - **Operations that read characters read code points in text:** `!s`,
-  `move(n)`, `reads(f, n)`, `map`, `reverse`, `trim`, `ord`, `image`,
-  and the widths in `left`, `right` and `center`. The new built-in
-  `len(s)` counts characters; `*s` still counts bytes.
+  `move(n)`, `map`, `reverse`, `trim`, `ord`, `image`, and the widths
+  in `left`, `right` and `center`. The new built-in `len(s)` counts
+  characters; `*s` still counts bytes.
+- **`reads(f, n)` reads n bytes**, as in 9.5, in either unit, so it
+  agrees with `seek` and `where` and reads binary data; it may split a
+  character, and the pieces rejoin. The new built-in `readrunes(f, n)`
+  reads n characters without splitting one. `writes` writes a string's
+  bytes unchanged.
 - **Literals:** a literal is text if it contains non-ASCII UTF-8 or a
   `\u` or `\U` escape, which are new; `\x80` to `\xff` are bytes. A
   Latin-1 source file keeps its 9.5 meaning.
@@ -156,7 +161,7 @@ either way, which is why ASCII programs don't change.
   Icon's tests, `checkc` and `scan`, differ.
 - **New built-ins:** `len`, `uchar(i)` (a character from a code point),
   `runes(s)` and `bytes(s)` (read the same bytes as text or as bytes),
-  and `utf8valid(s)`.
+  `utf8valid(s)` and `readrunes(f, n)`.
 
 The details are in [docs/design.md](docs/design.md), "Strings and
 Unicode".

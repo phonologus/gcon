@@ -158,6 +158,7 @@ const char *const gen_functions[] = {
 	"push",
 	"put",
 	"read",
+	"readrunes",
 	"reads",
 	"real",
 	"remove",
@@ -192,4 +193,4 @@ const char *const gen_functions[] = {
 	"write",
 	"writes",
 };
-const int gen_nfunctions = 95;
+const int gen_nfunctions = 96;

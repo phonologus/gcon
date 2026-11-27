@@ -664,6 +664,12 @@ procedure Read(a1)
    suspend __fnc_read(a1)
 end
 
+procedure Readrunes(a1, a2)
+   static __fnc_readrunes
+   initial __fnc_readrunes := proc("readrunes", 0)
+   suspend __fnc_readrunes(a1, a2)
+end
+
 procedure Reads(a1, a2)
    static __fnc_reads
    initial __fnc_reads := proc("reads", 0)
