@@ -157,7 +157,7 @@ Positions are always byte positions.
   mixes. `uset(c)` is the one conversion between them.
 - **New built-ins:** `uset(x)`, `uord(s)` (the code point of one UTF-8
   character), `uchar(i)` (the UTF-8 encoding of a code point) and
-  `utf8valid(s)`.
+  `uvalid(s)`.
 
 The details are in [docs/design.md](docs/design.md), "Strings and
 Unicode".

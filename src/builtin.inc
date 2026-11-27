@@ -152,7 +152,7 @@ static const BuiltinFunc functions[] = {
 	{"uord", 1, "uord(s)", "produce the code point of the one UTF-8 character s", false, true},
 	{"upto", 4, "upto(c,s,i1,i2)", "generates the sequence of integer positions in s up to a character in c in s[i2:i2], but fails if there is no such position.", false, false},
 	{"uset", 1, "uset(x)", "convert x to a uset, failing if that is not possible", false, true},
-	{"utf8valid", 1, "utf8valid(s)", "produce s if it is valid UTF-8, else fail", false, true},
+	{"uvalid", 1, "uvalid(s)", "produce s if it is valid UTF-8, else fail", false, true},
 	{"variable", 1, "variable(s)", "find the variable with name s and return a variable descriptor which points to its value.", false, false},
 	{"where", 1, "where(f)", "return current offset position in file f.", false, false},
 	{"write", -1, "write(x1,x2,...)", "write the arguments followed by a newline; a file argument directs the following output to that file.", false, false},

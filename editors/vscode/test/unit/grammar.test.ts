@@ -87,9 +87,9 @@ suite("TextMate grammar", () => {
     const g = await loadGrammar();
     const bs = "\\";
     const u = bs + "u00e9", U = bs + "U01F600";
-    const s = scopes(g, `   write(utf8valid("caf${u}"), uchar(233), 'a..z', "${U}", '${bs}...z')`);
+    const s = scopes(g, `   write(uvalid("caf${u}"), uchar(233), 'a..z', "${U}", '${bs}...z')`);
     const want: [string, string][] = [
-      ["utf8valid", "support.function.builtin.icon"],
+      ["uvalid", "support.function.builtin.icon"],
       ["uchar", "support.function.builtin.icon"],
       [u, "constant.character.escape.icon"],
       [U, "constant.character.escape.icon"],

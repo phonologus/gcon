@@ -185,7 +185,7 @@ const char *const gen_functions[] = {
 	"uord",
 	"upto",
 	"uset",
-	"utf8valid",
+	"uvalid",
 	"variable",
 	"where",
 	"write",

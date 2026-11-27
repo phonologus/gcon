@@ -1,11 +1,11 @@
 # Hovers with reference pages: src/tests/lsp/ref holds fixtures in
 # the pages' formats (written for icontools), which src/tests/lsp.sh
 # gives the server. left, Clone, &col, &allocated and &fail have
-# entries; right falls back to the catalogue; utf8valid and uchar are
+# entries; right falls back to the catalogue; uvalid and uchar are
 # gcon's own.
 procedure main()
    write(left("x", 3), " ", right("y", 2), &allocated)
    Clone(&window, "fg=red")
-   write(&col, utf8valid("z"), uchar(233))
+   write(&col, uvalid("z"), uchar(233))
    if &fail then write("never")
 end

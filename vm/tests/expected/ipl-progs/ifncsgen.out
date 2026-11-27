@@ -826,10 +826,10 @@ procedure Uset(a1)
    suspend __fnc_uset(a1)
 end
 
-procedure Utf8valid(a1)
-   static __fnc_utf8valid
-   initial __fnc_utf8valid := proc("utf8valid", 0)
-   suspend __fnc_utf8valid(a1)
+procedure Uvalid(a1)
+   static __fnc_uvalid
+   initial __fnc_uvalid := proc("uvalid", 0)
+   suspend __fnc_uvalid(a1)
 end
 
 procedure Variable(a1)

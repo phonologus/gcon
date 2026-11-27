@@ -31,3 +31,4 @@ ipl-progs/ifncsgen       (2026-11-27) len and readrunes are removed too
 ipl-progs/ifncsgen       (2026-11-27) gcon's uord and uset
 ipl-progs/irunerr        (2026-11-27) gcon's errors 127 (uset expected) and
                          128 (cset and uset mixed)
+ipl-progs/ifncsgen       (2026-11-27) utf8valid is renamed uvalid

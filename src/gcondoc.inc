@@ -33,8 +33,8 @@ static const struct {
 	 "```icon\n&uset\n```\n\n"
 	 "The uset of every character: the 128 ASCII characters, the 128 bytes from 0x80 and every Unicode "
 	 "code point (less the surrogates). `tab(any(&uset))` is the next character of the subject, whole."},
-	{"utf8valid",
-	 "```icon\nutf8valid(s)\n```\n\n"
+	{"uvalid",
+	 "```icon\nuvalid(s)\n```\n\n"
 	 "Produces `s` if it is valid UTF-8, and fails otherwise."},
 };
 

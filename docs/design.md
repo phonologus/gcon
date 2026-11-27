@@ -873,7 +873,7 @@ substring cannot:
   `ord` gives.
 - `uchar(i)`: the UTF-8 encoding of the code point i; an invalid code
   point gives U+FFFD, as Go's `string(rune)`.
-- `utf8valid(s)`, for programs that need to check.
+- `uvalid(s)`, for programs that need to check.
 - `uset(x)`, `u'...'` and `&uset`, beside `cset(x)`, `'...'` and
   `&cset`.
 
@@ -892,7 +892,7 @@ substring cannot:
 - `reverse`, `map`, `left`, `right`, `center`, `detab` and `entab` stay
   9.5's, on bytes.
 - These names are hidden by a declaration of the same name, as any
-  built-in's; none of `uord`, `uchar`, `uset` or `utf8valid` occurs in
+  built-in's; none of `uord`, `uchar`, `uset` or `uvalid` occurs in
   `icon/tests`, `icon/ipl` or `icn/`.
 
 **Status (2026-11-27).** Implemented: strings without units, 9.5's
@@ -1533,7 +1533,7 @@ a procedure, `$line`, the predefined symbols and digraphs against iconx.
   `Record`. Field references are looked up by name when they run, so
   `x.f` works on any record type with a field `f`; `r[i]` and `r["f"]`
   subscript by position or field name.
-- gcon's extra built-ins (`uchar`, `uord`, `uset`, `utf8valid`) and the
+- gcon's extra built-ins (`uchar`, `uord`, `uset`, `uvalid`) and the
   keyword `&uset` are in the catalogue marked `Gcon` ("Strings and
   Unicode"; `runes`, `bytes`, `len` and `readrunes` were removed on
   2026-11-27). Like any built-in, they are hidden by a declaration of
