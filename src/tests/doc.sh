@@ -9,6 +9,8 @@
 #     anchors); -build writes a page for every topic, the stylesheet,
 #     the script and the search index; with mandoc, every page's roff
 #     lints clean (but for the version in .TH's date).
+#   - The internals and the code: a row for every instruction in
+#     doc/internals/instructions.md; format.h's version in program.md.
 #   - Lookup: a topic, its last element, a file; an unknown name.
 #   - The browser: $BROWSER is given the page's file URL; a browser
 #     that fails, or no HTML built, gives the page as text.
@@ -91,6 +93,22 @@ if command -v mandoc >/dev/null 2>&1; then
 		}
 	done <"$tmp/topics"
 fi
+
+# The internals pages and the code: every instruction has a row in the
+# table of doc/internals/instructions.md, and doc/internals/program.md
+# gives format.h's version.
+ops=$(awk '/opnames\[NumOps\] = \{/ { on = 1; next } on && /\};/ { exit } on' "$here/vm/src/dis.c" | grep -o '"[a-z]*"' | tr -d '"')
+for op in $ops; do
+	checks=$((checks + 1))
+	grep -q "^| \`$op\` |" "$here/doc/internals/instructions.md" || problem "instruction $op has no row in doc/internals/instructions.md"
+done
+rows=$(grep -c '^| `[a-z]*` | `' "$here/doc/internals/instructions.md")
+checks=$((checks + 1))
+[ "$rows" = "$(echo $ops | wc -w | tr -d ' ')" ] || problem "doc/internals/instructions.md has $rows instruction rows for $(echo $ops | wc -w | tr -d ' ') instructions"
+fv=$(sed -n 's/^enum { FormatVersion = \([0-9]*\) };$/\1/p' "$here/vm/src/format.h")
+checks=$((checks + 1))
+grep -q "format version $fv:" "$here/doc/internals/program.md" && grep -q "a varint: $fv\\." "$here/doc/internals/program.md" ||
+	problem "doc/internals/program.md does not give format version $fv"
 
 # Lookup.
 want=$here/doc/html/help/run.html

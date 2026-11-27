@@ -55,7 +55,7 @@ child), or a named socket.
 
 ## Done (2026-11-26)
 
-1. The protocol specification (`design/protocol.md`, version 2; events
+1. The protocol specification (`doc/internals/protocol.md` in Gcon's tree, version 2; events
    are fetched by the client with `WAIT` rather than sent unsolicited:
    see below), with fonts, text, window requests, icons and image
    files.

@@ -1,6 +1,6 @@
 /*
- * The client side of the gcon graphics protocol (gcon-graphics's
- * design/protocol.md): starting the display server, buffering requests,
+ * The client side of the gcon graphics protocol (doc/internals/protocol.md):
+ * starting the display server, buffering requests,
  * reading replies.
  *
  * The server is started on the first graphics request, as gcon's design

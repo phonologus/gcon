@@ -10,7 +10,7 @@
 
 #include "vm.h"
 
-/* ---- The protocol (gcon-graphics's design/protocol.md) ---- */
+/* ---- The protocol (doc/internals/protocol.md) ---- */
 
 enum {
 	P_HELLO, P_CANVAS, P_FREE, P_RESIZE, P_GC, P_POINTS, P_LINES, P_FILLPOLY,

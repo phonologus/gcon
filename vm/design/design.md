@@ -581,7 +581,7 @@ Gcon's design puts graphics in a separate display server (Gcon's
 now in C, gcon-vm takes the part that design gives "gconx": it owns
 Icon's graphics semantics, and gcon-graphics (icon-sdl's SDL3 + Blend2D
 backend) owns windows, canvases and drawing, behind the protocol in
-gcon-graphics's `design/protocol.md`. Of the reasons for the split, only
+Gcon's `doc/internals/protocol.md`. Of the reasons for the split, only
 "gcon stays pure Go" has gone; gcon-vm still builds with nothing but a
 C compiler (the server needs C++, CMake and SDL3), the macOS main-thread
 rule stays in the server, a server crash cannot corrupt the

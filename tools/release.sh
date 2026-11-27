@@ -50,7 +50,7 @@ editors/zed/extension.toml||^version = "
 EOF
 }
 # and every gcon-X.Y.Z.vsix named in these:
-vsixdocs="README.md editors/vscode/README.md"
+vsixdocs="doc/editors.md editors/vscode/README.md"
 
 # entry FILE AFTER LINE [NEW]: prints the entry's version, or with NEW
 # rewrites it to NEW; fails if the entry is not found.

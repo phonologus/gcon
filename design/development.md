@@ -29,7 +29,11 @@ the SDL backend; it stops if upstream has changed a line it replaces).
 | `tools/release.sh` | makes a release: the versioned files, the grammar, Zed's pin, the tag (below, "Releases") |
 | `tools/ipl` | copies the IPL into `lib/ipl`, recording `lib/ipl/UPSTREAM`, and makes Gcon's changes (`patch.sh`) |
 | `editors/` | editor support: the tree-sitter grammar, the Zed and VS Code extensions; not built by `build.sh` ([editors/README.md](../editors/README.md)) |
+| `doc/` | the documentation, Markdown (`gcon doc`; below, "Documentation"); `doc/html` is built by `build.sh`, not committed |
+| `design/` | design notes: [design.md](design.md) (decisions and their reasons), this file, [syntax.md](syntax.md) |
+| `tools/embed.sh` | writes the files gcon carries inside itself: the help pages, the documentation's stylesheet and script (below, "Help") |
 | `experiments/` | measurements behind design decisions; not part of Gcon |
+| `bin/`, `libexec/`, `lib/libcfunc.so` | what `build.sh` builds |
 
 Gcon was written in Go and ported to C part by part, each part proved
 identical to the Go; the Go is kept as the tag `go-reference`. Its front

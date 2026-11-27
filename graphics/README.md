@@ -10,7 +10,7 @@ C++ out of the runtime, and lets a display server be written in any
 language.
 
 **Status: serving the whole protocol** in
-[design/protocol.md](design/protocol.md) (version 2): canvases and their
+[doc/internals/protocol.md](../doc/internals/protocol.md) (version 2): canvases and their
 windows, graphics contexts, drawing, reading and writing pixels, X
 colour names, events, fonts and text, window management, window icons,
 and image files (PNG, JPEG, BMP and QOI encoded and decoded in memory;
@@ -63,7 +63,7 @@ window opens, pushes scripted keystrokes, clicks and a close into it
 | `src/sdlgfx.h` | The C interface to all of the above |
 | `src/main.c` | The server: reads protocol requests, calls the layers above |
 | `deps/` | Vendored sources and `deps.lock` |
-| `design/protocol.md` | The protocol |
+| `../doc/internals/protocol.md` | The protocol (in the documentation: `gcon doc protocol`) |
 | `design/design.md` | Design notes |
 
 ## Licence

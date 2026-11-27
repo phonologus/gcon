@@ -4,10 +4,14 @@ Between a client (gcon-vm, which owns Icon's graphics semantics) and a
 display server (gcon-graphics, which owns windows, canvases and drawing).
 Modelled on Plan 9's draw(3): binary messages, objects named by ids the
 client chooses, drawing requests without replies. The rules behind it
-are in Gcon's `design/design.md` ("Graphics: a separate display server")
-and this repository's `design/design.md`.
+are in Gcon's design notes (`design/design.md`, "Graphics: a separate
+display server", and `graphics/design/design.md`).
 
-Version 1. Everything here is implemented unless marked *(later)*.
+Another display server can take gcon-graphics's place: it speaks this
+protocol on the socket it is given, and `GCONGRAPHICS` names it (`gcon
+help environment`).
+
+Version 2. Everything here is implemented unless marked *(later)*.
 
 ## Transport and framing
 
@@ -17,9 +21,11 @@ command line (`gcon-graphics -fd N`).
 
 Every message, either way, is
 
-    u32 length      bytes that follow (opcode and body)
-    u8  opcode
-    ... body
+```
+u32 length      bytes that follow (opcode and body)
+u8  opcode
+... body
+```
 
 Integers are little-endian: `u8`, `u32`, `i32`, `u64`, `i64`; `f64` is
 an IEEE double. A string `str` is `u32 n` and n bytes (UTF-8 or bytes;

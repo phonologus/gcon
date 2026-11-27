@@ -2024,7 +2024,7 @@ case (Sean, 2026-11-27). As Go, two commands:
   and **internals**, for the curious and for anyone writing another
   display server: the built program's format and the instruction set,
   values, the interpreter, the collector, the `loadfunc` interface,
-  and the graphics wire protocol (graphics/design/protocol.md moves
+  and the graphics wire protocol (graphics/design/protocol.md moved
   there and becomes the reference; the design notes keep the history
   and link to it). `gcon lsp` hovers the same Markdown, so `fetch-docs`
   becomes optional.
@@ -2110,6 +2110,12 @@ command appears in its help page; help output has golden files, as
    reference's files; the instruction set). The renderers: one Markdown
    reader in C for the subset, writing HTML (build.sh, `-html`), text
    (`-text`) and roff (`-man`); opening the browser, and the fallback.
+   Done (2026-11-27): `markdown.c`, `mdrender.c`, `doc.c`; the tree in
+   `doc/` (the guide from README.md, which is now a front page; the
+   internals: the built program, the instructions, the VM, C functions,
+   the protocol), checked by `src/tests/doc.sh` against the code (each
+   instruction, the format version). The search index is built with the
+   HTML, so 2c folded into 2a.
 3. The reference's machinery: entry format, the extractor, the example
    runner, lookup by name in `gcon doc` and `gcon lsp`.
 4. The reference in batches: core functions, keywords, graphics
