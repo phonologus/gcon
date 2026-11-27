@@ -10,6 +10,7 @@
 #                          (colrbook colrpick fontpick palette wevents
 #                          xgamma vib), built by gcon from lib/ipl
 #   lib/libcfunc.so        the IPL's C functions (lib/ipl/cfuncs)
+#   lib/gcon/uclass.icn    gcon's uclass module, generated from deps/unicode
 #
 # Builds never use the network. $CC and $CFLAGS are passed on.
 set -eu
@@ -20,6 +21,10 @@ vm/build.sh
 cp vm/bin/gcon-vm libexec/gcon-vm.new
 mv libexec/gcon-vm.new libexec/gcon-vm
 echo "built libexec/gcon-vm"
+
+# lib/gcon/uclass.icn, the uclass module, from the vendored Unicode
+# database (deps/unicode, checked against deps/deps.lock).
+sh tools/uclass.sh
 
 if command -v cmake >/dev/null 2>&1 && command -v "${CXX:-c++}" >/dev/null 2>&1; then
 	mkdir -p graphics/build

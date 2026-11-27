@@ -224,7 +224,14 @@ static StrVec searchpath(const char *var, const char *root, const char *a, const
 	return v;
 }
 
-StrVec cfg_libpath(const Config *c) { return searchpath("IPATH", c->root, "lib/ipl/procs", "lib/ipl/gprocs"); }
+/* cfg_libpath: $IPATH, then the IPL's procs and gprocs, then lib/gcon,
+ * gcon's own library, last so that it never shadows an IPL file. */
+StrVec cfg_libpath(const Config *c) {
+	StrVec v = searchpath("IPATH", c->root, "lib/ipl/procs", "lib/ipl/gprocs");
+	if (c->root)
+		VPUSH(v, pathjoin(c->root, "lib/gcon"));
+	return v;
+}
 
 StrVec cfg_includepath(const Config *c) {
 	return searchpath("LPATH", c->root, "lib/ipl/incl", "lib/ipl/gincl");

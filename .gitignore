@@ -5,3 +5,4 @@
 /libexec/
 /lib/libcfunc.so
 /lib/libcfunc.so.new
+/lib/gcon/uclass.icn

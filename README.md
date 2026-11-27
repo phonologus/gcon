@@ -158,6 +158,9 @@ Positions are always byte positions.
 - **New built-ins:** `uset(x)`, `uord(s)` (the code point of one UTF-8
   character), `uchar(i)` (the UTF-8 encoding of a code point) and
   `uvalid(s)`.
+- **Unicode character classes** are a library module, not language:
+  `link uclass`, and `uclass("L")`, `uclass("Nd")` or `uclass("Greek")`
+  is that general category or script as a uset (Unicode 17.0.0).
 
 The details are in [docs/design.md](docs/design.md), "Strings and
 Unicode".

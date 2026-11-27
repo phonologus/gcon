@@ -9,7 +9,7 @@
  * format characters, surrogates, private use, unassigned code points,
  * or spaces and separators other than U+0020.
  *
- * Run by tools/mkunicode.sh; never needed to build.
+ * Run by tools/mkunicode.sh (from deps/update.sh); never needed to build.
  */
 #include <stdbool.h>
 #include <stdio.h>

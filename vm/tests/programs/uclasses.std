@@ -1,0 +1,10 @@
+uset 145672 1886 2283 770 856 19
+1492 518 103351 9123
+u' \u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u202f\u205f\u3000'
+Nope:fails l:fails Cs:found :fails Lu:found 
+union
+disjoint
+same
+"Ωmega" "straße" "世界" "ok" "dígitos" 
+8 9 31 
+3

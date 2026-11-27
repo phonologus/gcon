@@ -1,0 +1,5 @@
+# Vendored data: name, version, SHA-256 of deps/unicode/<file>, and
+# the URL it came from (@V@ = version). Change only with
+# deps/update.sh. build.sh verifies every checksum.
+UnicodeData.txt  17.0.0   2e1efc1dcb59c575eedf5ccae60f95229f706ee6d031835247d843c11d96470c https://www.unicode.org/Public/@V@/ucd/UnicodeData.txt
+Scripts.txt      17.0.0   9f5e50d3abaee7d6ce09480f325c706f485ae3240912527e651954d2d6b035bf https://www.unicode.org/Public/@V@/ucd/Scripts.txt
