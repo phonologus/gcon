@@ -264,15 +264,14 @@ static void markomap(OMap *m) {
 	markptr(m->index);
 }
 
-static void markcset(Cset *c) {
-	if (!markptr(c)) { /* a constant's: not in the heap, but its cache is */
-		markptr(c->str);
-	}
-}
-
-static void markuset(Uset *c) {
+/* markset marks a cset or a uset, whose str fields are at the same
+ * offset (gcon-vm.h): one case in markvalue for both, which keeps that
+ * switch as small as before usets (a case of its own cost 4% on a
+ * program of records and lists). A heap uset's ranges are traced by
+ * T_USET. */
+static void markset(void *c) {
 	if (!markptr(c)) /* a constant's: not in the heap, but its cache is */
-		markptr(c->str);
+		markptr(*(void **)((char *)c + offsetof(Cset, str))); /* the void * field itself */
 }
 
 void markvalue(Value v) {
@@ -281,10 +280,8 @@ void markvalue(Value v) {
 		markptr(v.w.s);
 		break;
 	case KCset:
-		markcset(v.w.p);
-		break;
 	case KUset:
-		markuset(v.w.p);
+		markset(v.w.p);
 		break;
 	case KBig: case KList: case KTable: case KSet: case KRecord: case KCoexp:
 	case KFile: case KRef: case KListElem: case KField: case KSubstr: case KVar:

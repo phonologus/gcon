@@ -77,13 +77,15 @@ typedef struct Cset {
 
 /* Uset: the ASCII characters and the non-ASCII bytes in bits, as a
  * cset, and code points from 0x80 in ranges (sorted, disjoint, not
- * adjacent, no surrogates). */
+ * adjacent, no surrogates). str comes first after the bits, at the offset
+ * a Cset's has, so that the collector marks both alike (gc.c). */
 typedef struct Uset {
 	uint64_t bits[4];
+	void *str; /* run time: the uset as a string, once made */
 	int nranges;
 	uint32_t (*ranges)[2];
-	void *str; /* run time: the uset as a string, once made */
 } Uset;
+_Static_assert(offsetof(Cset, str) == offsetof(Uset, str), "the collector marks a cset and a uset alike");
 
 /* Big: a large integer, sign and magnitude in base 2^32 digits, least
  * significant first, with no leading zero digits. */

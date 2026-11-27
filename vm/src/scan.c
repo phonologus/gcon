@@ -209,9 +209,10 @@ RESTFN(f_move) {
 FN(f_pos) {
 	(void)b;
 	int64_t p;
-	bool ok = cvpos(mustint(ARG(0)), vm.subject.n, &p);
+	if (!cvpos(mustint(ARG(0)), vm.subject.n, &p) || p != vm.pos)
+		return false;
 	*out = intval(p);
-	return ok && p == vm.pos;
+	return true;
 }
 
 FN(f_match) {

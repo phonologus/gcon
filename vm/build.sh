@@ -12,5 +12,11 @@ Linux*|GNU*) EXPORT="-rdynamic -ldl" ;;
 *BSD*) EXPORT="-rdynamic" ;;
 *) EXPORT= ;;
 esac
+# Link-time optimization: gcc takes -flto=auto, which links in parallel
+# (a plain -flto makes it warn that it links serially); clang -flto.
+LTO=-flto
+if $CC --version 2>/dev/null | grep -qi 'gcc\|free software foundation' && ! $CC --version 2>/dev/null | grep -qi clang; then
+	LTO=-flto=auto
+fi
 mkdir -p bin
-$CC -std=gnu11 -O2 -flto -Wall -Wextra ${CFLAGS:-} -o bin/gcon-vm src/*.c -lm $EXPORT
+$CC -std=gnu11 -O2 $LTO -Wall -Wextra ${CFLAGS:-} -o bin/gcon-vm src/*.c -lm $EXPORT
