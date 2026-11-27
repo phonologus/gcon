@@ -8,7 +8,8 @@ iconx, and graphics draw with SDL3 and Blend2D instead of X11.
 
 This is the documentation of the Gcon you have installed. `gcon doc`
 opens it in your browser; `gcon doc NAME` opens one page, and `gcon doc
--text NAME` prints it.
+-text NAME` prints it. Served by `gcon doc`, every example program can
+be edited and run where it stands.
 
 ## Using Gcon
 

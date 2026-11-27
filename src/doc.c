@@ -17,16 +17,21 @@
 #include "doccomment.h"
 #include "driver.h"
 #include "help.h"
+#include "httpd.h"
 #include "markdown.h"
 #include "mdrender.h"
 
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <poll.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/time.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -624,6 +629,10 @@ static char *relroot(const char *topic) {
 	return b.b ? b.b : "";
 }
 
+/* runtoken is the local server's secret, given to its pages so that
+ * their examples may be run (POST /run); NULL in the static HTML. */
+static const char *runtoken;
+
 static void htmlpage(Buf *out, const Page *p, const MdDoc *d) {
 	char *up = relroot(p->topic);
 	bufputs(out, "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n"
@@ -631,7 +640,10 @@ static void htmlpage(Buf *out, const Page *p, const MdDoc *d) {
 	md_htmlesc(out, d->title, strlen(d->title));
 	bufputs(out, " \xe2\x80\x94 Gcon</title>\n");
 	bufprintf(out, "<link rel=\"stylesheet\" href=\"%sstyle.css\">\n", up);
-	bufprintf(out, "</head>\n<body data-root=\"%s\">\n", up);
+	bufprintf(out, "</head>\n<body data-root=\"%s\"", up);
+	if (runtoken)
+		bufprintf(out, " data-run=\"%s\"", runtoken);
+	bufputs(out, ">\n");
 	bufprintf(out, "<header><a class=\"home\" href=\"%sindex.html\">Gcon documentation</a>"
 		       "<span class=\"version\">%s</span>"
 		       "<input id=\"search\" type=\"search\" placeholder=\"Search\" aria-label=\"Search the documentation\" autocomplete=\"off\">"
@@ -675,17 +687,12 @@ static void jsstr(Buf *out, const char *s) {
 	bufputc(out, '"');
 }
 
-static int build(Tree *t, MdDoc **docs, const char *outdir) {
-	Buf idx = {0};
-	bufputs(&idx, "var GCONDOC = [\n");
+/* searchindex is the search's index, search-index.js: every heading of
+ * every page. */
+static void searchindex(Buf *idx, Tree *t, MdDoc **docs) {
+	bufputs(idx, "var GCONDOC = [\n");
 	for (size_t i = 0; i < t->pages.n; i++) {
 		const Page *p = &t->pages.v[i];
-		Buf b = {0};
-		htmlpage(&b, p, docs[i]);
-		Buf path = {0};
-		bufprintf(&path, "%s/%s.html", outdir, p->topic);
-		if (!writefile(path.b, b.b, b.n))
-			return 1;
 		for (size_t bi = 0; bi < docs[i]->blocks.n; bi++) {
 			const MdBlock *h = &docs[i]->blocks.v[bi];
 			if (h->kind != MB_HEADING)
@@ -696,16 +703,30 @@ static int build(Tree *t, MdDoc **docs, const char *outdir) {
 			bufprintf(&url, "%s.html", p->topic);
 			if (bi > 0 || h->level > 1)
 				bufprintf(&url, "#%s", h->anchor);
-			bufputs(&idx, "[");
-			jsstr(&idx, plain.b ? plain.b : "");
-			bufputs(&idx, ",");
-			jsstr(&idx, url.b);
-			bufputs(&idx, ",");
-			jsstr(&idx, docs[i]->title);
-			bufputs(&idx, "],\n");
+			bufputs(idx, "[");
+			jsstr(idx, plain.b ? plain.b : "");
+			bufputs(idx, ",");
+			jsstr(idx, url.b);
+			bufputs(idx, ",");
+			jsstr(idx, docs[i]->title);
+			bufputs(idx, "],\n");
 		}
 	}
-	bufputs(&idx, "];\n");
+	bufputs(idx, "];\n");
+}
+
+static int build(Tree *t, MdDoc **docs, const char *outdir) {
+	for (size_t i = 0; i < t->pages.n; i++) {
+		const Page *p = &t->pages.v[i];
+		Buf b = {0};
+		htmlpage(&b, p, docs[i]);
+		Buf path = {0};
+		bufprintf(&path, "%s/%s.html", outdir, p->topic);
+		if (!writefile(path.b, b.b, b.n))
+			return 1;
+	}
+	Buf idx = {0};
+	searchindex(&idx, t, docs);
 	Buf p1 = {0}, p2 = {0}, p3 = {0};
 	bufprintf(&p1, "%s/style.css", outdir);
 	bufprintf(&p2, "%s/search.js", outdir);
@@ -911,6 +932,7 @@ static char *iplmd(const char *root, const char *name) {
 	Buf head = {0};
 	bufprintf(&head, "procedure %s(", base);
 	int found = 0;
+	Buf also = {0};
 	for (size_t i = 0; i < files.n; i++) {
 		char *src = iplsource(root, files.v[i]);
 		if (!src)
@@ -925,18 +947,16 @@ static char *iplmd(const char *root, const char *name) {
 			while (*decl && (decl[strlen(decl) - 1] == ' ' || decl[strlen(decl) - 1] == '\t' || decl[strlen(decl) - 1] == '\r'))
 				decl[strlen(decl) - 1] = 0;
 			const char *fb = strrchr(files.v[i], '/') + 1;
-			if (found++) {
-				if (found == 2)
-					fprintf(stderr, "gcon doc %s: declared in more than one IPL file:\n", name);
-				fprintf(stderr, "\tipl/%s\n", files.v[i]);
-			} else
+			if (found++)
+				bufprintf(&also, "%s`ipl/%s`", also.n ? ", " : "", files.v[i]);
+			else
 				bufprintf(&md, "# %s\n\n%s%s\n\n```\n%s\n```\n\nIn `ipl/%s` (`link %s`), whose header says:\n\n```\n%s```\n",
 					base, candidate(root, files.v[i]) ? candidatebanner : "", iplnote, decl, files.v[i], fb, iplheader(src));
 			break;
 		}
 	}
-	if (found > 1)
-		exit(2);
+	if (also.n)
+		bufprintf(&md, "\nAlso declared in %s.\n", also.b);
 	return found ? md.b : NULL;
 }
 
@@ -1007,6 +1027,371 @@ static bool browse(const char *url) {
 	return WIFEXITED(st) && WEXITSTATUS(st) == 0;
 }
 
+/* ------------------------------------------------------------------ */
+/* The local server */
+
+/* By default gcon doc serves the documentation itself, on a port of
+ * the loopback address, and opens the browser at it, as go doc -http
+ * does: so the IPL and a program's own doc comments are pages too, and
+ * the examples can be edited and run (POST /run, which gcon run runs).
+ * A run needs the server's secret, which only its own pages carry, and
+ * a Host of the loopback address (against DNS rebinding); served
+ * beyond the machine (-http with another address), nothing runs. */
+
+enum {
+	RunLimit = 60,      /* seconds a run may take */
+	RunOutput = 1 << 20, /* bytes of its output kept */
+};
+
+typedef struct Site {
+	const char *root; /* GCONROOT, or NULL */
+	Tree *t;          /* the tree, or NULL */
+	MdDoc **docs;
+	Buf idx;          /* search-index.js */
+	const char *extra; /* a page of the user's own ("/file/x.html"), or NULL */
+	Buf extrahtml;
+	VEC(char *) hosts; /* the Host values accepted; none: any */
+} Site;
+
+/* mdesc appends s with Markdown's punctuation escaped. */
+static void mdesc(Buf *b, const char *s) {
+	for (; *s; s++) {
+		if (strchr("\\`*_[]<>|#", *s))
+			bufputc(b, '\\');
+		bufputc(b, *s);
+	}
+}
+
+/* iplindexmd is the IPL's index as a page: gcon doc ipl, with links. */
+static char *iplindexmd(const char *root) {
+	StrList files = iplfiles(root);
+	Buf b = {0};
+	bufprintf(&b, "# The Icon Program Library\n\n%s A file marked as a candidate is a candidate for Gcon's standard library.\n\n", iplnote);
+	for (size_t i = 0; i < files.n; i++) {
+		char *src = iplsource(root, files.v[i]);
+		bufprintf(&b, "- [%s](%s.md)%s", files.v[i], files.v[i], candidate(root, files.v[i]) ? " (candidate)" : "");
+		const char *subj = src ? subject(src) : "";
+		if (*subj) {
+			bufputs(&b, ": ");
+			mdesc(&b, subj);
+		}
+		bufputc(&b, '\n');
+	}
+	return b.b;
+}
+
+static void replyhtml(HttpReq *r, int status, const char *topic, const char *md) {
+	MdDoc *d = md_parse(md, strlen(md));
+	Page p = {(char *)topic, NULL, -1};
+	Buf out = {0};
+	htmlpage(&out, &p, d);
+	http_reply(r, status, "text/html; charset=utf-8", NULL, out.b, out.n);
+}
+
+/* rmtree removes a directory and everything in it. */
+static void rmtree(const char *dir) {
+	DIR *d = opendir(dir);
+	if (d) {
+		struct dirent *e;
+		while ((e = readdir(d))) {
+			if (!strcmp(e->d_name, ".") || !strcmp(e->d_name, ".."))
+				continue;
+			char *p = pathjoin(dir, e->d_name);
+			struct stat st;
+			if (lstat(p, &st) == 0 && S_ISDIR(st.st_mode))
+				rmtree(p);
+			else
+				unlink(p);
+		}
+		closedir(d);
+	}
+	rmdir(dir);
+}
+
+/* runreq runs the program in the request's body, as prog.icn in a
+ * directory of its own, under gcon run, and replies with its output
+ * (standard output and error together) and, in X-Gcon-Status, its exit
+ * status. If the browser gives up (the Stop button aborts the request)
+ * or the time limit passes, the program and its children are killed. */
+static void runreq(HttpReq *r) {
+	if (strcmp(r->method, "POST")) {
+		http_reply(r, 405, "text/plain", NULL, "POST only\n", 10);
+		return;
+	}
+	const char *tok = http_header(r, "x-gcon-token");
+	if (!runtoken || !tok || strcmp(tok, runtoken)) {
+		static const char no[] = "running examples is only for the server's own pages, on this machine\n";
+		http_reply(r, 403, "text/plain", NULL, no, sizeof no - 1);
+		return;
+	}
+	const char *tmpdir = getenv("TMPDIR");
+	Buf tmpl = {0};
+	bufprintf(&tmpl, "%s/gcondocXXXXXX", tmpdir && *tmpdir ? tmpdir : "/tmp");
+	char *dir = mkdtemp(tmpl.b);
+	char *file = dir ? pathjoin(dir, "prog.icn") : NULL;
+	FILE *f = file ? fopen(file, "w") : NULL;
+	if (!f || fwrite(r->body, 1, r->nbody, f) != r->nbody || fclose(f) != 0) {
+		Buf m = {0};
+		bufprintf(&m, "gcon doc: cannot write the program: %s\n", strerror(errno));
+		http_reply(r, 500, "text/plain", NULL, m.b, m.n);
+		return;
+	}
+	int fds[2];
+	if (pipe(fds) != 0) {
+		rmtree(dir);
+		return;
+	}
+	pid_t pid = fork();
+	if (pid == 0) {
+		setpgid(0, 0); /* a group of its own, to kill it whole */
+		close(fds[0]);
+		close(r->fd);
+		dup2(fds[1], 1);
+		dup2(fds[1], 2);
+		close(fds[1]);
+		int in = open("/dev/null", O_RDONLY);
+		if (in >= 0)
+			dup2(in, 0);
+		if (chdir(dir) != 0)
+			_exit(127);
+		execl(executable("gcon"), "gcon", "run", "prog.icn", (char *)NULL);
+		_exit(127);
+	}
+	close(fds[1]);
+	if (pid < 0) {
+		close(fds[0]);
+		rmtree(dir);
+		return;
+	}
+	setpgid(pid, pid);
+	Buf out = {0};
+	bool killed = false, gone = false, overflow = false, eof = false;
+	int st = 0;
+	bool exited = false;
+	struct timeval t0, now;
+	gettimeofday(&t0, NULL);
+	while (!eof || !exited) {
+		if (!exited && waitpid(pid, &st, WNOHANG) == pid)
+			exited = true;
+		if (exited && eof)
+			break;
+		gettimeofday(&now, NULL);
+		long ms = (now.tv_sec - t0.tv_sec) * 1000 + (now.tv_usec - t0.tv_usec) / 1000;
+		if (ms > RunLimit * 1000 && !killed) {
+			kill(-pid, SIGKILL);
+			killed = true;
+		}
+		struct pollfd pf[2] = {{r->fd, POLLIN, 0}, {fds[0], POLLIN, 0}};
+		int n = poll(pf, eof ? 1 : 2, 200);
+		if (n < 0 && errno != EINTR)
+			break;
+		if (n > 0 && !eof && pf[1].revents) {
+			char chunk[8192];
+			ssize_t k = read(fds[0], chunk, sizeof chunk);
+			if (k > 0) {
+				size_t room = out.n < RunOutput ? RunOutput - out.n : 0;
+				bufadd(&out, chunk, (size_t)k < room ? (size_t)k : room);
+				overflow = overflow || (size_t)k > room;
+			} else if (k == 0 || errno != EINTR)
+				eof = true;
+		}
+		if (n > 0 && pf[0].revents && !gone) {
+			char c;
+			if (recv(r->fd, &c, 1, MSG_PEEK) <= 0) {
+				gone = true; /* the browser gave up: Stop */
+				kill(-pid, SIGKILL);
+			}
+		}
+		if (exited && !eof) {
+			/* the program is done, but something it started holds the
+			 * pipe open: take what is there and finish */
+			struct pollfd q = {fds[0], POLLIN, 0};
+			while (poll(&q, 1, 50) > 0) {
+				char chunk[8192];
+				ssize_t k = read(fds[0], chunk, sizeof chunk);
+				if (k <= 0)
+					break;
+				size_t room = out.n < RunOutput ? RunOutput - out.n : 0;
+				bufadd(&out, chunk, (size_t)k < room ? (size_t)k : room);
+			}
+			eof = true;
+		}
+	}
+	close(fds[0]);
+	kill(-pid, SIGKILL); /* anything it left behind */
+	if (!exited)
+		waitpid(pid, &st, 0);
+	rmtree(dir);
+	if (gone)
+		return;
+	if (overflow)
+		bufprintf(&out, "\n[output cut at %d bytes]\n", RunOutput);
+	if (killed)
+		bufprintf(&out, "\n[killed: it ran for more than %d seconds]\n", RunLimit);
+	int status = WIFEXITED(st) ? WEXITSTATUS(st) : 128 + (WIFSIGNALED(st) ? WTERMSIG(st) : 0);
+	Buf hdr = {0};
+	bufprintf(&hdr, "X-Gcon-Status: %d\r\n", status);
+	http_reply(r, 200, "text/plain; charset=utf-8", hdr.b, out.b ? out.b : "", out.n);
+}
+
+static void serve(HttpReq *r, void *arg) {
+	Site *s = arg;
+	if (s->hosts.n) {
+		const char *host = http_header(r, "host");
+		bool ok = false;
+		for (size_t i = 0; host && i < s->hosts.n; i++)
+			ok = ok || !strcmp(host, s->hosts.v[i]);
+		if (!ok) {
+			http_reply(r, 403, "text/plain", NULL, "unknown host\n", 13);
+			return;
+		}
+	}
+	if (!strcmp(r->path, "/run")) {
+		runreq(r);
+		return;
+	}
+	if (strcmp(r->method, "GET") && strcmp(r->method, "HEAD")) {
+		http_reply(r, 405, "text/plain", NULL, "GET only\n", 9);
+		return;
+	}
+	const char *path = r->path;
+	if (!strcmp(path, "/style.css")) {
+		http_reply(r, 200, "text/css; charset=utf-8", NULL, style, strlen(style));
+		return;
+	}
+	if (!strcmp(path, "/search.js")) {
+		http_reply(r, 200, "text/javascript; charset=utf-8", NULL, script, strlen(script));
+		return;
+	}
+	if (!strcmp(path, "/search-index.js")) {
+		http_reply(r, 200, "text/javascript; charset=utf-8", NULL, s->idx.b ? s->idx.b : "var GCONDOC = [];\n", s->idx.b ? s->idx.n : 18);
+		return;
+	}
+	if (s->extra && !strcmp(path, s->extra)) {
+		http_reply(r, 200, "text/html; charset=utf-8", NULL, s->extrahtml.b, s->extrahtml.n);
+		return;
+	}
+	/* a page: /TOPIC.html, or a directory's index */
+	Buf topic = {0};
+	bufputs(&topic, path + (*path == '/'));
+	if (!topic.n || topic.b[topic.n - 1] == '/')
+		bufputs(&topic, "index");
+	else if (hassuffix(topic.b, ".html"))
+		topic.b[topic.n -= 5] = 0;
+	if (!strstr(topic.b, "..")) {
+		if (s->root && !strncmp(topic.b, "ipl/", 4)) {
+			const char *nm = topic.b + 4;
+			char *md = !strcmp(nm, "index") ? iplindexmd(s->root) : iplmd(s->root, nm);
+			if (md) {
+				replyhtml(r, 200, topic.b, md);
+				return;
+			}
+		} else if (s->t) {
+			Page *p = findtopic(s->t, topic.b);
+			if (p) {
+				Buf out = {0};
+				htmlpage(&out, p, s->docs[p - s->t->pages.v]);
+				http_reply(r, 200, "text/html; charset=utf-8", NULL, out.b, out.n);
+				return;
+			}
+		}
+	}
+	Buf md = {0};
+	bufputs(&md, "# Not found\n\nNo page ");
+	bufputs(&md, "`");
+	bufputs(&md, path);
+	bufputs(&md, "`. Try the search, or the [index](");
+	bufputs(&md, relroot(topic.b));
+	bufputs(&md, "index.md).\n");
+	replyhtml(r, 404, topic.b, md.b);
+}
+
+/* newtoken is a secret: 128 random bits, in hex. */
+static char *newtoken(void) {
+	unsigned char k[16];
+	int fd = open("/dev/urandom", O_RDONLY);
+	if (fd < 0 || read(fd, k, sizeof k) != (ssize_t)sizeof k) {
+		fprintf(stderr, "gcon doc: /dev/urandom: %s\n", strerror(errno));
+		exit(1);
+	}
+	close(fd);
+	Buf b = {0};
+	for (size_t i = 0; i < sizeof k; i++)
+		bufprintf(&b, "%02x", k[i]);
+	return b.b;
+}
+
+/* serveat serves the site on addr (NULL: the loopback address and a
+ * free port, and the browser opened at page, a path such as
+ * "/ref/strings.html#find"). It returns only if it cannot: 1 if it
+ * cannot listen, -1 if there is no browser to open. */
+static int serveat(Site *s, const char *addr, const char *page, const char *extramd) {
+	bool open = !addr;
+	char *bound;
+	int fd = http_listen(addr ? addr : "127.0.0.1:0", &bound);
+	if (fd < 0)
+		return 1;
+	if (http_isloopback(bound)) {
+		runtoken = newtoken();
+		const char *port = strrchr(bound, ':') + 1;
+		const char *names[] = {"127.0.0.1", "localhost", "[::1]"};
+		VPUSH(s->hosts, bound);
+		for (size_t i = 0; i < sizeof names / sizeof names[0]; i++) {
+			Buf h = {0};
+			bufprintf(&h, "%s:%s", names[i], port);
+			VPUSH(s->hosts, h.b);
+		}
+	}
+	if (s->t)
+		searchindex(&s->idx, s->t, s->docs);
+	if (s->extra) {
+		MdDoc *d = md_parse(extramd, strlen(extramd));
+		Page p = {xstrndup(s->extra + 1, strlen(s->extra) - 6), NULL, -1}; /* without / and .html */
+		htmlpage(&s->extrahtml, &p, d);
+	}
+	Buf url = {0};
+	bufprintf(&url, "http://%s%s", bound, page);
+	if (open && !browse(url.b)) {
+		close(fd);
+		runtoken = NULL;
+		fprintf(stderr, "gcon doc: no browser to open (set BROWSER, or use -http); showing text\n");
+		return -1;
+	}
+	fprintf(stderr, "gcon doc: serving %s (interrupt to stop)\n", url.b);
+	if (!runtoken)
+		fprintf(stderr, "gcon doc: examples cannot be run when served beyond this machine\n");
+	http_serve(fd, serve, s);
+}
+
+/* loadsite gives the site the root's tree, if there is a root. */
+static void loadsite(Site *s) {
+	Root rt = root_find();
+	if (!rt.dir)
+		return;
+	s->root = rt.dir;
+	s->t = xcalloc(1, sizeof *s->t);
+	*s->t = loadtree(pathjoin(rt.dir, "doc"));
+	parseall(s->t, &s->docs);
+}
+
+/* browseextra serves a page of the user's own (a program's doc
+ * comments, a Markdown file) at path, with the tree; it returns only
+ * if it cannot (see serveat). */
+static int browseextra(const char *path, const char *md, const char *httpaddr) {
+	Site s = {0};
+	loadsite(&s);
+	s.extra = path;
+	return serveat(&s, httpaddr, path, md);
+}
+
+/* browsetree serves the tree, opening the browser at page; it returns
+ * only if it cannot (see serveat). */
+static int browsetree(const char *page, const char *httpaddr) {
+	Site s = {0};
+	loadsite(&s);
+	return serveat(&s, httpaddr, page, NULL);
+}
+
 static _Noreturn void docusage(void) { help_usage("doc"); }
 
 /* manname is a page's name for .TH: gcon-TOPIC, a / as -. */
@@ -1021,7 +1406,7 @@ static char *manname(const char *topic) {
 int doc_main(int argc, char **argv) {
 	enum { Browse, Raw, Html, Man, Text } mode = Browse;
 	bool path = false, list = false, check = false, dobuild = false, test = false;
-	const char *outdir = NULL, *name = NULL, *decl = NULL;
+	const char *outdir = NULL, *name = NULL, *decl = NULL, *httpaddr = NULL;
 	for (int i = 1; i < argc; i++) {
 		const char *a = argv[i];
 		if (a[0] != '-' || !a[1]) {
@@ -1056,6 +1441,8 @@ int doc_main(int argc, char **argv) {
 			dobuild = true;
 		else if (!strcmp(f, "o") && i + 1 < argc)
 			outdir = argv[++i];
+		else if (!strcmp(f, "http") && i + 1 < argc)
+			httpaddr = argv[++i];
 		else {
 			fprintf(stderr, "flag provided but not defined: -%s\n", f);
 			docusage();
@@ -1086,6 +1473,13 @@ int doc_main(int argc, char **argv) {
 		if (decl && !found) {
 			fprintf(stderr, "gcon doc: %s declares no %s\n", name, decl);
 			return 2;
+		}
+		if (mode == Browse) {
+			Buf at = {0};
+			bufprintf(&at, "/file/%s.html", base);
+			int e = browseextra(at.b, md.b ? md.b : "", httpaddr);
+			if (e > 0)
+				return e;
 		}
 		MdDoc *d = md_parse(md.b ? md.b : "", md.n);
 		Buf out = {0};
@@ -1125,6 +1519,13 @@ int doc_main(int argc, char **argv) {
 		const char *base = strrchr(name, '/');
 		base = base ? base + 1 : name;
 		char *topic = xstrndup(base, strlen(base) - 3);
+		if (mode == Browse) {
+			Buf at = {0};
+			bufprintf(&at, "/file/%s.html", topic);
+			int e = browseextra(at.b, b.b, httpaddr);
+			if (e > 0)
+				return e;
+		}
 		switch (mode) {
 		case Raw: fputs(b.b, stdout); break;
 		case Html: {
@@ -1193,6 +1594,8 @@ int doc_main(int argc, char **argv) {
 
 	/* the Icon Program Library: shown apart from the tree */
 	if (name && !strcmp(name, "ipl")) {
+		if (mode == Browse && browsetree("/ipl/index.html", httpaddr) > 0)
+			return 1;
 		ipllist(root.dir);
 		return 0;
 	}
@@ -1209,6 +1612,17 @@ int doc_main(int argc, char **argv) {
 			fprintf(stderr, "gcon doc %s: the IPL has no HTML\n", name);
 			return 1;
 		}
+		if (mode == Browse) {
+			char *nm = xstrndup(name, strlen(name));
+			if (!strncmp(nm, "ipl/", 4))
+				nm += 4;
+			if (hassuffix(nm, ".icn"))
+				nm[strlen(nm) - 4] = 0;
+			Buf at = {0};
+			bufprintf(&at, "/ipl/%s.html", nm);
+			if (browsetree(at.b, httpaddr) > 0)
+				return 1;
+		}
 		MdDoc *d = md_parse(md, strlen(md));
 		Buf out = {0};
 		switch (mode) {
@@ -1223,7 +1637,7 @@ int doc_main(int argc, char **argv) {
 			md_roff(&out, d, manname(d->title), "Gcon " GCON_VERSION);
 			fputs(out.b, stdout);
 			break;
-		case Browse: /* not in the HTML: as text */
+		case Browse: /* no browser: as text */
 		case Text:
 			md_text(&out, d, TextWidth);
 			pager(out.b);
@@ -1260,18 +1674,12 @@ int doc_main(int argc, char **argv) {
 		fputs(out.b, stdout);
 		return 0;
 	case Browse: {
-		struct stat st;
-		if (stat(file.b, &st) != 0) {
-			fprintf(stderr, "gcon doc: the HTML is not built (build.sh builds it); showing text\n");
-		} else {
-			Buf url = {0};
-			bufprintf(&url, "file://%s", pathabs(file.b));
-			if (anchor)
-				bufprintf(&url, "#%s", anchor);
-			if (browse(url.b))
-				return 0;
-			fprintf(stderr, "gcon doc: no browser to open (set BROWSER); showing text\n");
-		}
+		Buf at = {0};
+		bufprintf(&at, "/%s.html", p->topic);
+		if (anchor)
+			bufprintf(&at, "#%s", anchor);
+		if (browsetree(at.b, httpaddr) > 0)
+			return 1;
 	}
 		/* fall through */
 	case Text: md_text(&out, d, TextWidth); pager(out.b);

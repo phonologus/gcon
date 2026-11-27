@@ -2117,6 +2117,47 @@ and every opcode in `vm.h` one in the instruction set; every flag of a
 command appears in its help page; help output has golden files, as
 `fmt.sh` and `lsp.sh`.
 
+### Served, with Run (Sean, 2026-11-27)
+
+**Decision (Sean, 2026-11-27): `gcon doc` serves the documentation
+itself, as Go 1.25's `go doc -http` does, and every example can be
+edited and run where it stands, as on go.dev.** Two rough edges after
+v0.4.0 led here: `gcon doc WOpen` printed text (the IPL had no HTML,
+so there was nothing to open), and examples had no Run button, which a
+`file://` page cannot have (something must run the program).
+
+- By default `gcon doc [name]` listens on the loopback address, on a
+  free port, opens the browser at the page, and serves until it is
+  interrupted. `-http addr` serves on addr and opens nothing. Where
+  there is no browser to open, the page is shown as text, as before.
+- Pages are rendered on request from the tree (the stylesheet, script
+  and search index from memory), so the server needs no built HTML.
+  The IPL is served too, at `/ipl/index.html` and `/ipl/NAME.html` (a
+  file or a procedure), and a program's own doc comments, or a Markdown
+  file, at `/file/NAME.html`; the IPL is still kept out of the static
+  HTML, the search and `-list` (step 5: not anointed).
+- The static HTML (`doc/html`, `-build`, `-path`) stays, for reading
+  without the server: its examples have Copy only.
+- Run: the page's script POSTs the program to `/run`; the server writes
+  it as `prog.icn` in a directory of its own, runs `gcon run prog.icn`
+  in a process group of its own (standard input empty), and replies
+  with standard output and error together and the exit status
+  (`X-Gcon-Status`). Stop aborts the request; the server sees the
+  connection close and kills the group. A run is killed after 60
+  seconds, and its output kept to 1 MB. Graphics examples open real
+  windows (those in the reference use hidden canvases).
+- Guards: a run needs the server's secret (128 random bits, given only
+  to its own pages, in `data-run`; a custom header, so a page elsewhere
+  cannot send it without a CORS preflight the server never grants), and
+  every request a Host of the loopback address and the server's port,
+  against DNS rebinding. Served on another address (`-http :8080`),
+  nothing runs.
+- `src/httpd.c`: a small HTTP/1.1 server, libc sockets only, a child
+  process per connection, one request each (`Connection: close`).
+- Ambiguous IPL procedure names no longer stop `gcon doc` (exit 2, a
+  list that left out the first file): the first file's declaration is
+  shown, with "Also declared in" the others.
+
 ### Order
 
 0. The Gcon sweep: prose in the READMEs, notes, help and the editors'
@@ -2154,8 +2195,8 @@ command appears in its help page; help output has golden files, as
 5. IPL procedures from their header comments. Done (2026-11-27), but
    not anointed (Sean): the IPL is shown apart from the tree, its header
    comments as Arizona wrote them (`gcon doc ipl`, `gcon doc ipl/strings`,
-   `gcon doc WOpen` when the tree has no such name), not in the HTML,
-   the search or `-list`. Candidates for Gcon's standard library carry a
+   `gcon doc WOpen` when the tree has no such name), not in the static HTML,
+   the search or `-list` (served, though: see "Served, with Run"). Candidates for Gcon's standard library carry a
    banner, as rustdoc marks nightly items (Sean): the list is
    `doc/ipl-candidates.txt`; see "What of the IPL is essential". Hover
    on a procedure of `lib/gcon` with a reference entry shows the entry.

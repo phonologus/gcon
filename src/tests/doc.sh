@@ -17,10 +17,11 @@
 #   - The reference: an entry for every built-in function and keyword of
 #     src/builtin.inc (but those not provided), and no others.
 #   - Lookup: a topic, its last element, a file; an unknown name.
-#   - The IPL: gcon doc ipl, a file and a procedure from their header
+#   - The IPL: gcon doc -text ipl, a file and a procedure from their header
 #     comments, the candidates marked; every candidate a file of lib/ipl.
-#   - The browser: $BROWSER is given the page's file URL; a browser
-#     that fails, or no HTML built, gives the page as text.
+#   - The server: $BROWSER is given the served page's URL; its pages,
+#     the IPL's, a run, Stop, and the guards on running; a browser
+#     that fails gives the page as text.
 #
 #   src/tests/doc.sh            check
 #   src/tests/doc.sh -update    rewrite the golden files
@@ -30,7 +31,8 @@ probes=$here/src/tests/doc
 update=
 [ "${1:-}" = -update ] && update=1
 tmp=$(mktemp -d)
-trap 'rm -rf "$tmp"' EXIT
+server=
+trap '[ -n "$server" ] && kill $server 2>/dev/null; rm -rf "$tmp"' EXIT
 CC=${CC:-cc}
 $CC -std=c11 -g -O1 -Wall -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all \
 	-DGCON_VERSION='"test"' -I"$here/vm/src" -o "$tmp/gcon" "$here"/src/*.c "$here/vm/src/gen_tables.c" || exit 2
@@ -209,7 +211,7 @@ fi
 # The IPL: shown apart from the tree, from its header comments; the
 # candidates for the standard library marked; every candidate a file.
 checks=$((checks + 6))
-"$G" doc ipl | grep -q '^procs/strings  *candidate  *Procedures for manipulating strings' ||
+"$G" doc -text ipl | grep -q '^procs/strings  *candidate  *Procedures for manipulating strings' ||
 	problem "gcon doc ipl: procs/strings not listed as a candidate"
 "$G" doc -text WOpen | grep -q "candidate for Gcon's standard library" && "$G" doc -text WOpen | grep -q 'ipl/gprocs/wopen' ||
 	problem "gcon doc WOpen: not wopen.icn's procedure, marked as a candidate"
@@ -220,29 +222,78 @@ checks=$((checks + 6))
 bad=$(grep -v '^#' "$here/doc/ipl-candidates.txt" | while read -r f; do [ -f "$here/lib/ipl/$f.icn" ] || echo "$f"; done)
 [ -z "$bad" ] || problem "doc/ipl-candidates.txt names files that are not in lib/ipl: $bad"
 
-# The browser, in a root of its own, its HTML built.
+# The browser and the server, in a root of its own: gcon doc serves the
+# tree on the loopback address and gives $BROWSER the page's URL; a
+# browser that fails gives the page as text. With curl: the pages, the
+# IPL's, a run (with gcon-vm), and the guards on running.
 root=$tmp/root
-mkdir -p "$root/lib/ipl/procs"
+mkdir -p "$root/lib/ipl/procs" "$root/lib/ipl/gprocs" "$tmp/t"
+cp "$here/lib/ipl/gprocs/wopen.icn" "$root/lib/ipl/gprocs/"
 cp -R "$here/doc" "$root/doc"
 rm -rf "$root/doc/html"
 GCONROOT=$root
+export GCONROOT
 "$G" doc -text help/run >"$tmp/text"
-checks=$((checks + 1))
-"$G" doc help/run >"$tmp/out" 2>"$tmp/err"
-cmp -s "$tmp/out" "$tmp/text" && grep -q 'not built' "$tmp/err" || problem "no HTML: not the page as text, with a note"
-"$G" doc -build || problem "gcon doc -build in the root"
-printf '#!/bin/sh\necho "$1" >"%s"\n' "$tmp/url" >"$tmp/browser"
+printf '#!/bin/sh\necho "$1" >"%s.new" && mv "%s.new" "%s"\n' "$tmp/url" "$tmp/url" "$tmp/url" >"$tmp/browser"
 chmod +x "$tmp/browser"
+# serve NAME: start gcon doc NAME, wait for the browser's URL
+serve() {
+	rm -f "$tmp/url"
+	TMPDIR=$tmp/t BROWSER=$tmp/browser "$G" doc "$1" >"$tmp/out" 2>"$tmp/err" &
+	server=$!
+	n=0
+	while [ ! -s "$tmp/url" ] && [ $n -lt 100 ] && kill -0 $server 2>/dev/null; do
+		sleep 0.1
+		n=$((n + 1))
+	done
+	url=$(cat "$tmp/url" 2>/dev/null)
+	base=$(echo "$url" | sed -n 's|^\(http://127\.0\.0\.1:[0-9]*\)/.*|\1|p')
+}
+stop() { kill $server 2>/dev/null; wait $server 2>/dev/null; }
+checks=$((checks + 2))
+serve run
+echo "$url" | grep -q '^http://127\.0\.0\.1:[0-9]*/help/run\.html$' || problem "BROWSER was not given help/run's URL: $url $(cat "$tmp/err")"
+stop
+serve upto
+echo "$url" | grep -q '^http://127\.0\.0\.1:[0-9]*/ref/scanning\.html#upto$' || problem "BROWSER was not given upto's URL, at its anchor: $url"
+if command -v curl >/dev/null 2>&1 && [ -n "$base" ]; then
+	code() { curl -s -o /dev/null -w '%{http_code}' "$@"; }
+	checks=$((checks + 6))
+	[ "$(code "$base/ref/scanning.html")" = 200 ] && [ "$(code "$base/")" = 200 ] && [ "$(code "$base/style.css")" = 200 ] &&
+		[ "$(code "$base/search-index.js")" = 200 ] || problem "the server: not the tree's pages"
+	[ "$(code "$base/nosuch.html")" = 404 ] && [ "$(code --path-as-is "$base/../../etc/passwd")" = 404 ] || problem "the server: pages that are not there"
+	curl -s "$base/ipl/WOpen.html" | grep -q 'ipl/gprocs/wopen' && curl -s "$base/ipl/index.html" | grep -q 'href="gprocs/wopen.html"' ||
+		problem "the server: not the IPL's pages"
+	[ "$(code -H 'Host: example.com' "$base/index.html")" = 403 ] || problem "the server: answered another Host (DNS rebinding)"
+	token=$(curl -s "$base/index.html" | sed -n 's/.*data-run="\([0-9a-f]*\)".*/\1/p')
+	printf 'procedure main()\n   write("ran ", 6 * 7)\n   exit(3)\nend\n' >"$tmp/prog.icn"
+	[ ${#token} = 32 ] && [ "$(code -X POST --data-binary @"$tmp/prog.icn" "$base/run")" = 403 ] &&
+		[ "$(code -X POST -H 'X-Gcon-Token: 0' --data-binary @"$tmp/prog.icn" "$base/run")" = 403 ] ||
+		problem "the server: a run without its secret was not refused"
+	"$G" doc -html run | grep -q 'data-run' && problem "gcon doc -html: a page with the server's secret"
+	if [ -x "$here/libexec/gcon-vm" ]; then
+		checks=$((checks + 2))
+		stop
+		GCONVM=$here/libexec/gcon-vm
+		export GCONVM
+		serve index
+		token=$(curl -s "$base/index.html" | sed -n 's/.*data-run="\([0-9a-f]*\)".*/\1/p')
+		curl -s -D "$tmp/hdr" -X POST -H "X-Gcon-Token: $token" --data-binary @"$tmp/prog.icn" "$base/run" >"$tmp/ran"
+		[ "$(cat "$tmp/ran")" = "ran 42" ] && grep -q '^X-Gcon-Status: 3' "$tmp/hdr" ||
+			problem "the server: a run gave $(cat "$tmp/ran"), $(grep Status "$tmp/hdr")"
+		# Stop: the request abandoned, the program killed, its directory removed
+		printf 'procedure main()\n   repeat write("x")\nend\n' >"$tmp/loop.icn"
+		curl -s -o /dev/null --max-time 1 -X POST -H "X-Gcon-Token: $token" --data-binary @"$tmp/loop.icn" "$base/run"
+		sleep 1
+		[ -z "$(ls "$tmp/t")" ] || problem "the server: a stopped run left $(ls "$tmp/t")"
+		unset GCONVM
+	fi
+else
+	echo "doc: no curl: the server's pages not checked"
+fi
+stop
 checks=$((checks + 1))
-BROWSER=$tmp/browser "$G" doc run >"$tmp/out" 2>&1
-[ "$(cat "$tmp/url" 2>/dev/null)" = "file://$root/doc/html/help/run.html" ] && [ ! -s "$tmp/out" ] ||
-	problem "BROWSER was not given help/run's URL: $(cat "$tmp/url" 2>/dev/null) $(cat "$tmp/out")"
-checks=$((checks + 1))
-BROWSER=$tmp/browser "$G" doc upto >"$tmp/out" 2>&1
-[ "$(cat "$tmp/url" 2>/dev/null)" = "file://$root/doc/html/ref/scanning.html#upto" ] ||
-	problem "BROWSER was not given upto's URL, at its anchor: $(cat "$tmp/url" 2>/dev/null)"
 BROWSER=false "$G" doc run >"$tmp/out" 2>"$tmp/err"
 cmp -s "$tmp/out" "$tmp/text" && grep -q 'no browser' "$tmp/err" || problem "a failing browser: not the page as text, with a note"
-
 echo "doc: $checks checks; $fail problems"
 [ "$fail" = 0 ]
