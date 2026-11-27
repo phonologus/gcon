@@ -789,11 +789,15 @@ Go's handling of UTF-8 throughout. All encoding and decoding goes through
   reads a byte with `reads(f)` and backs over it with
   `seek(f, where(f) - 1)`), and with the 9.5 programs that read a file
   in fixed-size blocks. It may split a sequence, which is safe by the
-  malformed-UTF-8 rule above: the pieces rejoin. `readrunes(f, n)` is
-  gcon's built-in for n characters: code points in a text file, never
-  splitting a sequence (an invalid byte is one character), and bytes in
-  a bytes file, where it is `reads`. Both produce a string of the file's
-  unit. There is no counterpart for writing: `writes` takes no count,
+  malformed-UTF-8 rule above: the pieces rejoin. **`reads` always
+  produces bytes**, whatever the file's unit, so binary readers get 9.5's
+  values from a file opened in the default text mode: `ord(reads(f))`
+  of the byte 0xE9 is 233 (as text, a lone byte would read as U+FFFD,
+  65533). `runes(reads(f, n))` reads the result as text, at no cost.
+  `readrunes(f, n)` is gcon's built-in for n characters: code points in
+  a text file, never splitting a sequence (an invalid byte is one
+  character), and bytes in a bytes file, where it is `reads`. It
+  produces a string of the file's unit. There is no counterpart for writing: `writes` takes no count,
   and writes a string's bytes unchanged in either unit (the first n
   characters of `s` are `s ? move(n)`). On a window both read n
   keystrokes, which are one byte each, as in iconx.

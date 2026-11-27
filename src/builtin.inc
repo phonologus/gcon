@@ -126,7 +126,7 @@ static const BuiltinFunc functions[] = {
 	{"put", -1, "put(L,x1,...,xN)", "put elements onto end of list L.", false, false},
 	{"read", 2, "read(f)", "read line on file f.", false, false},
 	{"readrunes", 2, "readrunes(f,i)", "read i characters (code points in a text file) on file f", false, true},
-	{"reads", 2, "reads(f,i)", "read i bytes on file f.", false, false},
+	{"reads", 2, "reads(f,i)", "read i bytes on file f, as a bytes string.", false, false},
 	{"real", 1, "real(x)", "convert x to a real number, failing if that is not possible.", false, false},
 	{"remove", 2, "remove(s)", "remove the file named s.", false, false},
 	{"rename", 1, "rename(s1,s2)", "rename the file named s1 to have the name s2.", false, false},

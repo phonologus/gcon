@@ -225,8 +225,9 @@ bool readline_(File *f, String *out) {
 
 /* readchars reads up to k bytes (reads), or k characters if runes
  * (readrunes: code points in a text file, never splitting one; bytes
- * in a bytes file). The result has the file's unit either way. A
- * window's keystrokes are one byte each, so both read k keystrokes. */
+ * in a bytes file), in the file's unit (readn relabels reads' result
+ * as bytes). A window's keystrokes are one byte each, so both read k
+ * keystrokes. */
 static bool readchars(File *f, int64_t k, bool runes, String *out) {
 	if (f->gfx && !f->closed)
 		return gfx_read(f, k, out);
@@ -484,7 +485,8 @@ FN(f_read) {
 	return true;
 }
 
-/* readn implements reads (k bytes) and readrunes (k characters). */
+/* readn implements reads (k bytes, always a bytes string, as Icon 9.5's
+ * low-level reader) and readrunes (k characters, in the file's unit). */
 static bool readn(Value *a, int n, bool runes, Value *out) {
 	File *f = filearg(a, n, 0, vm.input);
 	int64_t k = 1;
@@ -495,6 +497,8 @@ static bool readn(Value *a, int n, bool runes, Value *out) {
 	String s;
 	if (!readchars(f, k, runes, &s))
 		return false;
+	if (!runes)
+		s.unit = BytesUnit;
 	*out = strval(s);
 	return true;
 }

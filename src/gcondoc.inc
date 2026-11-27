@@ -45,8 +45,9 @@ static const struct {
 	 "In a text file a character is a UTF-8 code point, and a sequence is never split; each byte that is "
 	 "not part of valid UTF-8 counts as one character. In a bytes file (open mode `\"u\"`) "
 	 "`readrunes(f,i)` is `reads(f,i)`. Fails at end of file; at the end it produces what is left.\n\n"
-	 "`reads` always counts bytes, as in Icon 9.5, so it reads binary data in either unit "
-	 "and agrees with `seek` and `where`."},
+	 "The result has the file's unit: text from a text file. "
+	 "`reads` counts bytes and produces bytes from any file, as Icon 9.5's low-level reader, so it reads "
+	 "binary data and agrees with `seek` and `where`; `runes(reads(f,i))` reads its result as text."},
 	{"&uset",
 	 "```icon\n&uset\n```\n\n"
 	 "The cset of every character: the 128 ASCII characters, the 128 non-ASCII bytes and every Unicode "

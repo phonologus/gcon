@@ -143,11 +143,12 @@ either way, which is why ASCII programs don't change.
   `move(n)`, `map`, `reverse`, `trim`, `ord`, `image`, and the widths
   in `left`, `right` and `center`. The new built-in `len(s)` counts
   characters; `*s` still counts bytes.
-- **`reads(f, n)` reads n bytes**, as in 9.5, in either unit, so it
-  agrees with `seek` and `where` and reads binary data; it may split a
-  character, and the pieces rejoin. The new built-in `readrunes(f, n)`
-  reads n characters without splitting one. `writes` writes a string's
-  bytes unchanged.
+- **`reads(f, n)` reads n bytes and produces bytes**, as in 9.5, from
+  any file, so it agrees with `seek` and `where` and reads binary data
+  (`ord(reads(f))` is the byte's value); it may split a character, and
+  the pieces rejoin. `runes(s)` reads its result as text. The new
+  built-in `readrunes(f, n)` reads n characters without splitting one,
+  as text from a text file. `writes` writes a string's bytes unchanged.
 - **Literals:** a literal is text if it contains non-ASCII UTF-8 or a
   `\u` or `\U` escape, which are new; `\x80` to `\xff` are bytes. A
   Latin-1 source file keeps its 9.5 meaning.

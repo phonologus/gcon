@@ -28,6 +28,12 @@ procedure main()
    s := reads(f)
    seek(f, where(f) - 1)
    write(image(s), " ", where(f), " ", image(readrunes(f)))
+
+   # reads produces bytes even from a text file, as binary readers
+   # need; runes reads them as text again
+   seek(f, 4)
+   s := reads(f, 2)
+   write(ord(s[1]), " ", ord(s[2]), " ", len(s), " ", image(runes(s)))
    close(f)
 
    f := open("rr.tmp", "u")
