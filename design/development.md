@@ -122,13 +122,42 @@ the current one.
 is `gcon help NAME`, and `gcon.txt` the overview, which lists every
 command and topic. A command's page starts with its usage, up to the
 first blank line, which is what the command prints when misused.
-`tools/help.sh`, run by `build.sh`, compiles them into
+`tools/embed.sh`, run by `build.sh`, compiles them into
 `src/helppages.inc`, which is committed, so that whatever compiles
 `src/*.c` has it. `src/tests/help.sh` checks that it is current, and the
 pages against gcon and the code: each page as gcon prints it, the
 overview against the pages and the commands, each usage's flags against
 the page, and every environment variable the C reads against `gcon help
 environment` or the list below.
+
+## Documentation
+
+`gcon doc`'s pages are the Markdown files in `doc/` (a page's topic is
+its path without `.md`), with `gcon help`'s pages added as `help/NAME`.
+`build.sh` renders them as HTML into `doc/html` (`gcon doc -build`, not
+committed); the stylesheet and search script are `src/doc/style.css`
+and `search.js`, embedded by `tools/embed.sh`. `gcon doc -check` checks
+every page; `src/tests/doc.sh` runs it, with golden files of a probe
+page (`src/tests/doc/probe.md`) as HTML, text and roff.
+
+The pages are written in a small subset of Markdown, which every
+renderer shows in full; `gcon doc` reports anything else, with its line:
+
+- **Blocks:** `#` to `####` headings (one `#` heading, the title, first);
+  paragraphs; lists with `- ` or `1. `, nested one level by indenting to
+  the item's text, and paragraphs or code inside an item indented the
+  same; fenced code, ```` ``` ```` with an optional language; tables, a
+  header row, a `|---|` row, then rows with the same number of cells.
+- **Inline:** `` `code` ``, `*emphasis*`, `**strong**`, `[text](target)`,
+  and a backslash before punctuation for the character itself (`\*`,
+  `\<`).
+- **Not:** block quotes, HTML, images, indented code, rules, setext
+  headings, `*` or `+` items, reference links, `_` emphasis, tabs
+  outside code.
+- **Links** between pages are relative paths to `.md` files, with
+  `#anchor` for a heading: the heading's text in lower case, spaces as
+  `-`, other punctuation dropped (as GitHub's), `-1`, `-2` for repeats.
+  `-check` reports a link to a page or heading that does not exist.
 
 ## Environment variables for development
 

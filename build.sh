@@ -11,6 +11,7 @@
 #                          xgamma vib), built by gcon from lib/ipl
 #   lib/libcfunc.so        the IPL's C functions (lib/ipl/cfuncs)
 #   lib/gcon/uclass.icn    gcon's uclass module, generated from deps/unicode
+#   doc/html               the documentation as HTML (gcon doc -build)
 #
 # Builds never use the network. $CC and $CFLAGS are passed on.
 set -eu
@@ -61,11 +62,13 @@ if command -v git >/dev/null 2>&1 && git rev-parse --git-dir >/dev/null 2>&1; th
 	fi
 	[ -n "$(git status --porcelain)" ] && version="$version+dirty"
 fi
-sh tools/help.sh # src/helppages.inc: gcon help's pages, from src/help
+sh tools/embed.sh # src/*.inc: gcon help's pages, gcon doc's stylesheet and script
 ${CC:-cc} -std=c11 -O2 -Wall -Wextra ${CFLAGS:-} -DGCON_VERSION="\"$version\"" -Ivm/src \
 	-o bin/gcon.new src/*.c vm/src/gen_tables.c
 mv bin/gcon.new bin/gcon
 echo "built bin/gcon ($version)"
+bin/gcon doc -build # doc/html: the documentation, for gcon doc
+echo "built doc/html"
 
 # The C functions of the IPL (lib/ipl/cfuncs), as Arizona builds them
 # into its bin, into lib/libcfunc.so, against gcon's icall.h; gcon-vm

@@ -1,0 +1,53 @@
+/* The documentation's stylesheet (gcon doc -build). */
+:root {
+  --bg: #fdfdfb; --fg: #1f2328; --muted: #656d76; --rule: #d8dee4;
+  --link: #0b5cad; --code-bg: #f3f4f1; --head-bg: #f6f7f4; --mark: #fff3bf;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #16181c; --fg: #e3e5e8; --muted: #9aa1aa; --rule: #30363d;
+    --link: #7cb7ff; --code-bg: #22262c; --head-bg: #1c1f24; --mark: #4a3f10;
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--fg);
+  font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+}
+header {
+  position: sticky; top: 0; z-index: 1; display: flex; flex-wrap: wrap; align-items: center;
+  gap: 0.5rem 1rem; padding: 0.6rem 16px; background: var(--head-bg);
+  border-bottom: 1px solid var(--rule);
+}
+header .home { font-weight: 600; color: var(--fg); text-decoration: none; }
+header .version { color: var(--muted); font-size: 0.85rem; }
+#search {
+  margin-left: auto; width: min(18rem, 100%); padding: 0.3rem 0.6rem; font: inherit; font-size: 0.95rem;
+  color: var(--fg); background: var(--bg); border: 1px solid var(--rule); border-radius: 6px;
+}
+#results {
+  position: absolute; right: 16px; top: 100%; width: min(28rem, calc(100% - 32px)); max-height: 70vh;
+  overflow: auto; margin: 0.2rem 0 0; padding: 0.3rem 0; list-style: none; background: var(--bg);
+  border: 1px solid var(--rule); border-radius: 6px; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+}
+#results li a { display: block; padding: 0.3rem 0.8rem; color: var(--fg); text-decoration: none; }
+#results li a:hover, #results li a.current { background: var(--mark); }
+#results li .page { color: var(--muted); font-size: 0.85rem; margin-left: 0.5rem; }
+main { max-width: 46rem; margin: 0 auto; padding: 1rem 16px 4rem; overflow-wrap: break-word; }
+h1, h2, h3, h4 { line-height: 1.25; margin: 2rem 0 0.75rem; }
+h1 { font-size: 2rem; margin-top: 1rem; }
+h2 { font-size: 1.45rem; padding-bottom: 0.25rem; border-bottom: 1px solid var(--rule); }
+h3 { font-size: 1.15rem; }
+h4 { font-size: 1rem; }
+a { color: var(--link); }
+code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.9em; }
+code { background: var(--code-bg); padding: 0.1em 0.3em; border-radius: 4px; }
+pre { background: var(--code-bg); padding: 0.8rem 1rem; border-radius: 6px; overflow-x: auto; line-height: 1.45; }
+pre code { background: none; padding: 0; font-size: 1em; }
+table { border-collapse: collapse; display: block; overflow-x: auto; margin: 1rem 0; }
+th, td { border: 1px solid var(--rule); padding: 0.35rem 0.7rem; text-align: left; vertical-align: top; }
+th { background: var(--head-bg); }
+ul, ol { padding-left: 1.6rem; }
+li + li { margin-top: 0.2rem; }

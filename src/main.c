@@ -14,9 +14,11 @@
  *	gcon env                       print gcon's root and library search paths
  *	gcon version                   print gcon's version
  *	gcon help [command | topic]    the manual (help.c, src/help)
+ *	gcon doc [flags] [name]        the documentation (doc.c, doc/)
  *
  * Programs run on gcon-vm, the root's (libexec/gcon-vm) or $GCONVM's.
  */
+#include "doc.h"
 #include "driver.h"
 #include "format.h"
 #include "help.h"
@@ -271,6 +273,8 @@ int main(int argc, char **argv) {
 			help_usage("dis");
 		return execvm(vm(), argv[2], NULL, 0, true, &c);
 	}
+	if (!strcmp(cmd, "doc"))
+		return doc_main(argc - 1, argv + 1);
 	if (!strcmp(cmd, "lsp"))
 		return lsp_main(argc - 1, argv + 1);
 	if (!strcmp(cmd, "vet"))

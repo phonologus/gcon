@@ -1,0 +1,42 @@
+usage: gcon doc [-raw | -html | -man | -text] [-path] [name]
+       gcon doc -list
+       gcon doc -check
+       gcon doc -build [-o dir]
+
+Doc shows Gcon's documentation: the pages in the root's doc directory,
+and these help pages. By default it opens the page in the web browser,
+as rustup doc does: the installed version's documentation, offline.
+The browser is $BROWSER, else open on macOS, else xdg-open where there
+is a display; where there is none, doc shows the page as text.
+
+With no name, doc shows the index. A name is a page's topic, its path
+in the tree without ".md" (internals/protocol), or the last element of
+one (protocol), or a Markdown file's path. The help pages are
+help/index and help/NAME (help/run). gcon doc -list lists the topics.
+
+The flags are:
+
+	-build
+		render the tree as HTML, with its search index, into the
+		root's doc/html (build.sh does this).
+	-check
+		check every page: Markdown that is not the documentation's
+		subset, and links to pages or headings that do not exist.
+	-html
+		print the page's HTML.
+	-list
+		list the topics and their titles.
+	-man
+		print the page as roff, to read as a manual page:
+		gcon doc -man protocol | man -l -
+	-o dir
+		with -build: write into dir instead.
+	-path
+		print the path of the page's HTML file, and open nothing.
+	-raw
+		print the page's Markdown.
+	-text
+		print the page as plain text, through $PAGER (default less)
+		on a terminal.
+
+See also: gcon help help.

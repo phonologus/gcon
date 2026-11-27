@@ -20,6 +20,15 @@ The toolchain:
 		the gcon that a built program runs through, if GCONVM is not
 		set.
 
+The documentation (gcon doc):
+
+	BROWSER
+		the browser to open pages in, instead of open (macOS) or
+		xdg-open; it may carry arguments.
+	PAGER
+		the pager for gcon doc -text on a terminal (default less;
+		empty for none).
+
 Running programs (gcon-vm):
 
 	TRACE

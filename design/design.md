@@ -2101,7 +2101,7 @@ command appears in its help page; help output has golden files, as
 0. The Gcon sweep: prose in the READMEs, notes, help and the editors'
    display names (not released changelog entries, not code).
 1. `gcon help`, its pages and topics; the `getenv` check. Done
-   (2026-11-27): the pages in `src/help`, compiled in by `tools/help.sh`
+   (2026-11-27): the pages in `src/help`, compiled in by `tools/embed.sh`
    (`src/helppages.inc`, committed); checked by `src/tests/help.sh`;
    the variables for development listed in design/development.md.
 2. The doc tree and `gcon doc` topics: README split, internal sections
@@ -2115,6 +2115,16 @@ command appears in its help page; help output has golden files, as
 4. The reference in batches: core functions, keywords, graphics
    functions and attributes.
 5. IPL procedures from their header comments.
+6. Doc comments (Sean, 2026-11-27), as Go's: lightweight and
+   heuristic, not Rust's full Markdown. The comment lines directly
+   before a procedure, record or global (or the IPL's `#:` line after
+   a procedure heading) document it; paragraphs, indented lines kept as
+   they are, lists and headings recognised by Go's rules. One reader
+   in C feeds `gcon doc NAME` for a program's or library's
+   declarations (as `go doc` does for a package), `gcon lsp`'s hover
+   (which shows the comment as it is now) and perhaps `gcon vet` (a
+   comment that names another declaration). The IPL's header
+   convention (step 5) is read the same way.
 
 Decided (Sean, 2026-11-27): the internal notes are in `design/` (and
 `vm/design/`, `graphics/design/`), so that `doc/` is only what ships.

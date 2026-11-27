@@ -69,3 +69,7 @@ int help_main(int argc, char **argv) {
 	fputs(t, stdout);
 	return 0;
 }
+
+int help_count(void) { return NPages; }
+const char *help_name(int i) { return helppages[i].name; }
+const char *help_text(int i) { return helppages[i].text; }

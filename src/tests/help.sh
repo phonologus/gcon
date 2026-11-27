@@ -3,7 +3,8 @@
 # undefined-behaviour sanitizers). The pages in src/help are checked
 # against gcon and against the code:
 #
-#   - src/helppages.inc is what tools/help.sh makes of src/help.
+#   - src/helppages.inc, docstyle.inc and docsearch.inc are what
+#     tools/embed.sh makes of src/help and src/doc.
 #   - "gcon help NAME" prints NAME.txt, and "gcon help" the overview, on
 #     standard output with exit status 0; "gcon CMD -h" and "--help" print
 #     a command's page the same way.
@@ -55,12 +56,13 @@ expect() {
 		sed 's/^/	/' "$tmp/err" | head -5
 	}
 }
-
-# The generated pages are current.
-checks=$((checks + 1))
-sh "$here/tools/help.sh" "$tmp/helppages.inc" &&
-	cmp -s "$tmp/helppages.inc" "$here/src/helppages.inc" ||
-	problem "src/helppages.inc is not current: run tools/help.sh"
+# The embedded files are current.
+mkdir "$tmp/embed"
+sh "$here/tools/embed.sh" "$tmp/embed" || problem "tools/embed.sh failed"
+for f in helppages docstyle docsearch; do
+	checks=$((checks + 1))
+	cmp -s "$tmp/embed/$f.inc" "$here/src/$f.inc" || problem "src/$f.inc is not current: run tools/embed.sh"
+done
 
 # Every page, asked for.
 expect 0 "$pages/gcon.txt" /dev/null -- help
@@ -87,7 +89,7 @@ usage() {
 	echo "Run 'gcon help $1' for details."
 }
 for misuse in "run" "dis" "dis a b" "build" "build -x f.icn" "build -o" "build a.icn b.icn" \
-	"vet" "vet -x f.icn" "fmt -x" "lsp -x" "lsp fetch-docs -x" "env x" "version x"; do
+	"vet" "vet -x f.icn" "fmt -x" "lsp -x" "lsp fetch-docs -x" "env x" "version x" "doc -x" "doc a b"; do
 	set -- $misuse
 	usage "$1" >"$tmp/usage"
 	case "$misuse" in
@@ -127,7 +129,7 @@ for v in $(cat "$here"/src/*.c "$here"/src/*.h "$here"/vm/src/*.c "$here"/vm/src
 	"$here"/graphics/src/*.c "$here"/graphics/src/*.h 2>/dev/null |
 	grep -o 'getenv("[A-Za-z_][A-Za-z0-9_]*")' | sed 's/getenv("\(.*\)")/\1/' | sort -u); do
 	checks=$((checks + 1))
-	case $v in HOME | PATH | TMPDIR | XDG_CACHE_HOME) continue ;; esac
+	case $v in HOME | PATH | TMPDIR | XDG_CACHE_HOME | DISPLAY | WAYLAND_DISPLAY) continue ;; esac
 	grep -q "^	$v\$" "$pages/environment.txt" && continue
 	grep -q "^| \`$v[=\`]" "$here/design/development.md" && continue
 	problem "$v is read but documented in neither gcon help environment nor design/development.md"

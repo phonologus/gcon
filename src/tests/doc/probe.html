@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The probe page — Gcon</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body data-root="">
+<header><a class="home" href="index.html">Gcon documentation</a><span class="version">test</span><input id="search" type="search" placeholder="Search" aria-label="Search the documentation" autocomplete="off"><ul id="results" hidden></ul></header>
+<main>
+<h1 id="the-probe-page">The probe page</h1>
+<p>Every construct of the documentation's Markdown, for the renderers' golden files: <em>emphasis</em>, <strong>strong</strong>, <code>code with -flags</code>, a backslash * for a literal star, <a href="help/run.html">a page</a>, <a href="#lists">a heading</a>, and <a href="https://example.com/x?a=1&amp;b=2">a URL</a>. Escaped: &lt;, &amp;, &quot;quotes&quot;, a backslash \ and a leading .dot that roff must not take as a request.</p>
+<h2 id="lists">Lists</h2>
+<ul>
+<li>one item, whose text runs on for long enough that it has to be filled onto a second line in the text renderer
+</li>
+<li>two, with <code>code</code>
+<ul>
+<li>nested, level one
+</li>
+<li>nested again
+</li>
+</ul>
+<p>A paragraph inside the second item.</p>
+<pre><code>code inside the item
+</code></pre>
+</li>
+<li>three
+</li>
+</ul>
+<ol>
+<li>first
+</li>
+<li>second
+</li>
+<li>third
+</li>
+</ol>
+<h2 id="code">Code</h2>
+<pre><code class="language-icon">procedure main()
+   write(&quot;hello, \&quot;world\&quot; &lt;&amp;&gt;&quot;)   # a comment
+end
+</code></pre>
+<h3 id="a-table">A table</h3>
+<table>
+<thead>
+<tr><th>Name</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>-raw</code></td><td>the <em>Markdown</em></td></tr>
+<tr><td><code>-man</code></td><td>roff, for man</td></tr>
+</tbody>
+</table>
+<h4 id="smallest-heading">Smallest heading</h4>
+<p>Repeated heading:</p>
+<h2 id="lists-1">Lists</h2>
+<p>The end.</p>
+</main>
+<script src="search-index.js"></script>
+<script src="search.js"></script>
+</body>
+</html>

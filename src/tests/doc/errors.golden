@@ -1,0 +1,24 @@
+errors.md: line 3: a tab: use spaces outside code
+errors.md: line 5: a block quote: not in the documentation's Markdown
+errors.md: line 7: HTML: not in the documentation's Markdown
+errors.md: line 7: HTML (or an <autolink>): not in the documentation's Markdown; escape the < as \<
+errors.md: line 7: HTML (or an <autolink>): not in the documentation's Markdown; escape the < as \<
+errors.md: line 9: a list item marked with * or +: use -
+errors.md: line 9: emphasis that is never closed (a literal * is written \*)
+errors.md: line 11: a rule: not in the documentation's Markdown
+errors.md: line 13: indented code: use a ``` fence
+errors.md: line 15: HTML (or an <autolink>): not in the documentation's Markdown; escape the < as \<
+errors.md: line 15: HTML (or an <autolink>): not in the documentation's Markdown; escape the < as \<
+errors.md: line 15: an image: not in the documentation's Markdown
+errors.md: line 17: a ` that is never closed
+errors.md: line 17: emphasis that is never closed (a literal * is written \*)
+errors.md: line 19: a reference link: write [text](target)
+errors.md: line 19: a link whose target is never closed
+errors.md: line 21: headings go to #### only
+errors.md: line 23: a heading needs a space after its #s
+errors.md: line 26: a setext heading or a rule: use # headings
+errors.md: line 33: lists nest one level only
+errors.md: line 35: a table needs a header row and a |---| row
+errors.md: line 40: a table row whose cells differ in number from the header's
+errors.md: line 42: a ``` fence that is never closed
+status 1

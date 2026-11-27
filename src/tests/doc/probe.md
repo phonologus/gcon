@@ -1,0 +1,50 @@
+# The probe page
+
+Every construct of the documentation's Markdown, for the renderers'
+golden files: *emphasis*, **strong**, `code with -flags`, a backslash
+\* for a literal star, [a page](help/run.md), [a heading](#lists), and
+[a URL](https://example.com/x?a=1&b=2). Escaped: \<, &, "quotes", a
+backslash \\ and a leading
+.dot that roff must not take as a request.
+
+## Lists
+
+- one item, whose text runs on for long enough that it has to be
+  filled onto a second line in the text renderer
+- two, with `code`
+  - nested, level one
+  - nested again
+
+  A paragraph inside the second item.
+
+  ```
+  code inside the item
+  ```
+- three
+
+1. first
+2. second
+3. third
+
+## Code
+
+```icon
+procedure main()
+   write("hello, \"world\" <&>")   # a comment
+end
+```
+
+### A table
+
+| Name | Meaning |
+|---|---|
+| `-raw` | the *Markdown* |
+| `-man` | roff, for man |
+
+#### Smallest heading
+
+Repeated heading:
+
+## Lists
+
+The end.

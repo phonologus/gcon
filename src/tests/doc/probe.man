@@ -1,0 +1,52 @@
+.TH "GCON-PROBE" 7 "Gcon test" "Gcon" "Gcon documentation"
+.SH NAME
+\&The probe page
+\&Every construct of the documentation's Markdown, for the renderers' golden files: \fIemphasis\fR, \fBstrong\fR, \fBcode with \-flags\fR, a backslash * for a literal star, a page, a heading, and a URL <https://example.com/x?a=1&b=2>. Escaped: <, &, "quotes", a backslash \e and a leading .dot that roff must not take as a request.
+.SH "LISTS"
+.IP \(bu 4
+\&one item, whose text runs on for long enough that it has to be filled onto a second line in the text renderer
+.IP \(bu 4
+\&two, with \fBcode\fR
+.RS 4
+.IP \(bu 4
+\&nested, level one
+.IP \(bu 4
+\&nested again
+.RE
+.IP "" 4
+\&A paragraph inside the second item.
+.IP "" 4
+.RS 4
+.nf
+\&code inside the item
+.fi
+.RE
+.IP \(bu 4
+\&three
+.IP "1." 4
+\&first
+.IP "2." 4
+\&second
+.IP "3." 4
+\&third
+.SH "CODE"
+.RS 4
+.nf
+\&procedure main()
+\&   write("hello, \e"world\e" <&>")   # a comment
+\&end
+.fi
+.RE
+.SS "A table"
+.RS 4
+.nf
+\&Name  Meaning
+\&----  -------------
+\&-raw  the Markdown
+\&-man  roff, for man
+.fi
+.RE
+.SS "Smallest heading"
+\&Repeated heading:
+.SH "LISTS"
+\&The end.

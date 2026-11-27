@@ -1,6 +1,6 @@
 /*
  * gcon help: the tool's own manual, as go help is Go's. The pages are
- * plain text in src/help, compiled in by tools/help.sh, so help is
+ * plain text in src/help, compiled in by tools/embed.sh, so help is
  * always the installed version's and needs no root.
  */
 #ifndef GCON_HELP_H
@@ -26,5 +26,11 @@ _Noreturn void help_usage(const char *name);
 /* help_overview prints the overview on standard error and exits 2:
  * what gcon with no command, or an unknown one, does. */
 _Noreturn void help_overview(void);
+
+/* The pages, for gcon doc: help_count of them, each a name ("gcon" is
+ * the overview) and its text. */
+int help_count(void);
+const char *help_name(int i);
+const char *help_text(int i);
 
 #endif
