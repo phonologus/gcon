@@ -133,12 +133,25 @@ checks=$((checks + 1))
 "$G" doc -path nosuch >/dev/null 2>"$tmp/err"
 [ $? = 2 ] && grep -q 'no such page' "$tmp/err" || problem "gcon doc nosuch: not refused"
 
+# doc/ref/uclass.md is what tools/uclass.sh makes of the Unicode data.
+mkdir "$tmp/uclass"
+checks=$((checks + 1))
+sh "$here/tools/uclass.sh" -o "$tmp/uclass" >/dev/null &&
+	cmp -s "$tmp/uclass/uclass.md" "$here/doc/ref/uclass.md" ||
+	problem "doc/ref/uclass.md is not current: run tools/uclass.sh"
+
 # The reference is complete: an entry for every function and keyword of
-# src/builtin.inc but those not provided (fattrib, the Win functions), no
-# other entries, and none twice.
+# src/builtin.inc but those not provided (fattrib, the Win functions), and
+# for every documented procedure ("#:") of Gcon's own library, lib/gcon;
+# no other entries, and none twice.
 awk -F'"' '/^static const BuiltinFunc functions/ { f = 1 } /^static const Keyword keywords/ { f = 0; k = 1 }
 	/^static const Predefined/ { k = 0 } f && /^\t\{"/ { print $2 } k && /^\t\{"/ { print "&" $2 }' "$here/src/builtin.inc" |
-	grep -v '^Win\|^fattrib$' | sort >"$tmp/want"
+	grep -v '^Win\|^fattrib$' >"$tmp/want.0"
+for f in "$tmp/uclass/uclass.icn" "$here"/lib/gcon/*.icn; do
+	[ "$(basename "$f")" = uclass.icn ] && [ "$f" != "$tmp/uclass/uclass.icn" ] && continue
+	[ -f "$f" ] && sed -n 's/^procedure \([A-Za-z_][A-Za-z0-9_]*\)(.*#:.*/\1/p' "$f"
+done >>"$tmp/want.0"
+sort "$tmp/want.0" >"$tmp/want"
 grep -h '^## ' "$here"/doc/ref/*.md | sed 's/^## //' | grep -v ' ' | sort >"$tmp/have"
 checks=$((checks + 3))
 missing=$(comm -23 "$tmp/want" "$tmp/have" | tr '\n' ' ')

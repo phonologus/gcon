@@ -10,6 +10,8 @@ NAME` shows one entry: `gcon doc find`, `gcon doc '&subject'`.
 - [String scanning](scanning.md): `any`, `bal`, `find`, `many`, `match`,
   `move`, `pos`, `tab`, `upto`
 - [Unicode](unicode.md): `uchar`, `uord`, `uset`, `uvalid` (Gcon's)
+- [Unicode character classes](uclass.md): `uclass` and its categories and
+  scripts (Gcon's library module)
 - [Values and types](values.md): `args`, `copy`, `cset`, `function`,
   `image`, `integer`, `name`, `numeric`, `proc`, `real`, `serial`,
   `string`, `type`, `variable`

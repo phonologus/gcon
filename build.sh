@@ -11,6 +11,7 @@
 #                          xgamma vib), built by gcon from lib/ipl
 #   lib/libcfunc.so        the IPL's C functions (lib/ipl/cfuncs)
 #   lib/gcon/uclass.icn    gcon's uclass module, generated from deps/unicode
+#                          (with doc/ref/uclass.md, its page, which is committed)
 #   doc/html               the documentation as HTML (gcon doc -build)
 #
 # Builds never use the network. $CC and $CFLAGS are passed on.

@@ -63,7 +63,7 @@ Unicode character classes are a library module, not language: `link
 uclass`, and `uclass("L")`, `uclass("Nd")` or `uclass("Greek")` is that
 general category or script as a uset, from the Unicode Character
 Database the root was built with (Unicode 17.0.0). The names are those
-of Go's `unicode` package.
+of Go's `unicode` package; [the reference](ref/uclass.md) lists them all.
 
 ## Literals
 

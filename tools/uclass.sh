@@ -19,7 +19,11 @@ grep -v '^#' "$deps/deps.lock" | while read -r name ver sha url; do
 done
 ver=$(awk '$1 == "UnicodeData.txt" { print $2 }' "$deps/deps.lock")
 out=$root/lib/gcon/uclass.icn
-mkdir -p "$root/lib/gcon"
+page=$root/doc/ref/uclass.md
+if [ "${1:-}" = -o ]; then # tools/uclass.sh -o dir: both files into dir
+	out=$2/uclass.icn page=$2/uclass.md
+fi
+mkdir -p "$(dirname "$out")"
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 
@@ -125,4 +129,91 @@ END {
 	print "end"
 }' "$tmp/ranges" >"$tmp/uclass.icn"
 mv "$tmp/uclass.icn" "$out"
-echo "built lib/gcon/uclass.icn (Unicode $ver)"
+
+# doc/ref/uclass.md, the reference's page of the classes (committed;
+# src/tests/doc.sh checks that it is current): each class with the
+# number of characters in it, and examples whose output comes from the
+# same data, so that gcon doc -test checks the page against the module.
+awk -v ver="$ver" '
+function cat(c) {
+	return c == "L" ? "letters" : c == "Lu" ? "uppercase letters" : c == "Ll" ? "lowercase letters" : \
+		c == "Lt" ? "titlecase letters" : c == "Lm" ? "modifier letters" : c == "Lo" ? "other letters" : \
+		c == "M" ? "marks" : c == "Mn" ? "nonspacing marks" : c == "Mc" ? "spacing marks" : \
+		c == "Me" ? "enclosing marks" : c == "N" ? "numbers" : c == "Nd" ? "decimal digits" : \
+		c == "Nl" ? "letter numbers" : c == "No" ? "other numbers" : c == "P" ? "punctuation" : \
+		c == "Pc" ? "connector punctuation" : c == "Pd" ? "dashes" : c == "Ps" ? "opening punctuation" : \
+		c == "Pe" ? "closing punctuation" : c == "Pi" ? "initial quotes" : c == "Pf" ? "final quotes" : \
+		c == "Po" ? "other punctuation" : c == "S" ? "symbols" : c == "Sm" ? "mathematical symbols" : \
+		c == "Sc" ? "currency symbols" : c == "Sk" ? "modifier symbols" : c == "So" ? "other symbols" : \
+		c == "Z" ? "separators" : c == "Zs" ? "spaces" : c == "Zl" ? "the line separator" : \
+		c == "Zp" ? "the paragraph separator" : c == "C" ? "other: control, format, private use" : \
+		c == "Cc" ? "control characters" : c == "Cf" ? "format characters" : \
+		c == "Cs" ? "surrogates (none in a uset)" : c == "Co" ? "private use" : "?"
+}
+$2 >= 0 { n[$1] += $3 - $2 + 1 }
+{ if (!($1 in seen)) { seen[$1] = 1; names[++nn] = $1 }; if (!($1 in n)) n[$1] = 0 }
+END {
+	print "# Unicode character classes"
+	print ""
+	print "The general categories and scripts of the Unicode Character Database"
+	print "(Unicode " ver "), as usets: `link uclass`, then `uclass(name)`. The"
+	print "module is Gcon'"'"'s own (`lib/gcon`, searched after the IPL), generated"
+	print "from the database when Gcon is built; this page is generated with it."
+	print "The names are those of Go'"'"'s `unicode` package."
+	print ""
+	print "## uclass"
+	print ""
+	print "```"
+	print "uclass(s)"
+	print "```"
+	print ""
+	print "Produces the uset of the general category or script `s`: a category"
+	print "of two letters (`\"Lu\"`), a major category of one, the union of its"
+	print "subcategories (`\"L\"`), or a script (`\"Greek\"`). Fails for any other"
+	print "name. Surrogates, which no uset holds, are left out, so `\"Cs\"` is"
+	print "empty. With a uset, the scanning functions step over whole UTF-8"
+	print "characters, so `uclass` classifies the characters of UTF-8 text."
+	print ""
+	print "```icon"
+	print "link uclass"
+	print ""
+	print "procedure main()"
+	print "   \"Ωμέγα, 42 €\" ? while tab(upto(uclass(\"L\"))) do"
+	print "      write(tab(many(uclass(\"L\"))))"
+	print "   write(*uclass(\"Nd\"), \" \", *uclass(\"Greek\"))"
+	print "   write(uclass(\"Klingon\") | \"no such class\")"
+	print "end"
+	print "```"
+	print ""
+	print "Output:"
+	print ""
+	print "```"
+	print "Ωμέγα"
+	print n["Nd"] " " n["Greek"]
+	print "no such class"
+	print "```"
+	print ""
+	print "**See also:** [uset](unicode.md#uset), [many](scanning.md#many),"
+	print "[upto](scanning.md#upto)."
+	print ""
+	print "## General categories"
+	print ""
+	print "| Name | Characters | Count |"
+	print "|---|---|---:|"
+	split("L Lu Ll Lt Lm Lo M Mn Mc Me N Nd Nl No P Pc Pd Ps Pe Pi Pf Po S Sm Sc Sk So Z Zs Zl Zp C Cc Cf Cs Co", order, " ")
+	for (i = 1; i in order; i++) {
+		iscat[order[i]] = 1
+		if (order[i] in seen)
+			printf "| `%s` | %s | %d |\n", order[i], cat(order[i]), n[order[i]]
+	}
+	print ""
+	print "## Unicode scripts"
+	print ""
+	print "| Name | Count |"
+	print "|---|---:|"
+	for (i = 1; i <= nn; i++)
+		if (!(names[i] in iscat))
+			printf "| `%s` | %d |\n", names[i], n[names[i]]
+}' "$tmp/ranges" >"$tmp/uclass.md"
+mv "$tmp/uclass.md" "$page"
+echo "built lib/gcon/uclass.icn and doc/ref/uclass.md (Unicode $ver)"

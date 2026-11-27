@@ -7,8 +7,8 @@ bytes; a uset is what reads UTF-8, in the scanning functions
 [many](scanning.md#many), [upto](scanning.md#upto)) and in
 [trim](strings.md#trim). `gcon vet -icon95` reports their use, for code
 that must also run under Arizona Icon. The Unicode character classes are
-a library module: `link uclass`, then `uclass("L")` or
-`uclass("Greek")` is a uset.
+a library module, with [a page of its own](uclass.md): `link uclass`,
+then `uclass("L")` or `uclass("Greek")` is a uset.
 
 ## uchar
 
