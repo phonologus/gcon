@@ -1921,6 +1921,11 @@ Next, after v0.1.0 (Sean, 2026-11-26):
   `readrunes` reads characters (a minor version, by Go's rules, since
   `reads` changed and `readrunes` is new); `reads`, `write` and
   `writes` allocate once and no longer leak.
+- Strings are bytes; Unicode quarantined in usets (Sean, 2026-11-27).
+  Released as v0.3.0 (2026-11-27), with the editor extensions and the
+  grammar at 0.3.0 too: a minor version, by Go's rules, since programs
+  that relied on v0.2.0's text strings or its removed built-ins must
+  adapt ("Strings and Unicode").
 - Linux: the display server has package lists, but gcon has not been
   built or tested there.
 - Strings are bytes (decision 2026-11-27, "Strings and Unicode"): done
