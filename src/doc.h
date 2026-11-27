@@ -17,8 +17,8 @@ typedef struct DocRef DocRef;
  * none. */
 DocRef *docref_load(const char *root);
 
-/* docref_entry is name's entry, its Markdown without the heading, or
- * NULL. */
+/* docref_entry is name's entry, its Markdown without the heading and
+ * the examples, or NULL. */
 const char *docref_entry(DocRef *r, const char *name);
 
 #endif

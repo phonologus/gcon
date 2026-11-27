@@ -282,6 +282,58 @@ struct DocRef {
 	StrMap entries; /* name -> its Markdown */
 };
 
+/* noexamples is an entry's Markdown without its examples (an icon code
+ * block, and an "Output:" paragraph and the code block after it): a
+ * hover shows what a function is, not a program using it. */
+static char *noexamples(const char *md) {
+	Buf b = {0};
+	enum { Text, Example, AfterExample, Output } st = Text;
+	int fences = 0; /* of the output's block, in state Output */
+	for (const char *s = md; *s;) {
+		const char *nl = strchr(s, '\n');
+		size_t n = nl ? (size_t)(nl - s) + 1 : strlen(s);
+		bool fence = !strncmp(s, "```", 3);
+		bool blank = n == 1 && *s == '\n';
+		switch (st) {
+		case Text:
+			if (fence && !strncmp(s, "```icon", 7))
+				st = Example;
+			else
+				bufadd(&b, s, n);
+			break;
+		case Example:
+			if (fence)
+				st = AfterExample;
+			break;
+		case AfterExample:
+			if (!strncmp(s, "Output:", 7)) {
+				st = Output;
+				fences = 0;
+			} else if (!blank) {
+				st = Text;
+				bufadd(&b, s, n);
+			}
+			break;
+		case Output:
+			/* through the output block's closing fence */
+			if (fence && ++fences == 2)
+				st = Text;
+			break;
+		}
+		s += n;
+	}
+	/* blank lines left where examples were: at most one in a row */
+	Buf c = {0};
+	for (size_t i = 0; i < b.n; i++) {
+		if (b.b[i] == '\n' && c.n >= 2 && c.b[c.n - 1] == '\n' && c.b[c.n - 2] == '\n')
+			continue;
+		bufputc(&c, b.b[i]);
+	}
+	while (c.n && c.b[c.n - 1] == '\n') /* the hover adds its own spacing */
+		c.b[--c.n] = 0;
+	return c.b ? c.b : "";
+}
+
 DocRef *docref_load(const char *root) {
 	if (!root)
 		return NULL;
@@ -300,7 +352,7 @@ DocRef *docref_load(const char *root) {
 				continue;
 			if (!r)
 				r = xcalloc(1, sizeof *r);
-			strmap_put(&r->entries, en, strlen(en), entrysource(src, d, (int)bi, false));
+			strmap_put(&r->entries, en, strlen(en), noexamples(entrysource(src, d, (int)bi, false)));
 		}
 	}
 	return r;

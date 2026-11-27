@@ -2124,7 +2124,12 @@ command appears in its help page; help output has golden files, as
    fetched pages as a fallback. Seeded with the scanning functions and
    two keywords.
 4. The reference in batches: core functions, keywords, graphics
-   functions and attributes.
+   functions and attributes. Done (2026-11-27): every built-in function
+   and keyword (208 entries, all but `fattrib` and the `Win` functions,
+   which Gcon does not provide) on eleven pages, 206 examples run by
+   `gcon doc -test`; doc.sh checks the reference is complete. Hover
+   shows an entry without its examples. Found on the way: the to-by
+   operator's name (`image(proc("...", 3))`), fixed to iconx's.
 5. IPL procedures from their header comments.
 6. Doc comments (Sean, 2026-11-27), as Go's: lightweight and
    heuristic, not Rust's full Markdown. The comment lines directly

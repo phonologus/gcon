@@ -3,7 +3,7 @@
 The built-in functions and keywords, as Gcon gives them. `gcon doc
 NAME` shows one entry: `gcon doc find`, `gcon doc '&subject'`.
 
-## Pages
+## The pages
 
 - [Strings](strings.md): `center`, `char`, `detab`, `entab`, `left`, `map`,
   `ord`, `repl`, `reverse`, `right`, `trim`
@@ -15,7 +15,17 @@ NAME` shows one entry: `gcon doc find`, `gcon doc '&subject'`.
   `string`, `type`, `variable`
 - [Structures](structures.md): `delete`, `get`, `insert`, `key`, `list`,
   `member`, `pop`, `pull`, `push`, `put`, `set`, `sort`, `sortf`, `table`
-- [Keywords](keywords.md): `&pos`, `&subject`, `&uset`, ...
+- [Numbers](numbers.md): `abs`, the trigonometric functions, `exp`, `log`,
+  `sqrt`, the bit operations (`iand`, `ior`, `ixor`, `icom`, `ishift`),
+  `seq`
+- [Files](files.md): `open`, `close`, `read`, `reads`, `write`, `writes`,
+  `seek`, `where`, `flush`, `remove`, `rename`, `chdir`
+- [The program and its system](system.md): `exit`, `stop`, `runerr`,
+  `errorclear`, `display`, `system`, `getenv`, `delay`, `collect`,
+  `loadfunc`, the keyboard (`getch`, `getche`, `kbhit`)
+- [Keywords](keywords.md): every keyword but the graphics keywords
+- [Graphics](graphics.md): opening windows, the attributes, the graphics
+  functions and keywords
 
 ## Reading an entry
 

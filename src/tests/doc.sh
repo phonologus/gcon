@@ -12,6 +12,8 @@
 #   - The internals and the code: a row for every instruction in
 #     doc/internals/instructions.md; format.h's version in program.md;
 #     every graphics request, with its number, in protocol.md.
+#   - The reference: an entry for every built-in function and keyword of
+#     src/builtin.inc (but those not provided), and no others.
 #   - Lookup: a topic, its last element, a file; an unknown name.
 #   - The browser: $BROWSER is given the page's file URL; a browser
 #     that fails, or no HTML built, gives the page as text.
@@ -130,6 +132,21 @@ done
 checks=$((checks + 1))
 "$G" doc -path nosuch >/dev/null 2>"$tmp/err"
 [ $? = 2 ] && grep -q 'no such page' "$tmp/err" || problem "gcon doc nosuch: not refused"
+
+# The reference is complete: an entry for every function and keyword of
+# src/builtin.inc but those not provided (fattrib, the Win functions), no
+# other entries, and none twice.
+awk -F'"' '/^static const BuiltinFunc functions/ { f = 1 } /^static const Keyword keywords/ { f = 0; k = 1 }
+	/^static const Predefined/ { k = 0 } f && /^\t\{"/ { print $2 } k && /^\t\{"/ { print "&" $2 }' "$here/src/builtin.inc" |
+	grep -v '^Win\|^fattrib$' | sort >"$tmp/want"
+grep -h '^## ' "$here"/doc/ref/*.md | sed 's/^## //' | grep -v ' ' | sort >"$tmp/have"
+checks=$((checks + 3))
+missing=$(comm -23 "$tmp/want" "$tmp/have" | tr '\n' ' ')
+extra=$(comm -13 "$tmp/want" "$tmp/have" | tr '\n' ' ')
+dups=$(uniq -d "$tmp/have" | tr '\n' ' ')
+[ -z "$missing" ] || problem "the reference has no entry for: $missing"
+[ -z "$extra" ] || problem "the reference has entries for what is not built in: $extra"
+[ -z "$dups" ] || problem "the reference has more than one entry for: $dups"
 
 # Reference entries: found by name, shown alone, opened at their anchor.
 checks=$((checks + 3))

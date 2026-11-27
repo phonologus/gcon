@@ -19,8 +19,8 @@
 {"jsonrpc":"2.0","id":18,"result":null}
 {"jsonrpc":"2.0","id":19,"result":{"range":{"start":{"line":4,"character":12},"end":{"line":4,"character":17}},"placeholder":"other"}}
 {"jsonrpc":"2.0","id":20,"result":{"changes":{"file://ROOT/src/tests/sema/builtins.icn":[{"range":{"start":{"line":4,"character":12},"end":{"line":4,"character":17}},"newText":"zzz"}]}}}
-{"jsonrpc":"2.0","id":21,"result":{"contents":{"kind":"markdown","value":"```icon\n\u0026fail\n```\n\nJust fail\n\nKeyword · [Icon reference](https://www2.cs.arizona.edu/icon/refernce/keywlist.htm)"},"range":{"start":{"line":7,"character":9},"end":{"line":7,"character":13}}}}
-{"jsonrpc":"2.0","id":22,"result":{"contents":{"kind":"markdown","value":"```icon\n\u0026fail\n```\n\nJust fail\n\nKeyword · [Icon reference](https://www2.cs.arizona.edu/icon/refernce/keywlist.htm)"},"range":{"start":{"line":7,"character":9},"end":{"line":7,"character":13}}}}
+{"jsonrpc":"2.0","id":21,"result":{"contents":{"kind":"markdown","value":"```\n\u0026fail\n```\n\nFails: an expression that produces nothing.\n\nKeyword · `gcon doc '\u0026fail'`"},"range":{"start":{"line":7,"character":9},"end":{"line":7,"character":13}}}}
+{"jsonrpc":"2.0","id":22,"result":{"contents":{"kind":"markdown","value":"```\n\u0026fail\n```\n\nFails: an expression that produces nothing.\n\nKeyword · `gcon doc '\u0026fail'`"},"range":{"start":{"line":7,"character":9},"end":{"line":7,"character":13}}}}
 {"jsonrpc":"2.0","id":23,"result":null}
 {"jsonrpc":"2.0","id":24,"result":[{"uri":"file://ROOT/src/tests/sema/builtins.icn","range":{"start":{"line":7,"character":9},"end":{"line":7,"character":13}}}]}
 {"jsonrpc":"2.0","id":25,"result":[{"uri":"file://ROOT/src/tests/sema/builtins.icn","range":{"start":{"line":7,"character":9},"end":{"line":7,"character":13}}}]}
