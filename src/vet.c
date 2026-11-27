@@ -2,6 +2,7 @@
  * gcon vet (vet.h). The tree is walked with an explicit stack.
  */
 #include "vet.h"
+#include "doccomment.h"
 
 #include "lit.h"
 
@@ -66,7 +67,7 @@ static size_t tokidx(Vet *v, Token *t) { return (size_t)(t - v->syn->toks.v); }
 static const char *ttext(Vet *v, Token *t) { return v->syn->src + t->offset; }
 
 static void report(Vet *v, Token *t, char *msg) {
-	VetFinding f = {v->info->file, t->offset, t->offset + t->len, msg};
+	VetFinding f = {v->info->file, t->offset, t->offset + t->len, msg, false};
 	VPUSH(*v->out, f);
 }
 
@@ -457,6 +458,41 @@ static StrMap *kept(Vet *v, bool ignoreall) {
 	return keep;
 }
 
+/* named: another declaration of the file whose doc comment begins with
+ * its own name (ctx: a StrMap of them). */
+static bool named(void *ctx, const char *name, size_t n) {
+	return strmap_get(ctx, name, n) != NULL;
+}
+
+/* docwarnings reports doc comments that will not read as their authors
+ * meant (doccomment.h): warnings, which do not change vet's exit
+ * status. */
+static void docwarnings(Vet *v) {
+	char *filedoc;
+	DocDecls ds = doccomment_file(v->syn->src, v->syn->n, &filedoc);
+	DocWarnings ws = {0};
+	StrMap selfnamed = {0}; /* declarations whose comments begin with their names */
+	for (size_t i = 0; i < ds.n; i++) {
+		char *w = doccomment_firstword(&ds.v[i]);
+		if (w && !strcmp(w, ds.v[i].name))
+			strmap_put(&selfnamed, w, strlen(w), (void *)1);
+	}
+	for (size_t i = 0; i < ds.n; i++)
+		doccomment_lint(&ds.v[i], named, &selfnamed, &ws);
+	for (size_t i = 0; i < ws.n; i++) {
+		/* the line's span: from its first byte to its end */
+		size_t off = 0;
+		for (int line = 1; line < ws.v[i].line && off < v->syn->n; off++)
+			if (v->syn->src[off] == '\n')
+				line++;
+		size_t end = off;
+		while (end < v->syn->n && v->syn->src[end] != '\n')
+			end++;
+		VetFinding f = {v->info->file, off, end, ws.v[i].msg, true};
+		VPUSH(*v->out, f);
+	}
+}
+
 static int cmpfinding(const void *a, const void *b) {
 	const VetFinding *x = a, *y = b;
 	return x->offset < y->offset ? -1 : x->offset > y->offset;
@@ -519,6 +555,7 @@ void vet_file(Program *p, SemaInfo *info, VetResolver *resolve, void *ctx, VetOp
 			report(&v, t, b.b);
 		}
 	}
+	docwarnings(&v);
 	if (opts.icon95)
 		literals95(&v);
 	qsort(mine.v, mine.n, sizeof *mine.v, cmpfinding);

@@ -30,6 +30,8 @@ typedef struct VetFinding {
 	SemaFile *file;
 	size_t offset, end; /* byte span in file->syn */
 	char *msg;
+	bool doc; /* a doc comment's warning (doccomment.h), which does not
+		     * change vet's exit status */
 } VetFinding;
 typedef VEC(VetFinding) VetFindings;
 

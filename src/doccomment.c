@@ -198,6 +198,7 @@ DocDecls doccomment_file(const char *src, size_t n, char **filedoc) {
 	DocDecls v = {0};
 	*filedoc = xstrndup("", 0);
 	VEC(char *) cmt = {0}; /* the comment lines just above */
+	int cmtline = 0;       /* the first of them's line */
 	bool top = true;       /* no code yet */
 	bool gap = false;      /* a blank line since the comment */
 	int line = 0;
@@ -223,6 +224,8 @@ DocDecls doccomment_file(const char *src, size_t n, char **filedoc) {
 				cmt.n = 0;
 				gap = false;
 			}
+			if (!cmt.n)
+				cmtline = line;
 			VPUSH(cmt, xstrndup(s + sp, len - sp));
 			continue;
 		}
@@ -238,6 +241,7 @@ DocDecls doccomment_file(const char *src, size_t n, char **filedoc) {
 		if (kind) {
 			if (gap)
 				cmt.n = 0;
+			size_t above = cmt.n; /* the comment lines above, before a "#:" */
 			/* the heading: the line, to a comment on it */
 			size_t hl = len;
 			const char *hash = memchr(s, '#', len);
@@ -249,7 +253,10 @@ DocDecls doccomment_file(const char *src, size_t n, char **filedoc) {
 			}
 			while (hl && (s[hl - 1] == ' ' || s[hl - 1] == '\t' || s[hl - 1] == '\r'))
 				hl--;
-			DocDecl d = {(char *)kind, xstrndup(name, nl), xstrndup(s, hl), doccomment_md(cmt.v, cmt.n), line};
+			char **lines = xcalloc(above + 1, sizeof *lines);
+			memcpy(lines, cmt.v, above * sizeof *lines);
+			DocDecl d = {(char *)kind, xstrndup(name, nl), xstrndup(s, hl), doccomment_md(cmt.v, cmt.n), line,
+				lines, above, cmtline};
 			VPUSH(v, d);
 		}
 		top = false;
@@ -259,4 +266,107 @@ DocDecls doccomment_file(const char *src, size_t n, char **filedoc) {
 	if (top && cmt.n && !**filedoc)
 		*filedoc = doccomment_md(cmt.v, cmt.n);
 	return v;
+}
+
+static bool identchar(int c) { return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_'; }
+
+/* inheading reports whether the identifier w (n bytes) is in the
+ * declaration's heading: one of a global's names, say. */
+static bool inheading(const char *decl, const char *w, size_t n) {
+	char *word = xstrndup(w, n);
+	for (const char *s = decl; (s = strstr(s, word));) {
+		if ((s == decl || !identchar((unsigned char)s[-1])) && !identchar((unsigned char)s[n]))
+			return true;
+		s++;
+	}
+	return false;
+}
+
+static void warn(DocWarnings *out, int line, const char *msg) {
+	DocWarning w = {line, xstrndup(msg, strlen(msg))};
+	VPUSH(*out, w);
+}
+
+void doccomment_lint(const DocDecl *d, DocNamed *named, void *ctx, DocWarnings *out) {
+	/* the lines' text, and each one's line in the file */
+	VEC(char *) t = {0};
+	VEC(int) at = {0};
+	for (size_t i = 0; i < d->nlines; i++) {
+		char *s = text(d->lines[i]);
+		if (s) {
+			VPUSH(t, s);
+			VPUSH(at, d->firstline + (int)i);
+		}
+	}
+	size_t base = (size_t)-1;
+	for (size_t i = 0; i < t.n; i++)
+		if (t.v[i][0] && indent(t.v[i]) < base)
+			base = indent(t.v[i]);
+	if (base == (size_t)-1)
+		return;
+	for (size_t i = 0; i < t.n; i++)
+		t.v[i] = t.v[i][0] ? t.v[i] + base : t.v[i];
+
+	/* a comment that begins with another declaration's name */
+	for (size_t i = 0; i < t.n; i++) {
+		const char *s = t.v[i];
+		if (!*s)
+			continue;
+		size_t n = 0;
+		while (identchar((unsigned char)s[n]))
+			n++;
+		if (n && !(s[0] >= '0' && s[0] <= '9') && s[n] == ' ' && !inheading(d->decl, s, n) && named(ctx, s, n)) {
+			Buf m = {0};
+			bufprintf(&m, "doc comment begins with \"%.*s\", another declaration's name, but documents \"%s\"", (int)n, s, d->name);
+			warn(out, at.v[i], m.b);
+		}
+		break;
+	}
+
+	/* lines that will not read as they look: as the reader reads them */
+	enum { None, Para, Item, Code } st = None;
+	for (size_t i = 0; i < t.n; i++) {
+		const char *s = t.v[i];
+		if (!*s) {
+			if (st != Code)
+				st = None;
+			continue;
+		}
+		size_t in = indent(s);
+		bool mk = listmarker(s) != 0, head = s[0] == '#' && s[1] == ' ';
+		if (st == Para && in > 0 && in <= 3) {
+			warn(out, at.v[i], "doc comment: a line indented a little directly after text is shown as code; "
+				"put a blank line before code, or take the indentation off to continue the text");
+			st = Code;
+			continue;
+		}
+		if (st == Item && in == 0 && !mk && !head) {
+			warn(out, at.v[i], "doc comment: a line directly after a list item ends the list; "
+				"indent it to continue the item, or put a blank line before it");
+			st = Para;
+			continue;
+		}
+		if (in > 0 && st != Item)
+			st = Code;
+		else if (head)
+			st = None;
+		else if (mk || (st == Item && in > 0))
+			st = Item;
+		else
+			st = Para;
+	}
+}
+
+char *doccomment_firstword(const DocDecl *d) {
+	for (size_t i = 0; i < d->nlines; i++) {
+		char *s = text(d->lines[i]);
+		if (!s || !*s)
+			continue;
+		s += indent(s);
+		size_t n = 0;
+		while (identchar((unsigned char)s[n]))
+			n++;
+		return n && !(s[0] >= '0' && s[0] <= '9') && s[n] == ' ' ? xstrndup(s, n) : NULL;
+	}
+	return NULL;
 }

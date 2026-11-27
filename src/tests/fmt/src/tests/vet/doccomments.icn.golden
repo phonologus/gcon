@@ -1,0 +1,26 @@
+# doccomments: doc comments that will not read as meant: warnings, which
+# leave vet's exit status 0 (src/tests/vet.sh).
+
+# total adds up the numbers in L.
+procedure sum(L)
+   local t
+   every (/t := 0) +:= !L
+   return \t
+end
+
+# total is the real one,
+#   with a continuation indented by mistake.
+procedure total(L)
+   return sum(L)
+end
+
+# Options:
+# - "a" for all
+# continued without indentation.
+procedure main()
+   write(total([1, 2]))
+end
+
+# count and limit are globals.
+global count, limit
+status 0

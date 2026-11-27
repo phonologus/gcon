@@ -1,4 +1,37 @@
+icon/ipl/gpacks/vib/vibbttn.icn:15: doc comment: a line indented a little directly after text is shown as code; put a blank line before code, or take the indentation off to continue the text
+icon/ipl/gpacks/vib/vibedit.icn:293: doc comment: a line indented a little directly after text is shown as code; put a blank line before code, or take the indentation off to continue the text
+icon/ipl/gpacks/vib/viblabel.icn:15: doc comment: a line indented a little directly after text is shown as code; put a blank line before code, or take the indentation off to continue the text
+icon/ipl/gpacks/vib/vibline.icn:15: doc comment: a line indented a little directly after text is shown as code; put a blank line before code, or take the indentation off to continue the text
+icon/ipl/gpacks/vib/viblist.icn:23: doc comment: a line indented a little directly after text is shown as code; put a blank line before code, or take the indentation off to continue the text
+icon/ipl/gpacks/vib/vibradio.icn:17: doc comment: a line indented a little directly after text is shown as code; put a blank line before code, or take the indentation off to continue the text
+icon/ipl/gpacks/vib/vibrect.icn:15: doc comment: a line indented a little directly after text is shown as code; put a blank line before code, or take the indentation off to continue the text
+icon/ipl/gpacks/vib/vibsizer.icn:15: doc comment: a line indented a little directly after text is shown as code; put a blank line before code, or take the indentation off to continue the text
+icon/ipl/gpacks/vib/vibslidr.icn:16: doc comment: a line indented a little directly after text is shown as code; put a blank line before code, or take the indentation off to continue the text
+icon/ipl/gpacks/vib/vibtext.icn:16: doc comment: a line indented a little directly after text is shown as code; put a blank line before code, or take the indentation off to continue the text
+icon/ipl/gpacks/vib/vibbttn.icn:15: doc comment: a line indented a little directly after text is shown as code; put a blank line before code, or take the indentation off to continue the text
+icon/ipl/gpacks/vib/vibedit.icn:293: doc comment: a line indented a little directly after text is shown as code; put a blank line before code, or take the indentation off to continue the text
+icon/ipl/gpacks/vib/viblabel.icn:15: doc comment: a line indented a little directly after text is shown as code; put a blank line before code, or take the indentation off to continue the text
+icon/ipl/gpacks/vib/vibline.icn:15: doc comment: a line indented a little directly after text is shown as code; put a blank line before code, or take the indentation off to continue the text
+icon/ipl/gpacks/vib/viblist.icn:23: doc comment: a line indented a little directly after text is shown as code; put a blank line before code, or take the indentation off to continue the text
+icon/ipl/gpacks/vib/vibradio.icn:17: doc comment: a line indented a little directly after text is shown as code; put a blank line before code, or take the indentation off to continue the text
+icon/ipl/gpacks/vib/vibrect.icn:15: doc comment: a line indented a little directly after text is shown as code; put a blank line before code, or take the indentation off to continue the text
+icon/ipl/gpacks/vib/vibsizer.icn:15: doc comment: a line indented a little directly after text is shown as code; put a blank line before code, or take the indentation off to continue the text
+icon/ipl/gpacks/vib/vibslidr.icn:16: doc comment: a line indented a little directly after text is shown as code; put a blank line before code, or take the indentation off to continue the text
+icon/ipl/gpacks/vib/vibtext.icn:16: doc comment: a line indented a little directly after text is shown as code; put a blank line before code, or take the indentation off to continue the text
+icon/ipl/gprogs/gif2wif.icn:146: doc comment: a line indented a little directly after text is shown as code; put a blank line before code, or take the indentation off to continue the text
 icon/ipl/packs/ibpag2/ibpag2.icn:181: no record has a field "tbl": run-time error 207
+icon/ipl/packs/idol/amiga.icn:64: doc comment: a line indented a little directly after text is shown as code; put a blank line before code, or take the indentation off to continue the text
+icon/ipl/packs/idol/mpw.icn:57: doc comment: a line indented a little directly after text is shown as code; put a blank line before code, or take the indentation off to continue the text
+icon/ipl/packs/idol/msdos.icn:70: doc comment: a line indented a little directly after text is shown as code; put a blank line before code, or take the indentation off to continue the text
+icon/ipl/packs/idol/mvs.icn:54: doc comment: a line indented a little directly after text is shown as code; put a blank line before code, or take the indentation off to continue the text
+icon/ipl/packs/idol/os2.icn:60: doc comment: a line indented a little directly after text is shown as code; put a blank line before code, or take the indentation off to continue the text
+icon/ipl/packs/idol/unix.icn:63: doc comment: a line indented a little directly after text is shown as code; put a blank line before code, or take the indentation off to continue the text
+icon/ipl/packs/idol/vms.icn:59: doc comment: a line indented a little directly after text is shown as code; put a blank line before code, or take the indentation off to continue the text
+icon/ipl/packs/tcll1/gramanal.icn:414: doc comment: a line indented a little directly after text is shown as code; put a blank line before code, or take the indentation off to continue the text
+icon/ipl/packs/tcll1/gramanal.icn:414: doc comment: a line indented a little directly after text is shown as code; put a blank line before code, or take the indentation off to continue the text
+icon/ipl/packs/tcll1/gramanal.icn:414: doc comment: a line indented a little directly after text is shown as code; put a blank line before code, or take the indentation off to continue the text
+icon/ipl/progs/icalc.icn:378: doc comment: a line indented a little directly after text is shown as code; put a blank line before code, or take the indentation off to continue the text
+icon/ipl/progs/icalc.icn:386: doc comment: a line indented a little directly after text is shown as code; put a blank line before code, or take the indentation off to continue the text
 icon/ipl/progs/strpsgml.icn:73: call of local "readtbl", which shadows the procedure and is never assigned: run-time error 106
 icon/ipl/progs/strpsgml.icn:82: call of local "stripunb", which shadows the procedure and is never assigned: run-time error 106
 icon/tests/general/errors.icn:67: numeric comparison with 'abc', which is not a number: run-time error 102

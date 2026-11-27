@@ -195,7 +195,7 @@ static int vet(int argc, char **argv) {
 				long line;
 				ipp_locate(fe->files[j].map, out.v[m].offset, &file, &line);
 				printf("%s:%ld: %s\n", file, line, out.v[m].msg);
-				found = true;
+				found = found || !out.v[m].doc; /* a doc comment's warning: not a mistake */
 			}
 		}
 	}

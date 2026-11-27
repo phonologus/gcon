@@ -1,0 +1,4 @@
+doccomments.icn:4: doc comment begins with "total", another declaration's name, but documents "sum"
+doccomments.icn:12: doc comment: a line indented a little directly after text is shown as code; put a blank line before code, or take the indentation off to continue the text
+doccomments.icn:19: doc comment: a line directly after a list item ends the list; indent it to continue the item, or put a blank line before it
+status 0

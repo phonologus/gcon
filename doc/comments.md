@@ -42,3 +42,11 @@ with its name ("total adds up..."): it is the summary. The IPL's
 convention, a `#:` comment on the procedure's own line
 (`procedure total(L) #: sum of a list`), is read as the doc comment of
 a procedure that has none above it.
+
+`gcon vet` warns of a doc comment that will not read as you meant: one
+that begins with the name of another declaration (whose own comment
+begins with it), as a comment copied with its procedure does; a line
+indented a little directly after text, which is shown as code; and a
+line directly after a list item that is not indented, which ends the
+list. They are warnings: they do not change `gcon vet`'s exit status,
+and your editor shows them as it shows vet's other findings.

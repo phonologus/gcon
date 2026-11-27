@@ -2168,8 +2168,11 @@ command appears in its help page; help output has golden files, as
    `src/doccomment.c` (the reader, Go's rules), `gcon doc file.icn
    [name]`, hover in `gcon lsp`, the guide's `doc/comments.md`; doc.sh
    checks golden files and that every Icon file of the corpus (1221)
-   gives Markdown in the subset. A vet check of comments is left for
-   later. IPL headers are dedented section by section, their layout
+   gives Markdown in the subset. gcon vet warns of doc comments that
+   will not read as meant (a copied comment, a line indented a little
+   after text, a list item continued without indentation): warnings,
+   not changing its exit status (Sean); tuned on the corpus to 30, all
+   fair. IPL headers are dedented section by section, their layout
    kept.
 
 Decided (Sean, 2026-11-27): the internal notes are in `design/` (and
