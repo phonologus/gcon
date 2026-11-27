@@ -880,9 +880,22 @@ substring cannot:
 - `uord(s)`: the code point of the one character `s` (error 205
   otherwise, as `ord`); U+FFFD for an invalid byte, as Go, whose value
   `ord` gives.
+  **Not a prefix (Sean, 2026-11-27).** Go's `utf8.DecodeRune` reads the
+  first character of its argument and returns its width too, which is
+  what makes it usable; a `uord` that read a prefix could return only
+  the code point, and the width cannot be recovered from it (an invalid
+  byte gives U+FFFD, whose encoding is 3 bytes). In gcon the width
+  comes from scanning: `tab(any(&uset))` decodes one character and
+  moves `&pos` past it, and `uord` of that substring is its value.
+  Requiring exactly one character is also `ord`'s rule (`ord("ab")` is
+  error 205), and catches a slice through a character where it is
+  made.
 - `uchar(i)`: the UTF-8 encoding of the code point i; an invalid code
   point gives U+FFFD, as Go's `string(rune)`.
-- `uvalid(s)`, for programs that need to check.
+- `uvalid(s)`: `s` if all of it is valid UTF-8, else failure, as Go's
+  `utf8.Valid`. Whether the character at `&pos` is valid is a
+  scanner's question: `tab(any(&uset))` takes a whole sequence, or a
+  single byte (which `uord` gives as U+FFFD).
 - `uset(x)`, `u'...'` and `&uset`, beside `cset(x)`, `'...'` and
   `&cset`.
 
