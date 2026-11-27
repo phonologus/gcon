@@ -6,13 +6,14 @@ a virtual machine and a graphics display server. One script builds the
 lot, and there is no `make Configure` step. Compared with Arizona's
 icont/iconx, it:
 
-- **Runs Icon 9.5 programs unchanged.** They pass Icon's own test suite,
-  and the Icon Program Library runs, graphics included.
+- **Runs Icon 9.5 programs unchanged.** They give iconx's output on Icon's
+  own test suite, and the Icon Program Library runs, graphics included.
 - **Runs about twice as fast** as iconx, and co-expressions run hundreds
   of times faster ([Performance](#performance)).
 - **Uses a modern graphics backend:** SDL3 and Blend2D, in place of X11,
   with antialiasing, HiDPI and native windows.
-- **Keeps Icon 9.5's byte strings,** with UTF-8 help where asked for
+- **Keeps Icon 9.5's strings and csets,** which are bytes, and adds
+  usets for UTF-8 text, kept apart from them
   ([Differences from Icon 9.5](#differences-from-icon-95)).
 - **Comes with modern tools:** one `gcon` command that runs, builds,
   formats and checks programs and serves as a language server.
@@ -124,58 +125,79 @@ over standard input and output. The tree-sitter grammar is in
 
 ## Differences from Icon 9.5
 
-Icon 9.5 programs behave as they do under iconx. The differences below
-are deliberate additions. `gcon vet -icon95` reports any use of them,
-for code that must also run under Arizona Icon.
+Icon 9.5 programs behave as they do under iconx. What gcon adds to the
+language is small: usets, `u'...'` literals, cset ranges, `\u` and `\U`
+escapes, four built-ins, the keyword `&uset`, and the `uclass` library
+module. Only two of these can change what a 9.5 program does, and none
+in Icon's tests or library does: a literal with `\u` (in 9.5 the
+letter `u`), and `image` of UTF-8 text (below). `gcon vet -icon95`
+reports any use of them, for code that must also run under Arizona
+Icon. The other differences are in graphics, which no longer uses
+X11, and in the toolchain.
 
 ### Strings and Unicode
 
 Strings are bytes, and csets are sets of the 256 byte values, exactly as
-in Icon 9.5 (and as strings are in Go). Every string operation counts
-and reads bytes, so binary data and Latin-1 text behave as under iconx.
-Positions are always byte positions.
+in Icon 9.5 (and as strings are in Go). Every string operation reads and
+counts bytes, so text, binary data and Latin-1 behave as under iconx.
+Positions, subscripts and `*s` are always in bytes.
 
-- **Literals** gain Go's `\u` and `\U` escapes, which give a code
-  point's UTF-8 bytes: `"caf\u00e9"` is the same 5 bytes as `"café"` in
-  a UTF-8 source file.
-- **Csets** gain ranges: `'a..zA..Z_'`, `'\x00..\x1f'`. Both ends of a
-  range are single bytes.
-- **`image`** shows a valid, printable UTF-8 sequence as itself, so
-  `image("café")` is `"café"`; iconx writes `"caf\xc3\xa9"`. Both are
-  literals of the same bytes. Other bytes from `\x80` are escaped as in
-  9.5.
-- **Usets** are gcon's sets of characters for UTF-8 text, beside the
-  cset: their members are the ASCII characters, the 128 bytes from
-  `\x80` and every Unicode code point. A uset literal is written
-  `u'...'` (`u'α..ω'`, `u'é'`), `uset(x)` converts, and `&uset` is
-  every character. Given a uset, `any`, `many`, `upto`, `bal` and
-  `trim` step over whole UTF-8 characters, so `tab(any(&uset))` is the
-  next character of the subject; given a cset, they step over bytes, as
-  in 9.5. Positions are always byte positions.
-- **Csets and usets never mix:** `c ++ u`, `cset(u)` or a cset and a
-  uset in one `bal` is run-time error 128, and `gcon vet` reports such
-  mixes. `uset(c)` is the one conversion between them.
-- **New built-ins:** `uset(x)`, `uord(s)` (the code point of one UTF-8
-  character), `uchar(i)` (the UTF-8 encoding of a code point) and
-  `uvalid(s)`.
+Unicode is kept to one addition, the **uset**, and everything
+Unicode-aware follows from it:
+
+- **A uset** is a set of characters for UTF-8 text: the ASCII
+  characters, the 128 bytes from `\x80`, and every Unicode code point.
+  It is written `u'...'`, with ranges as in csets (`u'é'`, `u'α..ω'`);
+  `uset(x)` converts a string (read as UTF-8) or a cset, and `&uset` is
+  every character.
+- **Scanning with a uset reads UTF-8.** Given a uset, `any`, `many`,
+  `upto`, `bal` and `trim` step over whole UTF-8 characters; given a
+  cset, they step over bytes, as in 9.5. So `tab(any(&uset))` is the
+  next character of the subject, and `tab(many(c))` with a cset is
+  exactly what it always was. Positions stay byte positions.
+- **Csets and usets never mix.** There is no silent conversion between
+  them, as there is none between types in Go: `c ++ u`, `cset(u)`, or a
+  cset and a uset in one `bal` is run-time error 128 (gcon's), and
+  `gcon vet` reports the mixes it can see. `uset(c)` is the one
+  conversion.
+- **Three built-ins** work with code points: `uord(s)` gives the code
+  point of the one UTF-8 character `s`, `uchar(i)` the UTF-8 encoding of
+  a code point, and `uvalid(s)` succeeds if `s` is valid UTF-8.
 - **Unicode character classes** are a library module, not language:
   `link uclass`, and `uclass("L")`, `uclass("Nd")` or `uclass("Greek")`
   is that general category or script as a uset (Unicode 17.0.0).
+
+Two lexical additions:
+
+- **Ranges** in cset and uset literals: `'a..zA..Z_'`, `'\x00..\x1f'`; in
+  a cset both ends are single bytes.
+- **Go's `\u` and `\U` escapes** in any literal, which give a code
+  point's UTF-8 bytes: `"caf\u00e9"` is the same 5 bytes as `"café"`
+  in a UTF-8 source file.
+
+One change shows in 9.5 programs' output: **`image`** shows a valid,
+printable UTF-8 sequence as itself, so `image("café")` is `"café"`,
+where iconx writes `"caf\xc3\xa9"`. Both are literals of the same
+bytes, and no output in Icon's test suite changes.
 
 The details are in [docs/design.md](docs/design.md), "Strings and
 Unicode".
 
 ### Graphics
 
-The display server is [icon-sdl](https://github.com/phonologus/icon-sdl)'s
-SDL3 + Blend2D backend, run as a separate process
-(`libexec/gcon-graphics`). It is not an X11 client.
+The display server is an SDL3 + Blend2D backend, run as a separate
+process (`libexec/gcon-graphics`) that the runtime talks to through a
+protocol. It is not an X11 client. The backend was first written for
+Arizona Icon itself, in [icon-sdl](https://github.com/phonologus/icon-sdl),
+a fork of Icon 9.5 whose iconx draws with it; gcon's display server is
+that backend in a process of its own.
 
 - **The preprocessor defines `_SDL_GRAPHICS`, not `_X_WINDOW_SYSTEM`**,
   and `&features` says `SDL graphics`, so programs that test for X take
   their portable path. Keys are still reported as X keysyms: gcon's
-  copy of the library carries icon-sdl's two small changes, made by
-  `tools/ipl/patch.sh`, so that `keysyms.icn`'s key names work.
+  copy of the library carries two small changes, the same as icon-sdl's
+  (made by `tools/ipl/patch.sh`), so that `keysyms.icn`'s key names
+  work.
 - **Drawing is antialiased and HiDPI.** One Icon pixel is one point,
   drawn at the display's scale. Axis-aligned lines, fills, patterns,
   images and all 16 drawops match Arizona Icon's X11 output exactly; the
@@ -258,14 +280,14 @@ checked against Arizona's icont and iconx:
   compared with icont itself on every Icon file in Arizona's source tree
   (`src/tests/oracle.sh`).
 - **Graphics** are compared pixel for pixel with Arizona Icon's X11
-  images (`ref.sh`) and with icon-sdl's iconx, which uses the same
-  backend (`iconx.sh`). They are also run in real windows, with scripted
-  keys and clicks (`window.sh`).
+  images (`ref.sh`), and with Arizona's iconx built with the same
+  backend, icon-sdl's (`iconx.sh`). They are also run in real windows,
+  with scripted keys and clicks (`window.sh`).
 - The runtime is tested under the address and undefined-behaviour
   sanitizers.
 
-For gcon's own additions (`fmt`, `lsp`, `vet` and the Unicode
-behaviour), gcon's recorded results are the reference: golden files,
+For gcon's own additions (`fmt`, `lsp`, `vet`, usets and `uclass`),
+gcon's recorded results are the reference: golden files, test programs,
 and runs of 318 programs from the test suite and the IPL
 (`vm/tests/expected.sh`). See [docs/development.md](docs/development.md).
 
@@ -277,14 +299,17 @@ and runs of 318 programs from the test suite and the IPL
 | `vm/` | `gcon-vm`, the runtime ([vm/README.md](vm/README.md)) |
 | `graphics/` | `gcon-graphics`, the display server, with SDL3 and Blend2D vendored and pinned ([graphics/README.md](graphics/README.md)) |
 | `lib/ipl/` | the Icon Program Library, as gcon ships it ([lib/ipl/README](lib/ipl/README)) |
+| `lib/gcon/` | gcon's own library, searched after the IPL's: `uclass.icn`, generated by `build.sh` |
+| `deps/` | the Unicode Character Database, vendored and pinned, from which `uclass` is generated |
 | `editors/` | editor support: the tree-sitter grammar, and the Zed and VS Code extensions ([editors/README.md](editors/README.md)) |
 | `docs/` | [design.md](docs/design.md) (decisions and their reasons), [development.md](docs/development.md) (building and testing), [syntax.md](docs/syntax.md) |
 | `experiments/` | Go-style channels on co-expressions, a Tcl/Tk binding |
 | `bin/`, `libexec/`, `lib/libcfunc.so` | what `build.sh` builds |
 
 Builds never use the network. The display server's third-party sources
-are in `graphics/deps`, pinned by SHA-256, and only `deps/update.sh`
-downloads them.
+are in `graphics/deps` and the Unicode database in `deps/unicode`, each
+pinned by SHA-256 in its `deps.lock`, and only the `deps/update.sh`
+scripts download them.
 
 ## History
 
@@ -301,4 +326,6 @@ gcon is under the MIT licence; see [LICENSE](LICENSE). The Icon Program
 Library in `lib/ipl` is in the public domain; [NOTICE](NOTICE)
 reproduces the copyright notices on the card bitmaps in
 `lib/ipl/gprocs/cardbits.icn`, as a precaution. The display server's
-vendored libraries keep their own licences (`graphics/deps`).
+vendored libraries keep their own licences (`graphics/deps`), and the
+Unicode Character Database in `deps/unicode` is under the Unicode
+License v3 (`deps/unicode/LICENSE`).

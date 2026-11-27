@@ -5,7 +5,9 @@
 #   deps/update.sh unicode [VERSION]
 #
 # fetches the Unicode Character Database files gcon uses, UnicodeData.txt
-# and Scripts.txt, from unicode.org: of VERSION (as 17.0.0), or the
+# and Scripts.txt, from unicode.org, with Unicode's licence (license.txt,
+# kept as LICENSE: the Unicode License v3 asks that its notice go with
+# copies of the data): of VERSION (as 17.0.0), or the
 # latest, whose version is read from Scripts.txt's header so that the
 # lock always names one. It replaces deps/unicode/, records the version
 # and SHA-256s in deps/deps.lock, and regenerates gcon-vm's table of
@@ -37,9 +39,12 @@ got=$(sed -n '1s/^# Scripts-\([0-9][0-9.]*\)\.txt.*/\1/p' "$tmp/Scripts.txt")
 [ -z "$ver" ] || [ "$ver" = "$got" ] || die "asked for $ver, Scripts.txt says $got"
 ver=$got
 awk -F';' 'NF < 14 { bad = 1 } END { exit bad }' "$tmp/UnicodeData.txt" || die "UnicodeData.txt is malformed"
+echo "fetching https://www.unicode.org/license.txt"
+curl -fsSL --max-time 300 -o "$tmp/LICENSE" https://www.unicode.org/license.txt || die "download failed: license.txt"
+grep -q "UNICODE LICENSE V3" "$tmp/LICENSE" || die "license.txt is not the Unicode License v3: read it before going on"
 
 mkdir -p "$here/unicode"
-mv "$tmp/UnicodeData.txt" "$tmp/Scripts.txt" "$here/unicode/"
+mv "$tmp/UnicodeData.txt" "$tmp/Scripts.txt" "$tmp/LICENSE" "$here/unicode/"
 {
 	echo "# Vendored data: name, version, SHA-256 of deps/unicode/<file>, and"
 	echo "# the URL it came from (@V@ = version). Change only with"
@@ -48,6 +53,7 @@ mv "$tmp/UnicodeData.txt" "$tmp/Scripts.txt" "$here/unicode/"
 		printf '%-16s %-8s %s https://www.unicode.org/Public/@V@/ucd/%s\n' \
 			"$f" "$ver" "$(sha256 "$here/unicode/$f")" "$f"
 	done
+	printf '%-16s %-8s %s https://www.unicode.org/license.txt\n' LICENSE "$ver" "$(sha256 "$here/unicode/LICENSE")"
 } >"$here/deps.lock"
 sh "$here/../vm/tools/mkunicode.sh"
 echo "Unicode $ver: deps/unicode, deps/deps.lock and vm/src/unicode.c updated"

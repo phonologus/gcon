@@ -120,3 +120,12 @@ Author:	Don Woods
 		Sun Microsystems, Inc.
 		2550 Garcia Avenue
 		Mountain View, CA  94043
+
+========================================================================
+
+The Unicode Character Database files in deps/unicode (UnicodeData.txt
+and Scripts.txt) are Copyright (c) Unicode, Inc. and are distributed
+under the Unicode License v3, whose copyright and permission notice is
+in deps/unicode/LICENSE. gcon derives from them gcon-vm's table of
+printable characters (vm/src/unicode.c) and the uclass module, which
+build.sh generates as lib/gcon/uclass.icn.
