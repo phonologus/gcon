@@ -11,7 +11,7 @@ repository = "https://github.com/phonologus/gcon"
 # grammar is the current one).
 [grammars.gcon]
 repository = "https://github.com/phonologus/gcon"
-rev = "aac1c6208bcecb42ddd3f83bf5b7b1a0053d6af1"
+rev = "b3fc565efcf82842ff6370e0849fe5ec5511ff1e"
 path = "editors/tree-sitter-gcon"
 
 [language_servers.gcon]
