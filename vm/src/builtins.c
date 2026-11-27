@@ -714,7 +714,7 @@ FN(k_host) {
 	return true;
 }
 
-FN(k_version) { (void)b; (void)a; (void)n; *out = strval(textc("Icon Version 9.5 (gcon)")); return true; }
+FN(k_version) { (void)b; (void)a; (void)n; *out = strval(textc("Icon Version 9.5 (Gcon)")); return true; }
 
 static Var prognamevar = {VProgname, 0, 0, {0, {0}}};
 static Var dumpvar = {VDump, 0, 0, {0, {0}}};

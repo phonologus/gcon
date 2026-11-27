@@ -1788,7 +1788,7 @@ a procedure, `$line`, the predefined symbols and digraphs against iconx.
 - **Keywords** (`internal/vm/keywords.go`), as iconx's `keyword.r`:
   `&clock`, `&date` and `&dateline` in iconx's formats; `&time` is
   processor time in milliseconds (`getrusage`, as iconx's `millisec`);
-  `&host`; `&version` is "Icon Version 9.5 (gcon)"; `&progname` is the
+  `&host`; `&version` is "Icon Version 9.5 (Gcon)"; `&progname` is the
   name the program would have if built by icont and run from its
   directory (`./kwds` for `kwds.icn`, as iconx's is its `argv[0]`), and
   assignable; `&dump`, when nonzero at the end (normal, `exit`, `stop`
@@ -2014,8 +2014,8 @@ case (Sean, 2026-11-27). As Go, two commands:
   tests (GCONVMDEBUG, GCONVMSTRESS, ICONSDL_TEST_*, LSPCOMPLETE) are
   in design/development.md, not in help.
 - **`gcon doc [name|topic]`**, the documentation tree, Markdown,
-  shipped in the root as Go's `doc/`, shown as plain text through
-  $PAGER on a terminal. A name is looked up as `go doc` looks: a
+  shipped in the root as Go's `doc/`, opened in the browser (see
+  "Delivery" below). A name is looked up as `go doc` looks: a
   built-in function or keyword (`gcon doc find`, `gcon doc
   '&subject'`, `gcon doc WAttrib`), then an IPL procedure (from its
   file's public-domain header comment), then a topic. Topics: the
@@ -2031,14 +2031,34 @@ case (Sean, 2026-11-27). As Go, two commands:
 
 ### Delivery: one tree, more than one reader (2026-11-27)
 
-The Markdown tree is the source; delivery is a renderer over it, to be
-tried both ways and perhaps combined (Sean, 2026-11-27): Go's (`go
-doc`: plain text in the terminal, by name) and rustup's (`rustup doc`:
-the toolchain's own documentation as local HTML, opened in a browser,
-offline, `rustup doc std::vec::Vec` going straight to that page). A
-combination might be `gcon doc find` in the terminal and `gcon doc
--open find` for the same page as HTML, rendered at build time into the
-root or on demand. What that asks of the tree, from the start:
+The Markdown tree is the source; delivery is a renderer over it.
+
+**Decision (Sean, 2026-11-27): `gcon doc` is rustup's by default, with
+flags for Go's and the rest.** `gcon doc [name|topic]` opens the page in
+the local web browser, as `rustup doc std::vec::Vec` does: the
+installed version's documentation, offline, straight to the entry. The
+HTML is rendered from the tree by `build.sh` into the root
+(`doc/html`), with a generated search index for the browser; the
+browser is `$BROWSER`, else `open` (macOS) or `xdg-open`. Flags for the
+other outputs, all to standard output:
+
+- `-raw`: the Markdown itself.
+- `-html`: the page's HTML, unrendered.
+- `-man`: the page as roff (`man(7)` macros), so it reads as a manual
+  page (`gcon doc -man find | man -l -`).
+- `-text`: plain text, as `go doc` prints, through `$PAGER` on a
+  terminal.
+
+Proposed beside them, from comparable tools, to be settled when built:
+`-path` (print the HTML file's path and open nothing, as `rustup doc
+--path`, `man -w`, `perldoc -l`); `-k word` (search entry names and
+summaries, as `man -k`, `pydoc -k`); `-list` (the topics and entries);
+`-short` (the one-line summary, as `go doc -short`); `-http addr`
+(serve the tree, for a browser on another machine, as `godoc -http`,
+`pydoc -p`). Where there is no browser to open (no display, or opening
+fails), `gcon doc` falls back to `-text` and says so.
+
+What that asks of the tree, from the start:
 
 - A small, written-down subset of Markdown (headings, paragraphs,
   lists, fenced code, inline code, emphasis, links, simple tables),
@@ -2084,7 +2104,9 @@ command appears in its help page; help output has golden files, as
 2. The doc tree and `gcon doc` topics: README split, internal sections
    to design/development.md, the internals pages (protocol moved; the
    built program's format brought up to date: it still names the Go
-   reference's files; the instruction set).
+   reference's files; the instruction set). The renderers: one Markdown
+   reader in C for the subset, writing HTML (build.sh, `-html`), text
+   (`-text`) and roff (`-man`); opening the browser, and the fallback.
 3. The reference's machinery: entry format, the extractor, the example
    runner, lookup by name in `gcon doc` and `gcon lsp`.
 4. The reference in batches: core functions, keywords, graphics
