@@ -1,0 +1,10 @@
+to errout
+errerrout at once end of stderr
+
+Run-time error 109
+File writes.icn; Line 33
+string or file expected
+offending value: table_1(0)
+Traceback:
+main()
+write("fatal ","partial",table_1(0),"never") from line 33 in writes.icn

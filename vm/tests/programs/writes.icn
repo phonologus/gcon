@@ -1,0 +1,34 @@
+# write and writes: runs of arguments between file arguments, the
+# newline and flush that write puts at each switch, many arguments,
+# and the arguments before one that cannot be converted, kept for
+# after the error message (or written at once to &errout).
+procedure main()
+   local f
+   write("a", 1, &null, 2.5, "b")
+   writes("c", "d")
+   writes()
+   write()
+   write(&output, "first argument a file")
+   write("to output", &errout, "to errout", &output, "back")
+   writes("no newline at a switch", &errout, "err", &output, "|")
+   write()
+   write(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20)
+   writes("x", "y", "z", "x", "y", "z", "x", "y", "z", "x", "y", "z", "x", "y", "z", "x", "y", "!\n")
+   f := open("w.tmp", "w") | stop("cannot open")
+   write(f, "one", &output, "two")
+   writes(f, "three", 3)
+   close(f)
+   f := open("w.tmp")
+   while write("file: ", read(f))
+   close(f)
+   remove("w.tmp")
+
+   &error := -1
+   write("kept", " for", " after", [], "lost") | write(" <- after failure")
+   write(&errout, "errout ", "at once ", []) | write("errout failure")
+   write("before", &output, "kept2", 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, []) |
+      write(" <- many")
+   write(&errout, "end of stderr")
+   &error := 0
+   write("fatal ", "partial", table(), "never")
+end

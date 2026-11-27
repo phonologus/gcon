@@ -381,46 +381,69 @@ void emit(File *f, const char *b, size_t n, bool end) {
 		wflush(w);
 }
 
-/* writeargs implements write (nl) and writes. */
-static Value writeargs(File *f, Value *a, int n, bool nl) {
-	Value last = NULLV;
-	Buf buf = {0};
-	for (int k = 0; k < n; k++) {
-		Value v = a[k];
-		last = v;
-		if (VKIND(v) == KFile) {
-			if (nl && k > 0) {
-				bufputc(&buf, '\n');
-				emit(f, buf.b, buf.n, true);
-			} else if (buf.n > 0)
-				emit(f, buf.b, buf.n, false);
-			buf.n = 0;
-			f = v.w.p;
-		} else if (VKIND(v) != KNull) {
-			String s;
-			if (!cvstr(v, &s)) {
-				if (!f->gfx)
-					writer(f);
-				if (f->errout || f->gfx)
-					emit(f, buf.b, buf.n, true);
-				else {
-					vm.partial = buf;
-					vm.partialfile = f;
-					vm.haspartial = true;
-				}
-				runerrv(109, v);
+/* writerun writes a run of arguments a[0..m) to f, with a newline if
+ * nl, flushing f if end (and f is not &output): see writeargs. */
+static void writerun(File *f, Value *a, int m, bool nl, bool end) {
+	String local[16];
+	String *s = m <= 16 ? local : xmalloc((size_t)m * sizeof *s);
+	size_t total = 0;
+	for (int i = 0; i < m; i++) {
+		s[i] = (String){"", 0, TextUnit, 1};
+		if (VKIND(a[i]) != KNull && !cvstr(a[i], &s[i])) {
+			/* the arguments before this one are written first: at
+			 * once to &errout or a window, else after the message */
+			if (!f->gfx)
+				writer(f);
+			if (f->errout || f->gfx) {
+				for (int j = 0; j < i; j++)
+					emit(f, s[j].s, (size_t)s[j].n, false);
+				emit(f, "", 0, true);
+			} else {
+				vm.partial.n = 0;
+				for (int j = 0; j < i; j++)
+					bufadd(&vm.partial, s[j].s, (size_t)s[j].n);
+				vm.partialfile = f;
+				vm.haspartial = true;
 			}
-			bufadd(&buf, s.s, (size_t)s.n);
-			if (f->gfx && !f->closed) { /* a window: each argument drawn as it comes, as iconx's wputstr */
-				emit(f, buf.b, buf.n, false);
-				buf.n = 0;
-			}
+			Value v = a[i];
+			if (s != local)
+				free(s);
+			runerrv(109, v);
 		}
+		total += (size_t)s[i].n;
 	}
+	/* each string straight into f's buffer (a window: drawn one by
+	 * one, as iconx's wputstr) */
+	for (int i = 0; i < m; i++)
+		if (s[i].n > 0)
+			emit(f, s[i].s, (size_t)s[i].n, false);
+	if (s != local)
+		free(s);
 	if (nl)
-		bufputc(&buf, '\n');
-	emit(f, buf.b ? buf.b : "", buf.n, true);
-	return last;
+		emit(f, "\n", 1, end);
+	else if (end || total > 0)
+		emit(f, "", 0, end);
+}
+
+/* writeargs implements write (nl) and writes. A file argument ends a
+ * run of arguments: write ends the run before it with a newline and
+ * flushes it (unless the file is the first argument). Each run's
+ * arguments are converted first, then written straight into the
+ * file's buffer: no copy of the call's output is assembled. An
+ * argument that cannot be converted leaves nothing of its run written
+ * yet, so the arguments before it can be kept for after the error
+ * message, as iconx's flushing puts them. */
+static Value writeargs(File *f, Value *a, int n, bool nl) {
+	int start = 0;
+	for (int k = 0; k < n; k++) {
+		if (VKIND(a[k]) != KFile)
+			continue;
+		writerun(f, a + start, k - start, nl && k > 0, nl && k > 0);
+		f = a[k].w.p;
+		start = k + 1;
+	}
+	writerun(f, a + start, n - start, nl, true);
+	return n > 0 ? a[n - 1] : NULLV;
 }
 
 FN(f_write) { (void)b; *out = writeargs(vm.output, a, n, true); return true; }

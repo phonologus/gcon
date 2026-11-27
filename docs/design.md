@@ -1371,11 +1371,17 @@ a procedure, `$line`, the predefined symbols and digraphs against iconx.
   may come out in a different order.
 - Output: iconx flushes the file at the end of every `write` call, so
   output from an interrupted call appears after the error message. gcon
-  keeps standard output buffered but assembles each call's output, keeps
-  an interrupted call's output for after the error message, and flushes
+  keeps standard output buffered, keeps an interrupted call's output for
+  after the error message, and flushes
   standard output whenever something else could observe it: writing to
   `&errout` or a pipe, closing a pipe, reading `&input`, `system`, exit.
-  Files the program opens are flushed per call, as in iconx.
+  Files the program opens are flushed per call, as in iconx (kept, for
+  iconx's behaviour, though it costs a `write(2)` per call). A call
+  converts each run of its arguments (up to a file argument) first,
+  then writes them straight into the file's buffer, so no copy of its
+  output is assembled; an argument that cannot be converted leaves
+  nothing of its run written, which is what lets the arguments before
+  it be kept.
 - `read` ends a line at `\n`, `\r\n` or a lone `\r`, except in an
   untranslated (`"u"`) file, where only `\n` does and `\r` is kept, as
   iconx's own line reading does. `open`'s mode letters map onto C's
