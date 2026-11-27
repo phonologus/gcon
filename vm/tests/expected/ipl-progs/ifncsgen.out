@@ -538,12 +538,6 @@ procedure Left(a1, a2, a3)
    suspend __fnc_left(a1, a2, a3)
 end
 
-procedure Len(a1)
-   static __fnc_len
-   initial __fnc_len := proc("len", 0)
-   suspend __fnc_len(a1)
-end
-
 procedure List(a1, a2)
    static __fnc_list
    initial __fnc_list := proc("list", 0)
@@ -656,12 +650,6 @@ procedure Read(a1)
    static __fnc_read
    initial __fnc_read := proc("read", 0)
    suspend __fnc_read(a1)
-end
-
-procedure Readrunes(a1, a2)
-   static __fnc_readrunes
-   initial __fnc_readrunes := proc("readrunes", 0)
-   suspend __fnc_readrunes(a1, a2)
 end
 
 procedure Reads(a1, a2)

@@ -1,6 +1,6 @@
 /*
  * String functions, as iconx's fstr.r: on bytes. gcon's UTF-8 helpers
- * (len, utf8valid, uchar) read a string's bytes as UTF-8 where asked.
+ * (utf8valid, uchar) read or write UTF-8 where asked.
  */
 #include "vm.h"
 
@@ -293,12 +293,6 @@ FN(f_ord) {
 
 /* ---- UTF-8 ---- */
 
-FN(f_len) {
-	(void)b;
-	*out = intval(utf8count(muststr(ARG(0))));
-	return true;
-}
-
 FN(f_utf8valid) {
 	(void)b;
 	String s = muststr(ARG(0));
@@ -334,7 +328,7 @@ static Builtin fns[] = {
 	{.name = "center", .fn = f_center}, {.name = "repl", .fn = f_repl},
 	{.name = "reverse", .fn = f_reverse}, {.name = "trim", .fn = f_trim},
 	{.name = "map", .fn = f_map}, {.name = "detab", .fn = f_detab},
-	{.name = "entab", .fn = f_entab}, {.name = "len", .fn = f_len},
+	{.name = "entab", .fn = f_entab},
 	{.name = "utf8valid", .fn = f_utf8valid}, {.name = "uchar", .fn = f_uchar},
 	{.name = "char", .fn = f_char}, {.name = "ord", .fn = f_ord},
 };

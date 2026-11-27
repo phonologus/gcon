@@ -22,22 +22,6 @@ String strcopy(const char *s, int64_t n) {
 	return mkstr(p, n);
 }
 
-/* utf8count returns the number of characters in s read as UTF-8, each
- * invalid byte one, as Go's utf8.RuneCountInString. */
-int64_t utf8count(String s) {
-	int64_t k = 0;
-	for (int64_t i = 0; i < s.n; k++) {
-		if ((uint8_t)s.s[i] < 0x80) {
-			i++;
-			continue;
-		}
-		int w;
-		utf8decode((const uint8_t *)s.s + i, (size_t)(s.n - i), &w);
-		i += w;
-	}
-	return k;
-}
-
 String slice(String s, int64_t i, int64_t j) { return (String){s.s + i - 1, j - i}; }
 
 String concat(String a, String b) {

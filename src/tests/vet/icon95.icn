@@ -3,7 +3,7 @@ procedure main()
    write("caf\u00e9", "\U0001F600")  # \u, \U
    write('a..z')                     # a cset range
    write('a.z', "\\u")               # fine: no range; an escaped backslash
-   write(len("x"), uchar(65))        # gcon built-ins
+   write(utf8valid("x"), uchar(65))  # gcon built-ins
    f := open("x", "ru")              # fine: "u" is 9.5's (untranslated)
    g := open("y", "r")               # fine
 end

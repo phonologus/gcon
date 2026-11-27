@@ -1,0 +1,16 @@
+"caf\xc3" 4 5
+"\xa9" 1 6
+"caf\xc3\xa9" café
+" \xe4\xb8\x96\xe7\x95\x8c\x80!" 15
+eof
+"\xa9" 5 "\xa9 "
+195 169 2
+70001 70002
+"\xa9\xc3\xa9" 70005
+129997 "\xc3\xa9z" 200002
+200001 string same eof
+500000 same
+100003 same eof
+200001 same
+"\xc3" "\xc3\xa9" eof
+"\xc3\xa9t" "\xc3\xa9\xe4" "\xb8\x96!"

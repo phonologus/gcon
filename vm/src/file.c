@@ -172,21 +172,13 @@ static IOBuf *writer(File *f) {
 }
 
 /* nextentry reads a directory's next entry: whole (n < 0), or cut to n
- * bytes, or to n UTF-8 characters if runes. */
-static bool nextentry(File *f, int64_t n, bool runes, String *out) {
+ * bytes. */
+static bool nextentry(File *f, int64_t n, String *out) {
 	if (f->idir >= f->ndir)
 		return false;
 	char *e = f->dir[f->idir++];
 	int64_t k = (int64_t)strlen(e);
-	if (n >= 0 && runes) {
-		int64_t p = 0;
-		for (int64_t i = 0; i < n && p < k; i++) {
-			int w;
-			utf8decode((const uint8_t *)e + p, (size_t)(k - p), &w);
-			p += w;
-		}
-		k = p;
-	} else if (n >= 0 && k > n)
+	if (n >= 0 && k > n)
 		k = n;
 	*out = mkstr(e, k);
 	return true;
@@ -199,7 +191,7 @@ bool readline_(File *f, String *out) {
 		return gfx_read(f, -1, out);
 	IOBuf *r = reader(f);
 	if (f->isdir)
-		return nextentry(f, -1, false, out);
+		return nextentry(f, -1, out);
 	SB b = {0};
 	bool any = false;
 	for (;;) {
@@ -318,52 +310,14 @@ static bool readbytes(IOBuf *r, int64_t k, String *out) {
 	return true;
 }
 
-/* readcodes reads up to k UTF-8 characters: code points, never
- * splitting one (a byte that is not part of valid UTF-8 is one
- * character). It decodes what the buffer holds and copies whole runs
- * of it, not a character at a time; a result found within the buffer
- * is a single copy of it. */
-static bool readcodes(IOBuf *r, int64_t k, String *out) {
-	SB b = {0};
-	int64_t i = 0;
-	while (i < k) {
-		size_t avail = rfill(r, 4); /* fewer than 4 only at the end */
-		if (avail == 0)
-			break;
-		const uint8_t *p = (const uint8_t *)r->b + r->pos;
-		size_t lim = avail < 4 ? avail : avail - 3; /* a whole sequence from each start */
-		size_t j = 0;
-		while (i < k && j < lim) {
-			int w;
-			utf8decode(p + j, avail - j < 4 ? avail - j : 4, &w);
-			j += (size_t)w;
-			i++;
-		}
-		if (i == k && b.n == 0) { /* all within the buffer */
-			*out = strcopy(r->b + r->pos, (int64_t)j);
-			r->pos += j;
-			return true;
-		}
-		sbadd(&b, r->b + r->pos, j);
-		r->pos += j;
-	}
-	if (b.n == 0)
-		return false;
-	*out = sbstring(&b);
-	return true;
-}
-
-/* readchars reads up to k bytes (reads), or k UTF-8 characters if runes
- * (readrunes). A window's keystrokes are one byte each, so both read k
- * keystrokes. */
-static bool readchars(File *f, int64_t k, bool runes, String *out) {
+/* readchars reads up to k bytes; a window's keystrokes are one byte
+ * each, so on a window it reads k keystrokes. */
+static bool readchars(File *f, int64_t k, String *out) {
 	if (f->gfx && !f->closed)
 		return gfx_read(f, k, out);
 	IOBuf *r = reader(f);
 	if (f->isdir)
-		return nextentry(f, k, runes, out);
-	if (runes)
-		return readcodes(r, k, out);
+		return nextentry(f, k, out);
 	return readbytes(r, k, out);
 }
 
@@ -617,9 +571,9 @@ FN(f_read) {
 	return true;
 }
 
-/* readn implements reads (k bytes, as Icon 9.5's low-level reader) and
- * readrunes (k UTF-8 characters). */
-static bool readn(Value *a, int n, bool runes, Value *out) {
+/* reads reads k bytes, as Icon 9.5's low-level reader. */
+FN(f_reads) {
+	(void)b;
 	File *f = filearg(a, n, 0, vm.input);
 	int64_t k = 1;
 	if (!ISNULL(ARG(1)))
@@ -627,20 +581,10 @@ static bool readn(Value *a, int n, bool runes, Value *out) {
 	if (k <= 0)
 		runerrv(205, intval(k));
 	String s;
-	if (!readchars(f, k, runes, &s))
+	if (!readchars(f, k, &s))
 		return false;
 	*out = strval(s);
 	return true;
-}
-
-FN(f_reads) {
-	(void)b;
-	return readn(a, n, false, out);
-}
-
-FN(f_readrunes) {
-	(void)b;
-	return readn(a, n, true, out);
 }
 
 FN(f_seek) {
@@ -778,7 +722,6 @@ static Builtin fns[] = {
 	{.name = "stop", .fn = f_stop}, {.name = "open", .fn = f_open},
 	{.name = "close", .fn = f_close}, {.name = "flush", .fn = f_flush},
 	{.name = "read", .fn = f_read}, {.name = "reads", .fn = f_reads},
-	{.name = "readrunes", .fn = f_readrunes},
 	{.name = "seek", .fn = f_seek}, {.name = "where", .fn = f_where},
 	{.name = "remove", .fn = f_remove}, {.name = "rename", .fn = f_rename},
 	{.name = "getenv", .fn = f_getenv}, {.name = "system", .fn = f_system},

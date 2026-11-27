@@ -1,0 +1,91 @@
+# reads counts bytes, as in Icon 9.5, whatever the bytes are: it may
+# split a UTF-8 sequence, and the pieces rejoin. Images are written by
+# q, which escapes every byte from 128 (as iconx's image does; gcon's
+# shows printable UTF-8 as itself).
+procedure main()
+   local f, s, t
+   f := open("rr.tmp", "w") | stop("cannot open")
+   # c a f C3A9 " " E4B896 E7958C 80 ! : 14 bytes
+   writes(f, "café 世界\x80!")
+   close(f)
+
+   f := open("rr.tmp")
+   s := reads(f, 4)
+   write(q(s), " ", *s, " ", where(f))
+   t := reads(f)
+   write(q(t), " ", *t, " ", where(f))
+   write(q(s || t), " ", s || t == "café")
+   write(q(reads(f, 100)), " ", where(f))
+   write(q(reads(f)) | "eof")
+
+   # a byte read and backed over, as the IPL's binary readers do
+   seek(f, 5)
+   s := reads(f)
+   seek(f, where(f) - 1)
+   write(q(s), " ", where(f), " ", q(reads(f, 2)))
+
+   # the bytes themselves
+   seek(f, 4)
+   s := reads(f, 2)
+   write(ord(s[1]), " ", ord(s[2]), " ", *s)
+   close(f)
+   remove("rr.tmp")
+
+   # large reads, across the 64K buffer: a regular file's remaining
+   # size, a pipe growing the result
+   t := repl("é", 100000) || "z"
+   f := open("rr.tmp", "w")
+   writes(f, t)
+   close(f)
+   f := open("rr.tmp")
+   s := reads(f, 70001)
+   write(*s, " ", where(f))
+   s := reads(f, 3)
+   write(q(s), " ", where(f))
+   s := reads(f, 1000000)
+   write(*s, " ", q(s[-3:0]), " ", where(f))
+   seek(f, 1)
+   s := reads(f, 2 ^ 40)
+   write(*s, " ", type(s), " ", same(s, t), " ", q(reads(f)) | "eof")
+   close(f)
+   f := open("cat rr.tmp rr.tmp rr.tmp", "p")
+   s := reads(f, 500000)
+   write(*s, " ", same(s, (t || t || t)[1:500001]))
+   s := reads(f, 1000000)
+   write(*s, " ", same(s, (t || t || t)[500001:0]), " ", q(reads(f)) | "eof")
+   close(f)
+   f := open("cat rr.tmp", "p")
+   s := ""
+   while s ||:= reads(f, 65536)
+   write(*s, " ", same(s, t))
+   close(f)
+   remove("rr.tmp")
+
+   # a directory's entries are cut likewise
+   system("mkdir rr.d && : >rr.d/éa && : >rr.d/éb")
+   f := open("rr.d") | stop("cannot open rr.d")
+   read(f) & read(f)
+   write(q(reads(f, 1)), " ", q(reads(f, 2)), " ", q(reads(f)) | "eof")
+   close(f)
+   system("rm -r rr.d")
+
+   write(q(reads(, 3)), " ", q(reads(&input, 3)), " ", q(read()))
+end
+
+procedure same(s1, s2)
+   return if s1 == s2 then "same" else "differ"
+end
+
+# q is image(s) with every byte from 128 as \xNN.
+procedure q(s)
+   local r, c
+   r := "\""
+   every c := !s do
+      r ||:= if ord(c) >= 128 then "\\x" || hex(ord(c)) else image(c)[2:-1]
+   return r || "\""
+end
+
+procedure hex(i)
+   return "0123456789abcdef"[i / 16 + 1] || "0123456789abcdef"[i % 16 + 1]
+end
+status 0

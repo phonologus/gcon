@@ -20,10 +20,10 @@ icont/iconx, it:
 ```
 $ cat hello.icn
 procedure main()
-   write("héllo, wörld: ", len("wörld"), " characters, ", *"wörld", " bytes")
+   write("h", uchar(233), "llo, wörld: ", *"wörld", " bytes")
 end
 $ gcon run hello.icn
-héllo, wörld: 5 characters, 6 bytes
+héllo, wörld: 6 bytes
 ```
 
 ## Quick start
@@ -144,10 +144,8 @@ Positions are always byte positions.
   `image("café")` is `"café"`; iconx writes `"caf\xc3\xa9"`. Both are
   literals of the same bytes. Other bytes from `\x80` are escaped as in
   9.5.
-- **New built-ins** that read a string's bytes as UTF-8: `len(s)` (the
-  number of characters), `uchar(i)` (the UTF-8 encoding of a code
-  point), `utf8valid(s)` and `readrunes(f, n)` (n characters, never
-  splitting one).
+- **New built-ins:** `uchar(i)` (the UTF-8 encoding of a code point)
+  and `utf8valid(s)`.
 
 Unicode-aware scanning, with csets of code points, is being designed:
 see [docs/design.md](docs/design.md), "Strings and Unicode".

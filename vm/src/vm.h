@@ -48,7 +48,6 @@ static inline void sbadd(SB *s, const void *p, size_t k) {
 	s->n += k;
 }
 String sbstring(SB *s);
-int64_t utf8count(String s); /* the characters of s read as UTF-8 */
 String slice(String s, int64_t i, int64_t j); /* 1-based, i <= j */
 String concat(String a, String b);
 bool streq_(String a, const char *t);

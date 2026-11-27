@@ -138,7 +138,6 @@ const char *const gen_functions[] = {
 	"kbhit",
 	"key",
 	"left",
-	"len",
 	"list",
 	"log",
 	"many",
@@ -157,7 +156,6 @@ const char *const gen_functions[] = {
 	"push",
 	"put",
 	"read",
-	"readrunes",
 	"reads",
 	"real",
 	"remove",
@@ -191,4 +189,4 @@ const char *const gen_functions[] = {
 	"write",
 	"writes",
 };
-const int gen_nfunctions = 94;
+const int gen_nfunctions = 92;

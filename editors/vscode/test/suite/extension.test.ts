@@ -43,7 +43,7 @@ suite("Icon (gcon) extension", () => {
     assert.match(messages.join("\n"), /undeclared identifier/);
     // gcon vet: an error at run time, and (gcon.icon95) a gcon addition
     assert.match(messages.join("\n"), /numeric comparison with "abc", which is not a number: run-time error 102/);
-    assert.match(messages.join("\n"), /len: a gcon built-in function, not in Icon 9\.5/);
+    assert.match(messages.join("\n"), /uchar: a gcon built-in function, not in Icon 9\.5/);
   });
 
   test("hover shows the declaration and its comment", async () => {

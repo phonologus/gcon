@@ -3,5 +3,5 @@ procedure main()
   p := area(3)
   write(&subject, p)
   undeclared := 1
-  if p = "abc" then write(len("x"))
+  if p = "abc" then write(uchar(65))
 end
