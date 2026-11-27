@@ -877,16 +877,18 @@ substring cannot:
 - `uset(x)`, `u'...'` and `&uset`, beside `cset(x)`, `'...'` and
   `&cset`.
 
-**Open:**
+**Decided (Sean, 2026-11-27):**
 
-- A generator of characters (`u!s`, or a function): gcon has no rune
-  type and is not to get one, so it would generate substrings, as `!s`
-  does, at no cost in allocation. Whether `tab(any(&uset))` in a loop is
-  enough is to be seen in use.
-- `len(s)` and `readrunes(f, n)` (v0.2.0) count characters, against the
-  rule. `len(s)` is the number of positions `upto(&uset, s)` generates;
-  `readrunes` has no scanning equivalent. Both are candidates for removal
-  when usets land.
+- **Unicode is quarantined in the uset.** Everything Unicode-aware
+  follows from the definition of a uset and its use in the scanning
+  functions; it does not seep into the rest of the language. Go strikes
+  the same balance.
+- **No character generator**, as syntax (`u!s`) or as a function:
+  `tab(any(&uset))` in a loop does the job. (gcon has no rune type and
+  is not to get one; a generator would have produced substrings.)
+- **`len` and `readrunes` are removed** (they were in v0.2.0): counting
+  code points is not meaningful, as Go recognises by giving it no
+  operator. A program that does need a count has `upto(&uset, s)`.
 - `reverse`, `map`, `left`, `right`, `center`, `detab` and `entab` stay
   9.5's, on bytes.
 - These names are hidden by a declaration of the same name, as any
@@ -896,10 +898,9 @@ substring cannot:
 **Status (2026-11-27).** The byte half is implemented: strings without
 units, 9.5's csets, `image`, I/O with iconx's untranslated mode `"u"`,
 and the built program's format at version 2 (no unit byte on strings, no
-ranges on csets). `runes`, `bytes` and `&uset` are removed (`&uset`
-returns as a uset). `len`, `uchar`, `utf8valid` and `readrunes` are kept
-as they were, reading a string's bytes as UTF-8, until the open points
-are settled. Usets, `u'...'` and uset matching are not yet implemented.
+ranges on csets). `runes`, `bytes`, `len`, `readrunes` and `&uset` are
+removed (`&uset` returns as a uset). `uchar` and `utf8valid` remain.
+Usets, `u'...'`, `uord` and uset matching are next.
 
 ### Positions are bytes
 
@@ -987,8 +988,35 @@ exactly.
   storage: `~u'a'` would be about 4 MB as a string. Storage is a 256-bit
   set for ASCII and the bytes, and a sorted list of code-point ranges.
   The string is built only when asked for.
-- **Unicode classes.** The Unicode tables give usets for categories and
-  scripts (names to be settled, e.g. `ucat("L")`, `uscript("Greek")`).
+- **Unicode classes (proposed, 2026-11-27; open).** A class is a uset
+  written in a uset literal as `\p{Name}`, the notation of regular
+  expressions in Go (RE2), Perl, Java and Rust: `u'\p{L}'` (letters),
+  `u'\p{Greek}'`, `u'\p{L}\p{Nd}_'` (an identifier's characters).
+  - **Names** are those of Go's `unicode` package and RE2's `\p`: the
+    general categories, one letter or two (`L`, `Lu`, `Ll`, `N`, `Nd`,
+    `P`, `S`, `Z`, `Zs`, `C`, ...), and the scripts (`Latin`, `Greek`,
+    `Cyrillic`, `Han`, ...). Binary properties (`White_Space`, ...)
+    can follow if wanted. An unknown name is a compile-time error.
+  - **No `\P{...}`**: `~u'\p{L}'` is the complement, and the uset
+    algebra (`++`, `--`, `**`) combines classes, so nothing else is
+    needed. A class is just members; it may be mixed with characters and
+    ranges in one literal.
+  - **Only in uset literals.** In a cset literal `\p` keeps its 9.5
+    meaning (the character `p`); no cset literal in the corpus has it.
+  - **Built at compile time.** The compiler holds the tables and writes
+    the class's ranges into the program as any uset constant (identical
+    constants shared), so gcon-vm carries no class tables, and a class
+    costs nothing at run time beyond its ranges. A run-time lookup by
+    name (`uclass(s)`) is left out until a program needs one.
+  - **Tables** come from the Unicode Character Database of the version
+    gcon-vm's printable table uses (17.0.0): general categories from
+    `UnicodeData.txt` (which `vm/tools/mkunicode.c` already reads),
+    scripts from `Scripts.txt`; generated into the compiler's sources by
+    the same kind of tool, run only when moving to a new Unicode version.
+  - **Not** grapheme clusters, case folding or normalization: a class is
+    a set of code points, nothing more.
+  - `&letters`, `&digits` and the other cset keywords stay 9.5's ASCII
+    csets; Unicode letters are `u'\p{L}'`.
 
 ### image()
 
@@ -1035,7 +1063,14 @@ The lesson of `reads`: the first design's work for the text unit
 the default, each 9.5 operation should be the C iconx's is: `memcpy`,
 loops over bytes, a 256-bit membership test (iconx's `Testb`), a
 256-entry table for `map`. Decoding lives only in uset matching,
-`uset(s)` and the few `u` functions. So:
+`uset(s)` and the few `u` functions.
+
+In the uset paths, the scanning functions keep the ASCII fast path
+(Sean, 2026-11-27): a byte below 0x80 is a whole character, tested in
+the uset's bitmap with no decoding; only a byte from 0x80 starts a
+decode. So ASCII text costs the same with a uset as with a cset.
+
+So:
 
 - the string value loses its unit tag, and its cached ASCII flag unless
   a measured fast path still needs it;
@@ -1459,13 +1494,13 @@ a procedure, `$line`, the predefined symbols and digraphs against iconx.
   `Record`. Field references are looked up by name when they run, so
   `x.f` works on any record type with a field `f`; `r[i]` and `r["f"]`
   subscript by position or field name.
-- gcon's extra built-ins (`len`, `uchar`, `utf8valid`, `readrunes`) are
-  in the catalogue marked `Gcon` ("Strings and Unicode"; `runes`,
-  `bytes` and the keyword `&uset` were removed on 2026-11-27, and the
-  uset functions are to come). Like any built-in, they are hidden by a
-  declaration of the same name but not by an undeclared use, which
-  would assign to the global. None but `len` occurs in the reference
-  tree or `icn/`, where `len` is always declared.
+- gcon's extra built-ins (`uchar`, `utf8valid`) are in the catalogue
+  marked `Gcon` ("Strings and Unicode"; `runes`, `bytes`, `len`,
+  `readrunes` and the keyword `&uset` were removed on 2026-11-27, and
+  the uset functions are to come). Like any built-in, they are hidden
+  by a declaration of the same name but not by an undeclared use,
+  which would assign to the global. Neither occurs in the reference
+  tree or `icn/`.
   `text`, an earlier choice, was rejected: it is a natural variable
   name, used undeclared in `tests/general/diffwrds.icn`.
 - Error conversion (`internal/vm/errors.go`) follows iconx's `err_msg`
@@ -1642,7 +1677,7 @@ a procedure, `$line`, the predefined symbols and digraphs against iconx.
   activations, and the kept globals, sorted, as `xdisp`.
 - `open` of a directory for reading reads its entries (with "." and
   "..", sorted): `read` and `!f` an entry, `reads(f, n)` an entry cut to
-  n bytes (`readrunes(f, n)` to n UTF-8 characters); `seek` and `where` fail, as iconx's `ReadDirectory`.
+  n bytes; `seek` and `where` fail, as iconx's `ReadDirectory`.
   `x[]` is `x[&null]`, as icont compiles an empty subscript list.
 - The keyboard functions `getch`, `getche` and `kbhit` (`kbd*.go`) put a
   terminal on standard input into non-canonical mode while they run, as
@@ -1845,10 +1880,10 @@ Next, after v0.1.0 (Sean, 2026-11-26):
   `u'...'` through the front end, `gcon fmt`, `gcon lsp`, tree-sitter-gcon
   and the README; then the byte paths audited against iconx, measured.
   A breaking change, so a minor version.
-- Unicode classes: usets for categories and scripts (names to be
-  settled; see "Csets and usets").
+- Unicode classes: usets for categories and scripts, written `\p{Name}`
+  in a uset literal (proposed; see "Csets and usets").
 - Built-in documentation, the modern man page: a `gcon doc`, as `go
-  doc` is for Go. `gcon doc len` or `gcon doc &subject` shows what the
+  doc` is for Go. `gcon doc uchar` or `gcon doc &subject` shows what the
   language server's hover shows (the catalogue, the reference pages
   `gcon lsp fetch-docs` caches, `src/gcondoc.inc`); `gcon doc graphics`
   lists the procedures of an IPL file from its header comments, and
