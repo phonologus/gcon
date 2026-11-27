@@ -25,6 +25,13 @@ void *xcalloc(size_t n, size_t size) {
 	return p;
 }
 
+void *xrealloc(void *q, size_t n) {
+	void *p = realloc(q, n ? n : 1);
+	if (p == NULL)
+		nomem();
+	return p;
+}
+
 static void bufgrow(Buf *b, size_t n) {
 	if (b->cap - b->n >= n)
 		return;

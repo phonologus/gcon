@@ -29,6 +29,7 @@ typedef struct Buf {
 
 void *xmalloc(size_t n);
 void *xcalloc(size_t n, size_t size);
+void *xrealloc(void *p, size_t n);
 void bufadd(Buf *b, const void *p, size_t n);
 void bufputc(Buf *b, int c);
 void bufputs(Buf *b, const char *s);

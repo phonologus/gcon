@@ -223,38 +223,149 @@ bool readline_(File *f, String *out) {
 	return true;
 }
 
+/* rread is read(2) into p, retried on EINTR: the count, 0 at the end
+ * (or on an error, which reading treats as the end, as before). */
+static size_t rread(int fd, char *p, size_t n) {
+	for (;;) {
+		ssize_t m = read(fd, p, n);
+		if (m >= 0)
+			return (size_t)m;
+		if (errno != EINTR)
+			return 0;
+	}
+}
+
+/* readgrow finishes readbytes where the size cannot be known (a pipe,
+ * a terminal, a file that grew): it takes the n bytes at p, then the
+ * buffer's unread bytes, then reads straight into a scratch block
+ * (malloc, grown by realloc, doubling up to want) until want bytes or
+ * the end, and copies the result once into a string of its exact size.
+ * Bytes beyond want stay in the buffer. */
+static String readgrow(IOBuf *r, const char *p, size_t n, size_t want) {
+	size_t cap = n + (r->len - r->pos) + r->cap;
+	if (cap > want)
+		cap = want;
+	char *m = xmalloc(cap);
+	if (n > 0)
+		memcpy(m, p, n);
+	while (n < want) {
+		if (r->len > r->pos) { /* only at first, and cap allows for them */
+			size_t take = r->len - r->pos < want - n ? r->len - r->pos : want - n;
+			memcpy(m + n, r->b + r->pos, take);
+			n += take;
+			r->pos += take;
+			continue;
+		}
+		r->pos = r->len = 0;
+		if (n == cap) {
+			cap = cap > want / 2 ? want : cap * 2;
+			m = xrealloc(m, cap);
+		}
+		size_t k = rread(r->fd, m + n, cap - n);
+		if (k == 0)
+			break;
+		n += k;
+	}
+	if (r->pos == r->len)
+		r->pos = r->len = 0;
+	char *s = gcraw(n);
+	memcpy(s, m, n);
+	free(m);
+	return mkstr(s, (int64_t)n, BytesUnit);
+}
+
+/* readbytes reads up to k bytes, until k or the end of the file, into
+ * a bytes string allocated once at its exact size. What the buffer
+ * holds is copied whole. For a regular file the rest is read straight
+ * into the string, sized by what is left of the file (fstat); reaching
+ * that size, it reads once into the empty buffer to see whether the
+ * file has grown, and only then goes on as readgrow. A pipe or terminal
+ * goes to readgrow. */
+static bool readbytes(IOBuf *r, int64_t k, String *out) {
+	size_t avail = rfill(r, 1);
+	if (avail == 0)
+		return false;
+	size_t want = (size_t)k;
+	if (want <= avail) {
+		*out = strcopy(r->b + r->pos, (int64_t)want, BytesUnit);
+		r->pos += want;
+		return true;
+	}
+	struct stat st;
+	off_t cur;
+	if (fstat(r->fd, &st) != 0 || !S_ISREG(st.st_mode) || (cur = lseek(r->fd, 0, SEEK_CUR)) < 0) {
+		*out = readgrow(r, NULL, 0, want);
+		return true;
+	}
+	size_t cap = avail + (st.st_size > cur ? (size_t)(st.st_size - cur) : 0);
+	if (cap > want)
+		cap = want;
+	char *p = gcraw(cap);
+	memcpy(p, r->b + r->pos, avail);
+	r->pos = r->len = 0;
+	size_t n = avail;
+	while (n < cap) {
+		size_t m = rread(r->fd, p + n, cap - n);
+		if (m == 0)
+			break;
+		n += m;
+	}
+	if (n == cap && n < want && (r->len = rread(r->fd, r->b, r->cap)) > 0) {
+		*out = readgrow(r, p, n, want); /* the file has grown */
+		return true;
+	}
+	*out = mkstr(p, (int64_t)n, BytesUnit);
+	return true;
+}
+
+/* readcodes reads up to k characters of a text file: code points,
+ * never splitting one (a byte that is not part of valid UTF-8 is one
+ * character). It decodes what the buffer holds and copies whole runs
+ * of it, not a character at a time; a result found within the buffer
+ * is a single copy of it. */
+static bool readcodes(IOBuf *r, int64_t k, String *out) {
+	SB b = {0};
+	int64_t i = 0;
+	while (i < k) {
+		size_t avail = rfill(r, 4); /* fewer than 4 only at the end */
+		if (avail == 0)
+			break;
+		const uint8_t *p = (const uint8_t *)r->b + r->pos;
+		size_t lim = avail < 4 ? avail : avail - 3; /* a whole sequence from each start */
+		size_t j = 0;
+		while (i < k && j < lim) {
+			int w;
+			utf8decode(p + j, avail - j < 4 ? avail - j : 4, &w);
+			j += (size_t)w;
+			i++;
+		}
+		if (i == k && b.n == 0) { /* all within the buffer */
+			*out = strcopy(r->b + r->pos, (int64_t)j, TextUnit);
+			r->pos += j;
+			return true;
+		}
+		sbadd(&b, r->b + r->pos, j);
+		r->pos += j;
+	}
+	if (b.n == 0)
+		return false;
+	*out = sbstring(&b, TextUnit);
+	return true;
+}
+
 /* readchars reads up to k bytes (reads), or k characters if runes
- * (readrunes: code points in a text file, never splitting one; bytes
- * in a bytes file), in the file's unit (readn relabels reads' result
- * as bytes). A window's keystrokes are one byte each, so both read k
- * keystrokes. */
+ * (readrunes: code points in a text file; bytes in a bytes file). A
+ * file's bytes are a bytes string; its code points are text. A window's
+ * keystrokes are one byte each, so both read k keystrokes. */
 static bool readchars(File *f, int64_t k, bool runes, String *out) {
 	if (f->gfx && !f->closed)
 		return gfx_read(f, k, out);
 	IOBuf *r = reader(f);
 	if (f->isdir)
 		return nextentry(f, k, runes, out);
-	SB b = {0};
-	for (int64_t i = 0; i < k; i++) {
-		if (!runes || f->unit == BytesUnit) {
-			int c = rgetc(r);
-			if (c < 0)
-				break;
-			sbputc(&b, c);
-			continue;
-		}
-		size_t avail = rfill(r, 4);
-		if (avail == 0)
-			break;
-		int w;
-		utf8decode((const uint8_t *)r->b + r->pos, avail < 4 ? avail : 4, &w);
-		sbadd(&b, r->b + r->pos, (size_t)w);
-		r->pos += (size_t)w;
-	}
-	if (b.n == 0)
-		return false;
-	*out = sbstring(&b, f->unit);
-	return true;
+	if (runes && f->unit == TextUnit)
+		return readcodes(r, k, out);
+	return readbytes(r, k, out);
 }
 
 void emit(File *f, const char *b, size_t n, bool end) {

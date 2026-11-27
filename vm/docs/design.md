@@ -211,6 +211,13 @@ Go VM is the reference, and the tests compare the two.
   gcon: at exit, gcon-vm waits for the commands of pipes still open for
   writing, so their output is complete when it ends; gcon waits only
   when it relays their output, and iconx never waits.
+  `reads(f, n)` allocates its result once, at its exact size: the
+  buffer's bytes are copied whole and the rest is read straight into
+  the string, sized for a regular file by what is left of it (`fstat`);
+  a pipe or terminal is read into a malloc'd scratch block grown by
+  `realloc`, then copied once. A 64 MB file read in 500000-byte pieces
+  allocates 64 MB in all. `readrunes` decodes the buffer in place and
+  copies whole runs.
 - **Memory** is managed by the collector (below, "The collector").
 
 **Tests.** `tests/programs.sh` runs gcon's program tests (expected
