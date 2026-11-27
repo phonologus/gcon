@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.0
+
+With Gcon v0.4.0, which documents itself (`gcon help`, `gcon doc`). The
+extension is "Icon (Gcon)" now. Hover shows Gcon's own reference for
+the built-in functions and keywords and for `uclass`, in place of the fetched
+Arizona pages (still the fallback where there is no entry), and shows doc
+comments formatted by Go's rules (paragraphs, code, lists). The language
+server finds linked files in the workspace folders too, and warns of doc
+comments that will not read as meant.
+
 ## 0.3.1
 
 With gcon v0.3.1, which is faster (no change to the extension itself).
