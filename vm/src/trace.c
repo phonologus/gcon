@@ -426,7 +426,7 @@ static void operator(Buf *b, Frame *f, Builtin *bt, Operand *ops, int n) {
 		bufputs(b, " . ");
 		bufputs(b, keptfield(name + 1, strlen(name + 1)) ? name + 1 : "field");
 		bufputc(b, '}');
-	} else if (!strcmp(name, "to")) {
+	} else if (!strcmp(name, "...")) { /* to-by, as iconx names it */
 		bufputc(b, '{');
 		val(b, f, ops[0]);
 		bufputs(b, " to ");

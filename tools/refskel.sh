@@ -102,10 +102,10 @@ END {
 			}
 			s = line[i]
 		}
-		if (s ~ /^function\{/) {
+		if (s ~ /^function[ \t]*\{/) {
 			flush()
-			name = s; sub(/^function\{[^}]*\}[ \t]*/, "", name); sub(/\(.*/, "", name)
-			results = s; sub(/^function\{/, "", results); sub(/\}.*/, "", results)
+			name = s; sub(/^function[ \t]*\{[^}]*\}[ \t]*/, "", name); sub(/\(.*/, "", name)
+			results = s; sub(/^function[ \t]*\{/, "", results); sub(/\}.*/, "", results)
 			sig = doc; sub(/ - .*/, "", sig)
 			summary = doc; sub(/^[^-]* - /, "", summary)
 			if (sig == "" || index(sig, name "(") != 1) { sig = name "(...)"; summary = "(No summary in the runtime.)" }

@@ -67,8 +67,13 @@ ${CC:-cc} -std=c11 -O2 -Wall -Wextra ${CFLAGS:-} -DGCON_VERSION="\"$version\"" -
 	-o bin/gcon.new src/*.c vm/src/gen_tables.c
 mv bin/gcon.new bin/gcon
 echo "built bin/gcon ($version)"
-bin/gcon doc -build # doc/html: the documentation, for gcon doc
-echo "built doc/html"
+# doc/html: the documentation, for gcon doc. A problem in the pages
+# (gcon doc -check) leaves it unbuilt, and src/tests/doc.sh fails.
+if bin/gcon doc -build; then
+	echo "built doc/html"
+else
+	echo "build.sh: doc/html not built: see the problems above (gcon doc -check)" >&2
+fi
 
 # The C functions of the IPL (lib/ipl/cfuncs), as Arizona builds them
 # into its bin, into lib/libcfunc.so, against gcon's icall.h; gcon-vm

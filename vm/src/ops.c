@@ -478,7 +478,7 @@ FN(k_main) { (void)b; (void)a; (void)n; *out = ptrval(KCoexp, vm.main); return t
 static Builtin ops[] = {
 	{.name = "[]", .key = "[]", .fn = o_index, .reffirst = true, .intop = OpIndex},
 	{.name = "[:]", .key = "[:]", .fn = o_section, .reffirst = true},
-	{.name = "to", .key = "to", .gen = o_to},
+	{.name = "...", .key = "to", .gen = o_to}, /* iconx names it "..." */
 	{.name = "!", .key = "u!", .gen = o_bang, .reffirst = true},
 	{.name = "?", .key = "u?", .fn = o_random, .reffirst = true},
 	{.name = "&random", .key = "&random", .fn = k_random},
