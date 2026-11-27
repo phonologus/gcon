@@ -2,7 +2,7 @@
   "name": "gcon",
   "displayName": "Icon (Gcon)",
   "description": "Icon as Gcon reads it: highlighting, diagnostics and vet warnings, hover documentation, go to definition, references, completion, rename and formatting (gcon lsp).",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "publisher": "phonologus",
   "author": "Sean Jensen",
   "license": "MIT",
