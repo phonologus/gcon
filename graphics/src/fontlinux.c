@@ -4,7 +4,8 @@
  *
  * Icon's portable families map to fontconfig's generic families. Any
  * other name must be one of the matched font's family names or its full
- * name (ignoring case): fontconfig always returns something, where X
+ * name, or a family and a style ("Unifont Regular"), ignoring case:
+ * fontconfig always returns something, where X
  * fails a request for a font it doesn't have. Only outline fonts (TrueType
  * and OpenType) are used: stb_truetype draws outlines only.
  */
@@ -34,10 +35,12 @@ static int named(FcPattern *m, const char *object, const char *want)
    return 0;
 }
 
-int font_lookup(const char *family, int bold, int italic,
+/* lookup finds family (with style, if not NULL: then bold and italic
+ * are the style's) */
+static int lookup(const char *family, const char *style, int bold, int italic,
    char *path, int pathlen, char *psname, int pslen)
 {
-   const char *g = generic(family);
+   const char *g = style ? NULL : generic(family);
    FcPattern *p, *m;
    FcResult res;
    FcChar8 *file, *ps;
@@ -57,8 +60,12 @@ int font_lookup(const char *family, int bold, int italic,
    }
    else
       FcPatternAddString(p, FC_FAMILY, (const FcChar8 *)family);
-   FcPatternAddInteger(p, FC_WEIGHT, bold ? FC_WEIGHT_BOLD : FC_WEIGHT_REGULAR);
-   FcPatternAddInteger(p, FC_SLANT, italic ? FC_SLANT_ITALIC : FC_SLANT_ROMAN);
+   if (style)
+      FcPatternAddString(p, FC_STYLE, (const FcChar8 *)style);
+   else {
+      FcPatternAddInteger(p, FC_WEIGHT, bold ? FC_WEIGHT_BOLD : FC_WEIGHT_REGULAR);
+      FcPatternAddInteger(p, FC_SLANT, italic ? FC_SLANT_ITALIC : FC_SLANT_ROMAN);
+   }
    FcPatternAddBool(p, FC_OUTLINE, FcTrue);
    FcConfigSubstitute(NULL, p, FcMatchPattern);
    FcDefaultSubstitute(p);
@@ -66,7 +73,8 @@ int font_lookup(const char *family, int bold, int italic,
    FcPatternDestroy(p);
    if (!m)
       return 0;
-   if ((g || named(m, FC_FAMILY, family) || named(m, FC_FULLNAME, family))
+   if ((style ? named(m, FC_FAMILY, family) && named(m, FC_STYLE, style)
+              : g || named(m, FC_FAMILY, family) || named(m, FC_FULLNAME, family))
        && FcPatternGetString(m, FC_FILE, 0, &file) == FcResultMatch
        && strlen((char *)file) < (size_t)pathlen) {
       strcpy(path, (char *)file);
@@ -79,4 +87,25 @@ int font_lookup(const char *family, int bold, int italic,
    }
    FcPatternDestroy(m);
    return ok;
+}
+
+/* font_lookup finds a font by a portable family, a family, a full
+ * name, or a family and style as font pickers show them ("Unifont
+ * Regular", "DejaVu Sans Mono Bold"), whose full name fontconfig may
+ * not have (Debian's Unifont's is "Unifont"). */
+int font_lookup(const char *family, int bold, int italic,
+   char *path, int pathlen, char *psname, int pslen)
+{
+   char buf[256];
+   if (lookup(family, NULL, bold, italic, path, pathlen, psname, pslen))
+      return 1;
+   if (generic(family) || strlen(family) >= sizeof buf)
+      return 0;
+   strcpy(buf, family);
+   for (char *sp = strrchr(buf, ' '); sp; sp = strrchr(buf, ' ')) {
+      *sp = '\0';			/* buf the family, the rest the style */
+      if (buf[0] && lookup(buf, family + (sp - buf) + 1, bold, italic, path, pathlen, psname, pslen))
+         return 1;
+   }
+   return 0;
 }

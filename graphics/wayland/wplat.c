@@ -96,6 +96,12 @@ typedef struct {
    int stale[4];
 } Buf;
 
+/* A window's buffers: two usually suffice, one shown and one being
+ * drawn, but a compositor may hold on to both for a while, and a
+ * present must not wait for events a program that draws and then sleeps
+ * never lets the server read (the frame would stay unshown). */
+enum { NBUF = 4 };
+
 typedef struct Win {
    struct wl_surface *surf;
    struct xdg_surface *xs;
@@ -107,9 +113,9 @@ typedef struct Win {
    void *cv;			/* the canvas shown */
    int scale;
    int lw, lh;			/* its logical size */
-   int resizable, state, configured, exposed, pending, cursor;
+   int resizable, state, configured, exposed, pending, awaiting, cursor;
    int cfw, cfh, cfmax;		/* the configure being made */
-   Buf buf[2];
+   Buf buf[NBUF];
    int ov, o[4];		/* the overlay: device rectangle */
    unsigned int ovrgb;
    struct Win *next;
@@ -172,8 +178,8 @@ static void join(int r[4], const int s[4])
 
 static void stale(Win *w, const int r[4])
 {
-   join(w->buf[0].stale, r);
-   join(w->buf[1].stale, r);
+   for (int i = 0; i < NBUF; i++)
+      join(w->buf[i].stale, r);
 }
 
 static void buf_release(void *data, struct wl_buffer *b);
@@ -221,6 +227,8 @@ static int buf_new(Win *win, Buf *b, int w, int h)
 
 /* show the canvas: bring a free buffer up to date and commit it; if
  * both are with the compositor, when one comes back */
+static void await(Win *w, int ms);
+
 static void show(Win *w)
 {
    unsigned char *px;
@@ -234,13 +242,19 @@ static void show(Win *w)
       w->pending = 1;
       return;
    }
-   for (int i = 0; i < 2; i++)
-      if (!w->buf[i].busy) {
-         b = &w->buf[i];
-         break;
-      }
+   /* a free buffer, else a new one, else wait a little for one */
+   for (int tries = 0; !b && tries < 2; tries++) {
+      for (int i = 0; i < NBUF && !b; i++)
+         if (w->buf[i].b && !w->buf[i].busy)
+            b = &w->buf[i];
+      for (int i = 0; i < NBUF && !b; i++)
+         if (!w->buf[i].b)
+            b = &w->buf[i];
+      if (!b && tries == 0)
+         await(w, 100);
+   }
    if (!b) {
-      w->pending = 1;
+      w->pending = 1;		/* shown when one comes back */
       return;
    }
    w->pending = 0;
@@ -283,11 +297,41 @@ static void show(Win *w)
 static void buf_release(void *data, struct wl_buffer *wb)
 {
    Win *w = data;
-   for (int i = 0; i < 2; i++)
+   for (int i = 0; i < NBUF; i++)
       if (w->buf[i].b == wb)
          w->buf[i].busy = 0;
-   if (w->pending)
+   if (w->pending && !w->awaiting)
       show(w);
+}
+
+/* await reads events for up to ms milliseconds, until one of w's
+ * buffers comes back */
+static void await(Win *w, int ms)
+{
+   w->awaiting = 1;
+   for (int left = ms; left > 0; left -= 10) {
+      for (int i = 0; i < NBUF; i++)
+         if (w->buf[i].b && !w->buf[i].busy)
+            left = 0;
+      if (left <= 0)
+         break;
+#ifdef WITH_LIBDECOR
+      if (decor) {
+         libdecor_dispatch(decor, 10);
+         continue;
+      }
+#endif
+      while (wl_display_prepare_read(dpy) != 0)
+         wl_display_dispatch_pending(dpy);
+      wl_display_flush(dpy);
+      struct pollfd p = { wl_display_get_fd(dpy), POLLIN, 0 };
+      if (poll(&p, 1, 10) > 0)
+         wl_display_read_events(dpy);
+      else
+         wl_display_cancel_read(dpy);
+      wl_display_dispatch_pending(dpy);
+   }
+   w->awaiting = 0;
 }
 
 /* the size bounds: fixed unless resizable */
@@ -437,7 +481,8 @@ void *pl_open(const char *title, int x, int y, int w, int h, int state,
       return NULL;
    if (!(n = calloc(1, sizeof *n)))
       return NULL;
-   n->buf[0].stale[0] = n->buf[1].stale[0] = -1;
+   for (int i = 0; i < NBUF; i++)
+      n->buf[i].stale[0] = -1;
    n->scale = *scale = outscale();
    n->lw = w;
    n->lh = h;
@@ -529,8 +574,8 @@ void pl_close(void *win)
    if (w->xs)
       xdg_surface_destroy(w->xs);
    wl_surface_destroy(w->surf);
-   buf_free(&w->buf[0]);
-   buf_free(&w->buf[1]);
+   for (int i = 0; i < NBUF; i++)
+      buf_free(&w->buf[i]);
    wl_display_flush(dpy);
    free(w);
 }
