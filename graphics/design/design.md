@@ -119,3 +119,37 @@ have earned trust.
   Windows only in 9.5, and used by nothing in Icon's tree, the IPL or
   `../icn`) are for after the servers, on Cocoa first: dialogs map well
   onto AppKit, while X11 and Wayland have no toolkit of their own.
+
+### The Cocoa server (2026-11-28)
+
+`cocoa/`: `ccanvas.c` and `cfont.c` in C (Core Graphics, CoreText,
+ImageIO), `cplat.m` the only Objective-C (AppKit). As the SDL server,
+the protocol reader runs on a thread of its own and AppKit has the main
+thread: window requests run there (`dispatch_sync`), and events come
+back through a queue the reader waits on. A canvas is a bitmap context
+over pixels laid out as the SDL server's (0xFFRRGGBB, at the display's
+backing scale for a window, 1 for a hidden canvas), so `canvas.c`'s
+pixel operations carry over: copy, read, write, erase and the X GC
+functions.
+
+- Copy-mode drawing without a pattern, nearly all drawing, is Core
+  Graphics's own, antialiased, and text CoreText's; any other drawop,
+  `drawop=reverse` and patterns are drawn aliased into an A8 mask and
+  combined pixel by pixel, as X does, so rubber-banding and stipples
+  keep Icon's meaning. Against Arizona's X11 images
+  (`vm/tests/ref/tolerance-cocoa`): bounds, colours, drawops, images and
+  patterns exact; lines, shapes and clipcopy differ at antialiased
+  edges (about 3%, 3% and 14% of pixels; clipcopy is dense with slanted
+  lines); text in its fonts.
+- A window shows its canvas as the contents of a layer it hosts: an
+  image of the canvas, made on each showing that follows a change. The
+  text cursor is a sublayer, removed by the next showing.
+- Fonts and their metrics are the SDL server's on macOS (the same
+  families, through CoreText), so `vm/tests/graphics.std` holds.
+- Images through ImageIO: PNG, JPEG, BMP (and reading what ImageIO
+  reads); QOI is not among them.
+- The first window makes the process a regular application (a Dock
+  icon, a menu with Quit); hidden canvases alone do not. Command-Q is a
+  close event for the key window, which the program decides on.
+- An expose event follows a window's first showing: gcon-vm reports
+  resizes only for a window that has been exposed.

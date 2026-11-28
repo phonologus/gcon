@@ -386,7 +386,7 @@ incomplete.
 
 ```icon
 procedure main()
-   w := open("demo", "g", "canvas=hidden", "size=50,50", "fg=red")
+   w := open("demo", "g", "canvas=hidden", "size=50,50", "fg=red", "linewidth=3")
    DrawCurve(w, 5, 25, 25, 5, 45, 25)
    write(Pixel(w, 25, 5, 1, 1))
 end

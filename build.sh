@@ -4,7 +4,7 @@
 #   libexec/gcon-vm        the runtime (vm/; needs a C compiler)
 #   libexec/gcon-graphics  the display server gcon-vm runs: the first of
 #                          those chosen below (by default the SDL one)
-#   libexec/gcon-graphics-NAME  each display server built (sdl, x11)
+#   libexec/gcon-graphics-NAME  each display server built (sdl, x11, cocoa)
 #   bin/gcon               the command (src/)
 #   bin/colrbook ... bin/vib  the programs Arizona builds into its bin
 #                          (colrbook colrpick fontpick palette wevents
@@ -24,7 +24,8 @@
 #                the default, skipped without C++ or CMake (and then
 #                programs cannot open windows)
 #   --withX11    Xlib (graphics/x11/; needs Xlib)
-#   --withCocoa  AppKit and Core Graphics, on macOS (not yet written)
+#   --withCocoa  AppKit, Core Graphics and CoreText (graphics/cocoa/; macOS),
+#                antialiased, at the display's scale
 #
 # Builds never use the network. $CC and $CFLAGS are passed on.
 set -eu
@@ -35,10 +36,7 @@ for a; do
 	case $a in
 	--withSDL) servers="$servers sdl" ;;
 	--withX11) servers="$servers x11" ;;
-	--withCocoa)
-		echo "build.sh: --withCocoa: the Cocoa display server is not written yet" >&2
-		exit 2
-		;;
+	--withCocoa) servers="$servers cocoa" ;;
 	*)
 		echo "usage: ./build.sh [--withSDL] [--withX11] [--withCocoa]" >&2
 		exit 2
@@ -98,6 +96,13 @@ for s in $servers; do
 			exit 1
 		}
 		put_server x11 graphics/bin/gcon-graphics-x11
+		;;
+	cocoa)
+		sh graphics/cocoa/build.sh >/dev/null || {
+			echo "build.sh: --withCocoa: the Cocoa display server did not build (graphics/cocoa/build.sh)" >&2
+			exit 1
+		}
+		put_server cocoa graphics/bin/gcon-graphics-cocoa
 		;;
 	esac
 done

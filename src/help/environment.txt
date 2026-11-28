@@ -54,12 +54,12 @@ The display servers:
 		the X display, for gcon-graphics-x11; also what
 		WAttrib(w, "display") reports.
 	ICONSDL_SCALE
-		for the SDL server, the number of device pixels per Icon
-		pixel, overriding the display's own scale (2 on most HiDPI
+		for the SDL and Cocoa servers, the number of device pixels per
+		Icon pixel, overriding the display's own scale (2 on most HiDPI
 		displays).
 	ICONSDL_META
-		for the SDL server, "command" makes the Command key Icon's
-		meta key (&meta) on macOS, instead of Option.
+		for the SDL and Cocoa servers, "command" makes the Command key
+		Icon's meta key (&meta) on macOS, instead of Option.
 
 iconx's memory variables (BLKSIZE, STRSIZE, ...) have no effect: Gcon
 has one heap, which grows as it needs to.

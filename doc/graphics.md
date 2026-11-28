@@ -2,13 +2,14 @@
 
 The display server is a separate process (`libexec/gcon-graphics`) that
 the runtime starts when a program first opens a window, and talks to
-through [a protocol](internals/protocol.md). There is more than one:
-`./build.sh` builds the SDL3 + Blend2D server, the portable one, by
-default; `./build.sh --withX11` builds [the X11 server](#the-x11-display-server)
-instead, and `--withSDL --withX11` both, the first named being the one
-gcon-vm runs (each is also installed as `libexec/gcon-graphics-sdl` or
-`-x11`, and `GCONGRAPHICS` chooses another at run time). A Cocoa server
-for macOS is planned.
+through [a protocol](internals/protocol.md). There are three, and
+`./build.sh` chooses: by default the SDL3 + Blend2D server, the portable
+one; `--withCocoa` [the Cocoa server](#the-cocoa-display-server), the
+Mac's own; `--withX11` [the X11 server](#the-x11-display-server). Name
+several (`./build.sh --withCocoa --withSDL`) and the first is the one
+gcon-vm runs; each is also installed as `libexec/gcon-graphics-NAME`
+(`sdl`, `cocoa`, `x11`), and `GCONGRAPHICS` chooses another at run
+time.
 
 The SDL server is not an X11 client. The backend was first written for
 Arizona Icon itself, in
@@ -46,6 +47,27 @@ build), every other part of Gcon works; a program that opens a window
 stops with a message that the server cannot be run. `GCONGRAPHICS`
 names another display server: anything that speaks
 [the protocol](internals/protocol.md).
+
+## The Cocoa display server
+
+`gcon-graphics-cocoa` draws with the Mac's own graphics: AppKit's
+windows, Core Graphics and CoreText. Lines, shapes and text are
+antialiased and drawn at the display's scale (Retina), so it looks like
+a Mac program rather than an X one; Gcon's reference tests allow the
+edges of slanted lines and curves, and text (its fonts are the Mac's),
+to differ from Arizona Icon's X11 pictures, and nothing else.
+
+- **Drawing in copy mode** (the default `drawop=copy`, no pattern) is
+  Core Graphics's, antialiased. **Every other drawop, `drawop=reverse`
+  and patterns** are drawn as X draws them, aliased and combined pixel
+  by pixel, so rubber-banding and stippled fills work exactly as in Icon.
+- **Fonts** are the same as the SDL server's on macOS, through CoreText:
+  `mono` is Menlo, `sans` Helvetica, `serif` Times and `typewriter`
+  Courier, and a font name that isn't found fails, as under X.
+- **Image files:** GIF, PNG, JPEG and BMP (QOI needs the SDL server).
+- **Keys and the menu:** Option is `&meta` (`ICONSDL_META=command` makes
+  it Command); Command-Q is the same as closing the window.
+  `ICONSDL_SCALE` overrides the display's scale.
 
 ## The X11 display server
 
