@@ -35,6 +35,7 @@ typedef struct {
    int patw, path;		/* pattern size; 0 if none */
    const unsigned char *pat;	/* patw * path cells, nonzero = set */
    int clipx, clipy, clipw, cliph; /* clipw < 0: no clipping */
+   int antialias;		/* blend by coverage, in copy mode without a pattern */
    } sdlgc;
 
 /* canvases */

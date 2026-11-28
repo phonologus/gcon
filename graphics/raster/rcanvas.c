@@ -1,14 +1,15 @@
 /*
- * hcanvas.c -- the headless display server's canvases (sdlgfx.h's
- * cv_*), drawn by gcon's own rasterizer (../raster). MIT licence, see
- * ../LICENSE.md.
+ * rcanvas.c -- canvases (sdlgfx.h's cv_*) drawn by gcon's own
+ * rasterizer (raster.c), for the servers that have no drawing of their
+ * own (headless, SDL, Wayland). MIT licence, see ../LICENSE.md.
  *
  * As ../src/canvas.c, without Blend2D: pixels are 0xFFRRGGBB at an
- * integer scale; every shape is drawn into an A8 coverage mask (here by
- * raster.c, by X's rules, so aliased) and each covered device pixel is
- * combined with the X GC function, the pattern and the colours. The
- * pixel operations (copy, read, write, erase) are canvas.c's. Text is
- * X's misc-fixed bitmap fonts (hfont.c).
+ * integer scale; every shape is drawn into an A8 coverage mask and
+ * applied to the canvas. Smooth (the gc's antialias, in copy mode
+ * without a pattern): rasterized with coverage and blended. Otherwise
+ * aliased by X's rules, each covered device pixel combined with the X
+ * GC function, the pattern and the colours. The pixel operations (copy,
+ * read, write, erase) are canvas.c's. Text: the server's fonts (h_font).
  */
 #include <math.h>
 #include <signal.h>
@@ -257,12 +258,34 @@ static RMask maskof(Canvas *c, const int r[4])
    return k;
 }
 
+/* smooth: antialiased, blended by coverage: when the gc asks for it, in
+ * copy mode without a pattern (the other drawops and stipples keep X's
+ * covered-or-not pixels, which give them their meaning) */
+static int smooth(const sdlgc *gc)
+{
+   return gc->antialias && !gc->reverse && gc->drawop == 3
+      && !(gc->fillstyle != 0 && gc->pat && gc->patw > 0 && gc->path > 0);
+}
+
+/* (s * a + d * (255 - a)) / 255 for each channel, rounded */
+static inline uint32_t mix(uint32_t s, uint32_t d, uint32_t a)
+{
+#define DIV255(t) (((t) + 128 + (((t) + 128) >> 8)) >> 8)
+   uint32_t ia = 255 - a;
+   uint32_t r = DIV255((s >> 16 & 255) * a + (d >> 16 & 255) * ia);
+   uint32_t g = DIV255((s >> 8 & 255) * a + (d >> 8 & 255) * ia);
+   uint32_t b = DIV255((s & 255) * a + (d & 255) * ia);
+#undef DIV255
+   return OPAQUE | r << 16 | g << 8 | b;
+}
+
 /* the mask over r onto the canvas: which 0, the fg (with the pattern);
- * 1, the bg (a striped line's off dashes) */
+ * 1, the bg (a striped line's off dashes). Smooth, blended by coverage;
+ * else a pixel at least half covered is combined by the drawop. */
 static void apply(Canvas *c, const sdlgc *gc, const int r[4], int which)
 {
    uint32_t fg = gc->fg & 0xFFFFFF, bg = gc->bg & 0xFFFFFF;
-   int s = c->s, op = gc->reverse ? 6 : gc->drawop;
+   int s = c->s, op = gc->reverse ? 6 : gc->drawop, blend = smooth(gc);
    int stip = gc->fillstyle != 0 && gc->pat && gc->patw > 0 && gc->path > 0;
    if (gc->reverse)
       fg ^= bg;
@@ -272,6 +295,11 @@ static void apply(Canvas *c, const sdlgc *gc, const int r[4], int which)
       int ly = y / s;
       for (int x = r[0]; x < r[2]; x++) {
          uint32_t src;
+         if (blend) {
+            if (m[x])
+               p[x] = mix(which == 1 ? bg : fg, p[x], m[x]);
+            continue;
+         }
          if (m[x] < 128)
             continue;
          if (which == 1)
@@ -318,7 +346,7 @@ static void fillpath(Canvas *c, const sdlgc *gc, const RPath *p, int evenodd)
    }
    mask_clear(c, r);
    RMask k = maskof(c, r);
-   r_fill(&k, &d, evenodd);
+   r_fill(&k, &d, evenodd, smooth(gc));
    rp_free(&d);
    apply(c, gc, r, 0);
 }
@@ -351,14 +379,14 @@ static void polyline(Canvas *c, const sdlgc *gc, const RPt *p, int n)
    RMask k = maskof(c, r);
    if (gc->linestyle == 0) {
       mask_clear(c, r);
-      r_stroke(&k, d, n, closed, w * c->s, 1);
+      r_stroke(&k, d, n, closed, w * c->s, 1, smooth(gc));
       apply(c, gc, r, 0);
       free(d);
       return;
    }
    if (gc->linestyle == 2) {		/* striped: the whole line, in bg */
       mask_clear(c, r);
-      r_stroke(&k, d, n, 0, w * c->s, 1);
+      r_stroke(&k, d, n, 0, w * c->s, 1, smooth(gc));
       apply(c, gc, r, 1);
    }
    mask_clear(c, r);
@@ -372,7 +400,7 @@ static void polyline(Canvas *c, const sdlgc *gc, const RPt *p, int n)
          if (on) {
             RPt q[2] = { { d[i].x + dx * t / seg, d[i].y + dy * t / seg },
                          { d[i].x + dx * (t + step) / seg, d[i].y + dy * (t + step) / seg } };
-            r_stroke(&k, q, 2, 0, w * c->s, gc->linestyle != 2);
+            r_stroke(&k, q, 2, 0, w * c->s, gc->linestyle != 2, smooth(gc));
          }
          t += step;
          phase += step;

@@ -22,6 +22,6 @@ mkdir -p ../bin
 # shellcheck disable=SC2086 # the flags are a list
 $CC -std=c11 -O2 -Wall -Wextra ${CFLAGS:-} -I../src -I../raster -I"$tmp" \
 	-o ../bin/gcon-graphics-headless.new ../src/main.c ../src/xcolors.c ../raster/raster.c \
-	hcanvas.c hfont.c hplat.c -lm
+	../raster/rcanvas.c hfont.c hplat.c -lm
 mv ../bin/gcon-graphics-headless.new ../bin/gcon-graphics-headless
 echo "headless/build.sh: built bin/gcon-graphics-headless"
