@@ -117,8 +117,9 @@ have earned trust.
   client's already.
 - Icon 9.5's `Win` functions (`WinButton`, `WinOpenDialog`, ...; MS
   Windows only in 9.5, and used by nothing in Icon's tree, the IPL or
-  `../icn`) are for after the servers, on Cocoa first: dialogs map well
-  onto AppKit, while X11 and Wayland have no toolkit of their own.
+  `../icn`) are parked, perhaps out of scope (Sean, 2026-11-28): they
+  stray into toolkit territory, and X11 and Wayland have no toolkit of
+  their own.
 
 ### The Cocoa server (2026-11-28)
 
