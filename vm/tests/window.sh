@@ -1,7 +1,8 @@
 #!/bin/sh
 # Window tests: these open real windows (briefly), so they need a
-# display, and the display server (../graphics/bin/gcon-graphics, or
-# $GCONGRAPHICS). Each window/NAME.icn runs with ICONSDL_TEST_EVENTS
+# display, and a display server ($GCONGRAPHICS, by default the one
+# build.sh installed, ../libexec/gcon-graphics; without one it says so
+# and checks nothing). Each window/NAME.icn runs with ICONSDL_TEST_EVENTS
 # set from NAME.script (the server pushes those keystrokes and clicks
 # into the window as it opens); its standard output and error must
 # match NAME.std. NAME.env, if present, holds VAR=value lines added to
@@ -23,7 +24,11 @@ if [ -z "${GCON:-}" ]; then
 fi
 GCONROOT=${GCONROOT:-$src}
 export GCONROOT
-export GCONGRAPHICS=${GCONGRAPHICS:-$src/graphics/bin/gcon-graphics}
+export GCONGRAPHICS=${GCONGRAPHICS:-$src/libexec/gcon-graphics}
+if [ ! -x "$GCONGRAPHICS" ]; then
+	echo "window: no display server ($GCONGRAPHICS): not checked"
+	exit 0
+fi
 export GCONVM=${GCONVM:-$here/bin/gcon-vm}
 if [ $# -eq 0 ]; then
 	set -- $(cd "$here/tests/window" && ls *.icn | sed 's/\.icn$//')

@@ -2,9 +2,9 @@
 # build.sh: build gcon into this checkout, which is a gcon root:
 #
 #   libexec/gcon-vm        the runtime (vm/; needs a C compiler)
-#   libexec/gcon-graphics  the display server gcon-vm runs: the first of
-#                          those chosen below (by default the SDL one)
-#   libexec/gcon-graphics-NAME  each display server built (sdl, x11, cocoa)
+#   libexec/gcon-graphics  the display server gcon-vm runs: the first named
+#                          below, else the platform's own (none: no graphics)
+#   libexec/gcon-graphics-NAME  each display server built (cocoa, x11, sdl)
 #   bin/gcon               the command (src/)
 #   bin/colrbook ... bin/vib  the programs Arizona builds into its bin
 #                          (colrbook colrpick fontpick palette wevents
@@ -14,39 +14,43 @@
 #                          (with doc/ref/uclass.md, its page, which is committed)
 #   doc/html               the documentation as HTML (gcon doc -build)
 #
-#   ./build.sh [--withSDL] [--withX11] [--withCocoa]
+#   ./build.sh [--withCocoa] [--withX11] [--withSDL]
 #
-# The flags choose the display servers (graphics/design/design.md,
-# "Native display servers"); the first is the one gcon-vm runs, and
-# $GCONGRAPHICS names another at run time:
+# The display servers (graphics/design/design.md, "Native display
+# servers"). With no flags, the platform's own: Cocoa on macOS, else X11
+# where Xlib is found, else none, and gcon is built without graphics
+# (programs that open a window stop with a message). The flags name the
+# servers to build instead, the first being the one gcon-vm runs
+# ($GCONGRAPHICS names another at run time):
 #
-#   --withSDL    SDL3 + Blend2D (graphics/; needs C++ and CMake), portable;
-#                the default, skipped without C++ or CMake (and then
-#                programs cannot open windows)
-#   --withX11    Xlib (graphics/x11/; needs Xlib)
-#   --withCocoa  AppKit, Core Graphics and CoreText (graphics/cocoa/; macOS),
+#   --withCocoa  AppKit, Core Graphics and CoreText (graphics/cocoa/; macOS):
 #                antialiased, at the display's scale
+#   --withX11    Xlib (graphics/x11/): X's own drawing, Arizona Icon's pixels
+#                (on macOS, under XQuartz)
+#   --withSDL    SDL3 + Blend2D (graphics/; needs C++ and CMake): portable,
+#                heavyweight; built only when named
 #
 # Builds never use the network. $CC and $CFLAGS are passed on.
 set -eu
 cd "$(dirname "$0")"
 servers=
-chosen=
 for a; do
 	case $a in
-	--withSDL) servers="$servers sdl" ;;
-	--withX11) servers="$servers x11" ;;
 	--withCocoa) servers="$servers cocoa" ;;
+	--withX11) servers="$servers x11" ;;
+	--withSDL) servers="$servers sdl" ;;
 	*)
-		echo "usage: ./build.sh [--withSDL] [--withX11] [--withCocoa]" >&2
+		echo "usage: ./build.sh [--withCocoa] [--withX11] [--withSDL]" >&2
 		exit 2
 		;;
 	esac
 done
-if [ -n "$servers" ]; then
-	chosen=1
-else
-	servers=sdl
+if [ -z "$servers" ]; then
+	if sh graphics/cocoa/build.sh -check; then
+		servers=cocoa
+	elif sh graphics/x11/build.sh -check; then
+		servers=x11
+	fi
 fi
 mkdir -p bin libexec
 
@@ -83,11 +87,9 @@ for s in $servers; do
 				exit 1
 			}
 			put_server sdl graphics/bin/gcon-graphics
-		elif [ -n "$chosen" ]; then
+		else
 			echo "build.sh: --withSDL: no C++ compiler or CMake" >&2
 			exit 1
-		else
-			echo "build.sh: no C++ compiler or CMake: the display server is not built"
 		fi
 		;;
 	x11)
@@ -106,6 +108,11 @@ for s in $servers; do
 		;;
 	esac
 done
+if [ -z "$servers" ]; then
+	rm -f libexec/gcon-graphics	# not an earlier build's
+	echo "build.sh: no display server of this platform's (Cocoa is macOS's; X11 needs Xlib):"
+	echo "build.sh: gcon is built without graphics (./build.sh --withSDL builds the portable server)"
+fi
 
 # The version, by Go's rules for its own: a commit tagged vX.Y.Z is
 # vX.Y.Z; a later commit is the pseudo-version vX.Y.(Z+1)-0.DATE-COMMIT,

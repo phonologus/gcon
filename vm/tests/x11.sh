@@ -54,8 +54,8 @@ fi
 export DISPLAY
 
 fail=0
-GRAPHICSSTD=$here/tests/graphics-x11.std sh "$here/tests/graphics.sh" || fail=1
-REFTOLERANCE=$here/tests/ref/tolerance-x11 sh "$here/tests/ref.sh" || fail=1
+sh "$here/tests/graphics.sh" || fail=1
+sh "$here/tests/ref.sh" || fail=1
 sh "$here/tests/window.sh" || fail=1
 [ $fail = 0 ] && echo "x11: pass" || echo "x11: FAIL"
 exit $fail

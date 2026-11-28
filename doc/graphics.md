@@ -2,20 +2,20 @@
 
 The display server is a separate process (`libexec/gcon-graphics`) that
 the runtime starts when a program first opens a window, and talks to
-through [a protocol](internals/protocol.md). There are three, and
-`./build.sh` chooses: by default the SDL3 + Blend2D server, the portable
-one; `--withCocoa` [the Cocoa server](#the-cocoa-display-server), the
-Mac's own; `--withX11` [the X11 server](#the-x11-display-server). Name
-several (`./build.sh --withCocoa --withSDL`) and the first is the one
-gcon-vm runs; each is also installed as `libexec/gcon-graphics-NAME`
-(`sdl`, `cocoa`, `x11`), and `GCONGRAPHICS` chooses another at run
-time.
+through [a protocol](internals/protocol.md). There are three.
+`./build.sh` builds the platform's own: on macOS
+[the Cocoa server](#the-cocoa-display-server), elsewhere
+[the X11 server](#the-x11-display-server) where Xlib is installed, and
+otherwise none. `./build.sh --withCocoa`, `--withX11` or `--withSDL`
+names the servers to build instead, the first being the one gcon-vm
+runs: `--withX11` on macOS (under XQuartz) for Arizona Icon's exact
+pictures, say, or `--withSDL` for [the SDL server](#the-sdl-display-server),
+the portable one, which needs C++ and CMake and is built only when
+named. Each is also installed as `libexec/gcon-graphics-NAME` (`cocoa`,
+`x11`, `sdl`), and `GCONGRAPHICS` chooses another at run time: anything
+that speaks the protocol.
 
-The SDL server is not an X11 client. The backend was first written for
-Arizona Icon itself, in
-[icon-sdl](https://github.com/phonologus/icon-sdl), a fork of Icon 9.5
-whose iconx draws with it; Gcon's display server is that backend in a
-process of its own.
+Whichever server draws:
 
 - **The preprocessor defines `_SDL_GRAPHICS`, not `_X_WINDOW_SYSTEM`**,
   and `&features` says `SDL graphics`, so programs that test for X take
@@ -23,30 +23,13 @@ process of its own.
   copy of the library carries two small changes, the same as icon-sdl's
   (made by `tools/ipl/patch.sh`), so that `keysyms.icn`'s key names
   work.
-- **Drawing is antialiased and HiDPI.** One Icon pixel is one point,
-  drawn at the display's scale; `ICONSDL_SCALE` overrides it. Axis-aligned
-  lines, fills, patterns, images and all 16 drawops match Arizona Icon's
-  X11 output exactly; the edges of circles, slanted lines and thin arcs
-  differ by a few pixels.
-- **Fonts are the system's own,** found through CoreText on macOS and
-  fontconfig on Linux. The portable families map to them: on macOS,
-  `mono` is Menlo, `sans` Helvetica, `serif` Times and `typewriter`
-  Courier. Metrics are close to X's but not identical. A font name that
-  isn't found fails, as under X.
-- **Image files:** GIF, as in Icon, and also PNG, JPEG, BMP and QOI, for
-  both `ReadImage` and `WriteImage`.
-- **Keys:** on macOS, Option is `&meta`; `ICONSDL_META=command` makes it
-  the Command key.
 - **Not supported:** the numeric colour forms `rgb:r/g/b` and `RGBi:...`.
   `iconlabel=` is accepted but never shown, since modern desktops have
-  no icon labels. Keypad keys report the characters they type, not
-  keypad keysyms.
+  no icon labels.
 
-Without the display server (it needs a C++ compiler and CMake to
-build), every other part of Gcon works; a program that opens a window
-stops with a message that the server cannot be run. `GCONGRAPHICS`
-names another display server: anything that speaks
-[the protocol](internals/protocol.md).
+Without a display server, every other part of Gcon works; a program
+that opens a window stops with a message that the server cannot be
+run.
 
 ## The Cocoa display server
 
@@ -85,8 +68,31 @@ through XWayland, and macOS through XQuartz.
   `serif` Times, and the default is X's `fixed`. A full X font name
   works too.
 - **No HiDPI scaling:** one Icon pixel is one pixel, as in X.
-- **Image files:** GIF only, for now; PNG, JPEG, BMP and QOI need the
-  SDL server.
-- As with the SDL server, the preprocessor defines `_SDL_GRAPHICS` and
-  `&features` says `SDL graphics`: what a program can do is the same
-  whichever server draws it.
+- **Image files:** GIF only, for now; PNG, JPEG and BMP need the Cocoa
+  or SDL server, QOI the SDL one.
+
+## The SDL display server
+
+`gcon-graphics-sdl`, built by `./build.sh --withSDL`, draws with SDL3
+and Blend2D, vendored in the checkout (so it needs a C++ compiler and
+CMake to build, and is heavyweight). It is not an X11 client. The
+backend was first written for Arizona Icon itself, in
+[icon-sdl](https://github.com/phonologus/icon-sdl), a fork of Icon 9.5
+whose iconx draws with it; Gcon's SDL server is that backend in a
+process of its own.
+
+- **Drawing is antialiased and HiDPI.** One Icon pixel is one point,
+  drawn at the display's scale; `ICONSDL_SCALE` overrides it. Axis-aligned
+  lines, fills, patterns, images and all 16 drawops match Arizona Icon's
+  X11 output exactly; the edges of circles, slanted lines and thin arcs
+  differ by a few pixels.
+- **Fonts are the system's own,** found through CoreText on macOS and
+  fontconfig on Linux. The portable families map to them: on macOS,
+  `mono` is Menlo, `sans` Helvetica, `serif` Times and `typewriter`
+  Courier. Metrics are close to X's but not identical. A font name that
+  isn't found fails, as under X.
+- **Image files:** GIF, as in Icon, and also PNG, JPEG, BMP and QOI, for
+  both `ReadImage` and `WriteImage`.
+- **Keys:** on macOS, Option is `&meta`; `ICONSDL_META=command` makes it
+  the Command key. Keypad keys report the characters they type, not
+  keypad keysyms.

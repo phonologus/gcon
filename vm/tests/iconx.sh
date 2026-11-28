@@ -40,6 +40,10 @@ fi
 GCONROOT=${GCONROOT:-$src}
 export GCONROOT
 export GCONGRAPHICS=${GCONGRAPHICS:-$src/graphics/bin/gcon-graphics}
+if [ ! -x "$GCONGRAPHICS" ]; then
+	echo "iconx: no SDL display server ($GCONGRAPHICS; ./build.sh --withSDL): nothing compared"
+	exit 0
+fi
 export GCONVM=${GCONVM:-$here/bin/gcon-vm}
 T=${TIMEOUT:-20}
 

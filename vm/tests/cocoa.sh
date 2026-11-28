@@ -27,7 +27,7 @@ export GCONGRAPHICS
 
 fail=0
 sh "$here/tests/graphics.sh" || fail=1
-REFTOLERANCE=$here/tests/ref/tolerance-cocoa sh "$here/tests/ref.sh" || fail=1
+sh "$here/tests/ref.sh" || fail=1
 sh "$here/tests/window.sh" || fail=1
 [ $fail = 0 ] && echo "cocoa: pass" || echo "cocoa: FAIL"
 exit $fail

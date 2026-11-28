@@ -153,3 +153,25 @@ functions.
   close event for the key window, which the program decides on.
 - An expose event follows a window's first showing: gcon-vm reports
   resizes only for a window that has been exposed.
+
+### What ./build.sh builds (Sean, 2026-11-28)
+
+The native servers are the default, the Mac's quality first, and the
+SDL server is opt-in: heavyweight, and the only part of Gcon that needs
+C++ and CMake. With no flags `./build.sh` probes for the platform's own
+server: Cocoa on macOS (`cocoa/build.sh -check`), else X11 where Xlib
+is found (`x11/build.sh -check`), else none, and Gcon is built without
+graphics (an earlier build's `libexec/gcon-graphics` is removed, so
+none runs by mistake). The SDL server is built only by `--withSDL`,
+never alongside a native one unasked; where Arizona's exact pictures
+matter on a Mac, `--withX11` builds the X11 server, for XQuartz. With
+flags, exactly the servers named are built, the first being the
+default.
+
+The tests follow the server installed: `vm/tests/graphics.sh`, `ref.sh`
+and `window.sh` test `libexec/gcon-graphics` (or `$GCONGRAPHICS`), and
+choose the expected output and tolerances by its `-version` (X11:
+`graphics-x11.std`, `ref/tolerance-x11`; Cocoa: `ref/tolerance-cocoa`;
+SDL: the originals); without a server they say so and check nothing.
+`iconx.sh` compares with icon-sdl's iconx, so it wants the SDL server
+(`graphics/bin/gcon-graphics`) and skips without it.

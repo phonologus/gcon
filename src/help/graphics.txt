@@ -1,32 +1,37 @@
-Icon's graphics run in a display server, gcon-graphics, a separate
-process that gcon-vm starts when a program first opens a window and
-talks to through a protocol. The server draws with SDL3 and Blend2D; it
-is not an X11 client. It is the backend of icon-sdl, a fork of Icon 9.5
-whose iconx draws with it, in a process of its own.
+Icon's graphics run in a display server, a separate process that
+gcon-vm starts when a program first opens a window and talks to
+through a protocol. ./build.sh builds the platform's own: on macOS the
+Cocoa server, elsewhere the X11 server where Xlib is installed, and
+otherwise none. ./build.sh --withCocoa, --withX11 or --withSDL names
+the servers to build instead, the first being the one gcon-vm runs;
+GCONGRAPHICS chooses another when a program runs.
 
-	The preprocessor defines _SDL_GRAPHICS, not _X_WINDOW_SYSTEM,
-	and &features includes "SDL graphics", so programs that test for
-	X take their portable path. Keys are reported as X keysyms.
+	Cocoa (macOS): AppKit, Core Graphics and CoreText. Drawing is
+	antialiased and at the display's scale; drawops other than copy,
+	and patterns, are drawn as X draws them. Fonts are the Mac's:
+	mono is Menlo, sans Helvetica, serif Times, typewriter Courier.
+	Image files: GIF, PNG, JPEG and BMP.
 
-	Drawing is antialiased, and HiDPI: an Icon pixel is one point,
-	drawn at the display's scale (ICONSDL_SCALE overrides it).
+	X11: X's own drawing, so the pictures are Arizona Icon's. Fonts
+	are X's core fonts, chosen as Arizona chooses them; DISPLAY
+	names the display. Image files: GIF only, for now.
 
-	Fonts are the system's own (CoreText on macOS, fontconfig on
-	Linux). The portable families mono, sans, serif and typewriter
-	map to them; a font name that is not found fails, as under X.
+	SDL (only with --withSDL; needs a C++ compiler and CMake): SDL3
+	and Blend2D, portable, antialiased and HiDPI, the backend of
+	icon-sdl, a fork of Icon 9.5. Fonts through CoreText or
+	fontconfig. Image files: GIF, PNG, JPEG, BMP and QOI.
 
-	Image files: GIF, as in Icon, and PNG, JPEG, BMP and QOI, for
-	both ReadImage and WriteImage.
-
-	Not supported: the colour forms rgb:r/g/b and RGBi:...; keypad
-	keys report the characters they type, not keypad keysyms;
-	iconlabel= is accepted but never shown.
+Whichever server draws, the preprocessor defines _SDL_GRAPHICS, not
+_X_WINDOW_SYSTEM, and &features includes "SDL graphics", so programs
+that test for X take their portable path; keys are reported as X
+keysyms. Not supported: the colour forms rgb:r/g/b and RGBi:...;
+iconlabel= is accepted but never shown.
 
 On macOS, ICONSDL_META=command makes the Command key &meta, instead
-of Option. GCONGRAPHICS names another display server.
+of Option, and ICONSDL_SCALE overrides the display's scale.
 
-Without the server (it needs a C++ compiler and CMake to build), every
-other part of Gcon works; a program that opens a window stops with a
-message that the display server cannot be run.
+Without a server, every other part of Gcon works; a program that
+opens a window stops with a message that the display server cannot be
+run.
 
 See also: gcon help environment, gcon doc graphics.

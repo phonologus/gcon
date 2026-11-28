@@ -30,8 +30,11 @@ héllo, wörld: 6 bytes
 
 ## Quick start
 
-You need a C compiler. The display server also needs a C++ compiler and
-CMake; without them, everything except windows works.
+You need a C compiler. For windows, `./build.sh` builds the platform's
+own display server: on macOS the Cocoa one, which needs nothing more;
+elsewhere the X11 one, which needs Xlib (`libx11-dev` on Debian and
+Ubuntu, `libX11-devel` on Fedora). Without either, everything except
+windows works.
 
 ```sh
 git clone https://github.com/phonologus/gcon
@@ -41,10 +44,13 @@ export PATH=$PWD/bin:$PATH          # the only set-up needed
 gcon run hello.icn
 ```
 
-- On **macOS**, install the Xcode Command Line Tools and CMake.
-- On **Linux**, install the packages listed in
-  `graphics/linux-packages.txt` (Debian, Ubuntu) or
-  `graphics/linux-packages-fedora.txt` (Fedora).
+- On **macOS**, install the Xcode Command Line Tools.
+- `./build.sh --withX11` builds the X11 server instead (on macOS under
+  XQuartz), for Arizona Icon's exact pictures; `--withSDL` the portable
+  SDL3 + Blend2D server, which also needs a C++ compiler and CMake (the
+  packages are listed in `graphics/linux-packages.txt` for Debian and
+  Ubuntu, `graphics/linux-packages-fedora.txt` for Fedora).
+  [Graphics](doc/graphics.md) says more.
 
 ```sh
 gcon run prog.icn [args]            # translate and run; nothing is written

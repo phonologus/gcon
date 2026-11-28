@@ -4,13 +4,16 @@
 # with the outputs of unmodified Arizona Icon built with X11 graphics
 # (tests/ref/expected; see its SOURCE). Standard output must match
 # exactly, and each image may differ by no more pixels than
-# tests/ref/tolerance allows (the same backend as icon-sdl's, with the
-# same accepted differences from X11).
+# its server's tolerance file allows: tests/ref/tolerance for the SDL
+# server (icon-sdl's backend, with its accepted differences from X11),
+# tolerance-cocoa and tolerance-x11 for the Cocoa and X11 servers (chosen
+# by the server's -version). The server is $GCONGRAPHICS, by default the
+# one build.sh installed (../libexec/gcon-graphics); without one it says
+# so and checks nothing.
 #
 #   tests/ref.sh [OUTDIR]
 #
-# REFTOLERANCE names another tolerance file (tests/x11.sh gives the X11
-# server's, tests/ref/tolerance-x11).
+# REFTOLERANCE names another tolerance file.
 #
 # OUTDIR (default: a temporary directory) keeps the outputs, with
 # NAME.diff.png for each image that differs. Needs gcon ($GCON, or
@@ -30,7 +33,16 @@ if [ -z "${GCON:-}" ]; then
 fi
 GCONROOT=${GCONROOT:-$src}
 export GCONROOT
-export GCONGRAPHICS=${GCONGRAPHICS:-$src/graphics/bin/gcon-graphics}
+export GCONGRAPHICS=${GCONGRAPHICS:-$src/libexec/gcon-graphics}
+if [ ! -x "$GCONGRAPHICS" ]; then
+	echo "ref: no display server ($GCONGRAPHICS): not checked"
+	exit 0
+fi
+# each server's accepted differences from the X11 reference
+case $("$GCONGRAPHICS" -version 2>/dev/null) in
+*X11*) REFTOLERANCE=${REFTOLERANCE:-$ref/tolerance-x11} ;;
+*Cocoa*) REFTOLERANCE=${REFTOLERANCE:-$ref/tolerance-cocoa} ;;
+esac
 export GCONVM=${GCONVM:-$here/bin/gcon-vm}
 
 # tolerance NAME FIELD: the accepted difference from the tolerance file

@@ -1,10 +1,11 @@
 #!/bin/sh
 # Runs tests/graphics.icn (graphics on a hidden canvas, so no display is
 # needed) and compares its output with tests/graphics.std. Needs gcon
-# ($GCON, or built from $GCONSRC, default this checkout) and the display
-# server: $GCONGRAPHICS, by default ../graphics/bin/gcon-graphics in this
-# checkout. GRAPHICSSTD names other expected output (tests/x11.sh gives
-# the X11 server's, whose fonts are X's: tests/graphics-x11.std).
+# ($GCON, or built from $GCONSRC, default this checkout) and a display
+# server: $GCONGRAPHICS, by default the one build.sh installed
+# (../libexec/gcon-graphics); without one it says so and checks nothing.
+# The X11 server's fonts are X's, so its output is
+# tests/graphics-x11.std; GRAPHICSSTD names other expected output.
 set -eu
 here=$(cd "$(dirname "$0")/.." && pwd)
 vm=${VM:-$here/bin/gcon-vm}
@@ -15,7 +16,15 @@ if [ -z "${GCON:-}" ]; then
 	${CC:-cc} -std=c11 -O2 -DGCON_VERSION='"test"' -I"$src/vm/src" -o "$tmp/gcon" "$src"/src/*.c "$src/vm/src/gen_tables.c"
 	GCON=$tmp/gcon
 fi
-export GCONGRAPHICS=${GCONGRAPHICS:-$here/../graphics/bin/gcon-graphics}
+export GCONGRAPHICS=${GCONGRAPHICS:-$here/../libexec/gcon-graphics}
+if [ ! -x "$GCONGRAPHICS" ]; then
+	echo "graphics: no display server ($GCONGRAPHICS): not checked"
+	exit 0
+fi
+# the X11 server's fonts are X's
+case $("$GCONGRAPHICS" -version 2>/dev/null) in
+*X11*) GRAPHICSSTD=${GRAPHICSSTD:-$here/tests/graphics-x11.std} ;;
+esac
 cp "$here/tests/graphics.icn" "$tmp"
 (cd "$tmp" && "$GCON" build -o graphics graphics.icn)
 (cd "$tmp" && "$vm" ./graphics >out 2>&1) || true
