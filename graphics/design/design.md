@@ -335,3 +335,19 @@ holds, the fonts and metrics the same. `iconx.sh` no longer requires
 icon-sdl's pixels (Blend2D's): output, exit status and canvases must
 match, and pixel differences are reported; and it knows colrpick,
 where gcon follows Arizona's `display=` and icon-sdl does not.
+
+### Arizona, not icon-sdl, as the oracle for graphics programs (Sean, 2026-11-28)
+
+icon-sdl was the oracle because its iconx drew as gcon's SDL server
+did; since the SDL server stopped using Blend2D it no longer does, and
+gcon needs only Arizona and itself. `vm/tests/iconx.sh` becomes
+`arizona.sh`: the graphics programs gcon ships run under gcon (with the
+X11 server) and under Arizona's own iconx, built with its X11 graphics
+from `../icon` in a private copy (`tools/arizona/build.sh`, cached; its
+IPL translated by its own build), both on a private Xvfb, and their
+output and exit status must match. All seven do, colrpick too (Arizona
+passes `display=` as gcon now does, so no special case). Pictures are
+not compared there (Arizona's iconx gives no canvases up); `ref.sh`
+compares drawing with Arizona's images. `ppmcmp.c` went with the pixel
+comparison; the servers' `ICONSDL_TEST_DUMP` hook stays, for comparing
+runs by hand.

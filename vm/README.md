@@ -87,15 +87,16 @@ program's output with the expected (`tests/window/`).
     tests/ref.sh
 
 runs icon-sdl's reference drawing programs and compares their images
-with unmodified Icon's under X11 (`tests/ref/expected`), within the
-tolerances of the SDL backend (`tests/ref/tolerance`).
+with unmodified Icon's under X11 (`tests/ref/expected`), within each
+server's tolerances (`tests/ref/tolerance`, `tolerance-x11`, ...).
 
-    tests/iconx.sh [prog.icn ...]
+    tests/arizona.sh [prog.icn ...]
 
 runs graphics programs (by default the ones Gcon ships, `../lib/ipl`)
-under Gcon and under icon-sdl's iconx, built beside Gcon's checkout, and
-compares their output and every canvas pixel for pixel; without
-icon-sdl it does nothing.
+under Gcon (with its X11 server) and under Arizona Icon's own iconx,
+built with X11 from `../icon` (`../tools/arizona/build.sh`), on a
+private Xvfb, and compares their output and exit status; without
+Arizona's tree or Xlib it does nothing.
 `tests/bench.sh` times micro-benchmarks on gcon-vm and iconx, and
 `tests/strbench.sh` string and cset operations on a 1,000-byte subject.
 

@@ -10,9 +10,10 @@ checked against Arizona's icont and iconx:
   compared with icont itself on every Icon file in Arizona's source tree
   (`src/tests/oracle.sh`).
 - **Graphics** are compared pixel for pixel with Arizona Icon's X11
-  images (`ref.sh`), and with Arizona's iconx built with the same
-  backend, icon-sdl's (`iconx.sh`). They are also run in real windows,
-  with scripted keys and clicks (`window.sh`).
+  images (`ref.sh`), and the graphics programs Gcon ships are run under
+  Gcon and under Arizona's own iconx, built with X11, their output
+  compared (`arizona.sh`). They are also run in real windows, with
+  scripted keys and clicks (`window.sh`).
 - The runtime is tested under the address and undefined-behaviour
   sanitizers.
 

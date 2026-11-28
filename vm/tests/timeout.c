@@ -3,8 +3,8 @@
  * (SIGKILL) if it runs longer than SECONDS; exit with its status (128
  * plus the signal if a signal ended it), or 142 (as for SIGALRM) if it
  * was killed. With -term it is first sent SIGTERM, and SIGKILL only if
- * it is still running 5 seconds later (tests/iconx.sh: iconx writes its
- * canvases when stopped so). Built by the tests that use it.
+ * it is still running 5 seconds later (tests/arizona.sh). Built by the
+ * tests that use it.
  */
 #define _POSIX_C_SOURCE 200809L
 #include <signal.h>
