@@ -7,7 +7,7 @@
 set -eu
 here=$(cd "$(dirname "$0")/.." && pwd)
 deps=$here/../deps
-ver=$(awk '$1 == "UnicodeData.txt" { print $2 }' "$deps/deps.lock")
+ver=$(awk '$1 == "unicode/UnicodeData.txt" { print $2 }' "$deps/deps.lock")
 [ -n "$ver" ] || { echo "mkunicode.sh: no UnicodeData.txt in deps/deps.lock" >&2; exit 2; }
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT

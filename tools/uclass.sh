@@ -13,11 +13,11 @@ set -eu
 root=$(cd "$(dirname "$0")/.." && pwd)
 deps=$root/deps
 sha256() { { sha256sum "$1" 2>/dev/null || shasum -a 256 "$1"; } | awk '{print $1; exit}'; }
-grep -v '^#' "$deps/deps.lock" | while read -r name ver sha url; do
-	[ "$(sha256 "$deps/unicode/$name")" = "$sha" ] ||
-		{ echo "uclass.sh: deps/unicode/$name does not match deps/deps.lock" >&2; exit 1; }
+grep -v '^#' "$deps/deps.lock" | awk 'index($1, "unicode/") == 1' | while read -r name ver sha url; do
+	[ "$(sha256 "$deps/$name")" = "$sha" ] ||
+		{ echo "uclass.sh: deps/$name does not match deps/deps.lock" >&2; exit 1; }
 done
-ver=$(awk '$1 == "UnicodeData.txt" { print $2 }' "$deps/deps.lock")
+ver=$(awk '$1 == "unicode/UnicodeData.txt" { print $2 }' "$deps/deps.lock")
 out=$root/lib/gcon/uclass.icn
 page=$root/doc/ref/uclass.md
 if [ "${1:-}" = -o ]; then # tools/uclass.sh -o dir: both files into dir

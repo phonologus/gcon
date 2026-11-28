@@ -1,6 +1,9 @@
-# Vendored data: name, version, SHA-256 of deps/unicode/<file>, and
-# the URL it came from (@V@ = version). Change only with
-# deps/update.sh. build.sh verifies every checksum.
-UnicodeData.txt  17.0.0   2e1efc1dcb59c575eedf5ccae60f95229f706ee6d031835247d843c11d96470c https://www.unicode.org/Public/@V@/ucd/UnicodeData.txt
-Scripts.txt      17.0.0   9f5e50d3abaee7d6ce09480f325c706f485ae3240912527e651954d2d6b035bf https://www.unicode.org/Public/@V@/ucd/Scripts.txt
-LICENSE          17.0.0   e7a93b009565cfce55919a381437ac4db883e9da2126fa28b91d12732bc53d96 https://www.unicode.org/license.txt
+# Vendored dependencies: a path under deps/, its version, SHA-256,
+# and the URL it came from (@V@ = version). Change only with
+# deps/update.sh. Builds verify every checksum.
+unicode/UnicodeData.txt  17.0.0   2e1efc1dcb59c575eedf5ccae60f95229f706ee6d031835247d843c11d96470c https://www.unicode.org/Public/@V@/ucd/UnicodeData.txt
+unicode/Scripts.txt      17.0.0   9f5e50d3abaee7d6ce09480f325c706f485ae3240912527e651954d2d6b035bf https://www.unicode.org/Public/@V@/ucd/Scripts.txt
+unicode/LICENSE          17.0.0   e7a93b009565cfce55919a381437ac4db883e9da2126fa28b91d12732bc53d96 https://www.unicode.org/license.txt
+stb/stb_image.h          6b5799bae8a1fe3792691ef4b72ae26434c3e799 dfc2aadda6295f67f677587773f25e5bf8c8ad427ed0db7c518525c91e72e020 https://raw.githubusercontent.com/nothings/stb/@V@/stb_image.h
+stb/stb_image_write.h    6b5799bae8a1fe3792691ef4b72ae26434c3e799 5d89edc8bffd848f3e138b2a1dbec67aadbed591894bde16ade7c83dc233af9b https://raw.githubusercontent.com/nothings/stb/@V@/stb_image_write.h
+stb/LICENSE              6b5799bae8a1fe3792691ef4b72ae26434c3e799 eb36e45c704dd0b59730115523e089b051852625b4db0a6fe76c991900af20e7 https://raw.githubusercontent.com/nothings/stb/@V@/LICENSE
