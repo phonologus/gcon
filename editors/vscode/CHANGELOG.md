@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.2
+
+With Gcon v0.4.2, whose `\U` escape takes exactly 6 hex digits (as `\u`
+takes exactly 4); the grammar highlights it so. `gcon doc` now serves in
+the background, and its help pages link to each other and to the rest
+of the documentation.
+
 ## 0.4.1
 
 With Gcon v0.4.1, whose `gcon doc` serves the documentation, with

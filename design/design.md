@@ -2000,7 +2000,13 @@ Next, after v0.1.0 (Sean, 2026-11-26):
   and `&version` now "Icon Version 9.5 (Gcon)"; the editor extensions
   and the grammar at 0.4.0 too. v0.4.1 (2026-11-27), a patch: `gcon doc`
   serves the documentation, so the IPL opens in the browser and examples
-  can be edited and run (see "Served, with Run").
+  can be edited and run (see "Served, with Run"). v0.4.2 (2026-11-28), a
+  patch: `gcon doc` serves in the background and returns at once (a
+  terminal browser in the foreground; no browser is an error, not the
+  page as text), the help pages link to each other, the guide and the
+  reference entries, and `\U` takes exactly 6 hex digits (fewer is a
+  compile-time error; Sean chose a patch, short ones being barely
+  documented).
 - Side quest, parked (Sean, 2026-11-27): a display server that draws
   on a terminal, so graphics programs approximate where there is no
   framebuffer. The protocol reference (doc/internals) is what it needs.
