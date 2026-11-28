@@ -2,8 +2,9 @@
 # The Cocoa display server's tests: graphics.sh, ref.sh and window.sh,
 # run with gcon-graphics-cocoa (../graphics/cocoa; built here unless
 # $GCONGRAPHICS names one). window.sh opens real windows, briefly. The
-# Cocoa server draws in copy mode with Core Graphics, antialiased, so
-# ref.sh allows the edges of slanted lines and curves to differ from
+# Cocoa server draws in copy mode with Core Graphics (aliased in ref.sh,
+# which turns gcon's antialias attribute off), so ref.sh allows the edges
+# of slanted lines and curves to differ from
 # Arizona Icon's X11 reference, and text (tests/ref/tolerance-cocoa);
 # graphics.sh's output is the SDL server's (the same fonts, through
 # CoreText).

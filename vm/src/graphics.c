@@ -605,6 +605,14 @@ static int textWidth(WBinding *w, const char *s, size_t n) {
 
 /* ---- Contexts and window states (rsdlrsc.ri) ---- */
 
+/* antialias_default: a new context's antialias, on unless GCONANTIALIAS
+ * is "off" (gcon's attribute: smooth edges and text, where the server
+ * can, in copy mode without a pattern) */
+static int antialias_default(void) {
+	const char *s = getenv("GCONANTIALIAS");
+	return !(s && !strcmp(s, "off"));
+}
+
 static WContext *alc_context(WBinding *w) {
 	WFont *f = alc_font(w, "fixed");
 	if (!f)
@@ -625,6 +633,7 @@ static WContext *alc_context(WBinding *w) {
 	wc->linestyle = LS_SOLID;
 	wc->linewidth = 1;
 	wc->fillstyle = FS_SOLID;
+	wc->antialias = antialias_default();
 	wc->next = wcntxts;
 	wcntxts = wc;
 	return wc;
@@ -646,6 +655,7 @@ static WContext *clone_context(WBinding *w) {
 	rv->fillstyle = wc->fillstyle;
 	rv->linestyle = wc->linestyle;
 	rv->linewidth = wc->linewidth;
+	rv->antialias = wc->antialias;
 	rv->drawop = wc->drawop;
 	rv->gamma = wc->gamma;
 	rv->bits = wc->bits;
@@ -706,7 +716,7 @@ static void free_window(WState *ws) {
 /* The parts of a context the server's gc holds, as sent last. */
 typedef struct GcState {
 	unsigned fg, bg;
-	int drawop, reverse, linewidth, linestyle, fillstyle;
+	int drawop, reverse, linewidth, linestyle, fillstyle, antialias;
 	int clipx, clipy, clipw, cliph, patw, path;
 	const unsigned char *pat;
 } GcState;
@@ -723,6 +733,7 @@ static void mkgc(WBinding *w, GcState *g) {
 	g->linewidth = wc->linewidth;
 	g->linestyle = wc->linestyle;
 	g->fillstyle = wc->fillstyle;
+	g->antialias = wc->antialias;
 	g->patw = wc->patw, g->path = wc->path, g->pat = wc->pat;
 	g->clipx = wc->clipx, g->clipy = wc->clipy, g->clipw = wc->clipw, g->cliph = wc->cliph;
 }
@@ -731,7 +742,7 @@ static bool samegc(const SentGc *s, const GcState *g) {
 	const GcState *o = &s->g;
 	if (o->fg != g->fg || o->bg != g->bg || o->drawop != g->drawop || o->reverse != g->reverse ||
 	    o->linewidth != g->linewidth || o->linestyle != g->linestyle ||
-	    o->fillstyle != g->fillstyle || o->clipx != g->clipx || o->clipy != g->clipy ||
+	    o->fillstyle != g->fillstyle || o->antialias != g->antialias || o->clipx != g->clipx || o->clipy != g->clipy ||
 	    o->clipw != g->clipw || o->cliph != g->cliph || o->patw != g->patw || o->path != g->path)
 		return false;
 	size_t k = (size_t)g->patw * (size_t)g->path;
@@ -768,6 +779,7 @@ static uint32_t usegc(uint32_t id, const GcState *g) {
 	gp_i32(g->linewidth);
 	gp_u8(g->linestyle);
 	gp_u8(g->fillstyle);
+	gp_u8(g->antialias);
 	gp_i32(g->clipx);
 	gp_i32(g->clipy);
 	gp_i32(g->clipw);
@@ -1719,6 +1731,17 @@ static int setlinestyle(WBinding *w, const char *s) {
 	return Succeeded;
 }
 
+/* setantialias: gcon's antialias attribute, on or off */
+static int setantialias(WBinding *w, const char *s) {
+	if (!strcmp(s, "on"))
+		w->context->antialias = 1;
+	else if (!strcmp(s, "off"))
+		w->context->antialias = 0;
+	else
+		return Error;
+	return Succeeded;
+}
+
 static int setfillstyle(WBinding *w, const char *s) {
 	WContext *wc = w->context;
 	if (!strcmp(s, "solid"))
@@ -1924,7 +1947,7 @@ static int SetPattern(WBinding *w, const char *name, int len) {
 /* ---- Attributes (rwindow.r's wattrib) ---- */
 
 enum {
-	A_ASCENT, A_BG, A_CANVAS, A_CEOL, A_CLIPH, A_CLIPW, A_CLIPX, A_CLIPY, A_COL,
+	A_ANTIALIAS, A_ASCENT, A_BG, A_CANVAS, A_CEOL, A_CLIPH, A_CLIPW, A_CLIPX, A_CLIPY, A_COL,
 	A_COLUMNS, A_CURSOR, A_DEPTH, A_DESCENT, A_DISPLAY, A_DISPLAYHEIGHT,
 	A_DISPLAYWIDTH, A_DRAWOP, A_DX, A_DY, A_ECHO, A_FG, A_FHEIGHT, A_FILLSTYLE,
 	A_FONT, A_FWIDTH, A_GAMMA, A_GEOMETRY, A_HEIGHT, A_ICONIC, A_ICONIMAGE,
@@ -1935,7 +1958,7 @@ enum {
 };
 
 static const StrInt attribs[] = {
-	{"ascent", A_ASCENT}, {"bg", A_BG}, {"canvas", A_CANVAS}, {"ceol", A_CEOL},
+	{"antialias", A_ANTIALIAS}, {"ascent", A_ASCENT}, {"bg", A_BG}, {"canvas", A_CANVAS}, {"ceol", A_CEOL},
 	{"cliph", A_CLIPH}, {"clipw", A_CLIPW}, {"clipx", A_CLIPX}, {"clipy", A_CLIPY},
 	{"col", A_COL}, {"columns", A_COLUMNS}, {"cursor", A_CURSOR}, {"depth", A_DEPTH},
 	{"descent", A_DESCENT}, {"display", A_DISPLAY}, {"displayheight", A_DISPLAYHEIGHT},
@@ -2100,6 +2123,7 @@ static int wattrib(WBinding *w, const char *s, size_t len, Value *answer) {
 			break;
 		}
 		case A_FILLSTYLE: AttemptAttr(setfillstyle(w, val)); break;
+		case A_ANTIALIAS: AttemptAttr(setantialias(w, val)); break;
 		case A_LINESTYLE: AttemptAttr(setlinestyle(w, val)); break;
 		case A_LINEWIDTH:
 			if (!cint(val, &tmp))
@@ -2302,6 +2326,7 @@ static int wattrib(WBinding *w, const char *s, size_t len, Value *answer) {
 	case A_FG: STR(wc->fgname); break;
 	case A_BG: STR(wc->bgname); break;
 	case A_GAMMA: *answer = realval(wc->gamma); break;
+	case A_ANTIALIAS: STR(wc->antialias ? "on" : "off"); break;
 	case A_FILLSTYLE:
 		STR(wc->fillstyle == FS_SOLID ? "solid" : wc->fillstyle == FS_STIPPLE ? "masked" : "textured");
 		break;

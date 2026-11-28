@@ -58,6 +58,7 @@ by every window on it; the rest belong to the context, the window's own.
 | `drawop` | how drawing combines with what is there: `copy`, `reverse`, or one of `and`, `andInverted`, `andReverse`, `clear`, `copyInverted`, `equiv`, `invert`, `nand`, `noop`, `nor`, `or`, `orInverted`, `orReverse`, `set`, `xor` |
 | `linewidth`, `linestyle` | lines' width, and `solid`, `dashed` or `striped` |
 | `fillstyle`, `pattern` | `solid`, `masked` or `textured` filling with a pattern |
+| `antialias` | Gcon's: `on` (the default; `GCONANTIALIAS=off` makes it `off`) to smooth the edges of shapes and text drawn in copy mode without a pattern, where the display server can; `off` for X's covered-or-not pixels |
 | `clipx`, `clipy`, `clipw`, `cliph` | the clipping rectangle |
 | `dx`, `dy` | the origin's offset |
 | `font`, `ascent`, `descent`, `fwidth`, `fheight`, `leading` | the font and its metrics |

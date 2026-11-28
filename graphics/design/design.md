@@ -351,3 +351,25 @@ not compared there (Arizona's iconx gives no canvases up); `ref.sh`
 compares drawing with Arizona's images. `ppmcmp.c` went with the pixel
 comparison; the servers' `ICONSDL_TEST_DUMP` hook stays, for comparing
 runs by hand.
+
+### The antialias attribute (Sean, 2026-11-28)
+
+`antialias=on|off` is a context attribute of gcon's, like `linestyle`
+(copied by `Clone`): on by default (the Mac's quality first),
+`GCONANTIALIAS=off` making off the default for every program. The GC
+carries it (protocol 5: a byte after fillstyle). It smooths shapes and
+text drawn in copy mode without a pattern: the raster servers (SDL,
+headless; text too, the glyphs' coverage going through the mask) blend
+by coverage, the Cocoa server sets Core Graphics's own switch on its
+native drawing; the X11 server ignores it, X's core drawing being
+aliased. Other drawops and patterns are always aliased, X's way, so
+that rubber-banding and stipples keep their meaning. No hinting (Sean).
+
+`ref.sh` sets `GCONANTIALIAS=off`, so it measures every server's
+fidelity to X: SDL and headless 2, 3 and 13 pixels; Cocoa, aliased by
+Core Graphics, 707, 458 and 393 (`ref/tolerance-cocoa`). The default is
+seen in `graphics.sh` (which unsets it) and the window tests, which pass
+as they did. A sample of Sean's fonts (Adobe's CFF Garamond, Caslon,
+Arno and Chaparral; Consolas, DejaVu and the 13 MB Cyberbit in
+TrueType) rendered well antialiased and kerned; a Type 1 font was
+refused cleanly, as stb_truetype does not read Type 1.

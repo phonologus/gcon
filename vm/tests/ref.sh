@@ -45,6 +45,9 @@ case $("$GCONGRAPHICS" -version 2>/dev/null) in
 *headless*) REFTOLERANCE=${REFTOLERANCE:-$ref/tolerance-headless} ;;
 esac
 export GCONVM=${GCONVM:-$here/bin/gcon-vm}
+# X's drawing is aliased: so is each server's here (gcon's antialias
+# attribute, on by default, is off), so that its fidelity is measured
+export GCONANTIALIAS=off
 
 # tolerance NAME FIELD: the accepted difference from the tolerance file
 tolerance() {

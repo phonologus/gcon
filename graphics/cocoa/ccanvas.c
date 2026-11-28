@@ -4,8 +4,9 @@
  *
  * Pixels are 0xFFRRGGBB at an integer scale s: logical pixel (x, y) is
  * the s-by-s block of device pixels at (s*x, s*y). Drawing in copy mode
- * without a pattern is Core Graphics's, antialiased (the Mac's own
- * quality, not X's pixels); everything else is drawn aliased into an A8
+ * without a pattern is Core Graphics's, antialiased unless the gc's
+ * antialias is off (the Mac's own quality, not X's pixels); everything
+ * else is drawn aliased into an A8
  * coverage mask, and each covered device pixel is combined with the X
  * GC function, the pattern and the colours, as ../src/canvas.c does it
  * (whose pixel operations, copy, read, write and erase, are these).
@@ -406,6 +407,7 @@ static void draw(Canvas *c, const sdlgc *gc, CGPathRef p, int how)
    if (native(gc)) {
       CGContextRef k = c->ctx;
       CGContextSaveGState(k);
+      CGContextSetShouldAntialias(k, gc->antialias != 0);
       clipto(k, gc);
       if (how == STROKE) {
          pen(k, gc);
@@ -724,6 +726,7 @@ int cv_text(void *cv, const sdlgc *gc, void *font, int x, int y, const char *s, 
    }
    if (native(gc)) {
       CGContextSaveGState(c->ctx);
+      CGContextSetShouldAntialias(c->ctx, gc->antialias != 0);
       clipto(c->ctx, gc);
       colour(c->ctx, gc->fg, 0);
       CGContextSetTextPosition(c->ctx, x, y);

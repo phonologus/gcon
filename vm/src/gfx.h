@@ -96,6 +96,7 @@ typedef struct WContext {
 	unsigned fg, bg;    /* device colours 0xRRGGBB */
 	char fgname[6 + MAXCOLORNAME], bgname[6 + MAXCOLORNAME];
 	int linestyle, linewidth, leading;
+	int antialias;      /* blend by coverage (gcon's antialias attribute) */
 	int patw, path;
 	unsigned char *pat;
 	struct WContext *next;

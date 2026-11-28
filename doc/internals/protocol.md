@@ -11,7 +11,7 @@ Another display server can take gcon-graphics's place: it speaks this
 protocol on the socket it is given, and `GCONGRAPHICS` names it (`gcon
 help environment`).
 
-Version 4. Everything here is implemented unless marked *(later)*.
+Version 5. Everything here is implemented unless marked *(later)*.
 
 ## Transport and framing
 
@@ -66,7 +66,8 @@ server's), `u32 ok` (1 if it speaks the client's version), `u32 display`
 server has a screen; 0 for the headless server). First on every
 connection. A client that finds no display where it wanted one may use
 another server instead: gcon-vm runs the headless one, so that hidden
-canvases work. This is version 4 (version 3 lacked `display`; version 2
+canvases work. This is version 5 (version 4 lacked `antialias` in `GC`;
+version 3 lacked `display`; version 2
 had `ENCODE` and `DECODE`, the server's image files, which are now the
 client's; version 1 lacked `ICON`).
 
@@ -126,12 +127,16 @@ the next showing of that area removes it.
 ### Graphics contexts
 
 `GC` (4): `u32 id, u32 fg, u32 bg, u8 drawop, u8 reverse, i32
-linewidth, u8 linestyle, u8 fillstyle, i32 clipx, i32 clipy, i32 clipw,
-i32 cliph, i32 patw, i32 path, u8 pattern[patw * path]`. Defines or
-redefines gc id. drawop is X's GC function (0 clear ... 15 set; 3
-copy); reverse: drawop=reverse (xor with fg ^ bg). linestyle 0 solid, 1
-dashed, 2 striped; fillstyle 0 solid, 2 masked, 3 textured. clipw < 0:
-no clipping. Pattern cells nonzero where set; patw 0: none.
+linewidth, u8 linestyle, u8 fillstyle, u8 antialias, i32 clipx, i32
+clipy, i32 clipw, i32 cliph, i32 patw, i32 path, u8 pattern[patw *
+path]`. Defines or redefines gc id. drawop is X's GC function (0 clear
+... 15 set; 3 copy); reverse: drawop=reverse (xor with fg ^ bg).
+linestyle 0 solid, 1 dashed, 2 striped; fillstyle 0 solid, 2 masked, 3
+textured. antialias 1: shapes and text drawn in copy mode without a
+pattern are smoothed where the server can (gcon's `antialias`
+attribute); the other drawops and patterns keep X's covered-or-not
+pixels, and a server that cannot (X11's) ignores it. clipw < 0: no
+clipping. Pattern cells nonzero where set; patw 0: none.
 
 ### Drawing
 

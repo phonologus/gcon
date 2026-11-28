@@ -17,7 +17,7 @@
 #include <unistd.h>
 #include "sdlgfx.h"
 
-enum { VERSION = 4 };
+enum { VERSION = 5 };
 
 enum {
    HELLO, CANVAS, FREE, RESIZE, GC, POINTS, LINES, FILLPOLY, SEGMENTS,
@@ -356,6 +356,7 @@ static void do_gc(void)
    s->linewidth = i32();
    s->linestyle = u8();
    s->fillstyle = u8();
+   s->antialias = u8();
    s->clipx = i32();
    s->clipy = i32();
    s->clipw = i32();

@@ -1,12 +1,12 @@
 # The Cocoa display server's accepted differences from the X11 reference
-# (tests/cocoa.sh): it draws in copy mode with Core Graphics, antialiased,
-# so the edges of slanted lines, arcs and circles differ from X's (by
-# about 10% more pixels than it differed when recorded), and text is
-# CoreText's; drawops, patterns, fills, copies and images must match
-# exactly. Format as tests/ref/tolerance.
+# (tests/cocoa.sh). ref.sh turns gcon's antialias attribute off, so this
+# is Core Graphics's aliased drawing, whose rule for which edge pixels a
+# shape covers is not quite X's (about 10% more pixels than differed when
+# recorded); text is CoreText's. Drawops, patterns, fills, copies and
+# images must match exactly. Format as tests/ref/tolerance.
 #
 # name      pixels  output
-clipcopy    6000    same     # antialiased edges of slanted lines, a circle
-lines       1500    same     # antialiased edges
-shapes      1400    same     # antialiased edges of circles, arcs, polygons
+clipcopy    780     same     # edges of slanted lines, a circle
+lines       510     same     # edges of slanted lines, arcs
+shapes      440     same     # edges of circles, arcs, polygons
 text        -1      differs  # CoreText's fonts

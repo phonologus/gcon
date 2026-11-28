@@ -18,6 +18,7 @@ if [ -z "${GCON:-}" ]; then
 	GCON=$tmp/gcon
 fi
 export GCONGRAPHICS=${GCONGRAPHICS:-$here/../libexec/gcon-graphics}
+unset GCONANTIALIAS # the default (on), whatever the user's
 if [ ! -x "$GCONGRAPHICS" ]; then
 	echo "graphics: no display server ($GCONGRAPHICS): not checked"
 	exit 0

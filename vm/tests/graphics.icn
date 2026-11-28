@@ -64,6 +64,13 @@ procedure main()
    write("closed; ", image(w))
    &error := -1
    DrawLine(w, 0, 0, 1, 1) | write("error ", &errornumber, " ", &errortext)
+   # gcon's antialias attribute: on by default (GCONANTIALIAS=off makes
+   # the default off); a context's own, which Clone copies
+   q := open("aa", "g", "canvas=hidden", "size=4,4") | stop("no canvas")
+   write("antialias ", WAttrib(q, "antialias"), "; off ", WAttrib(q, "antialias=off", "antialias"),
+      "; clone ", WAttrib(Clone(q), "antialias"), "; maybe ",
+      (WAttrib(q, "antialias=maybe") & "accepted") | "refused")
+   close(q)
    # image files: written and read back by gcon-vm (imgcodec.c), whatever
    # the server (rectangles alone, which every server draws alike)
    p := open("p", "g", "canvas=hidden", "size=40,30", "bg=white") | stop("no canvas")

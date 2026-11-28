@@ -37,6 +37,15 @@ Whichever server draws:
   the file's extension for `WriteImage` (any other is written as GIF)
   and by its contents for `ReadImage`. gcon-vm reads and writes them
   itself, so every server has them all.
+- **Antialiasing** is Gcon's `antialias` attribute, a context's like
+  `linestyle`: `on` by default, it smooths the edges of shapes and text
+  drawn in copy mode without a pattern, where the server can (the
+  Cocoa, SDL and headless servers; the X11 server draws as X does,
+  aliased). `WAttrib("antialias=off")` gives X's covered-or-not pixels,
+  and `GCONANTIALIAS=off` makes that the default for every program. The
+  other drawops (`drawop=reverse` among them) and patterns are always
+  drawn as X draws them, so rubber-banding and stippled fills keep their
+  meaning.
 - **Not supported:** the numeric colour forms `rgb:r/g/b` and `RGBi:...`.
   `iconlabel=` is accepted but never shown, since modern desktops have
   no icon labels.
@@ -60,9 +69,9 @@ edges of slanted lines and curves, and text (its fonts are the Mac's),
 to differ from Arizona Icon's X11 pictures, and nothing else.
 
 - **Drawing in copy mode** (the default `drawop=copy`, no pattern) is
-  Core Graphics's, antialiased. **Every other drawop, `drawop=reverse`
-  and patterns** are drawn as X draws them, aliased and combined pixel
-  by pixel, so rubber-banding and stippled fills work exactly as in Icon.
+  Core Graphics's, antialiased unless `antialias` is `off`. **Every
+  other drawop, `drawop=reverse` and patterns** are drawn as X draws
+  them, aliased and combined pixel by pixel.
 - **Fonts** are the same as the SDL server's on macOS, through CoreText:
   `mono` is Menlo, `sans` Helvetica, `serif` Times and `typewriter`
   Courier, and a font name that isn't found fails, as under X.
@@ -85,7 +94,8 @@ through XWayland, and macOS through XQuartz.
   `mono` is Lucida Typewriter, `typewriter` Courier, `sans` Helvetica and
   `serif` Times, and the default is X's `fixed`. A full X font name
   works too.
-- **No HiDPI scaling:** one Icon pixel is one pixel, as in X.
+- **No HiDPI scaling, no antialiasing:** one Icon pixel is one pixel,
+  and X's core drawing is aliased, as in X (`antialias` has no effect).
 
 ## The SDL display server
 
@@ -96,9 +106,10 @@ fontconfig's off macOS), and nothing else. It is not an X11 client. It
 began as the backend of [icon-sdl](https://github.com/phonologus/icon-sdl),
 a fork of Icon 9.5 whose iconx drew with SDL3 and Blend2D.
 
-- **HiDPI:** one Icon pixel is one point, drawn at the display's scale;
-  `ICONSDL_SCALE` overrides it. Lines, fills, patterns, images and all
-  16 drawops follow X's rules: Arizona Icon's X11 pictures but for a few
+- **HiDPI and antialiased:** one Icon pixel is one point, drawn at the
+  display's scale (`ICONSDL_SCALE` overrides it), smoothed (`antialias`).
+  With `antialias=off`, lines, fills, patterns, images and all 16
+  drawops follow X's rules: Arizona Icon's X11 pictures but for a few
   pixels at the edges of circles and arcs.
 - **Fonts are the system's own,** found through CoreText on macOS and
   fontconfig on Linux, their TrueType and CFF outlines drawn by
@@ -115,9 +126,10 @@ a fork of Icon 9.5 whose iconx drew with SDL3 and Blend2D.
 
 `gcon-graphics-headless` has no display and no windows, only hidden
 canvases. It needs a C compiler alone, and draws with Gcon's own
-rasterizer, by X's rules: its pictures are Arizona Icon's X11 ones but
-for a few pixels at the edges of circles and arcs (X computes arcs
-exactly; it flattens them), and for text.
+rasterizer, antialiased (`antialias`); with `antialias=off`, by X's
+rules, its pictures are Arizona Icon's X11 ones but for a few pixels at
+the edges of circles and arcs (X computes arcs exactly; it flattens
+them), and for text.
 
 - **Fonts are X's misc-fixed bitmap fonts:** `fixed` is X's 6x13, and
   `mono`, `typewriter`, `sans` and `serif` all take the misc-fixed font

@@ -16,9 +16,9 @@ GCONGRAPHICS chooses another when a program runs.
 	names the display.
 
 	SDL (only with --withSDL; needs the system's SDL3): portable and
-	HiDPI, drawn by Gcon's own rasterizer, as the headless server
-	is; fonts through CoreText or fontconfig, their outlines drawn
-	by stb_truetype.
+	HiDPI, drawn by Gcon's own rasterizer, antialiased, as the
+	headless server is; fonts through CoreText or fontconfig, their
+	outlines drawn by stb_truetype.
 
 Whichever server draws, the preprocessor defines _SDL_GRAPHICS, not
 _X_WINDOW_SYSTEM, and &features includes "SDL graphics", so programs
@@ -28,6 +28,12 @@ written by gcon-vm itself: by extension for WriteImage (any other
 is written as GIF), by contents for ReadImage. Not supported: the
 colour forms rgb:r/g/b and RGBi:...; iconlabel= is accepted but
 never shown.
+
+Antialiasing is Gcon's antialias attribute, a context's: on by
+default, it smooths the edges of shapes and text drawn in copy mode
+without a pattern, where the server can (not X11's); antialias=off
+gives X's covered-or-not pixels, and GCONANTIALIAS=off makes off the
+default. Other drawops and patterns are always drawn as X draws them.
 
 On macOS, ICONSDL_META=command makes the Command key &meta, instead
 of Option, and ICONSDL_SCALE overrides the display's scale.
