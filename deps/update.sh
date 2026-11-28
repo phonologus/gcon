@@ -19,9 +19,10 @@
 #
 #   deps/update.sh stb [COMMIT]
 #
-# fetches stb_image.h and stb_image_write.h, Sean Barrett's image
-# decoders and encoders, which gcon-vm's image files use
-# (vm/src/imgcodec.c), with the repository's LICENSE, from
+# fetches stb_image.h, stb_image_write.h and stb_truetype.h, Sean Barrett's
+# image decoders and encoders, which gcon-vm's image files use
+# (vm/src/imgcodec.c), and font rasterizer, which the display servers'
+# text uses (graphics/raster/rfont.c), with the repository's LICENSE, from
 # github.com/nothings/stb at COMMIT (a full SHA), or at the head of its
 # master branch (stb makes no releases): into deps/stb/, the commit
 # recorded in deps/deps.lock. stb is in the public domain (or MIT, as
@@ -103,13 +104,13 @@ stb)
 	fi
 	echo "$ver" | grep -q '^[0-9a-f]\{40\}$' || die "COMMIT must be a full SHA: $ver"
 	base="https://raw.githubusercontent.com/nothings/stb/$ver"
-	for f in stb_image.h stb_image_write.h LICENSE; do
+	for f in stb_image.h stb_image_write.h stb_truetype.h LICENSE; do
 		fetch "$base/$f" "$tmp/$f"
 	done
 	grep -q "public domain" "$tmp/LICENSE" || die "stb's LICENSE no longer offers the public domain: read it before going on"
 	mkdir -p "$here/stb"
-	mv "$tmp/stb_image.h" "$tmp/stb_image_write.h" "$tmp/LICENSE" "$here/stb/"
-	for f in stb_image.h stb_image_write.h LICENSE; do
+	mv "$tmp/stb_image.h" "$tmp/stb_image_write.h" "$tmp/stb_truetype.h" "$tmp/LICENSE" "$here/stb/"
+	for f in stb_image.h stb_image_write.h stb_truetype.h LICENSE; do
 		printf '%-24s %-8s %s https://raw.githubusercontent.com/nothings/stb/@V@/%s\n' \
 			"stb/$f" "$ver" "$(sha256 "$here/stb/$f")" "$f"
 	done >"$tmp/lines"

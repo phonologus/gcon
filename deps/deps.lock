@@ -4,9 +4,6 @@
 unicode/UnicodeData.txt  17.0.0   2e1efc1dcb59c575eedf5ccae60f95229f706ee6d031835247d843c11d96470c https://www.unicode.org/Public/@V@/ucd/UnicodeData.txt
 unicode/Scripts.txt      17.0.0   9f5e50d3abaee7d6ce09480f325c706f485ae3240912527e651954d2d6b035bf https://www.unicode.org/Public/@V@/ucd/Scripts.txt
 unicode/LICENSE          17.0.0   e7a93b009565cfce55919a381437ac4db883e9da2126fa28b91d12732bc53d96 https://www.unicode.org/license.txt
-stb/stb_image.h          6b5799bae8a1fe3792691ef4b72ae26434c3e799 dfc2aadda6295f67f677587773f25e5bf8c8ad427ed0db7c518525c91e72e020 https://raw.githubusercontent.com/nothings/stb/@V@/stb_image.h
-stb/stb_image_write.h    6b5799bae8a1fe3792691ef4b72ae26434c3e799 5d89edc8bffd848f3e138b2a1dbec67aadbed591894bde16ade7c83dc233af9b https://raw.githubusercontent.com/nothings/stb/@V@/stb_image_write.h
-stb/LICENSE              6b5799bae8a1fe3792691ef4b72ae26434c3e799 eb36e45c704dd0b59730115523e089b051852625b4db0a6fe76c991900af20e7 https://raw.githubusercontent.com/nothings/stb/@V@/LICENSE
 fixed/5x8.bdf            c4e2af05583764fae3d0b2aa20d5c93b031cbcbf e47c8ab4259abba97226c331ed464bbb2cea55e796ad698d81e4dee217b1838f https://gitlab.freedesktop.org/xorg/font/misc-misc/-/raw/@V@/5x8.bdf (Latin-1)
 fixed/6x10.bdf           c4e2af05583764fae3d0b2aa20d5c93b031cbcbf f8e8c8184bccc422d628eb24c219c5eb8aa50e21ad8f9823e0366a649773afaa https://gitlab.freedesktop.org/xorg/font/misc-misc/-/raw/@V@/6x10.bdf (Latin-1)
 fixed/6x13.bdf           c4e2af05583764fae3d0b2aa20d5c93b031cbcbf 244d735ff55c1bcfa893323a8e69e1ad342dd1c3599504e74369d25912b6b7a9 https://gitlab.freedesktop.org/xorg/font/misc-misc/-/raw/@V@/6x13.bdf (Latin-1)
@@ -26,3 +23,7 @@ fixed/9x18.bdf           c4e2af05583764fae3d0b2aa20d5c93b031cbcbf a8b0dd6978efb5
 fixed/9x18B.bdf          c4e2af05583764fae3d0b2aa20d5c93b031cbcbf 7acdc114d650a743f727cbd59bb195f94bbcdf4d147d471541bcfb9b7fe62ddc https://gitlab.freedesktop.org/xorg/font/misc-misc/-/raw/@V@/9x18B.bdf (Latin-1)
 fixed/10x20.bdf          c4e2af05583764fae3d0b2aa20d5c93b031cbcbf 9cd1298f943987d3dfd5d96aaaf1ece99352d5bfc9997ce611c495f13521f91c https://gitlab.freedesktop.org/xorg/font/misc-misc/-/raw/@V@/10x20.bdf (Latin-1)
 fixed/COPYING            c4e2af05583764fae3d0b2aa20d5c93b031cbcbf 1711d038bca0efb51b5114e902412019d1c21531882866b1a6908c6386268cfb https://gitlab.freedesktop.org/xorg/font/misc-misc/-/raw/@V@/COPYING
+stb/stb_image.h          6b5799bae8a1fe3792691ef4b72ae26434c3e799 dfc2aadda6295f67f677587773f25e5bf8c8ad427ed0db7c518525c91e72e020 https://raw.githubusercontent.com/nothings/stb/@V@/stb_image.h
+stb/stb_image_write.h    6b5799bae8a1fe3792691ef4b72ae26434c3e799 5d89edc8bffd848f3e138b2a1dbec67aadbed591894bde16ade7c83dc233af9b https://raw.githubusercontent.com/nothings/stb/@V@/stb_image_write.h
+stb/stb_truetype.h       6b5799bae8a1fe3792691ef4b72ae26434c3e799 428cfe93520f2aed5e413a220b0db5bba5b17e2ebe5a64e4a8efa9eeeb67ec5f https://raw.githubusercontent.com/nothings/stb/@V@/stb_truetype.h
+stb/LICENSE              6b5799bae8a1fe3792691ef4b72ae26434c3e799 eb36e45c704dd0b59730115523e089b051852625b4db0a6fe76c991900af20e7 https://raw.githubusercontent.com/nothings/stb/@V@/LICENSE

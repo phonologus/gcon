@@ -9,7 +9,7 @@
  * without a pattern): rasterized with coverage and blended. Otherwise
  * aliased by X's rules, each covered device pixel combined with the X
  * GC function, the pattern and the colours. The pixel operations (copy,
- * read, write, erase) are canvas.c's. Text: the server's fonts (h_font).
+ * read, write, erase) are canvas.c's. Text: the server's fonts (rfont.c).
  */
 #include <math.h>
 #include <signal.h>
@@ -19,7 +19,7 @@
 #include <string.h>
 #include "sdlgfx.h"
 #include "raster.h"
-#include "bdf.h"
+#include "rfont.h"
 
 typedef struct {
    int w, h;			/* logical size */
@@ -615,50 +615,33 @@ void cv_write(void *cv, const sdlgc *gc, int x, int y, int w, int h, const unsig
    }
 }
 
-/* ---------- text: bitmap fonts (hfont.c) ---------- */
-
-const BdfFont *h_font(void *f);
+/* ---------- text: the server's fonts (rfont.c) ---------- */
 
 /* DrawString (image 0), or write()'s text (image 1: as X's
  * XDrawImageString, the text's cell filled with bg and the glyphs drawn
- * in fg, both in copy mode, whatever the drawop and fill style); the
- * glyphs' pixels go through the mask; returns the width */
+ * in fg, both in copy mode, whatever the drawop and fill style). The
+ * glyphs' coverage goes into the mask, so text is blended where shapes
+ * are (smooth), else aliased; returns the width. */
 int cv_text(void *cv, const sdlgc *gc, void *font, int x, int y, const char *s, int n, int image)
 {
    Canvas *c = cv;
-   const BdfFont *f = h_font(font);
-   int w = ft_width(font, s, n), r[4], sc = c->s;
+   int w, asc, desc, maxw, left, right, r[4];
    sdlgc g = *gc;
-   if (!f || n <= 0)
+   if (!font || n <= 0)
       return 0;
+   w = ft_width(font, s, n);
+   ft_metrics(font, &asc, &desc, &maxw);
    if (image) {
-      cv_erase(c, gc, x, y - f->ascent, w, f->ascent + f->descent);
+      cv_erase(c, gc, x, y - asc, w, asc + desc);
       g.drawop = 3;
       g.reverse = 0;
       g.fillstyle = 0;
    }
-   if (!region(c, &g, x - f->maxw, y - f->ascent - 1, x + w + f->maxw, y + f->descent + 1, 0, r))
+   rf_ink(font, s, n, &left, &right);
+   if (!region(c, &g, x + left - 1, y - asc - 1, x + right + 1, y + desc + 1, 0, r))
       return w;
    mask_clear(c, r);
-   for (int i = 0, pen = x; i < n; i++) {
-      const BdfGlyph *gl = &f->g[(unsigned char)s[i]];
-      if (gl->bits >= 0) {
-         int bpr = (gl->w + 7) / 8, top = y - gl->yo - gl->h;
-         for (int row = 0; row < gl->h; row++) {
-            const unsigned char *b = f->bits + gl->bits + row * bpr;
-            for (int col = 0; col < gl->w; col++) {
-               if (!(b[col >> 3] & (0x80 >> (col & 7))))
-                  continue;
-               int dx = (pen + gl->xo + col) * sc, dy = (top + row) * sc;
-               for (int yy = dy; yy < dy + sc; yy++)
-                  for (int xx = dx; xx < dx + sc; xx++)
-                     if (xx >= r[0] && xx < r[2] && yy >= r[1] && yy < r[3])
-                        c->mk[(size_t)yy * c->pw + xx] = 255;
-            }
-         }
-      }
-      pen += gl->dw;
-   }
+   rf_draw(font, c->mk, c->pw, r, c->s, x, y, s, n);
    apply(c, &g, r, 0);
    return w;
 }

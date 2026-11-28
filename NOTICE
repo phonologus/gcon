@@ -132,10 +132,11 @@ build.sh generates as lib/gcon/uclass.icn.
 
 ------------------------------------------------------------------------
 
-gcon-vm includes stb_image and stb_image_write by Sean Barrett
-(github.com/nothings/stb), vendored unmodified in deps/stb. They are
-offered under the MIT licence or as public domain, the user's choice;
-gcon takes them as public domain (deps/stb/LICENSE).
+gcon-vm includes stb_image and stb_image_write, and the display servers
+stb_truetype, by Sean Barrett (github.com/nothings/stb), vendored
+unmodified in deps/stb. They are offered under the MIT licence or as
+public domain, the user's choice; gcon takes them as public domain
+(deps/stb/LICENSE).
 
 ------------------------------------------------------------------------
 

@@ -287,3 +287,31 @@ is (an explicit choice, and what the tests use); else the
 reports no display; else the headless server if there is no default;
 else `gcon-graphics` on `$PATH`. `vm/tests/headless.sh` checks the
 fallback both ways (no default; the X11 server without `DISPLAY`).
+
+### Scalable fonts: stb_truetype (Sean, 2026-11-28)
+
+What matters (Sean): TrueType and CFF outlines, antialiased; Gcon is a
+language with graphics, not a graphics engine, so no typographic layout
+(no OpenType GSUB features, no shaping) and no hinting. FreeType was
+weighed (every outline format: CFF2, Type 1, variable fonts; hinting;
+fuzzed) and found too heavy; stb_truetype (deps/stb, one public-domain
+file) reads TrueType and CFF (OpenType "OTTO") outlines, with kerning
+from the kern table and GPOS pairs, and rasterizes them antialiased. It
+does not read CFF2, variable fonts or Type 1, and is not hardened
+against malformed fonts (the fonts are the system's).
+
+`raster/rfont.c`: the misc-fixed bitmap fonts, and, where the server can
+find the platform's fonts (`RFONT_LOOKUP`, with `../src/fontmac.c`'s
+CoreText or `fontlinux.c`'s fontconfig, which give a file and a
+PostScript name), outline fonts by stb_truetype: the face in a
+collection by its PostScript name, the size the em in pixels, ascent
+and descent the hhea table's rounded up, the maximum width over the
+printable Latin-1 characters; a string's width its advances and kerning
+rounded once; glyphs rendered at the canvas's scale, cached. Their
+coverage goes into the mask, so text follows the gc's antialias as
+shapes do. With a lookup every name goes to it, as the SDL server's
+fonts did; without one (the headless server, which stays free of it and
+of stb) the misc-fixed policy holds. A server built with the lookup on
+macOS gives the SDL server's `graphics.std` exactly (the same fonts,
+the same metrics, through stb instead of Blend2D), and renders a CFF
+font (Source Sans 3) cleanly, kerned.
