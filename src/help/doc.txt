@@ -24,9 +24,10 @@ error: use -text to read the page in the terminal.
 With no name, doc shows the index. A name is a page's topic, its path
 in the tree without ".md" (internals/protocol), or the last element of
 one (protocol), a built-in function or keyword with an entry in the
-reference (find, '&subject'), or a Markdown file's path. An entry is
-shown alone, or opened at its place in its page. The help pages are
-help/index and help/NAME (help/run). gcon doc -list lists the topics.
+reference (gcon doc find, gcon doc '&subject'), or a Markdown file's
+path. An entry is shown alone, or opened at its place in its page. The
+help pages are help/index and help/NAME (help/run). gcon doc -list
+lists the topics.
 
 When nothing in the tree has the name, doc looks in the Icon Program
 Library: a file (strings) or a procedure (WOpen), or explicitly

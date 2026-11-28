@@ -650,24 +650,46 @@ static int helpnamed(const char *s, size_t n) {
 	return -1;
 }
 
-/* docnamed is the topic of the page gcon doc would show for the n bytes
- * at s, as lookup finds it (a topic, else the last element of one, the
- * guide before help before the reference), but not a reference entry,
- * and NULL rather than an error when there is none or more than one. */
-static const char *docnamed(const char *s, size_t n) {
-	for (size_t i = 0; i < linktree.pages.n; i++) {
-		const char *tp = linktree.pages.v[i].topic;
-		if (strlen(tp) == n && !strncmp(tp, s, n))
-			return tp;
+/* docnamed is the page gcon doc would show for name, as lookup finds it
+ * (a topic, else a reference entry, at *anchor, else the last element
+ * of a topic, the guide before help before the reference), or NULL
+ * rather than an error when there is none or more than one. */
+static const char *docnamed(const char *name, const char **anchor) {
+	static MdDoc **refdocs; /* linktree's reference pages, parsed when first wanted */
+	static size_t nref;
+	*anchor = NULL;
+	for (size_t i = 0; i < linktree.pages.n; i++)
+		if (!strcmp(linktree.pages.v[i].topic, name))
+			return name;
+	if (nref != linktree.pages.n) {
+		nref = linktree.pages.n;
+		refdocs = xcalloc(nref ? nref : 1, sizeof *refdocs);
+		for (size_t i = 0; i < nref; i++)
+			if (isref(linktree.pages.v[i].topic))
+				refdocs[i] = parsepage(&linktree.pages.v[i]);
 	}
+	const char *found = NULL;
+	int count = 0;
+	for (size_t i = 0; i < nref; i++) {
+		if (!refdocs[i])
+			continue;
+		for (size_t bi = 0; bi < refdocs[i]->blocks.n; bi++) {
+			char *en = entryname(&linktree.pages.v[i], &refdocs[i]->blocks.v[bi]);
+			if (en && !strcmp(en, name))
+				found = linktree.pages.v[i].topic, *anchor = refdocs[i]->blocks.v[bi].anchor, count++;
+		}
+	}
+	if (count == 1)
+		return found;
+	*anchor = NULL;
+	if (count > 1)
+		return NULL;
 	for (int tr = 0; tr < 3; tr++) {
-		const char *found = NULL;
-		int count = 0;
+		count = 0;
 		for (size_t i = 0; i < linktree.pages.n; i++) {
 			const char *tp = linktree.pages.v[i].topic;
 			const char *slash = strrchr(tp, '/');
-			const char *last = slash ? slash + 1 : tp;
-			if (tier(tp) == tr && strlen(last) == n && !strncmp(last, s, n))
+			if (tier(tp) == tr && !strcmp(slash ? slash + 1 : tp, name))
 				found = tp, count++;
 		}
 		if (count == 1)
@@ -707,15 +729,25 @@ static void helplinks(Buf *out, const char *html, const Page *p) {
 		else if (overview && bol && *s == '\t')
 			name = s + 1;
 		if (name) {
-			size_t n = 0;
-			while (isnamech(name[n]) || (doc && n && (name[n] == '/' || name[n] == '-') && isnamech(name[n + 1])))
+			/* gcon doc's name may be quoted, and a keyword ('&subject',
+			 * escaped in the HTML); the link is the name, not the quotes */
+			size_t k = 0;
+			if (doc && *name == '\'')
+				name++;
+			if (doc && !strncmp(name, "&amp;", 5))
+				k = 5;
+			size_t n = k;
+			while (isnamech(name[n]) || (doc && n > k && (name[n] == '/' || name[n] == '-') && isnamech(name[n + 1])))
 				n++;
 			Buf href = {0};
-			if (doc) {
-				const char *tp = n ? docnamed(name, n) : NULL;
+			if (doc && n > k) {
+				Buf key = {0};
+				bufprintf(&key, "%s%.*s", k ? "&" : "", (int)(n - k), name + k);
+				const char *anchor;
+				const char *tp = docnamed(key.b, &anchor);
 				if (tp)
-					bufprintf(&href, "%s%s.html", up, tp);
-			} else {
+					bufprintf(&href, "%s%s.html%s%s", up, tp, anchor ? "#" : "", anchor ? anchor : "");
+			} else if (!doc) {
 				int h = n ? helpnamed(name, n) : -1;
 				/* on the overview's lists, a name then its description */
 				bool listed = name == s + 10 || name[n] == ' ';

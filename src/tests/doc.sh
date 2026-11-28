@@ -180,15 +180,22 @@ for f in "$here"/src/help/*.txt; do
 	n=$(basename "$f" .txt)
 	[ "$n" = gcon ] && n=index
 	"$G" doc -html "help/$n" | sed -n '/<pre>/,$p' >"$tmp/h"
-	for ref in $(sed 's/[.,;:)"]/ /g' "$f" | grep -o 'gcon \(help\|doc\) [a-z][a-z0-9/-]*' | sed 's/ /_/g' | sort -u); do
-		cmd=${ref%_*} name=${ref##*_}
-		[ "$cmd $name" = "gcon_doc ipl" ] && continue
-		[ "$cmd" = gcon_help ] && [ "$name" = "${n#index}" ] && continue
+	# a name may be quoted, and a keyword: gcon doc '&subject'
+	for ref in $(sed 's/[.,;:)"]/ /g' "$f" | grep -o "gcon \(help\|doc\) '\{0,1\}&\{0,1\}[a-z][a-z0-9/-]*" | sed 's/ /_/g' | sort -u); do
+		cmd=$(echo "${ref%_*}" | sed 's/_/ /') name=${ref##*_}
+		name=${name#\'}
+		[ "$cmd $name" = "gcon doc ipl" ] && continue
+		[ "$cmd" = "gcon help" ] && [ "$name" = "${n#index}" ] && continue
 		checks=$((checks + 1))
-		grep -q "$(echo "$cmd" | sed 's/_/ /') <a href=\"[^\"]*\">$name</a>" "$tmp/h" ||
-			problem "gcon help $n: \"$(echo "$cmd" | sed 's/_/ /') $name\" not linked to a page"
+		grep -q "$cmd '*<a href=\"[^\"]*\">$(echo "$name" | sed 's/&/\\&amp;/')</a>" "$tmp/h" ||
+			problem "gcon help $n: \"$cmd $name\" not linked to a page"
 	done
 done
+# an entry's link is to its place in its page
+checks=$((checks + 1))
+"$G" doc -html help/doc >"$tmp/h"
+grep -q '<a href="\.\./ref/scanning\.html#find">find</a>' "$tmp/h" && grep -q "'<a href=\"\.\./ref/keywords\.html#subject\">&amp;subject</a>'" "$tmp/h" ||
+	problem "gcon help doc: gcon doc find and '&subject' not linked to their entries"
 
 # doc/ref/uclass.md is what tools/uclass.sh makes of the Unicode data.
 mkdir "$tmp/uclass"

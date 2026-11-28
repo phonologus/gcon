@@ -141,7 +141,8 @@ its path without `.md`), with `gcon help`'s pages added as `help/NAME`:
 plain text, shown as it is, except that their HTML has links
 (`helplinks` in `src/doc.c`): each `gcon help NAME` to that page, the
 overview's lists of commands and topics to theirs, and each `gcon doc
-NAME` to the page `gcon doc NAME` shows. So refer to another page as
+NAME` to the page `gcon doc NAME` shows, a reference entry at its place
+(`gcon doc find`, `gcon doc '&subject'`). So refer to another page as
 "gcon help NAME" or "gcon doc NAME", on one line; `src/tests/doc.sh`
 requires each such name to be a page.
 `build.sh` renders them as HTML into `doc/html` (`gcon doc -build`, not
