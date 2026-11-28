@@ -1621,8 +1621,9 @@ static int getpos(WBinding *w) {
 	gp_end();
 	gp_reply(P_POSITION);
 	int ok = gr_i32(), x = gr_i32(), y = gr_i32();
-	if (ok)
-		ws->posx = x, ws->posy = y;
+	if (!ok)
+		return Failed; /* the server cannot say (Wayland's) */
+	ws->posx = x, ws->posy = y;
 	return Succeeded;
 }
 

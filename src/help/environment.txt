@@ -48,6 +48,10 @@ Running programs (gcon-vm):
 		beside gcon-vm: libexec/gcon-graphics-x11, say (gcon doc
 		graphics). It is used as it is: without the fallback to the
 		headless server where there is no display.
+	GCONLIBDECOR
+		"off": the Wayland display server draws no title bars with
+		libdecor where the compositor draws none (GNOME's): its
+		windows then have none there.
 	GCONANTIALIAS
 		"off" makes the antialias attribute off by default (gcon
 		help graphics): X's covered-or-not pixels.

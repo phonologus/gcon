@@ -31,6 +31,7 @@ if [ ! -x "$GCONGRAPHICS" ]; then
 fi
 case $("$GCONGRAPHICS" -version 2>/dev/null) in
 *X11*) [ -n "${DISPLAY:-}" ] || { echo "window: no X display (DISPLAY): not checked"; exit 0; } ;;
+*Wayland*) [ -n "${WAYLAND_DISPLAY:-}" ] || { echo "window: no Wayland compositor (WAYLAND_DISPLAY): not checked"; exit 0; } ;;
 *headless*) echo "window: the headless server has no windows: not checked"; exit 0 ;;
 esac
 export GCONVM=${GCONVM:-$here/bin/gcon-vm}

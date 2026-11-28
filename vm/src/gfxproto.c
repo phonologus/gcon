@@ -248,10 +248,11 @@ static bool start(const char *path, bool *display) {
 
 /* gp_connect starts the display server, if it is not running: the one
  * $GCONGRAPHICS names, as it is; else gcon-graphics beside this
- * executable, if it has a display, else gcon-graphics-headless beside
- * it, whose hidden canvases need none (a window cannot be opened there:
- * open fails, as Icon's does without a display); else gcon-graphics on
- * $PATH. */
+ * executable, if it has a display, else gcon-graphics-x11 beside it, if
+ * it was built and has one (Wayland's default, in an X session or over
+ * ssh -X), else gcon-graphics-headless beside it, whose hidden canvases
+ * need none (a window cannot be opened there: open fails, as Icon's does
+ * without a display); else gcon-graphics on $PATH. */
 bool gp_connect(void) {
 	if (sock >= 0)
 		return true;
@@ -259,17 +260,24 @@ bool gp_connect(void) {
 	const char *e = getenv("GCONGRAPHICS");
 	if (e && *e)
 		return start(e, &display);
-	char *def = beside("gcon-graphics"), *headless = beside("gcon-graphics-headless");
+	char *def = beside("gcon-graphics"), *x11 = beside("gcon-graphics-x11"),
+	     *headless = beside("gcon-graphics-headless");
 	bool ok;
 	if (def) {
 		ok = start(def, &display);
-		if (ok && !display && headless) {
-			gp_close(); /* no display: the headless server instead */
+		if (ok && !display && x11) {
+			gp_close(); /* no display: the X11 server's, perhaps */
+			ok = start(x11, &display);
+		}
+		if (!(ok && display) && headless) {
+			if (ok)
+				gp_close(); /* none: the headless server instead */
 			ok = start(headless, &display);
 		}
 	} else
 		ok = start(headless ? headless : "gcon-graphics", &display);
 	free(def);
+	free(x11);
 	free(headless);
 	return ok;
 }

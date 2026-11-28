@@ -17,7 +17,7 @@
 #   - Every flag in a command's usage has an entry in its page's flag
 #     list (a line "<tab>-flag").
 #   - Every environment variable the C reads (getenv in src, vm/src and
-#     graphics/src) is in gcon help environment, in
+#     graphics's servers) is in gcon help environment, in
 #     design/development.md's list for development, or a system's own.
 #
 #   src/tests/help.sh
@@ -129,10 +129,10 @@ done
 
 # Every environment variable is documented.
 for v in $(cat "$here"/src/*.c "$here"/src/*.h "$here"/vm/src/*.c "$here"/vm/src/*.h \
-	"$here"/graphics/src/*.c "$here"/graphics/src/*.h 2>/dev/null |
+	"$here"/graphics/*/*.c "$here"/graphics/*/*.h "$here"/graphics/*/*.m 2>/dev/null |
 	grep -o 'getenv("[A-Za-z_][A-Za-z0-9_]*")' | sed 's/getenv("\(.*\)")/\1/' | sort -u); do
 	checks=$((checks + 1))
-	case $v in HOME | PATH | TMPDIR | XDG_CACHE_HOME | DISPLAY | WAYLAND_DISPLAY) continue ;; esac
+	case $v in HOME | PATH | TMPDIR | XDG_CACHE_HOME | DISPLAY | WAYLAND_DISPLAY | XCURSOR_SIZE | XCURSOR_THEME) continue ;; esac
 	grep -q "^	$v\$" "$pages/environment.txt" && continue
 	grep -q "^| \`$v[=\`]" "$here/design/development.md" && continue
 	problem "$v is read but documented in neither gcon help environment nor design/development.md"

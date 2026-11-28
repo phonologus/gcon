@@ -5,9 +5,9 @@
 # server: $GCONGRAPHICS, by default the one build.sh installed
 # (../libexec/gcon-graphics); without one it says so and checks nothing.
 # The X11 server's fonts are X's, so its output is tests/graphics-x11.std,
-# the headless server's misc-fixed, tests/graphics-headless.std, and the
-# SDL server's off macOS fontconfig's (DejaVu Sans for sans: Debian's
-# fonts-dejavu-core), tests/graphics-fontconfig.std;
+# the headless server's misc-fixed, tests/graphics-headless.std, and
+# fontconfig's (DejaVu Sans for sans: Debian's fonts-dejavu-core) for the
+# SDL server off macOS and the Wayland server, tests/graphics-fontconfig.std;
 # GRAPHICSSTD names other expected output.
 set -eu
 here=$(cd "$(dirname "$0")/.." && pwd)
@@ -38,6 +38,7 @@ case $("$GCONGRAPHICS" -version 2>/dev/null) in
 *X11*) GRAPHICSSTD=${GRAPHICSSTD:-$here/tests/graphics-x11.std} ;;
 *headless*) GRAPHICSSTD=${GRAPHICSSTD:-$here/tests/graphics-headless.std} ;;
 *SDL*) [ "$(uname)" = Darwin ] || GRAPHICSSTD=${GRAPHICSSTD:-$here/tests/graphics-fontconfig.std} ;;
+*Wayland*) GRAPHICSSTD=${GRAPHICSSTD:-$here/tests/graphics-fontconfig.std} ;;
 esac
 cp "$here/tests/graphics.icn" "$tmp"
 (cd "$tmp" && "$GCON" build -o graphics graphics.icn)

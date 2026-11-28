@@ -115,7 +115,11 @@ xfonts-scalable`, and for the SDL server `libsdl3-dev
 libfontconfig-dev fonts-dejavu-core`. Without `DISPLAY` the graphics
 tests use the headless server, as gcon-vm does, and `window.sh` says
 it has nothing to check; `x11.sh` and `arizona.sh` start their own
-Xvfb. Things Linux showed that macOS does not:
+Xvfb. The Wayland server needs `libwayland-dev wayland-protocols
+libxkbcommon-dev libfontconfig-dev` (and `libdecor-0-dev` for title
+bars on GNOME); `vm/tests/wayland.sh` starts its own headless Weston
+(`weston`, and `libdecor-0-plugin-1-cairo` for libdecor's windows).
+Things Linux showed that macOS does not:
 
 - GCC fuses multiply-adds under `-std=gnu11` on arm64, which moved a
   curve's pixel: gcon-vm is built with `-ffp-contract=off`.
@@ -230,7 +234,7 @@ Not in `gcon help environment`, which is for users:
 | `GCONVMSTRESS=n` | gcon-vm (`vm/src/gc.c`) | collect every n allocations, poisoning freed blocks |
 | `GCONVMDEBUG=gc` | gcon-vm (`vm/src/gc.c`) | a line on standard error for each collection; freed blocks poisoned |
 | `ICONSDL_TEST_DUMP=dir` | the display servers (`graphics/raster/rcanvas.c`, `graphics/x11/xcanvas.c`, `graphics/cocoa/ccanvas.c`) | write each canvas to dir as a PPM when it is freed and at exit, for comparing runs |
-| `ICONSDL_TEST_EVENTS=script` | gcon-graphics (`graphics/src/plat.c`, `graphics/x11/xplat.c`, `graphics/cocoa/cplat.m`) | scripted keys, clicks and a close for the first window, for `vm/tests/window.sh` |
+| `ICONSDL_TEST_EVENTS=script` | gcon-graphics (`graphics/src/plat.c`, `graphics/x11/xplat.c`, `graphics/cocoa/cplat.m`, `graphics/wayland/wplat.c`) | scripted keys, clicks and a close for the first window, for `vm/tests/window.sh` |
 | `GRAPHICSSTD`, `REFTOLERANCE` | `vm/tests/graphics.sh`, `ref.sh` | other expected output and tolerances (`vm/tests/x11.sh` and `cocoa.sh` give their servers') |
 | `GCON`, `GCONSRC` | the test drivers | the gcon to test, or the checkout to build it from |
 | `LSPCOMPLETE=n`, `LSPICON95` | `src/tests/lspsession.c` | completion at every nth position only; ask for vet's Icon 9.5 checks |

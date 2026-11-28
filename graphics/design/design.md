@@ -374,3 +374,54 @@ as they did. A sample of Sean's fonts (Adobe's CFF Garamond, Caslon,
 Arno and Chaparral; Consolas, DejaVu and the 13 MB Cyberbit in
 TrueType) rendered well antialiased and kerned; a Type 1 font was
 refused cleanly, as stb_truetype does not read Type 1.
+
+### The Wayland server (2026-11-28)
+
+`wayland/wplat.c` is the platform layer (about 1300 lines) over
+libwayland-client, with `../raster` for canvases and fonts (fontconfig
+through `../src/fontlinux.c`), as the SDL server has. Libraries (Sean):
+libwayland-client, xkbcommon (keys to X keysyms), wayland-cursor (themed
+pointers), and libdecor where found at build time; `build.sh` generates
+xdg-shell and xdg-decoration from the system's wayland-protocols with
+wayland-scanner.
+
+- **Showing a canvas**: two shared-memory XRGB8888 buffers (the
+  canvas's 0xFFRRGGBB as it is), each with the device rectangle it lacks
+  (the canvas's changes since it was last shown, joined); a free one is
+  brought up to date, the overlay (text cursor) painted on, and
+  committed at the canvas's scale (`ICONSDL_SCALE`, else the largest
+  output's). With both at the compositor, the present waits for a
+  release. Nothing is attached before the first configure, which also
+  sends `EXPOSE` (gcon-vm reports `&resize` only once exposed).
+- **Events** are read whenever the reader polls, waits, opens or
+  presents, so pings are answered and buffers return while a program
+  draws without reading events. One thread, as the X11 server.
+- **Keys**: xkbcommon's keysym and character, as XLookupString gives
+  them (Latin-1 character, control and shift applied, else the keysym;
+  modifiers alone nothing); repeated here, at the compositor's rate, as
+  Wayland leaves repeating to clients. Scripted keys
+  (`ICONSDL_TEST_EVENTS`) go through the compositor's keymap, else
+  xkbcommon's default (a headless compositor may have no keyboard).
+- **Decorations**: server-side through xdg-decoration where offered
+  (KDE, sway); else libdecor's (GNOME draws none); `GCONLIBDECOR=off`
+  for neither. libdecor's GTK plugin complains on stderr where the
+  compositor has no seat (headless Weston), so `wayland.sh` points
+  libdecor at its cairo plugin.
+- **What Wayland withholds** is not done: placing a window, reading its
+  position (`pl_position` fails, and so `WAttrib("pos")`: gcon-vm now
+  fails the attribute where a server cannot say), raising, lowering,
+  warping or reading the pointer outside the windows, the bell,
+  the window's icon.
+- **Default and fallback**: `./build.sh` on Linux builds Wayland's and
+  X11's where their libraries are, Wayland's first; gcon-vm, finding
+  the default without a display, tries `gcon-graphics-x11` (an X
+  session, `ssh -X`) before the headless server.
+
+Tested in a Debian 13 arm64 VM under Weston's headless backend
+(`vm/tests/wayland.sh`): `graphics.sh` as the SDL server's off macOS
+(`graphics-fontconfig.std`), `ref.sh` at the headless server's
+tolerances (2, 3 and 13 pixels: the same rasterizer), the window tests
+with libdecor and without; clean under ASan and UBSan. A screenshot
+under Weston's pixman renderer showed libdecor's title bar and the
+antialiased canvas. Not yet seen on a desktop compositor (GNOME, KDE)
+or at a scale above 1.

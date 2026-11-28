@@ -23,7 +23,8 @@ sh "$here/tests/graphics.sh" || fail=1
 sh "$here/tests/ref.sh" || fail=1
 
 # The fallback: gcon-vm with no default server beside it, or one with no
-# display (the X11 server without DISPLAY, if it is built), runs the
+# display (the X11 or Wayland server without DISPLAY or WAYLAND_DISPLAY,
+# if built: the Wayland one then tries the X11 one), runs the
 # headless server: hidden canvases work, and a window cannot be opened.
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
@@ -47,7 +48,7 @@ if [ -z "$GCON" ]; then
 fi
 (cd "$tmp" && GCONROOT=$src "$GCON" build -o fb fb.icn)
 fallback() { # NAME: run fb with gcon-vm in the scratch root, no display
-	(cd "$tmp" && env -u DISPLAY -u GCONGRAPHICS GCONVM="$tmp/root/gcon-vm" ./fb >got 2>&1) || true
+	(cd "$tmp" && env -u DISPLAY -u WAYLAND_DISPLAY -u GCONGRAPHICS GCONVM="$tmp/root/gcon-vm" ./fb >got 2>&1) || true
 	cmp -s "$tmp/want" "$tmp/got" && echo "fallback ($1): pass" ||
 		{ echo "FAIL fallback ($1): $(cat "$tmp/got")"; fail=1; }
 }
@@ -55,6 +56,11 @@ fallback "no default server"
 if [ -x "$src/graphics/bin/gcon-graphics-x11" ]; then
 	cp "$src/graphics/bin/gcon-graphics-x11" "$tmp/root/gcon-graphics"
 	fallback "the X11 server, no DISPLAY"
+	cp "$src/graphics/bin/gcon-graphics-x11" "$tmp/root/gcon-graphics-x11"
+fi
+if [ -x "$src/graphics/bin/gcon-graphics-wayland" ]; then
+	cp "$src/graphics/bin/gcon-graphics-wayland" "$tmp/root/gcon-graphics"
+	fallback "the Wayland server (and X11's, if built), no display"
 fi
 [ $fail = 0 ] && echo "headless: pass" || echo "headless: FAIL"
 exit $fail

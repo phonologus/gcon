@@ -6,8 +6,8 @@
 # exactly, and each image may differ by no more pixels than
 # its server's tolerance file allows: tests/ref/tolerance for the SDL
 # server (icon-sdl's backend, with its accepted differences from X11),
-# tolerance-cocoa, tolerance-x11 and tolerance-headless for the Cocoa, X11
-# and headless servers (chosen by the server's -version). The server is
+# tolerance-cocoa, tolerance-x11 and tolerance-headless for the Cocoa, X11,
+# and headless (and Wayland) servers (chosen by the server's -version). The server is
 # $GCONGRAPHICS, by default the one build.sh installed
 # (../libexec/gcon-graphics); without one it says so and checks nothing.
 #
@@ -50,7 +50,7 @@ fi
 case $("$GCONGRAPHICS" -version 2>/dev/null) in
 *X11*) REFTOLERANCE=${REFTOLERANCE:-$ref/tolerance-x11} ;;
 *Cocoa*) REFTOLERANCE=${REFTOLERANCE:-$ref/tolerance-cocoa} ;;
-*headless*) REFTOLERANCE=${REFTOLERANCE:-$ref/tolerance-headless} ;;
+*headless* | *Wayland*) REFTOLERANCE=${REFTOLERANCE:-$ref/tolerance-headless} ;; # gcon's rasterizer
 esac
 export GCONVM=${GCONVM:-$here/bin/gcon-vm}
 # X's drawing is aliased: so is each server's here (gcon's antialias

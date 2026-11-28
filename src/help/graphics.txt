@@ -1,15 +1,24 @@
 Icon's graphics run in a display server, a separate process that
 gcon-vm starts when a program first opens a window and talks to
 through a protocol. ./build.sh builds the platform's own: on macOS the
-Cocoa server, elsewhere the X11 server where Xlib is installed, and
-otherwise none. ./build.sh --withCocoa, --withX11 or --withSDL names
-the servers to build instead, the first being the one gcon-vm runs;
-GCONGRAPHICS chooses another when a program runs.
+Cocoa server; elsewhere the Wayland and X11 servers, each where its
+libraries are installed, Wayland's first; otherwise none. ./build.sh
+--withCocoa, --withWayland, --withX11 or --withSDL names the servers
+to build instead, the first being the one gcon-vm runs; GCONGRAPHICS
+chooses another when a program runs. Where the default finds no
+display, gcon-vm tries the X11 server, if built.
 
 	Cocoa (macOS): AppKit, Core Graphics and CoreText. Drawing is
 	antialiased and at the display's scale; drawops other than copy,
 	and patterns, are drawn as X draws them. Fonts are the Mac's:
 	mono is Menlo, sans Helvetica, serif Times, typewriter Courier.
+
+	Wayland: drawn by Gcon's own rasterizer, antialiased and at the
+	display's scale, as the SDL server is, with fontconfig's fonts;
+	title bars the compositor's, else libdecor's (GCONLIBDECOR=off:
+	none of libdecor's). WAYLAND_DISPLAY names the compositor.
+	Wayland lets no client place a window or learn where it is, so
+	reading pos fails; nor raise, lower or move the pointer.
 
 	X11: X's own drawing, so the pictures are Arizona Icon's. Fonts
 	are X's core fonts, chosen as Arizona chooses them; DISPLAY
@@ -38,9 +47,10 @@ default. Other drawops and patterns are always drawn as X draws them.
 On macOS, ICONSDL_META=command makes the Command key &meta, instead
 of Option, and ICONSDL_SCALE overrides the display's scale.
 
-A fourth server, the headless one, is always built: it has no display,
-and gcon-vm runs it where its default server has none (no X display,
-say) or there is no default server, so hidden canvases work anywhere.
+A fifth server, the headless one, is always built: it has no display,
+and gcon-vm runs it where no server has one (no X display and no
+Wayland compositor, say) or there is no default server, so hidden
+canvases work anywhere.
 A window cannot be opened there: open fails, as Icon's does without a
 display. A server GCONGRAPHICS names is used as it is.
 

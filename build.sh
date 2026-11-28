@@ -4,10 +4,11 @@
 #   libexec/gcon-vm        the runtime (vm/; needs a C compiler)
 #   libexec/gcon-graphics  the display server gcon-vm runs: the first named
 #                          below, else the platform's own (if it has one)
-#   libexec/gcon-graphics-NAME  each display server built (cocoa, x11, sdl)
+#   libexec/gcon-graphics-NAME  each display server built (cocoa, wayland, x11, sdl)
 #   libexec/gcon-graphics-headless  the server with no display (graphics/headless/;
 #                          always built): gcon-vm runs it where the default
-#                          server has no display, or there is none
+#                          server has no display (after the X11 one, if
+#                          built: an X session, or ssh -X), or there is none
 #   bin/gcon               the command (src/)
 #   bin/colrbook ... bin/vib  the programs Arizona builds into its bin
 #                          (colrbook colrpick fontpick palette wevents
@@ -17,17 +18,21 @@
 #                          (with doc/ref/uclass.md, its page, which is committed)
 #   doc/html               the documentation as HTML (gcon doc -build)
 #
-#   ./build.sh [--withCocoa] [--withX11] [--withSDL]
+#   ./build.sh [--withCocoa] [--withWayland] [--withX11] [--withSDL]
 #
 # The display servers (graphics/design/design.md, "Native display
-# servers"). With no flags, the platform's own: Cocoa on macOS, else X11
-# where Xlib is found, else none: then programs cannot open windows
-# (hidden canvases still work, by the headless server). The flags name the
-# servers to build instead, the first being the one gcon-vm runs
-# ($GCONGRAPHICS names another at run time):
+# servers"). With no flags, the platform's own: Cocoa on macOS, else
+# Wayland and X11, each where its libraries are found (Wayland first), else
+# none: then programs cannot open windows (hidden canvases still work, by
+# the headless server). The flags name the servers to build instead, the
+# first being the one gcon-vm runs ($GCONGRAPHICS names another at run
+# time):
 #
 #   --withCocoa  AppKit, Core Graphics and CoreText (graphics/cocoa/; macOS):
 #                antialiased, at the display's scale
+#   --withWayland  libwayland-client, xkbcommon, wayland-cursor, and libdecor
+#                where found (graphics/wayland/), with gcon's own rasterizer
+#                and fontconfig's fonts: antialiased, at the display's scale
 #   --withX11    Xlib (graphics/x11/): X's own drawing, Arizona Icon's pixels
 #                (on macOS, under XQuartz)
 #   --withSDL    the system's SDL3, with gcon's own rasterizer and fonts
@@ -41,10 +46,11 @@ servers=
 for a; do
 	case $a in
 	--withCocoa) servers="$servers cocoa" ;;
+	--withWayland) servers="$servers wayland" ;;
 	--withX11) servers="$servers x11" ;;
 	--withSDL) servers="$servers sdl" ;;
 	*)
-		echo "usage: ./build.sh [--withCocoa] [--withX11] [--withSDL]" >&2
+		echo "usage: ./build.sh [--withCocoa] [--withWayland] [--withX11] [--withSDL]" >&2
 		exit 2
 		;;
 	esac
@@ -52,8 +58,9 @@ done
 if [ -z "$servers" ]; then
 	if sh graphics/cocoa/build.sh -check; then
 		servers=cocoa
-	elif sh graphics/x11/build.sh -check; then
-		servers=x11
+	else
+		if sh graphics/wayland/build.sh -check; then servers=wayland; fi
+		if sh graphics/x11/build.sh -check; then servers="$servers x11"; fi
 	fi
 fi
 mkdir -p bin libexec
@@ -94,6 +101,13 @@ for s in $servers; do
 		}
 		put_server sdl graphics/bin/gcon-graphics
 		;;
+	wayland)
+		sh graphics/wayland/build.sh >/dev/null || {
+			echo "build.sh: --withWayland: the Wayland display server did not build (graphics/wayland/build.sh)" >&2
+			exit 1
+		}
+		put_server wayland graphics/bin/gcon-graphics-wayland
+		;;
 	x11)
 		sh graphics/x11/build.sh >/dev/null || {
 			echo "build.sh: --withX11: the X11 display server did not build (graphics/x11/build.sh)" >&2
@@ -122,7 +136,7 @@ mv libexec/gcon-graphics-headless.new libexec/gcon-graphics-headless
 echo "built libexec/gcon-graphics-headless"
 if [ -z "$servers" ]; then
 	rm -f libexec/gcon-graphics	# not an earlier build's
-	echo "build.sh: no display server of this platform's (Cocoa is macOS's; X11 needs Xlib): programs"
+	echo "build.sh: no display server of this platform's (Cocoa is macOS's; Wayland and X11 need their libraries): programs"
 	echo "build.sh: cannot open windows, and draw on hidden canvases with the headless server"
 	echo "build.sh: (./build.sh --withSDL builds the portable server)"
 fi

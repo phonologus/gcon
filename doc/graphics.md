@@ -2,23 +2,28 @@
 
 The display server is a separate process (`libexec/gcon-graphics`) that
 the runtime starts when a program first opens a window, and talks to
-through [a protocol](internals/protocol.md). There are four.
+through [a protocol](internals/protocol.md). There are five.
 `./build.sh` builds the platform's own: on macOS
-[the Cocoa server](#the-cocoa-display-server), elsewhere
-[the X11 server](#the-x11-display-server) where Xlib is installed, and
-otherwise none. `./build.sh --withCocoa`, `--withX11` or `--withSDL`
-names the servers to build instead, the first being the one gcon-vm
-runs: `--withX11` on macOS (under XQuartz) for Arizona Icon's exact
-pictures, say, or `--withSDL` for [the SDL server](#the-sdl-display-server),
-the portable one, which needs the system's SDL3 and is built only when
+[the Cocoa server](#the-cocoa-display-server); elsewhere
+[the Wayland server](#the-wayland-display-server) and
+[the X11 server](#the-x11-display-server), each where its libraries are
+installed, the Wayland one first; otherwise none. `./build.sh
+--withCocoa`, `--withWayland`, `--withX11` or `--withSDL` names the
+servers to build instead, the first being the one gcon-vm runs:
+`--withX11` on macOS (under XQuartz) for Arizona Icon's exact pictures,
+say, or `--withSDL` for [the SDL server](#the-sdl-display-server), the
+portable one, which needs the system's SDL3 and is built only when
 named. Each is also installed as `libexec/gcon-graphics-NAME` (`cocoa`,
-`x11`, `sdl`), and `GCONGRAPHICS` chooses another at run time: anything
-that speaks the protocol.
+`wayland`, `x11`, `sdl`), and `GCONGRAPHICS` chooses another at run
+time: anything that speaks the protocol. Where the default server finds
+no display, gcon-vm tries the X11 one, if it was built: so the Wayland
+server's programs open their windows on X in an X session, or over
+`ssh -X`.
 
-The fourth is always built: [the headless server](#the-headless-display-server),
-which has no display. gcon-vm runs it where its default server has no
-display (the X11 server where there is no X display, say) or there is
-no default server, so hidden canvases (drawing, `Pixel`, `WriteImage`)
+The fifth is always built: [the headless server](#the-headless-display-server),
+which has no display. gcon-vm runs it where no server has a display
+(no X display and no Wayland compositor, say) or there is no default
+server, so hidden canvases (drawing, `Pixel`, `WriteImage`)
 work anywhere: a filter can make pictures on a machine with no screen.
 A window cannot be opened there: `open` fails, as Icon's does without a
 display, and a program that goes on to draw on `&window` meets run-time
@@ -96,6 +101,33 @@ through XWayland, and macOS through XQuartz.
   works too.
 - **No HiDPI scaling, no antialiasing:** one Icon pixel is one pixel,
   and X's core drawing is aliased, as in X (`antialias` has no effect).
+
+## The Wayland display server
+
+`gcon-graphics-wayland` is a native Wayland client. Wayland has no
+drawing of its own, only buffers a client fills, so it draws with
+Gcon's own rasterizer, as [the SDL server](#the-sdl-display-server)
+does: the same pictures, antialiased (`antialias`), at the display's
+scale. It needs libwayland-client, xkbcommon and wayland-cursor, and
+uses libdecor where it was found when built.
+
+- **`WAYLAND_DISPLAY`** names the compositor, as for any Wayland
+  client. Without one it reports no display, and gcon-vm tries the X11
+  server instead, if it was built.
+- **Title bars** are the compositor's where it draws them (KDE, sway),
+  else libdecor's (GNOME's compositor draws none); `GCONLIBDECOR=off`
+  leaves them to the compositor alone.
+- **Fonts** are fontconfig's, their outlines drawn by stb_truetype, as
+  the SDL server's are off macOS: `sans` is the system's sans-serif
+  (DejaVu Sans, say), `serif` and `mono` likewise.
+- **Keys** come through the compositor's keymap by xkbcommon, as X
+  keysyms; they repeat at the compositor's rate.
+- **What Wayland withholds:** a client cannot place its window, learn
+  where it is, raise or lower it, move the pointer or read it outside
+  its windows. So reading `pos`, `posx` or `posy` fails, and setting
+  them does nothing; `Raise` and `Lower` do nothing, nor does
+  `pointerx=`; and minimizing (`canvas=iconic`) is a request the
+  compositor may ignore. `Alert` makes no sound: Wayland has no bell.
 
 ## The SDL display server
 
