@@ -38,8 +38,8 @@ library (doc/ipl-candidates.txt).
 Given an Icon source file, doc shows its doc comments, as go doc shows a
 package's: the comment at the top of the file, and each procedure,
 record and global with the comment directly above it (or an IPL-style
-"#:" on its line); given a name too, that declaration alone. gcon doc
-comments says how to write them.
+"#:" on its line); given a name too, that declaration alone.
+gcon doc comments says how to write them.
 
 The flags are:
 
@@ -75,4 +75,4 @@ The flags are:
 		each Icon program followed by "Output:" must give that output
 		under gcon run, and each other must translate.
 
-See also: gcon help help.
+See also: gcon help help, gcon doc comments.

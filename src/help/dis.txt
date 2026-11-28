@@ -7,3 +7,5 @@ instructions.
 
 The listing is for the curious and for debugging Gcon itself. Its form
 may change from one version to the next.
+
+See also: gcon help build, gcon doc instructions.

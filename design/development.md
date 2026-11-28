@@ -138,10 +138,12 @@ environment` or the list below.
 
 `gcon doc`'s pages are the Markdown files in `doc/` (a page's topic is
 its path without `.md`), with `gcon help`'s pages added as `help/NAME`:
-plain text, shown as it is, except that their HTML links each `gcon
-help NAME` and the overview's lists of commands and topics to the
-pages (`helplinks` in `src/doc.c`), so write "gcon help NAME" to refer
-to another page.
+plain text, shown as it is, except that their HTML has links
+(`helplinks` in `src/doc.c`): each `gcon help NAME` to that page, the
+overview's lists of commands and topics to theirs, and each `gcon doc
+NAME` to the page `gcon doc NAME` shows. So refer to another page as
+"gcon help NAME" or "gcon doc NAME", on one line; `src/tests/doc.sh`
+requires each such name to be a page.
 `build.sh` renders them as HTML into `doc/html` (`gcon doc -build`, not
 committed); the stylesheet and search script are `src/doc/style.css`
 and `search.js`, embedded by `tools/embed.sh`. `gcon doc -check` checks

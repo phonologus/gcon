@@ -34,4 +34,4 @@ do not change the exit status.
 The exit status is 1 if there are findings (other than doc comment
 warnings), 2 if a program cannot be translated, and 0 otherwise.
 
-See also: gcon help icon95.
+See also: gcon help icon95, gcon help fmt, gcon doc comments.

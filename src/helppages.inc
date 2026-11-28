@@ -35,6 +35,8 @@ static const HelpPage helppages[] = {
 	 "\n"
 	 "The listing is for the curious and for debugging Gcon itself. Its form\n"
 	 "may change from one version to the next.\n"
+	 "\n"
+	 "See also: gcon help build, gcon doc instructions.\n"
 	},
 	{"doc",
 	 "usage: gcon doc [-raw | -html | -man | -text | -http addr] [-path] [name]\n"
@@ -77,8 +79,8 @@ static const HelpPage helppages[] = {
 	 "Given an Icon source file, doc shows its doc comments, as go doc shows a\n"
 	 "package's: the comment at the top of the file, and each procedure,\n"
 	 "record and global with the comment directly above it (or an IPL-style\n"
-	 "\"#:\" on its line); given a name too, that declaration alone. gcon doc\n"
-	 "comments says how to write them.\n"
+	 "\"#:\" on its line); given a name too, that declaration alone.\n"
+	 "gcon doc comments says how to write them.\n"
 	 "\n"
 	 "The flags are:\n"
 	 "\n"
@@ -114,7 +116,7 @@ static const HelpPage helppages[] = {
 	 "\t\teach Icon program followed by \"Output:\" must give that output\n"
 	 "\t\tunder gcon run, and each other must translate.\n"
 	 "\n"
-	 "See also: gcon help help.\n"
+	 "See also: gcon help help, gcon doc comments.\n"
 	},
 	{"env",
 	 "usage: gcon env\n"
@@ -221,6 +223,8 @@ static const HelpPage helppages[] = {
 	 "\n"
 	 "A file that cannot be parsed is reported and left unchanged, and the\n"
 	 "exit status is then 2.\n"
+	 "\n"
+	 "See also: gcon help vet, gcon doc editors.\n"
 	},
 	{"gcon",
 	 "Gcon runs, builds, formats and checks Icon 9.5 programs.\n"
@@ -286,7 +290,7 @@ static const HelpPage helppages[] = {
 	 "other part of Gcon works; a program that opens a window stops with a\n"
 	 "message that the display server cannot be run.\n"
 	 "\n"
-	 "See also: gcon help environment.\n"
+	 "See also: gcon help environment, gcon doc graphics.\n"
 	},
 	{"help",
 	 "usage: gcon help [command | topic]\n"
@@ -295,6 +299,8 @@ static const HelpPage helppages[] = {
 	 "commands and topics.\n"
 	 "\n"
 	 "\"gcon command -h\" shows the same help for a command.\n"
+	 "\n"
+	 "See also: gcon help doc.\n"
 	},
 	{"icon95",
 	 "Icon 9.5 programs behave under Gcon as they do under iconx. What Gcon\n"
@@ -323,7 +329,7 @@ static const HelpPage helppages[] = {
 	 "\tother memory variables have no effect\n"
 	 "\t&version is \"Icon Version 9.5 (Gcon)\"\n"
 	 "\n"
-	 "See also: gcon help unicode, gcon help graphics.\n"
+	 "See also: gcon help unicode, gcon help graphics, gcon doc icon95.\n"
 	},
 	{"library",
 	 "A Gcon root is a directory holding the Icon Program Library (lib/ipl),\n"
@@ -396,6 +402,8 @@ static const HelpPage helppages[] = {
 	 "what is not Icon 9.5, as gcon vet -icon95) and \"ipath\" (more directories\n"
 	 "to search for linked files). The editor extensions in Gcon's editors\n"
 	 "directory set these up.\n"
+	 "\n"
+	 "See also: gcon help fmt, gcon help vet, gcon doc editors.\n"
 	},
 	{"run",
 	 "usage: gcon run file [arguments]\n"
@@ -448,7 +456,7 @@ static const HelpPage helppages[] = {
 	 "In any literal, \\uXXXX and \\UXXXXXXXX give a code point's UTF-8 bytes,\n"
 	 "as in Go. image shows a valid, printable UTF-8 sequence as itself.\n"
 	 "\n"
-	 "See also: gcon help icon95.\n"
+	 "See also: gcon help icon95, gcon doc unicode.\n"
 	},
 	{"version",
 	 "usage: gcon version\n"
@@ -456,6 +464,8 @@ static const HelpPage helppages[] = {
 	 "Version prints gcon's version. A release is vX.Y.Z; a build of a later\n"
 	 "commit is a pseudo-version naming the commit, as Go's are, and\n"
 	 "\"+dirty\" marks a build with uncommitted changes.\n"
+	 "\n"
+	 "See also: gcon help env.\n"
 	},
 	{"vet",
 	 "usage: gcon vet [-icon95] file.icn ...\n"
@@ -494,6 +504,6 @@ static const HelpPage helppages[] = {
 	 "The exit status is 1 if there are findings (other than doc comment\n"
 	 "warnings), 2 if a program cannot be translated, and 0 otherwise.\n"
 	 "\n"
-	 "See also: gcon help icon95.\n"
+	 "See also: gcon help icon95, gcon help fmt, gcon doc comments.\n"
 	},
 };

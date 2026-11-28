@@ -21,3 +21,5 @@ are:
 
 A file that cannot be parsed is reported and left unchanged, and the
 exit status is then 2.
+
+See also: gcon help vet, gcon doc editors.

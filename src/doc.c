@@ -49,6 +49,10 @@ typedef struct Tree {
 	VEC(Page) pages;
 } Tree;
 
+/* linktree is the tree the help pages' "gcon doc NAME" links resolve
+ * in (helplinks): the last loadtree loaded. */
+static Tree linktree;
+
 static int cmptopic(const void *a, const void *b) { return strcmp(((const Page *)a)->topic, ((const Page *)b)->topic); }
 
 static bool hassuffix(const char *s, const char *suf) {
@@ -96,6 +100,7 @@ static Tree loadtree(const char *dir) {
 		VPUSH(t.pages, p);
 	}
 	qsort(t.pages.v, t.pages.n, sizeof *t.pages.v, cmptopic);
+	linktree = t;
 	return t;
 }
 
@@ -645,13 +650,42 @@ static int helpnamed(const char *s, size_t n) {
 	return -1;
 }
 
+/* docnamed is the topic of the page gcon doc would show for the n bytes
+ * at s, as lookup finds it (a topic, else the last element of one, the
+ * guide before help before the reference), but not a reference entry,
+ * and NULL rather than an error when there is none or more than one. */
+static const char *docnamed(const char *s, size_t n) {
+	for (size_t i = 0; i < linktree.pages.n; i++) {
+		const char *tp = linktree.pages.v[i].topic;
+		if (strlen(tp) == n && !strncmp(tp, s, n))
+			return tp;
+	}
+	for (int tr = 0; tr < 3; tr++) {
+		const char *found = NULL;
+		int count = 0;
+		for (size_t i = 0; i < linktree.pages.n; i++) {
+			const char *tp = linktree.pages.v[i].topic;
+			const char *slash = strrchr(tp, '/');
+			const char *last = slash ? slash + 1 : tp;
+			if (tier(tp) == tr && strlen(last) == n && !strncmp(last, s, n))
+				found = tp, count++;
+		}
+		if (count == 1)
+			return found;
+		if (count > 1)
+			return NULL;
+	}
+	return NULL;
+}
+
 static bool isnamech(char c) { return (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9'); }
 
 /* helplinks appends html, a help page's (p->help) as md_html made it,
- * with links to the other help pages in its text (the <pre>, not the
- * title): each "gcon help NAME", and on the overview each command and
- * topic in its lists (a line "\tNAME  ..."). A help page is plain text,
- * shown as it is everywhere else; only its HTML has the links. */
+ * with links in its text (the <pre>, not the title): each "gcon help
+ * NAME" to that help page, on the overview each command and topic in
+ * its lists (a line "\tNAME  ..."), and each "gcon doc NAME" to the page
+ * gcon doc NAME shows (docnamed). A help page is plain text, shown as
+ * it is everywhere else; only its HTML has the links. */
 static void helplinks(Buf *out, const char *html, const Page *p) {
 	const char *pre = strstr(html, "<pre><code>");
 	if (!pre) {
@@ -659,25 +693,38 @@ static void helplinks(Buf *out, const char *html, const Page *p) {
 		return;
 	}
 	bool overview = !strcmp(help_name(p->help), "gcon");
+	char *up = relroot(p->topic);
 	const char *s = pre + strlen("<pre><code>");
 	bufadd(out, html, (size_t)(s - html));
 	bool bol = true;
 	while (*s) {
 		const char *name = NULL;
+		bool doc = false;
 		if (!strncmp(s, "gcon help ", 10) && !isnamech(s[-1]))
 			name = s + 10;
+		else if (!strncmp(s, "gcon doc ", 9) && !isnamech(s[-1]))
+			name = s + 9, doc = true;
 		else if (overview && bol && *s == '\t')
 			name = s + 1;
 		if (name) {
 			size_t n = 0;
-			while (isnamech(name[n]))
+			while (isnamech(name[n]) || (doc && n && (name[n] == '/' || name[n] == '-') && isnamech(name[n + 1])))
 				n++;
-			int h = n ? helpnamed(name, n) : -1;
-			/* on the overview's lists, a name then its description */
-			bool listed = name == s + 10 || name[n] == ' ';
-			if (h >= 0 && h != p->help && listed) {
+			Buf href = {0};
+			if (doc) {
+				const char *tp = n ? docnamed(name, n) : NULL;
+				if (tp)
+					bufprintf(&href, "%s%s.html", up, tp);
+			} else {
+				int h = n ? helpnamed(name, n) : -1;
+				/* on the overview's lists, a name then its description */
+				bool listed = name == s + 10 || name[n] == ' ';
+				if (h >= 0 && h != p->help && listed)
+					bufprintf(&href, "%s.html", strcmp(help_name(h), "gcon") ? help_name(h) : "index");
+			}
+			if (href.b) {
 				bufadd(out, s, (size_t)(name - s));
-				bufprintf(out, "<a href=\"%s.html\">", strcmp(help_name(h), "gcon") ? help_name(h) : "index");
+				bufprintf(out, "<a href=\"%s\">", href.b);
 				bufadd(out, name, n);
 				bufputs(out, "</a>");
 				s = name + n;

@@ -29,4 +29,4 @@ Without the server (it needs a C++ compiler and CMake to build), every
 other part of Gcon works; a program that opens a window stops with a
 message that the display server cannot be run.
 
-See also: gcon help environment.
+See also: gcon help environment, gcon doc graphics.

@@ -30,3 +30,5 @@ The client may send the initialization options "icon95" (also report
 what is not Icon 9.5, as gcon vet -icon95) and "ipath" (more directories
 to search for linked files). The editor extensions in Gcon's editors
 directory set these up.
+
+See also: gcon help fmt, gcon help vet, gcon doc editors.

@@ -4,3 +4,5 @@ Help shows help for a command or topic. With no argument, it lists the
 commands and topics.
 
 "gcon command -h" shows the same help for a command.
+
+See also: gcon help doc.

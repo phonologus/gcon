@@ -30,4 +30,4 @@ script as a uset.
 In any literal, \uXXXX and \UXXXXXXXX give a code point's UTF-8 bytes,
 as in Go. image shows a valid, printable UTF-8 sequence as itself.
 
-See also: gcon help icon95.
+See also: gcon help icon95, gcon doc unicode.

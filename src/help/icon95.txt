@@ -24,4 +24,4 @@ The other differences:
 	other memory variables have no effect
 	&version is "Icon Version 9.5 (Gcon)"
 
-See also: gcon help unicode, gcon help graphics.
+See also: gcon help unicode, gcon help graphics, gcon doc icon95.

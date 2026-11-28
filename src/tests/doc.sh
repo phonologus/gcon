@@ -174,6 +174,21 @@ grep -q '^	<a href="run.html">run</a>          run Icon source' "$tmp/h" && grep
 grep -q 'See also: gcon help <a href="build.html">build</a>, gcon help <a href="library.html">library</a>' "$tmp/h" &&
 	grep -q '<h1 id="[^"]*">gcon help run</h1>' "$tmp/h" || problem "gcon doc -html help/run: not linked to its see-alsos, or a linked title"
 if "$G" doc -raw help/index | grep -q "<a "; then problem "gcon doc -raw help/index: links in the text"; fi
+# every "gcon help NAME" and "gcon doc NAME" in the help pages names a
+# page, and is linked to it (gcon doc ipl, served apart, is not)
+for f in "$here"/src/help/*.txt; do
+	n=$(basename "$f" .txt)
+	[ "$n" = gcon ] && n=index
+	"$G" doc -html "help/$n" | sed -n '/<pre>/,$p' >"$tmp/h"
+	for ref in $(sed 's/[.,;:)"]/ /g' "$f" | grep -o 'gcon \(help\|doc\) [a-z][a-z0-9/-]*' | sed 's/ /_/g' | sort -u); do
+		cmd=${ref%_*} name=${ref##*_}
+		[ "$cmd $name" = "gcon_doc ipl" ] && continue
+		[ "$cmd" = gcon_help ] && [ "$name" = "${n#index}" ] && continue
+		checks=$((checks + 1))
+		grep -q "$(echo "$cmd" | sed 's/_/ /') <a href=\"[^\"]*\">$name</a>" "$tmp/h" ||
+			problem "gcon help $n: \"$(echo "$cmd" | sed 's/_/ /') $name\" not linked to a page"
+	done
+done
 
 # doc/ref/uclass.md is what tools/uclass.sh makes of the Unicode data.
 mkdir "$tmp/uclass"
