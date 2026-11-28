@@ -9,12 +9,13 @@
  * fails a request for a font it doesn't have. Only outline fonts (TrueType
  * and OpenType) are used: stb_truetype draws outlines only.
  */
+#include <stdio.h>
 #include <string.h>
 #include <fontconfig/fontconfig.h>
 #include "sdlgfx.h"
 
 int font_lookup(const char *family, int bold, int italic,
-   char *path, int pathlen, char *psname, int pslen);
+   char *path, int pathlen, char *psname, int pslen, char *name, int namelen);
 
 static const char *generic(const char *f)
 {
@@ -38,7 +39,7 @@ static int named(FcPattern *m, const char *object, const char *want)
 /* lookup finds family (with style, if not NULL: then bold and italic
  * are the style's) */
 static int lookup(const char *family, const char *style, int bold, int italic,
-   char *path, int pathlen, char *psname, int pslen)
+   char *path, int pathlen, char *psname, int pslen, char *name, int namelen)
 {
    const char *g = style ? NULL : generic(family);
    FcPattern *p, *m;
@@ -83,6 +84,16 @@ static int lookup(const char *family, const char *style, int bold, int italic,
          strcpy(psname, (char *)ps);
       else
          psname[0] = '\0';
+      /* its name: fontconfig's family and style ("Unifont Regular"),
+       * which font_lookup finds again */
+      FcChar8 *fam, *sty;
+      name[0] = '\0';
+      if (FcPatternGetString(m, FC_FAMILY, 0, &fam) == FcResultMatch) {
+         if (FcPatternGetString(m, FC_STYLE, 0, &sty) == FcResultMatch)
+            snprintf(name, (size_t)namelen, "%s %s", (char *)fam, (char *)sty);
+         else
+            snprintf(name, (size_t)namelen, "%s", (char *)fam);
+      }
       ok = 1;
    }
    FcPatternDestroy(m);
@@ -94,17 +105,17 @@ static int lookup(const char *family, const char *style, int bold, int italic,
  * Regular", "DejaVu Sans Mono Bold"), whose full name fontconfig may
  * not have (Debian's Unifont's is "Unifont"). */
 int font_lookup(const char *family, int bold, int italic,
-   char *path, int pathlen, char *psname, int pslen)
+   char *path, int pathlen, char *psname, int pslen, char *name, int namelen)
 {
    char buf[256];
-   if (lookup(family, NULL, bold, italic, path, pathlen, psname, pslen))
+   if (lookup(family, NULL, bold, italic, path, pathlen, psname, pslen, name, namelen))
       return 1;
    if (generic(family) || strlen(family) >= sizeof buf)
       return 0;
    strcpy(buf, family);
    for (char *sp = strrchr(buf, ' '); sp; sp = strrchr(buf, ' ')) {
       *sp = '\0';			/* buf the family, the rest the style */
-      if (buf[0] && lookup(buf, family + (sp - buf) + 1, bold, italic, path, pathlen, psname, pslen))
+      if (buf[0] && lookup(buf, family + (sp - buf) + 1, bold, italic, path, pathlen, psname, pslen, name, namelen))
          return 1;
    }
    return 0;

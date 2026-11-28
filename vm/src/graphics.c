@@ -545,12 +545,16 @@ static WFont *alc_font(WBinding *w, const char *s) {
 		fam = "fixed";
 		flags = 0;
 		size = 11;
-	} else {
-		if (!parsefont(s, family, &flags, &size))
-			return NULL;
+	} else if (parsefont(s, family, &flags, &size)) {
 		if (size <= 0)
 			size = DEFAULTFONTSIZE;
 		fam = family;
+	} else {
+		/* not an Icon font name: perhaps the server's own (an X font
+		 * name, as WAttrib("font") gives it), as Arizona's tryfont */
+		fam = s;
+		flags = 0;
+		size = 0;
 	}
 	if (!gp_connect())
 		return NULL;
@@ -571,6 +575,10 @@ static WFont *alc_font(WBinding *w, const char *s) {
 	f->ascent = gr_i32();
 	f->descent = gr_i32();
 	f->fwidth = gr_i32();
+	uint32_t nn = gr_u32(); /* the font found (protocol 6) */
+	f->found = xmalloc((size_t)nn + 1);
+	gr_bytes(f->found, nn);
+	f->found[nn] = '\0';
 	f->height = f->ascent + f->descent;
 	f->next = fonts;
 	fonts = f;
@@ -2353,7 +2361,7 @@ static int wattrib(WBinding *w, const char *s, size_t len, Value *answer) {
 	case A_ECHO: STR(ISECHOON(w) ? "on" : "off"); break;
 	case A_CEOL: STR(ISCEOLON(w) ? "on" : "off"); break;
 	case A_REVERSE: STR(ISREVERSE(w) ? "on" : "off"); break;
-	case A_FONT: STR(wc->font->name); break;
+	case A_FONT: STR(wc->font->found ? wc->font->found : wc->font->name); break;
 	case A_X: INT(ws->x - wc->dx); break;
 	case A_Y: INT(ws->y - wc->dy); break;
 	case A_DX: INT(wc->dx); break;
@@ -2878,7 +2886,8 @@ FN(f_Font) {
 	WBinding *w = optwindow(a, n, &warg);
 	if (warg < n && setfont(w, cstr(muststr(a[warg]))) == Failed)
 		return false;
-	*out = cstrval((w->context->font->name));
+	WFont *f = w->context->font; /* the font found, as WAttrib("font") */
+	*out = cstrval(f->found ? f->found : f->name);
 	return true;
 }
 

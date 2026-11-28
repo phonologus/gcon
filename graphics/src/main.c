@@ -17,7 +17,7 @@
 #include <unistd.h>
 #include "sdlgfx.h"
 
-enum { VERSION = 5 };
+enum { VERSION = 6 };
 
 enum {
    HELLO, CANVAS, FREE, RESIZE, GC, POINTS, LINES, FILLPOLY, SEGMENTS,
@@ -509,6 +509,15 @@ static void do_font(void)
    int bold = u8(), italic = u8(), size = i32();
    void *f = ft_open(family, bold, italic, size);
    int a = 0, d = 0, m = 0;
+   const char *name = f ? ft_name(f) : "";
+   static int logging = -1;
+   if (logging < 0) {
+      const char *e = getenv("GCONFONTS");
+      logging = e && !strcmp(e, "log");
+   }
+   if (logging)
+      fprintf(stderr, "gcon-graphics: font %s%s%s, %d pixels: %s\n", family, bold ? ", bold" : "",
+         italic ? ", italic" : "", size, f ? name : "not found");
    free(family);
    if (f) {
       for (Fnt *o = fonts; o; o = o->next)
@@ -528,6 +537,8 @@ static void do_font(void)
    putu32(a);
    putu32(d);
    putu32(m);
+   putu32((uint32_t)strlen(name));
+   put(name, strlen(name));
    end();
 }
 

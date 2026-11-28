@@ -11,7 +11,7 @@ Another display server can take gcon-graphics's place: it speaks this
 protocol on the socket it is given, and `GCONGRAPHICS` names it (`gcon
 help environment`).
 
-Version 5. Everything here is implemented unless marked *(later)*.
+Version 6. Everything here is implemented unless marked *(later)*.
 
 ## Transport and framing
 
@@ -66,7 +66,8 @@ server's), `u32 ok` (1 if it speaks the client's version), `u32 display`
 server has a screen; 0 for the headless server). First on every
 connection. A client that finds no display where it wanted one may use
 another server instead: gcon-vm runs the headless one, so that hidden
-canvases work. This is version 5 (version 4 lacked `antialias` in `GC`;
+canvases work. This is version 6 (version 5 lacked `found` in `FONT`'s
+reply; version 4 lacked `antialias` in `GC`;
 version 3 lacked `display`; version 2
 had `ENCODE` and `DECODE`, the server's image files, which are now the
 client's; version 1 lacked `ICON`).
@@ -200,8 +201,11 @@ without collecting events: `WFlush`, `WSync`.
 `FONT` (19) **reply**: `u32 id, str family, u8 bold, u8 italic, i32
 size`. Opens a font: family is one of Icon's portable families (`mono`,
 `typewriter`, `sans`, `serif`), X's default `fixed`, or a name the
-platform's font lookup knows; size in pixels. Reply: `i32 ok, i32
-ascent, i32 descent, i32 maxwidth`.
+platform's font lookup knows (or, size 0, a name that is no Icon font
+name: an X font name); size in pixels. Reply: `i32 ok, i32 ascent, i32
+descent, i32 maxwidth, str found`: found names the font the server
+found, as `Font` and `WAttrib("font")` report it, and as a later FONT
+finds it again (an X font name, `Menlo Regular,12`, `6x13`).
 
 `TEXT` (20): `u32 canvas, u32 gc, u32 font, i32 x, i32 y, u8 image, str
 s`. Draws s (bytes, as Latin-1) with its baseline at y. image 1: the

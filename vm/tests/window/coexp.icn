@@ -14,7 +14,13 @@ procedure main()
    c := create body()
    w := @c
    write("opened in co-expression: ", image(type(w)))
-   write("font there: ", WAttrib(w, "font"))
+   # the font found for serif,italic,18 (WAttrib("font") names the
+   # server's font, which differs between servers)
+   q := open("q", "g", "canvas=hidden") | stop("no hidden canvas")
+   Font(q, "serif,italic,18")
+   write("font there: ", if WAttrib(w, "font") == WAttrib(q, "font") then "serif,italic,18"
+      else WAttrib(w, "font"))
+   close(q)
    write("event in main: ", image(Event(w)))
    @c
    Font(w, "mono,bold,14")

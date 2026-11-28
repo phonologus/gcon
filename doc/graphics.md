@@ -122,7 +122,11 @@ uses libdecor where it was found when built.
   (DejaVu Sans, say), `serif` and `mono` likewise. Any other font is
   named by its family (`Unifont`), its full name, or its family and
   style as font pickers show them (`Unifont Regular`, `DejaVu Sans
-  Mono Bold`); a font not found fails, as in X. Line heights are the
+  Mono Bold`); a font not found fails, as in X, and `Font` produces the
+  font found (`GCONFONTS=log` reports each). Only outline fonts are
+  used: a font installed only as bitmaps (PCF: Fedora's `unifont-fonts`)
+  is not found, its TrueType or OpenType files are (`unifont-ttf-fonts`).
+  Line heights are the
   fonts' own, so they differ from X11's for the same name: X's `mono`
   is the bitmap Lucida Typewriter, 13 pixels a line at size 12, where
   DejaVu Sans Mono takes 15.

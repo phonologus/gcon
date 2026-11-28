@@ -75,7 +75,8 @@ enum {
 };
 
 typedef struct WFont {
-	char *name;
+	char *name;  /* as asked for (the cache's key) */
+	char *found; /* the font the server found (WAttrib("font")) */
 	uint32_t id;
 	int ascent, descent, fwidth, height;
 	struct WFont *next;

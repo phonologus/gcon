@@ -61,7 +61,7 @@ by every window on it; the rest belong to the context, the window's own.
 | `antialias` | Gcon's: `on` (the default; `GCONANTIALIAS=off` makes it `off`) to smooth the edges of shapes and text drawn in copy mode without a pattern, where the display server can; `off` for X's covered-or-not pixels |
 | `clipx`, `clipy`, `clipw`, `cliph` | the clipping rectangle |
 | `dx`, `dy` | the origin's offset |
-| `font`, `ascent`, `descent`, `fwidth`, `fheight`, `leading` | the font and its metrics |
+| `font`, `ascent`, `descent`, `fwidth`, `fheight`, `leading` | the font (read: the one the server found, as [Font](#font) produces it) and its metrics |
 | `x`, `y`, `row`, `col`, `rows`, `columns`, `lines` | the text cursor, and the window's size in text |
 | `echo`, `cursor` | whether typed characters echo, and the text cursor is shown |
 | `pointer`, `pointerx`, `pointery`, `pointerrow`, `pointercol` | the mouse pointer |
@@ -821,20 +821,32 @@ Produces the font of `w`, after setting it to `s` if `s` is given;
 fails if there is no such font. A font is a family and options,
 `"family,size"` or with `bold` and `italic`: the portable families are
 `mono`, `typewriter`, `sans` and `serif`, and `fixed` is the default.
+A family may also be one of the display server's own fonts: its
+family, full name, or family and style (`"Unifont Regular,12"`).
+
+What `Font` produces is the font the display server found, as it names
+it (so `WAttrib("font")`): an X font name under X11, as Arizona Icon's,
+`"Menlo Regular,12"` from the Cocoa server, `"DejaVu Sans Mono
+Book,12"` from fontconfig's, a bitmap font's name (`"6x13"`) from the
+headless server. `Font` accepts that name again. `GCONFONTS=log` makes
+the server report every font asked for and found.
 
 **Errors:** 103 if `s` is not a string.
 
 ```icon
 procedure main()
    w := open("demo", "g", "canvas=hidden")
-   write(Font(w), " ", Font(w, "mono,12"), " ", Font(w, "no such font") | "no")
+   f := Font(w, "mono,12") # the font found, as the server names it
+   write(if Font(w, f) == f then "the same font again" else "another")
+   write(Font(w, "no such font") | "no such font: Font fails")
 end
 ```
 
 Output:
 
 ```
-fixed mono,12 no
+the same font again
+no such font: Font fails
 ```
 
 **See also:** [TextWidth](#textwidth), [DrawString](#drawstring).

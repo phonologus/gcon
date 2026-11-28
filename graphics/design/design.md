@@ -425,3 +425,21 @@ with libdecor and without; clean under ASan and UBSan. A screenshot
 under Weston's pixman renderer showed libdecor's title bar and the
 antialiased canvas. Not yet seen on a desktop compositor (GNOME, KDE)
 or at a scale above 1.
+
+### The font found (protocol 6, 2026-11-28)
+
+`Font` and `WAttrib("font")` produce the font the server found, as
+Arizona's do (its `alc_font` keeps the X font name `findfont` loaded),
+not the name asked for: FONT's reply carries it (`ft_name`). The X11
+server's is the X font name, Arizona's exactly; Cocoa's the font's full
+name and size (`Times Roman,12`); the raster servers' a bitmap font's
+own (`6x13`, matched ignoring case now: `parsefont` lowercases, so
+`7x13B` had never been found), or for an outline font fontconfig's
+family and style (`Unifont Regular,12`), else the name table's full
+name (CoreText's lookup). Each is found again by `Font`, so a program
+can save and restore a font; and a name that is no Icon font name (an X
+font name, too long for `parsefont`) goes to the server as it is, as
+Arizona's `tryfont`. `GCONFONTS=log` makes `main.c` report every FONT
+and what it found, for the `Font(a) | Font(b)` that quietly fell back
+(phwbi's, asking for `Unifont Regular`, which fontconfig had only by
+family and style, and getting `mono`: Sean).

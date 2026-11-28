@@ -23,7 +23,8 @@ procedure main()
    write("drawop ", WAttrib("drawop=reverse", "drawop"), " linewidth ", WAttrib("linewidth=3", "linewidth"))
    every write("query ", WAttrib("fg", "bg", "dx", "linestyle"))
    write("TextWidth ", TextWidth("Hello"))
-   write("Font ", Font("sans,14"), " ", WAttrib("fheight"), " width ", TextWidth("Hello"))
+   # (Font produces the font found, which differs between servers and X fonts)
+   write("Font ", (Font("sans,14") & "sans,14") | "fails", " ", WAttrib("fheight"), " width ", TextWidth("Hello"))
    c := Clone(w, "fg=green")
    write("clone ", image(c), " fg ", Fg(c), " orig fg ", Fg(w))
    FillRectangle(c, 100, 0, 10, 10)
@@ -64,6 +65,15 @@ procedure main()
    write("closed; ", image(w))
    &error := -1
    DrawLine(w, 0, 0, 1, 1) | write("error ", &errornumber, " ", &errortext)
+   # WAttrib("font") names the font the server found, which Font opens
+   # again (an X font name, a bitmap font's, "Full Name,size")
+   q := open("ft", "g", "canvas=hidden", "size=4,4") | stop("no canvas")
+   every f := "fixed" | "mono,12" | "mono,bold,12" | "serif,14" do
+      if Font(q, f) then {
+         n := WAttrib(q, "font")
+         writes(f, " ", if Font(q, n) & WAttrib(q, "font") == n then "round-trips; " else "is lost; ")
+      }
+   write(); close(q)
    # gcon's antialias attribute: on by default (GCONANTIALIAS=off makes
    # the default off); a context's own, which Clone copies
    q := open("aa", "g", "canvas=hidden", "size=4,4") | stop("no canvas")

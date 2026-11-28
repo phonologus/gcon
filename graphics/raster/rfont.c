@@ -28,6 +28,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include "sdlgfx.h"
 #include "bdf.h"
 #include "fixedfonts.inc"
@@ -45,7 +46,8 @@
 #include "stb_truetype.h"
 #pragma GCC diagnostic pop
 
-int font_lookup(const char *family, int bold, int italic, char *path, int pathlen, char *psname, int pslen);
+int font_lookup(const char *family, int bold, int italic, char *path, int pathlen, char *psname, int pslen,
+   char *name, int namelen);
 #endif
 
 /* a glyph rendered at one scale */
@@ -70,6 +72,7 @@ typedef struct {
    int gid[256];		/* glyph indices */
    float adv[256];		/* advances, logical pixels */
    GlyphSet *sets;
+   char name[256];		/* "Full Name,size" (ft_name) */
 #endif
 } Font;
 
@@ -94,7 +97,7 @@ static Font *bitmapfont(const BdfFont *b)
 static const BdfFont *bdfnamed(const char *name)
 {
    for (int i = 0; i < nbdffonts; i++)
-      if (!strcmp(name, bdffonts[i].name))
+      if (!strcasecmp(name, bdffonts[i].name))	/* parsefont lowercases */
          return &bdffonts[i];
    return NULL;
 }
@@ -196,6 +199,52 @@ static int psnamed(const stbtt_fontinfo *info, const char *ps)
    return s && (size_t)len == strlen(ps) && !memcmp(s, ps, (size_t)len);
 }
 
+/* nameid: the face's name id as UTF-8 into buf (Microsoft's UTF-16BE
+ * names, else the Mac's Roman ones as they are); 0 if it has none */
+static int nameid(const stbtt_fontinfo *info, int id, char *buf, size_t n)
+{
+   int len;
+   size_t k = 0;
+   const char *s = stbtt_GetFontNameString(info, &len, STBTT_PLATFORM_ID_MICROSOFT,
+      STBTT_MS_EID_UNICODE_BMP, STBTT_MS_LANG_ENGLISH, id);
+   if (s) {
+      for (int i = 0; i + 1 < len; i += 2) {
+         unsigned c = (unsigned char)s[i] << 8 | (unsigned char)s[i + 1];
+         if (c < 0x80 && k + 1 < n)
+            buf[k++] = (char)c;
+         else if (c < 0x800 && k + 2 < n) {
+            buf[k++] = (char)(0xC0 | c >> 6);
+            buf[k++] = (char)(0x80 | (c & 0x3F));
+         } else if (c >= 0x800 && k + 3 < n) {
+            buf[k++] = (char)(0xE0 | c >> 12);
+            buf[k++] = (char)(0x80 | (c >> 6 & 0x3F));
+            buf[k++] = (char)(0x80 | (c & 0x3F));
+         }
+      }
+   } else if ((s = stbtt_GetFontNameString(info, &len, STBTT_PLATFORM_ID_MAC, STBTT_MAC_EID_ROMAN,
+                  STBTT_MAC_LANG_ENGLISH, id)) != NULL)
+      for (int i = 0; i < len && k + 1 < n; i++)
+         buf[k++] = s[i];
+   buf[k] = '\0';
+   return k > 0;
+}
+
+/* the font's name: its full name (name ID 4, which the platforms'
+ * lookups find again), else its family and style, and the size */
+static void fontname(Font *f, int size)
+{
+   char fam[128], sty[64];
+   if (nameid(&f->info, 4, fam, sizeof fam))
+      sty[0] = '\0';
+   else {
+      if (!nameid(&f->info, 1, fam, sizeof fam))
+         strcpy(fam, "?");
+      if (!nameid(&f->info, 2, sty, sizeof sty))
+         sty[0] = '\0';
+   }
+   snprintf(f->name, sizeof f->name, "%s%s%s,%d", fam, sty[0] ? " " : "", sty, size);
+}
+
 static Font *outlinefont(const char *path, const char *ps, int size)
 {
    unsigned char *data = readfile(path);
@@ -235,6 +284,7 @@ static Font *outlinefont(const char *path, const char *ps, int size)
    }
    if (f->maxw == 0)
       f->maxw = size;
+   fontname(f, size > 0 ? size : 14);
    return f;
 }
 #endif
@@ -248,9 +298,13 @@ void *ft_open(const char *family, int bold, int italic, int size)
       return bitmapfont(b);
 #ifdef RFONT_LOOKUP
    char path[4096], ps[256];
-   if (!font_lookup(family, bold, italic, path, sizeof path, ps, sizeof ps))
+   char name[200];
+   if (!font_lookup(family, bold, italic, path, sizeof path, ps, sizeof ps, name, sizeof name))
       return NULL;
-   return outlinefont(path, ps, size);
+   Font *f = outlinefont(path, ps, size);
+   if (f && name[0])		/* the lookup's name for it, which it finds again */
+      snprintf(f->name, sizeof f->name, "%s,%d", name, size > 0 ? size : 14);
+   return f;
 #else
    if (!strcmp(family, "fixed"))
       return bitmapfont(bdfnamed("6x13"));
@@ -258,6 +312,20 @@ void *ft_open(const char *family, int bold, int italic, int size)
        && strcmp(family, "serif"))
       return NULL;
    return bitmapfont(bdfnearest(bold, italic, size));
+#endif
+}
+
+const char *ft_name(void *fp)
+{
+   Font *f = fp;
+   if (!f)
+      return "";
+   if (f->bdf)
+      return f->bdf->name;
+#ifdef RFONT_LOOKUP
+   return f->name;
+#else
+   return "";
 #endif
 }
 

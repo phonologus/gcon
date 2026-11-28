@@ -82,6 +82,10 @@ int cv_take_dirty(void *cv, int r[4]);
 /* fonts: family is a CoreText/fontconfig name; size in pixels */
 void *ft_open(const char *family, int bold, int italic, int size);
 void ft_metrics(void *f, int *ascent, int *descent, int *maxwidth);
+/* the name of the font found, which WAttrib("font") reports, as
+ * Arizona's X11 reports the X font it loaded: an X font name, a bitmap
+ * font's ("6x13"), or an outline font's "Family Style,size" */
+const char *ft_name(void *f);
 int ft_width(void *f, const char *s, int n);
 
 /*

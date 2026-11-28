@@ -11,7 +11,7 @@
 #include "sdlgfx.h"
 
 int font_lookup(const char *family, int bold, int italic,
-   char *path, int pathlen, char *psname, int pslen);
+   char *path, int pathlen, char *psname, int pslen, char *found, int foundlen);
 
 static const char *generic(const char *f)
 {
@@ -28,7 +28,7 @@ static int same(CFStringRef a, CFStringRef b)
 }
 
 int font_lookup(const char *family, int bold, int italic,
-   char *path, int pathlen, char *psname, int pslen)
+   char *path, int pathlen, char *psname, int pslen, char *found, int foundlen)
 {
    const char *g = generic(family);
    CFStringRef name, want, fam, full;
@@ -37,6 +37,9 @@ int font_lookup(const char *family, int bold, int italic,
    CFStringRef ps;
    CTFontSymbolicTraits traits = 0;
    int ok = 0;
+
+   (void)foundlen;
+   found[0] = '\0';		/* rfont names it from the font's full name */
 
    name = CFStringCreateWithCString(NULL, g ? g : family, kCFStringEncodingUTF8);
    f = CTFontCreateWithName(name, 12.0, NULL);

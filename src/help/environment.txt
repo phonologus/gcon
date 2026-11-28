@@ -48,6 +48,10 @@ Running programs (gcon-vm):
 		beside gcon-vm: libexec/gcon-graphics-x11, say (gcon doc
 		graphics). It is used as it is: without the fallback to the
 		headless server where there is no display.
+	GCONFONTS
+		"log": the display server writes each font a program asks
+		for, and the one it found (or "not found"), to standard
+		error: for a Font(...) | Font(...) that quietly fell back.
 	GCONLIBDECOR
 		"off": the Wayland display server draws no title bars with
 		libdecor where the compositor draws none (GNOME's): its

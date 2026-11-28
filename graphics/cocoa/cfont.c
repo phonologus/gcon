@@ -13,6 +13,7 @@
  * max_bounds.width over a core font's repertoire.
  */
 #include <math.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "cocoa.h"
@@ -20,7 +21,19 @@
 typedef struct {
    CTFontRef f;
    int ascent, descent, maxw;
+   char name[256];		/* "Full Name,size" (ft_name) */
 } Fnt;
+
+/* s as UTF-8 into buf ("" if none) */
+static void cfstr(CFStringRef s, char *buf, size_t n)
+{
+   buf[0] = '\0';
+   if (s) {
+      if (!CFStringGetCString(s, buf, (CFIndex)n, kCFStringEncodingUTF8))
+         buf[0] = '\0';
+      CFRelease(s);
+   }
+}
 
 CTFontRef c_font(void *f) { return f ? ((Fnt *)f)->f : NULL; }
 
@@ -87,8 +100,15 @@ void *ft_open(const char *family, int bold, int italic, int size)
    }
    if (r->maxw == 0)
       r->maxw = size;
+   {
+      char full[200];			/* the full name, which ft_open finds again */
+      cfstr(CTFontCopyFullName(f), full, sizeof full);
+      snprintf(r->name, sizeof r->name, "%s,%d", full, size > 0 ? size : 14);
+   }
    return r;
 }
+
+const char *ft_name(void *f) { return f ? ((Fnt *)f)->name : ""; }
 
 void ft_metrics(void *f, int *ascent, int *descent, int *maxwidth)
 {

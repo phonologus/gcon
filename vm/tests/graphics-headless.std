@@ -1,5 +1,5 @@
 window_1:1(test) window
-size 200,100 canvas hidden font fixed
+size 200,100 canvas hidden font 6x13
  11 2 6 13 13 8 33
 fg black bg white
 Fg red red light blue light blue #0f0 #0f0
@@ -29,6 +29,7 @@ error 145 bad window attribute
 error 147 window attribute cannot be read or written as requested
 closed; window_1:1(test)
 error 142 attempt to read/write on closed window
+fixed round-trips; mono,12 round-trips; mono,bold,12 round-trips; serif,14 round-trips; 
 antialias on; off off; clone off; maybe refused
 png: 40x30, 1200 of 1200 the same
 bmp: 40x30, 1200 of 1200 the same

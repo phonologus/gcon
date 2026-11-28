@@ -29,6 +29,7 @@ enum {
 
 typedef struct {
    XFontStruct *fs;
+   char *name;			/* as loaded: Arizona's WAttrib("font") */
 } XFnt;
 
 XFontStruct *x_fontstruct(void *f) { return f ? ((XFnt *)f)->fs : NULL; }
@@ -68,6 +69,11 @@ static XFnt *tryfont(const char *s)
       return NULL;
    }
    f->fs = fs;
+   if (!(f->name = strdup(s))) {
+      XFreeFont(xdpy, fs);
+      free(f);
+      return NULL;
+   }
    return f;
 }
 
@@ -203,3 +209,5 @@ int ft_width(void *f, const char *s, int n)
    XFontStruct *fs = x_fontstruct(f);
    return fs && n > 0 ? XTextWidth(fs, s, n) : 0;
 }
+
+const char *ft_name(void *f) { return f ? ((XFnt *)f)->name : ""; }
