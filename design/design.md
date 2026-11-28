@@ -2006,7 +2006,11 @@ Next, after v0.1.0 (Sean, 2026-11-26):
   page as text), the help pages link to each other, the guide and the
   reference entries, and `\U` takes exactly 6 hex digits (fewer is a
   compile-time error; Sean chose a patch, short ones being barely
-  documented).
+  documented). v0.5.0 (2026-11-28), a minor version (Sean: nothing
+  breaks, but a large step): native display servers on the protocol,
+  X11 (Arizona's pixels) and Cocoa (the Mac's own, antialiased), each
+  built by default for its platform, the SDL server opt-in (`./build.sh
+  --withSDL`; graphics/design/design.md, "Native display servers").
 - Side quest, parked (Sean, 2026-11-27): a display server that draws
   on a terminal, so graphics programs approximate where there is no
   framebuffer. The protocol reference (doc/internals) is what it needs.

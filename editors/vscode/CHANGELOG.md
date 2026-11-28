@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.0
+
+With Gcon v0.5.0, whose graphics have native display servers: Cocoa on
+macOS (antialiased, at the display's scale) and X11 elsewhere (Arizona
+Icon's own pictures), built by default for the platform (no change to
+the extension itself).
+
 ## 0.4.2
 
 With Gcon v0.4.2, whose `\U` escape takes exactly 6 hex digits (as `\u`
