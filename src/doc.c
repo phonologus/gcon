@@ -994,38 +994,45 @@ static void pager(const char *text) {
 	fputs(text, stdout);
 }
 
-/* browse opens url in the browser: $BROWSER, else open on macOS, else
- * xdg-open where there is a display. False if there is none to open or
- * it fails. */
-static bool browse(const char *url) {
+/* browser is the command that opens a URL in the browser: $BROWSER,
+ * else open on macOS, else xdg-open where there is a display; NULL if
+ * there is none. */
+static const char *browser(void) {
 	const char *b = getenv("BROWSER");
-	const char *cmd;
 	if (b && *b)
-		cmd = b;
-	else {
+		return b;
 #if defined(__APPLE__)
-		cmd = "open";
+	return "open";
 #else
-		const char *x = getenv("DISPLAY"), *w = getenv("WAYLAND_DISPLAY");
-		if (!(x && *x) && !(w && *w))
-			return false;
-		cmd = "xdg-open";
+	const char *x = getenv("DISPLAY"), *w = getenv("WAYLAND_DISPLAY");
+	if (!(x && *x) && !(w && *w))
+		return NULL;
+	return "xdg-open";
 #endif
-	}
+}
+
+/* browse runs cmd (from browser) on url and waits for it, in the
+ * foreground: a terminal browser (lynx) has the terminal until it is
+ * quit. $BROWSER keeps the terminal's output; open and xdg-open, whose
+ * chatter is no use, do not. It gives the exit status, or -1 if cmd
+ * could not be run. */
+static int browse(const char *cmd, const char *url) {
 	fflush(stdout);
+	fflush(stderr);
+	bool quiet = !strcmp(cmd, "open") || !strcmp(cmd, "xdg-open");
 	pid_t pid = fork();
 	if (pid < 0)
-		return false;
+		return -1;
 	if (pid == 0) {
 		/* $BROWSER may carry arguments: sh splits it */
-		execl("/bin/sh", "sh", "-c", "exec $0 \"$1\" >/dev/null 2>&1", cmd, url, (char *)NULL);
+		execl("/bin/sh", "sh", "-c", quiet ? "exec $0 \"$1\" >/dev/null 2>&1" : "exec $0 \"$1\"", cmd, url, (char *)NULL);
 		_exit(127);
 	}
 	int st;
 	while (waitpid(pid, &st, 0) < 0)
 		if (errno != EINTR)
-			return false;
-	return WIFEXITED(st) && WEXITSTATUS(st) == 0;
+			return -1;
+	return WIFEXITED(st) ? WEXITSTATUS(st) : 128 + WTERMSIG(st);
 }
 
 /* ------------------------------------------------------------------ */
@@ -1408,8 +1415,8 @@ static char *newtoken(void) {
 
 /* serveat serves the site on addr (NULL: the loopback address and a
  * free port, and the browser opened at page, a path such as
- * "/ref/strings.html#find"). It returns only if it cannot: 1 if it
- * cannot listen, -1 if there is no browser to open. */
+ * "/ref/strings.html#find"). It returns only if it cannot (1): it
+ * cannot listen, or there is no browser, or the browser fails. */
 static int serveat(Site *s, const char *addr, const char *page, const char *extramd) {
 	bool browsing = !addr;
 	char *bound;
@@ -1436,23 +1443,35 @@ static int serveat(Site *s, const char *addr, const char *page, const char *extr
 	}
 	Buf url = {0};
 	bufprintf(&url, "http://%s%s", bound, page);
-	if (browsing && !browse(url.b)) {
-		close(fd);
-		runtoken = NULL;
-		fprintf(stderr, "gcon doc: no browser to open (set BROWSER, or use -http); showing text\n");
-		return -1;
-	}
 	if (browsing) {
-		/* In the background, as a daemon: the browser has the URL (its
-		 * requests wait in the listen queue), the command line comes
-		 * back at once, and the server goes when the pages do. */
+		/* The server goes into the background, as a daemon, before the
+		 * browser is run (its requests wait in the listen queue): the
+		 * command line comes back once the browser command has, at
+		 * once for open or xdg-open, and the server goes when the pages
+		 * do. */
+		const char *cmd = browser();
+		if (!cmd) {
+			fprintf(stderr, "gcon doc: no browser to open (no display, and BROWSER is not set); use -text, or -http addr\n");
+			return 1;
+		}
+		fflush(stdout);
 		fflush(stderr);
 		pid_t pid = fork();
 		if (pid < 0) {
 			perror("gcon doc: fork");
-			exit(1);
+			return 1;
 		}
 		if (pid > 0) {
+			close(fd);
+			int st = browse(cmd, url.b);
+			if (st != 0) {
+				kill(pid, SIGTERM);
+				if (st < 0)
+					fprintf(stderr, "gcon doc: %s: cannot be run\n", cmd);
+				else
+					fprintf(stderr, "gcon doc: %s %s: exit status %d; use -text, or -http addr\n", cmd, url.b, st);
+				return 1;
+			}
 			fprintf(stderr, "gcon doc: serving %s in the background (pid %d; it stops when the browser closes its pages)\n", url.b, (int)pid);
 			exit(0);
 		}
@@ -1589,9 +1608,7 @@ int doc_main(int argc, char **argv) {
 		if (mode == Browse) {
 			Buf at = {0};
 			bufprintf(&at, "/file/%s.html", base);
-			int e = browseextra(at.b, md.b ? md.b : "", httpaddr);
-			if (e > 0)
-				return e;
+			return browseextra(at.b, md.b ? md.b : "", httpaddr);
 		}
 		MdDoc *d = md_parse(md.b ? md.b : "", md.n);
 		Buf out = {0};
@@ -1607,7 +1624,7 @@ int doc_main(int argc, char **argv) {
 			md_roff(&out, d, manname(decl ? decl : base), "Gcon " GCON_VERSION);
 			fputs(out.b, stdout);
 			break;
-		case Browse: /* a program's own: as text */
+		case Browse: /* not reached: served above */
 		case Text:
 			md_text(&out, d, TextWidth);
 			pager(out.b);
@@ -1634,9 +1651,7 @@ int doc_main(int argc, char **argv) {
 		if (mode == Browse) {
 			Buf at = {0};
 			bufprintf(&at, "/file/%s.html", topic);
-			int e = browseextra(at.b, b.b, httpaddr);
-			if (e > 0)
-				return e;
+			return browseextra(at.b, b.b, httpaddr);
 		}
 		switch (mode) {
 		case Raw: fputs(b.b, stdout); break;
@@ -1706,8 +1721,8 @@ int doc_main(int argc, char **argv) {
 
 	/* the Icon Program Library: shown apart from the tree */
 	if (name && !strcmp(name, "ipl")) {
-		if (mode == Browse && browsetree("/ipl/index.html", httpaddr) > 0)
-			return 1;
+		if (mode == Browse)
+			return browsetree("/ipl/index.html", httpaddr);
 		ipllist(root.dir);
 		return 0;
 	}
@@ -1732,8 +1747,7 @@ int doc_main(int argc, char **argv) {
 				nm[strlen(nm) - 4] = 0;
 			Buf at = {0};
 			bufprintf(&at, "/ipl/%s.html", nm);
-			if (browsetree(at.b, httpaddr) > 0)
-				return 1;
+			return browsetree(at.b, httpaddr);
 		}
 		MdDoc *d = md_parse(md, strlen(md));
 		Buf out = {0};
@@ -1749,7 +1763,7 @@ int doc_main(int argc, char **argv) {
 			md_roff(&out, d, manname(d->title), "Gcon " GCON_VERSION);
 			fputs(out.b, stdout);
 			break;
-		case Browse: /* no browser: as text */
+		case Browse: /* not reached: served above */
 		case Text:
 			md_text(&out, d, TextWidth);
 			pager(out.b);
@@ -1790,10 +1804,8 @@ int doc_main(int argc, char **argv) {
 		bufprintf(&at, "/%s.html", p->topic);
 		if (anchor)
 			bufprintf(&at, "#%s", anchor);
-		if (browsetree(at.b, httpaddr) > 0)
-			return 1;
+		return browsetree(at.b, httpaddr);
 	}
-		/* fall through */
 	case Text: md_text(&out, d, TextWidth); pager(out.b);
 	}
 	return 0;

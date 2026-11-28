@@ -2062,7 +2062,8 @@ summaries, as `man -k`, `pydoc -k`); `-list` (the topics and entries);
 `-short` (the one-line summary, as `go doc -short`); `-http addr`
 (serve the tree, for a browser on another machine, as `godoc -http`,
 `pydoc -p`). Where there is no browser to open (no display, or opening
-fails), `gcon doc` falls back to `-text` and says so.
+fails), `gcon doc` falls back to `-text` and says so (since 2026-11-28,
+an error instead, naming `-text` and `-http`).
 
 What that asks of the tree, from the start:
 
@@ -2137,19 +2138,30 @@ so there was nothing to open), and examples had no Run button, which a
   ping), never before the first hello. Not a held connection per
   page: browsers allow six per host, so a seventh tab would hang.
   `-http addr` serves on addr, opens nothing and stops only when
-  interrupted. Where there is no browser to open, the page is shown as
-  text, as before.
+  interrupted. Where there was no browser to open, the page was shown as
+  text, as before (no longer: below).
 - The default server goes into the background (2026-11-28), as a
-  daemon, once the browser has been given the URL (its requests wait in
-  the listen queue): the command prints the URL and the server's pid
-  and returns, so the command line is free at once and the grace after
+  daemon, forked before the browser is run (its requests wait in the
+  listen queue): the command prints the URL and the server's pid and
+  returns once the browser command has, so the command line is free at
+  once (open and xdg-open return straight away) and the grace after
   the last page goes costs nothing. The child calls `setsid` and sends
   its standard streams to `/dev/null`, so ^C and a closed terminal
   leave it alone and nothing it says lands on a later prompt. Nobody
   can interrupt it there, so it also stops if no page has said hello
   within 2 minutes (a browser without JavaScript; `-http` serves those,
-  in the foreground). The browser is opened before the fork, so a
-  failing one still falls back to text in the foreground.
+  in the foreground).
+- The browser runs in the foreground and is waited for, so that a
+  terminal browser in `$BROWSER` (lynx, w3m) has the terminal, and its
+  output is left alone (only open's and xdg-open's chatter goes to
+  `/dev/null`). Before, it was run before the server accepted, so a
+  terminal browser's request waited for the browser to exit: it hung.
+  A `$BROWSER` that does not return (a GUI browser started cold) keeps
+  the command line until it exits, as with `man`'s or git's.
+- No browser (no display and no `$BROWSER`), or one that fails (a
+  non-zero exit), is an error that names `-text` and `-http`; the
+  server is killed. It used to fall back to the page as text, which
+  surprised more than it helped.
 - Pages are rendered on request from the tree (the stylesheet, script
   and search index from memory), so the server needs no built HTML.
   The IPL is served too, at `/ipl/index.html` and `/ipl/NAME.html` (a

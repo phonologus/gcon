@@ -12,11 +12,14 @@ machine and opens the page in the web browser, as go doc -http does:
 the installed version's documentation, offline, with every example
 program editable and runnable (Run gives it to gcon run, Stop kills
 it; a run is killed after 60 seconds). The server runs in the
-background, and the command returns at once; it stops a few seconds
-after the browser has closed its pages (or after two minutes if no page
-ever opens, as in a browser without JavaScript: use -http). The browser is
-$BROWSER, else open on macOS, else xdg-open where there is a display;
-where there is none, doc shows the page as text.
+background: the command returns as soon as the browser command has
+(at once, for open and xdg-open), and the server stops a few seconds
+after the browser has closed its pages (or after two minutes if no
+page ever opens, as in a browser without JavaScript: use -http). The
+browser is $BROWSER, run in the foreground so that a terminal browser
+such as lynx has the terminal, else open on macOS, else xdg-open where
+there is a display. With no browser, or one that fails, doc is an
+error: use -text to read the page in the terminal.
 
 With no name, doc shows the index. A name is a page's topic, its path
 in the tree without ".md" (internals/protocol), or the last element of

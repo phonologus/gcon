@@ -21,8 +21,8 @@
 #     comments, the candidates marked; every candidate a file of lib/ipl.
 #   - The server: $BROWSER is given the served page's URL; its pages,
 #     the IPL's, a run, Stop, the guards on running, stopping when
-#     the browser's pages have gone (not with -http); a browser
-#     that fails gives the page as text.
+#     the browser's pages have gone (not with -http); a terminal
+#     browser in the foreground; a browser that fails, an error.
 #
 #   src/tests/doc.sh            check
 #   src/tests/doc.sh -update    rewrite the golden files
@@ -225,7 +225,7 @@ bad=$(grep -v '^#' "$here/doc/ipl-candidates.txt" | while read -r f; do [ -f "$h
 
 # The browser and the server, in a root of its own: gcon doc serves the
 # tree on the loopback address and gives $BROWSER the page's URL; a
-# browser that fails gives the page as text. With curl: the pages, the
+# browser that fails is an error. With curl: the pages, the
 # IPL's, a run (with gcon-vm), and the guards on running.
 root=$tmp/root
 mkdir -p "$root/lib/ipl/procs" "$root/lib/ipl/gprocs" "$tmp/t"
@@ -234,7 +234,6 @@ cp -R "$here/doc" "$root/doc"
 rm -rf "$root/doc/html"
 GCONROOT=$root
 export GCONROOT
-"$G" doc -text help/run >"$tmp/text"
 printf '#!/bin/sh\necho "$1" >"%s.new" && mv "%s.new" "%s"\n' "$tmp/url" "$tmp/url" "$tmp/url" >"$tmp/browser"
 chmod +x "$tmp/browser"
 # serve NAME: start gcon doc NAME, which gives the browser the URL and
@@ -315,12 +314,35 @@ if command -v curl >/dev/null 2>&1 && [ -n "$base" ]; then
 	curl -s -X POST --data "$token bye p2" "http://127.0.0.1:$port/alive" >/dev/null
 	sleep 6
 	kill -0 $server 2>/dev/null || problem "gcon doc -http: stopped by itself"
+	# a terminal browser (lynx) runs in the foreground, its output kept,
+	# and the server answers it while it runs; a failing browser is an
+	# error, the page not shown, and its server gone
+	checks=$((checks + 2))
+	stop
+	printf '#!/bin/sh\necho "$1" >"%s"\ncurl -s --max-time 5 -o /dev/null -w "%%{http_code}\\n" "$1"\n' "$tmp/url" >"$tmp/termbrowser"
+	chmod +x "$tmp/termbrowser"
+	BROWSER=$tmp/termbrowser "$G" doc run >"$tmp/out" 2>"$tmp/err"
+	server=$(sed -n 's/.*in the background (pid \([0-9]*\);.*/\1/p' "$tmp/err")
+	[ "$(cat "$tmp/out")" = 200 ] || problem "a terminal browser: got $(cat "$tmp/out") from the server, not 200: $(cat "$tmp/err")"
+	stop
+	printf '#!/bin/sh\necho "$1" >"%s"\nexit 3\n' "$tmp/url" >"$tmp/badbrowser"
+	chmod +x "$tmp/badbrowser"
+	BROWSER=$tmp/badbrowser "$G" doc run >"$tmp/out" 2>"$tmp/err"
+	st=$?
+	sleep 0.5
+	[ $st = 1 ] && [ ! -s "$tmp/out" ] && grep -q 'exit status 3; use -text' "$tmp/err" && [ "$(code "$(cat "$tmp/url")")" = 000 ] ||
+		problem "a failing browser: status $st, $(wc -c <"$tmp/out") bytes out, $(cat "$tmp/err"), the server still answering"
 else
 	echo "doc: no curl: the server's pages not checked"
 fi
 stop
-checks=$((checks + 1))
-BROWSER=false "$G" doc run >"$tmp/out" 2>"$tmp/err"
-cmp -s "$tmp/out" "$tmp/text" && grep -q 'no browser' "$tmp/err" || problem "a failing browser: not the page as text, with a note"
+# no browser at all (no display, no BROWSER: not on macOS, which has open)
+if [ "$(uname)" != Darwin ]; then
+	checks=$((checks + 1))
+	env -u DISPLAY -u WAYLAND_DISPLAY -u BROWSER "$G" doc run >"$tmp/out" 2>"$tmp/err"
+	st=$?
+	[ $st = 1 ] && [ ! -s "$tmp/out" ] && grep -q 'no browser to open.*-text' "$tmp/err" ||
+		problem "no browser: status $st, $(wc -c <"$tmp/out") bytes out, $(cat "$tmp/err")"
+fi
 echo "doc: $checks checks; $fail problems"
 [ "$fail" = 0 ]
