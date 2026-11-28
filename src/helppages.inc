@@ -309,7 +309,7 @@ static const HelpPage helppages[] = {
 	 "\n"
 	 "\tusets, written u'...', and the keyword &uset\n"
 	 "\tranges in cset and uset literals: 'a..z'\n"
-	 "\tGo's \\u and \\U escapes in any literal: \"caf\\u00e9\"\n"
+	 "\t\\u and \\U escapes, after Go's, in any literal: \"caf\\u00e9\"\n"
 	 "\tthe built-ins uchar, uord, uset and uvalid\n"
 	 "\tthe library module uclass\n"
 	 "\n"

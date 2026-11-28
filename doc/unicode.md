@@ -69,9 +69,28 @@ of Go's `unicode` package; [the reference](ref/uclass.md) lists them all.
 
 - **Ranges** in cset and uset literals: `'a..zA..Z_'`, `'\x00..\x1f'`; in
   a cset both ends are single bytes.
-- **Go's `\u` and `\U` escapes** in any literal, which give a code
-  point's UTF-8 bytes: `"café"` is the same 5 bytes as `"café"`
-  in a UTF-8 source file.
+- **`\u` and `\U` escapes** in any literal, after Go's, give a code
+  point's UTF-8 bytes: `"caf\u00e9"` is the same 5 bytes as `"café"` in
+  a UTF-8 source file. `\u` takes exactly 4 hex digits and `\U` from 1
+  to 6, reading as many as follow: so `"\U1f600"`, not Go's
+  8-digit `"\U0001f600"`, which is U+01F6 followed by `00`.
+
+```icon
+procedure main()
+   s := "caf\u00e9"
+   write(s, ", ", *s, " bytes")
+   if s == "café" then write("the same bytes as \"café\"")
+   write(image("\U1f600"), ", ", *"\U1f600", " bytes")
+end
+```
+
+Output:
+
+```
+café, 5 bytes
+the same bytes as "café"
+"😀", 4 bytes
+```
 
 ## image
 

@@ -5,7 +5,7 @@ language is small:
 
 - usets, written `u'...'`, and the keyword `&uset`
 - ranges in cset and uset literals: `'a..z'`
-- Go's `\u` and `\U` escapes in any literal: `"café"`
+- `\u` and `\U` escapes, after Go's, in any literal: `"caf\u00e9"`
 - four built-ins: `uchar`, `uord`, `uset` and `uvalid`
 - the library module `uclass`
 
