@@ -7,6 +7,7 @@
  */
 #include "gfx.h"
 #include "gimg.h"
+#include "imgcodec.h"
 
 #include <ctype.h>
 #include <math.h>
@@ -3951,24 +3952,19 @@ static bool loadimage(WBinding *w, const char *name, int p, unsigned **pxp, unsi
 		*opp = op;
 		return true;
 	}
-	gp_begin(P_DECODE);
-	gp_str(data.b ? data.b : "", data.n);
-	gp_end();
+	/* PNG, JPEG, BMP, QOI: imgcodec.c's, whichever server draws */
+	uint32_t *v = data.b ? img_decode((const unsigned char *)data.b, data.n, iw, ih) : NULL;
 	free(data.b);
-	gp_reply(P_DECODE);
-	int ok = gr_i32();
-	*iw = gr_i32();
-	*ih = gr_i32();
-	if (!ok)
+	if (!v)
 		return false;
 	size_t k = (size_t)*iw * (size_t)*ih;
 	unsigned *px = xmalloc(k * sizeof *px + 1);
 	unsigned char *op = xmalloc(k + 1);
 	for (size_t i = 0; i < k; i++) {
-		unsigned v = gr_u32();
-		px[i] = v & 0xFFFFFF;
-		op[i] = (v >> 24) >= 128; /* alpha below half: transparent */
+		px[i] = v[i] & 0xFFFFFF;
+		op[i] = (v[i] >> 24) >= 128; /* alpha below half: transparent */
 	}
+	free(v);
 	*pxp = px;
 	*opp = op;
 	return true;
@@ -4019,23 +4015,17 @@ FN(f_WriteImage) {
 	const char *name = cstr(fname);
 	const char *dot = strrchr(name, '.'), *slash = strrchr(name, '/');
 	const char *ext = dot && (!slash || dot > slash) ? dot + 1 : "";
-	/* the server's formats first; it declines the others (GIF) */
-	gp_begin(P_ENCODE);
-	gp_u32(w->window->id);
-	gp_i32(x);
-	gp_i32(y);
-	gp_i32(width);
-	gp_i32(height);
-	gp_str(ext, strlen(ext));
-	gp_end();
-	gp_reply(P_ENCODE);
-	int st = gr_i32();
-	uint32_t len = gr_u32();
-	unsigned char *bytes = xmalloc((size_t)len + 1);
-	gr_bytes(bytes, len);
-	size_t blen = len;
-	if (st < 0) { /* GIF, the client's */
-		free(bytes);
+	/* PNG, JPEG, BMP and QOI by their extensions (imgcodec.c), any
+	 * other as GIF, Icon's own */
+	unsigned char *bytes = NULL;
+	size_t blen = 0;
+	int st = -1;
+	if (img_writes(ext)) {
+		unsigned *px = getpixels(w, x, y, width, height);
+		st = img_encode(ext, px, width, height, &bytes, &blen);
+		free(px);
+	}
+	if (st < 0) {
 		short *data = capture(w, x, y, width, height);
 		int ok = gif_write(data, width, height, &bytes, &blen);
 		free(data);

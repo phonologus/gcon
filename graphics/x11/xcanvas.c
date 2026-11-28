@@ -616,20 +616,3 @@ int cv_text(void *cv, const sdlgc *gc, void *font, int x, int y, const char *s, 
       x + w + (fs->max_bounds.rbearing > 0 ? fs->max_bounds.rbearing : 0) + 1, y + fs->descent + 1);
    return w;
 }
-
-/* ---------- image files: not this server's (yet) ---------- */
-
-int cv_encode(void *cv, const char *ext, int x, int y, int w, int h, unsigned char **data, size_t *len)
-{
-   (void)cv; (void)ext; (void)x; (void)y; (void)w; (void)h;
-   *data = NULL;
-   *len = 0;
-   return -1;
-}
-
-unsigned int *cv_decode(const unsigned char *data, size_t len, int *w, int *h)
-{
-   (void)data; (void)len;
-   *w = *h = 0;
-   return NULL;
-}

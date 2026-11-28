@@ -1,7 +1,7 @@
 #!/bin/sh
 # Build gcon-graphics-cocoa, the macOS display server: ../src/main.c (the
 # protocol reader) and ../src/xcolors.c, with this directory's AppKit,
-# Core Graphics, CoreText and ImageIO layers. Needs macOS and its C
+# Core Graphics and CoreText layers. Needs macOS and its C
 # compiler (clang, which compiles the Objective-C); the frameworks are
 # the system's. The binary is left in ../bin/gcon-graphics-cocoa.
 #
@@ -28,6 +28,6 @@ done
 $CC $flags -fobjc-arc -c -o "$tmp/cplat.o" cplat.m
 mkdir -p ../bin
 $CC -o ../bin/gcon-graphics-cocoa.new "$tmp"/*.o -framework AppKit -framework QuartzCore \
-	-framework CoreGraphics -framework CoreText -framework ImageIO -lm
+	-framework CoreGraphics -framework CoreText -lm
 mv ../bin/gcon-graphics-cocoa.new ../bin/gcon-graphics-cocoa
 echo "cocoa/build.sh: built bin/gcon-graphics-cocoa"

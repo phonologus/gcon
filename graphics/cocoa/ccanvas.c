@@ -23,7 +23,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
-#include <ImageIO/ImageIO.h>
 #include "cocoa.h"
 
 typedef struct {
@@ -740,89 +739,4 @@ int cv_text(void *cv, const sdlgc *gc, void *font, int x, int y, const char *s, 
    }
    CFRelease(line);
    return w;
-}
-
-/* ---------- image files, by ImageIO ---------- */
-
-static CFStringRef uti(const char *e)
-{
-   if (!strcasecmp(e, "png")) return CFSTR("public.png");
-   if (!strcasecmp(e, "jpg") || !strcasecmp(e, "jpeg")) return CFSTR("public.jpeg");
-   if (!strcasecmp(e, "bmp")) return CFSTR("com.microsoft.bmp");
-   return NULL;			/* QOI and the rest: ImageIO has no codec */
-}
-
-int cv_encode(void *cv, const char *e, int x, int y, int w, int h, unsigned char **data, size_t *len)
-{
-   CFStringRef type = uti(e);
-   uint32_t *px;
-   CGDataProviderRef dp;
-   CGImageRef img;
-   CFMutableDataRef out;
-   CGImageDestinationRef d;
-   int ok = 0;
-
-   *data = NULL;
-   *len = 0;
-   if (!type)
-      return -1;
-   if (w <= 0 || h <= 0 || !(px = malloc((size_t)w * h * 4)))
-      return 0;
-   cv_read(cv, x, y, w, h, 0, px);
-   for (size_t i = 0; i < (size_t)w * h; i++)
-      px[i] |= OPAQUE;
-   dp = CGDataProviderCreateWithData(NULL, px, (size_t)w * h * 4, NULL);
-   img = CGImageCreate((size_t)w, (size_t)h, 8, 32, (size_t)w * 4, rgbspace(),
-      (CGBitmapInfo)kCGImageAlphaNoneSkipFirst | kCGBitmapByteOrder32Little, dp, NULL, false,
-      kCGRenderingIntentDefault);
-   out = CFDataCreateMutable(NULL, 0);
-   d = CGImageDestinationCreateWithData(out, type, 1, NULL);
-   if (img && d) {
-      CGImageDestinationAddImage(d, img, NULL);
-      if (CGImageDestinationFinalize(d)) {
-         *len = (size_t)CFDataGetLength(out);
-         if ((*data = malloc(*len ? *len : 1)) != NULL) {
-            memcpy(*data, CFDataGetBytePtr(out), *len);
-            ok = 1;
-         }
-      }
-   }
-   if (d) CFRelease(d);
-   CFRelease(out);
-   if (img) CGImageRelease(img);
-   CGDataProviderRelease(dp);
-   free(px);
-   return ok;
-}
-
-/* PNG, JPEG, BMP (and whatever else ImageIO reads), 0xAARRGGBB
- * premultiplied */
-unsigned int *cv_decode(const unsigned char *data, size_t len, int *w, int *h)
-{
-   CFDataRef d = CFDataCreate(NULL, data, (CFIndex)len);
-   CGImageSourceRef src = d ? CGImageSourceCreateWithData(d, NULL) : NULL;
-   CGImageRef img = src ? CGImageSourceCreateImageAtIndex(src, 0, NULL) : NULL;
-   unsigned int *px = NULL;
-   if (img) {
-      *w = (int)CGImageGetWidth(img);
-      *h = (int)CGImageGetHeight(img);
-      px = calloc((size_t)*w * *h + 1, 4);
-      if (px) {
-         CGContextRef k = CGBitmapContextCreate(px, (size_t)*w, (size_t)*h, 8, (size_t)*w * 4, rgbspace(),
-            (CGBitmapInfo)kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Little);
-         if (k) {
-            CGContextSetBlendMode(k, kCGBlendModeCopy);
-            CGContextDrawImage(k, CGRectMake(0, 0, *w, *h), img);
-            CGContextRelease(k);
-         }
-         else {
-            free(px);
-            px = NULL;
-         }
-      }
-      CGImageRelease(img);
-   }
-   if (src) CFRelease(src);
-   if (d) CFRelease(d);
-   return px;
 }

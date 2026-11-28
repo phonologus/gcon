@@ -175,3 +175,28 @@ choose the expected output and tolerances by its `-version` (X11:
 SDL: the originals); without a server they say so and check nothing.
 `iconx.sh` compares with icon-sdl's iconx, so it wants the SDL server
 (`graphics/bin/gcon-graphics`) and skips without it.
+
+### Image files move into gcon-vm; protocol version 3 (2026-11-28)
+
+PNG, JPEG, BMP and QOI were the server's (`ENCODE`, `DECODE`): the SDL
+server's through Blend2D, the Cocoa server's through ImageIO (no QOI),
+and the X11 server had none. They are gcon-vm's now
+(`vm/src/imgcodec.c`), as GIF always was: stb_image and
+stb_image_write (vendored in `deps/stb`, pinned in `deps/deps.lock`,
+public domain) for PNG, JPEG and BMP, and QOI written from its
+specification. So every server has every format, and a server only
+draws: the protocol is version 3, without `ENCODE` and `DECODE` (36 and
+37 reserved), and the three servers lost their codec code (the Cocoa
+server no longer links ImageIO).
+
+- `ReadImage` tries GIF (Icon's reader), then decodes by the file's
+  contents; alpha below half is transparent, as before, now straight
+  rather than premultiplied (Icon's pixels have no alpha to blend).
+- `WriteImage` chooses by the extension, as before: `png`, `jpg` or
+  `jpeg`, `bmp`, `qoi` (any case), and any other as GIF. JPEG at
+  quality 95, above stb's threshold for chroma subsampling, which
+  smeared colour across the sharp edges Icon draws (a round trip of
+  coloured rectangles differed by up to 172/256 at 90, 29/256 at 95).
+- `vm/tests/graphics.icn` round-trips each format under each server:
+  the lossless exactly; damaged files (truncated, bytes flipped) are
+  refused or decoded without fault under ASan and UBSan.

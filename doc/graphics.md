@@ -23,6 +23,10 @@ Whichever server draws:
   copy of the library carries two small changes, the same as icon-sdl's
   (made by `tools/ipl/patch.sh`), so that `keysyms.icn`'s key names
   work.
+- **Image files:** GIF, as in Icon, and PNG, JPEG, BMP and QOI, chosen by
+  the file's extension for `WriteImage` (any other is written as GIF)
+  and by its contents for `ReadImage`. gcon-vm reads and writes them
+  itself, so every server has them all.
 - **Not supported:** the numeric colour forms `rgb:r/g/b` and `RGBi:...`.
   `iconlabel=` is accepted but never shown, since modern desktops have
   no icon labels.
@@ -47,7 +51,6 @@ to differ from Arizona Icon's X11 pictures, and nothing else.
 - **Fonts** are the same as the SDL server's on macOS, through CoreText:
   `mono` is Menlo, `sans` Helvetica, `serif` Times and `typewriter`
   Courier, and a font name that isn't found fails, as under X.
-- **Image files:** GIF, PNG, JPEG and BMP (QOI needs the SDL server).
 - **Keys and the menu:** Option is `&meta` (`ICONSDL_META=command` makes
   it Command); Command-Q is the same as closing the window.
   `ICONSDL_SCALE` overrides the display's scale.
@@ -68,8 +71,6 @@ through XWayland, and macOS through XQuartz.
   `serif` Times, and the default is X's `fixed`. A full X font name
   works too.
 - **No HiDPI scaling:** one Icon pixel is one pixel, as in X.
-- **Image files:** GIF only, for now; PNG, JPEG and BMP need the Cocoa
-  or SDL server, QOI the SDL one.
 
 ## The SDL display server
 
@@ -91,8 +92,6 @@ process of its own.
   `mono` is Menlo, `sans` Helvetica, `serif` Times and `typewriter`
   Courier. Metrics are close to X's but not identical. A font name that
   isn't found fails, as under X.
-- **Image files:** GIF, as in Icon, and also PNG, JPEG, BMP and QOI, for
-  both `ReadImage` and `WriteImage`.
 - **Keys:** on macOS, Option is `&meta`; `ICONSDL_META=command` makes it
   the Command key. Keypad keys report the characters they type, not
   keypad keysyms.

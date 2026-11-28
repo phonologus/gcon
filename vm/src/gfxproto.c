@@ -24,7 +24,7 @@
 #include <mach-o/dyld.h>
 #endif
 
-enum { Version = 2 };
+enum { Version = 3 };
 
 static int sock = -1;
 static pid_t server;

@@ -17,14 +17,15 @@
 #include <unistd.h>
 #include "sdlgfx.h"
 
-enum { VERSION = 2 };
+enum { VERSION = 3 };
 
 enum {
    HELLO, CANVAS, FREE, RESIZE, GC, POINTS, LINES, FILLPOLY, SEGMENTS,
    RECTS, FILLRECTS, ARCS, ERASE, COPY, WRITE, READ, COLOR, WAIT, SHOW,
    FONT, TEXT, WIDTH, TITLE, GEOMETRY, STATE, MAP, RESIZABLE, POSITION,
-   RAISE, LOWER, CURSOR, WARP, BEEP, DISPLAYSIZE, GLOBALMOUSE, OVERLAY, ENCODE,
-   DECODE, ICON, NOPS
+   RAISE, LOWER, CURSOR, WARP, BEEP, DISPLAYSIZE, GLOBALMOUSE, OVERLAY,
+   RESERVED36, RESERVED37,	/* version 2's ENCODE, DECODE: image files are the client's */
+   ICON, NOPS
 };
 
 static int fd = -1;
@@ -468,25 +469,6 @@ static void do_read(void)
    free(px);
 }
 
-/* ENCODE: a region of a canvas as a PNG, JPEG, BMP or QOI file's bytes */
-static void do_encode(void)
-{
-   Canvas *c = canvas(u32());
-   int x = i32(), y = i32(), w = i32(), h = i32();
-   char *e = str(NULL);
-   unsigned char *data;
-   size_t len;
-   int r = cv_encode(c->cv, e, x, y, w, h, &data, &len);
-   begin(ENCODE);
-   putu32((uint32_t)r);
-   putu32((uint32_t)len);
-   if (len)
-      put(data, len);
-   end();
-   free(data);
-   free(e);
-}
-
 /* ICON: a canvas's window's icon, from w x h pixels 0xAARRGGBB */
 static void do_icon(void)
 {
@@ -503,25 +485,6 @@ static void do_icon(void)
    if (c->win)
       pl_icon(c->win, px, w, h);
    free(px);
-}
-
-/* DECODE: an image file's bytes as pixels, 0xAARRGGBB */
-static void do_decode(void)
-{
-   size_t len;
-   char *b = str(&len);
-   int w = 0, h = 0;
-   unsigned *px = cv_decode((unsigned char *)b, len, &w, &h);
-   begin(DECODE);
-   putu32(px != NULL);
-   putu32(px ? w : 0);
-   putu32(px ? h : 0);
-   if (px)
-      for (size_t i = 0; i < (size_t)w * h; i++)
-         putu32(px[i]);
-   end();
-   free(px);
-   free(b);
 }
 
 static void do_color(void)
@@ -790,8 +753,6 @@ static int serve(int argc, char **argv)
          do_window(op);
          break;
       case MAP: do_map(); break;
-      case ENCODE: do_encode(); break;
-      case DECODE: do_decode(); break;
       case ICON: do_icon(); break;
       case BEEP: pl_beep(i32()); break;
       case GLOBALMOUSE: {

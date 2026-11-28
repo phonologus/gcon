@@ -10,22 +10,24 @@ GCONGRAPHICS chooses another when a program runs.
 	antialiased and at the display's scale; drawops other than copy,
 	and patterns, are drawn as X draws them. Fonts are the Mac's:
 	mono is Menlo, sans Helvetica, serif Times, typewriter Courier.
-	Image files: GIF, PNG, JPEG and BMP.
 
 	X11: X's own drawing, so the pictures are Arizona Icon's. Fonts
 	are X's core fonts, chosen as Arizona chooses them; DISPLAY
-	names the display. Image files: GIF only, for now.
+	names the display.
 
 	SDL (only with --withSDL; needs a C++ compiler and CMake): SDL3
 	and Blend2D, portable, antialiased and HiDPI, the backend of
 	icon-sdl, a fork of Icon 9.5. Fonts through CoreText or
-	fontconfig. Image files: GIF, PNG, JPEG, BMP and QOI.
+	fontconfig.
 
 Whichever server draws, the preprocessor defines _SDL_GRAPHICS, not
 _X_WINDOW_SYSTEM, and &features includes "SDL graphics", so programs
 that test for X take their portable path; keys are reported as X
-keysyms. Not supported: the colour forms rgb:r/g/b and RGBi:...;
-iconlabel= is accepted but never shown.
+keysyms. Image files are GIF, PNG, JPEG, BMP and QOI, read and
+written by gcon-vm itself: by extension for WriteImage (any other
+is written as GIF), by contents for ReadImage. Not supported: the
+colour forms rgb:r/g/b and RGBi:...; iconlabel= is accepted but
+never shown.
 
 On macOS, ICONSDL_META=command makes the Command key &meta, instead
 of Option, and ICONSDL_SCALE overrides the display's scale.

@@ -65,13 +65,6 @@ void cv_read(void *cv, int x, int y, int w, int h, unsigned int bg,
 void cv_write(void *cv, const sdlgc *gc, int x, int y, int w, int h,
    const unsigned int *px, const unsigned char *opaque);
 
-/* image files, in memory: cv_encode returns 1 (bytes in *data,
- * malloc'd), 0 failed, -1 a format it does not write (by extension);
- * cv_decode returns 0xAARRGGBB pixels (malloc'd) or NULL */
-int cv_encode(void *cv, const char *ext, int x, int y, int w, int h,
-   unsigned char **data, size_t *len);
-unsigned int *cv_decode(const unsigned char *data, size_t len, int *w, int *h);
-
 /* mark a logical area as changed (to be shown again) */
 void cv_dirty(void *cv, int x, int y, int w, int h);
 

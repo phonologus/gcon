@@ -11,7 +11,7 @@ Another display server can take gcon-graphics's place: it speaks this
 protocol on the socket it is given, and `GCONGRAPHICS` names it (`gcon
 help environment`).
 
-Version 2. Everything here is implemented unless marked *(later)*.
+Version 3. Everything here is implemented unless marked *(later)*.
 
 ## Transport and framing
 
@@ -62,8 +62,9 @@ use:
 
 `HELLO` (0) **reply**: `u32 version`. Reply: `u32 version` (the
 server's), `u32 ok` (1 if it speaks the client's version). First on
-every connection. This is version 2 (version 1 lacked `ENCODE`,
-`DECODE` and `ICON`).
+every connection. This is version 3 (version 2 had `ENCODE` and `DECODE`,
+the server's image files, which are now the client's; version 1 lacked
+`ICON`).
 
 ### Canvases and windows
 
@@ -202,19 +203,13 @@ text's cell is first filled with the gc's bg (X's XDrawImageString, for
 `TEXT` would draw it (shaped, so not always the sum of its characters'
 widths).
 
-### Image files
+### Image files and icons
 
-The server never opens the program's files: the client reads and
-writes them, and GIF, Icon's own format, is the client's entirely.
-
-`ENCODE` (36) **reply**: `u32 canvas, i32 x, y, w, h, str ext`. Encodes
-the region in the format the file extension names (`png`, `jpg` or
-`jpeg`, `bmp`, `qoi`; any case). Reply: `i32 status` (1 encoded, 0
-failed, -1 a format the server does not write), `str bytes`.
-
-`DECODE` (37) **reply**: `str bytes`. Decodes a PNG, JPEG, BMP or QOI
-file. Reply: `i32 ok, i32 w, i32 h, u32 px[w*h]`, 0xAARRGGBB
-(premultiplied; alpha below half is transparent to Icon).
+Image files are the client's entirely: it reads and writes them, and
+encodes and decodes them (GIF, PNG, JPEG, BMP and QOI), with `READ` and
+`WRITE` for the pixels. A server only draws. Numbers 36 and 37 are
+reserved: version 2's `ENCODE` and `DECODE`, by which the server
+encoded and decoded the formats other than GIF.
 
 `ICON` (38): `u32 canvas, i32 w, i32 h, u32 px[w*h]`, 0xAARRGGBB. Makes
 the image the canvas's window's icon (on macOS, the application's Dock

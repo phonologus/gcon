@@ -817,3 +817,16 @@ icon-sdl's iconx, pixel for pixel: all seven the same.
 Testing them found that the display server, waiting for events for a
 client that was killed while it waited, never noticed and ran for
 ever; it now looks at the connection while it waits, and exits.
+
+## Image files (2026-11-28)
+
+gcon-vm reads and writes every image file itself (`imgcodec.c`), not
+only GIF: PNG, JPEG and BMP through stb_image and stb_image_write
+(`../deps/stb`, public domain, checked against `../deps/deps.lock` by
+`build.sh`, which adds `-I../deps/stb`; compiled in that one file, with
+its warnings silenced there), and QOI written from its specification.
+They were the display server's; now a server only draws, whichever it
+is (protocol version 3; `../graphics/design/design.md`, "Image files
+move into gcon-vm"). `WriteImage` reads the region's pixels with `READ`
+(`getpixels`) only for those formats; GIF keeps its own path
+(`capture`). gcon-vm is 474 KB with them, from 388 KB.

@@ -146,7 +146,8 @@ grep -q "format version $fv:" "$here/doc/internals/program.md" && grep -q "a var
 # doc/internals/protocol.md gives every request of vm/src/gfx.h's enum
 # its number.
 i=0
-for op in $(awk '/P_HELLO,/ { on = 1 } on { print } on && /};/ { exit }' "$here/vm/src/gfx.h" | grep -o 'P_[A-Z]*' | sed 's/^P_//'); do
+for op in $(awk '/P_HELLO,/ { on = 1 } on { print } on && /};/ { exit }' "$here/vm/src/gfx.h" | grep -o 'P_[A-Z0-9]*' | sed 's/^P_//'); do
+	case $op in RESERVED*) i=$((i + 1)); continue ;; esac # numbers no longer used
 	checks=$((checks + 1))
 	grep -q "\`$op\` ($i)" "$here/doc/internals/protocol.md" || problem "doc/internals/protocol.md does not give request $op as ($i)"
 	i=$((i + 1))
