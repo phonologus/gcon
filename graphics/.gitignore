@@ -1,2 +1,5 @@
+# graphics/build: the CMake build of the old SDL + Blend2D server (before
+# v0.6.0); nothing writes it now, but checkouts that built then still have it.
+build/
 bin/
 .DS_Store
