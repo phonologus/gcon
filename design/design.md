@@ -2031,6 +2031,14 @@ Next, after v0.1.0 (Sean, 2026-11-26):
   X11 (Arizona's pixels) and Cocoa (the Mac's own, antialiased), each
   built by default for its platform, the SDL server opt-in (`./build.sh
   --withSDL`; graphics/design/design.md, "Native display servers").
+  v0.6.0 (2026-11-28), a minor version (Sean): the Wayland server,
+  Linux's first full test run, the headless server and gcon's own
+  rasterizer with stb_truetype outline fonts (SDL on the system's SDL3,
+  no C++ or CMake), the `antialias` attribute, image codecs in gcon-vm,
+  `gcon build -nographics`, `Font` naming the font found (programs may
+  see the difference: a minor version by the rule as well as the size),
+  the language server's memory, and the IPL in `gcon doc` with its
+  sources.
 - Side quest, parked (Sean, 2026-11-27): a display server that draws
   on a terminal, so graphics programs approximate where there is no
   framebuffer. The protocol reference (doc/internals) is what it needs.

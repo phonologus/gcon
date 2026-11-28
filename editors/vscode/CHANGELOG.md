@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.0
+
+With Gcon v0.6.0: a native Wayland display server, Linux built and
+tested throughout, antialiasing as an attribute, outline fonts by
+stb_truetype, `Font` naming the font found, and the Icon Program
+Library's sources in the documentation. The language server keeps each
+document's program between edits and frees it: far less memory and
+time over a long session (no change to the extension itself).
+
 ## 0.5.0
 
 With Gcon v0.5.0, whose graphics have native display servers: Cocoa on
