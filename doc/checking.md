@@ -35,7 +35,7 @@ standalone formatter and language server for Arizona Icon.
 Gcon is under the MIT licence; see the root's `LICENSE`. The Icon Program
 Library in `lib/ipl` is in the public domain; `NOTICE`
 reproduces the copyright notices on the card bitmaps in
-`lib/ipl/gprocs/cardbits.icn`, as a precaution. The display server's
-vendored libraries keep their own licences (`graphics/deps`), and the
-Unicode Character Database in `deps/unicode` is under the Unicode
+`lib/ipl/gprocs/cardbits.icn`, as a precaution. The display servers'
+vendored fonts and stb_truetype (`deps/fixed`, `deps/stb`) are in the
+public domain, and the Unicode Character Database in `deps/unicode` is under the Unicode
 License v3 (`deps/unicode/LICENSE`).

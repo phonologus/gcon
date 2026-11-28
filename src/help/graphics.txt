@@ -15,10 +15,10 @@ GCONGRAPHICS chooses another when a program runs.
 	are X's core fonts, chosen as Arizona chooses them; DISPLAY
 	names the display.
 
-	SDL (only with --withSDL; needs a C++ compiler and CMake): SDL3
-	and Blend2D, portable, antialiased and HiDPI, the backend of
-	icon-sdl, a fork of Icon 9.5. Fonts through CoreText or
-	fontconfig.
+	SDL (only with --withSDL; needs the system's SDL3): portable and
+	HiDPI, drawn by Gcon's own rasterizer, as the headless server
+	is; fonts through CoreText or fontconfig, their outlines drawn
+	by stb_truetype.
 
 Whichever server draws, the preprocessor defines _SDL_GRAPHICS, not
 _X_WINDOW_SYSTEM, and &features includes "SDL graphics", so programs

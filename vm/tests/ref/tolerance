@@ -1,11 +1,13 @@
-# Accepted differences between the SDL backend and the X11 reference,
+# Accepted differences between the SDL server and the X11 reference,
 # per test: the maximum number of differing image pixels (-1: any), and
 # whether standard output may differ. Anything not listed must match
-# exactly. See icon-sdl's sdl/design.md, "Comparing with the X11
-# reference": gcon draws with the same backend.
+# exactly. The SDL server draws with gcon's own rasterizer (as the
+# headless server does: graphics/raster), by X's rules but with arcs
+# flattened to polygons, where X rasterizes them exactly (with room over
+# 2, 3 and 13 when recorded); its text is the platform's fonts.
 #
 # name      pixels  output
-clipcopy    30      same     # thin arc outline: X's arc algorithm
-lines       10      same     # corner pixels of even-width line caps
-shapes      60      same     # edge pixels of circles and slanted outlines
+clipcopy    6       same     # arc edges
+lines       6       same     # arc edges
+shapes      20      same     # the edges of a filled circle and a pie
 text        -1      differs  # different fonts: glyphs and metrics

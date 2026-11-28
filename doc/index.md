@@ -4,7 +4,8 @@ Gcon is an implementation of the [Icon](https://www.cs.arizona.edu/icon/)
 programming language, version 9.5, written in C: a translator, a virtual
 machine and a graphics display server, with modern tools in one `gcon`
 command. Icon 9.5 programs run unchanged, about twice as fast as under
-iconx, and graphics draw with SDL3 and Blend2D instead of X11.
+iconx, and graphics draw natively (Cocoa on macOS, X11 elsewhere), not
+only through X11.
 
 This is the documentation of the Gcon you have installed. `gcon doc`
 opens it in your browser; `gcon doc NAME` opens one page, and `gcon doc

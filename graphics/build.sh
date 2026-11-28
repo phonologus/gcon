@@ -1,45 +1,51 @@
 #!/bin/sh
-# Build gcon-graphics, with the vendored SDL3, Blend2D and AsmJit built
-# statically from deps/. Verifies every tarball against deps/deps.lock,
-# then runs one CMake build. Never uses the network. The binary is left
-# in bin/gcon-graphics.
+# Build gcon-graphics, the SDL server: src/main.c (the protocol reader)
+# over src/plat.c's SDL3 windows and events, with gcon's own rasterizer
+# and fonts (raster/: rcanvas.c, raster.c, rfont.c, outline fonts by
+# stb_truetype from ../deps/stb, X's misc-fixed from ../deps/fixed, both
+# checked against ../deps/deps.lock) and the platform's font lookup
+# (src/fontmac.c, CoreText; src/fontlinux.c, fontconfig). Needs a C
+# compiler and the system's SDL3 (and fontconfig, but on macOS), found
+# by pkg-config. Never uses the network. The binary is left in
+# bin/gcon-graphics. $CC and $CFLAGS are passed on.
+#
+#   build.sh          build
+#   build.sh -check   only say whether SDL3 (and fontconfig) are found
 set -eu
 cd "$(dirname "$0")"
-DEPS=deps
-LOCK=$DEPS/deps.lock
-B=build
-# The SHA-256 of file $1: GNU or BSD sha256sum, or Perl's shasum.
-sha256() {
-   { sha256sum "$1" 2>/dev/null || shasum -a 256 "$1"; } | awk '{print $1; exit}'
-}
-
-grep -v '^#' "$LOCK" | while read -r name ver sha url; do
-   [ -n "$name" ] || continue
-   f="$DEPS/$name-$ver.tar.gz"
-   [ -f "$f" ] || { echo "build.sh: missing $f" >&2; exit 1; }
-   [ "$(sha256 "$f")" = "$sha" ] \
-      || { echo "build.sh: checksum mismatch for $f" >&2; exit 1; }
-done
-
-if ! cmp -s "$LOCK" "$B/src/.lock" 2>/dev/null; then
-   rm -rf "$B"
-   mkdir -p "$B/src"
-   grep -v '^#' "$LOCK" | while read -r name ver sha url; do
-      [ -n "$name" ] || continue
-      mkdir -p "$B/src/$name"
-      tar -xzf "$DEPS/$name-$ver.tar.gz" -C "$B/src/$name" --strip-components 1
-   done
-   cp "$LOCK" "$B/src/.lock"
+CC=${CC:-cc}
+deps=../deps
+mac=
+[ "$(uname)" = Darwin ] && mac=1
+want="sdl3"
+[ -z "$mac" ] && want="sdl3 fontconfig"
+found() { command -v pkg-config >/dev/null 2>&1 && pkg-config --exists $want 2>/dev/null; }
+if [ "${1:-}" = -check ]; then
+	found
+	exit
 fi
-
-if [ ! -f "$B/cmake/CMakeCache.txt" ]; then
-   echo "build.sh: configuring (log: $B/configure.log)"
-   cmake -S . -B "$B/cmake" -DCMAKE_BUILD_TYPE=Release >"$B/configure.log" 2>&1 \
-      || { cat "$B/configure.log" >&2; exit 1; }
+found || { echo "graphics/build.sh: no $want (pkg-config): install the development files" >&2; exit 1; }
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+sha256() { { sha256sum "$1" 2>/dev/null || shasum -a 256 "$1"; } | awk '{print $1; exit}'; }
+grep -v '^#' "$deps/deps.lock" | awk 'index($1, "fixed/") == 1 || $1 == "stb/stb_truetype.h"' |
+	while read -r name ver sha url; do
+		[ "$(sha256 "$deps/$name")" = "$sha" ] ||
+			{ echo "graphics/build.sh: deps/$name does not match deps/deps.lock" >&2; exit 1; }
+	done
+sh raster/bdf2c.sh "$deps"/fixed/*.bdf >"$tmp/fixedfonts.inc"
+if [ -n "$mac" ]; then
+	fontsrc=src/fontmac.c
+	fontlibs="-framework CoreText -framework CoreFoundation -framework AppKit" # AppKit: plat.c's NSBeep
+else
+	fontsrc=src/fontlinux.c
+	fontlibs=
 fi
-echo "build.sh: building (log: $B/build.log)"
-cmake --build "$B/cmake" -j "$(sysctl -n hw.ncpu 2>/dev/null || nproc)" >"$B/build.log" 2>&1 \
-   || { tail -40 "$B/build.log" >&2; exit 1; }
 mkdir -p bin
-cp "$B/cmake/gcon-graphics" bin/gcon-graphics
-echo "build.sh: bin/gcon-graphics"
+# shellcheck disable=SC2086 # the flags are lists
+$CC -std=c11 -O2 -Wall -Wextra ${CFLAGS:-} -DRFONT_LOOKUP -Isrc -Iraster -I"$deps/stb" -I"$tmp" \
+	$(pkg-config --cflags $want) -o bin/gcon-graphics.new \
+	src/main.c src/xcolors.c src/plat.c src/sdlgfx.c raster/raster.c raster/rcanvas.c raster/rfont.c \
+	$fontsrc $(pkg-config --libs $want) $fontlibs -lpthread -lm
+mv bin/gcon-graphics.new bin/gcon-graphics
+echo "graphics/build.sh: built bin/gcon-graphics"

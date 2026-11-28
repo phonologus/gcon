@@ -1,72 +1,72 @@
 # gcon-graphics
 
-The display server for Gcon. gcon-vm, Gcon's runtime, owns Icon's
-graphics semantics: the event queue, `Event()`, the event keywords,
-window and context values (`../vm/src/graphics.c`). This server owns the
-display. It opens windows, keeps the canvases, draws, and sends events
-back over a protocol modelled on Plan 9's draw protocol, as an X server
-would. Keeping the display in its own process keeps SDL, Blend2D and
-C++ out of the runtime, and lets a display server be written in any
-language.
+Gcon's display servers. gcon-vm, Gcon's runtime, owns Icon's graphics
+semantics: the event queue, `Event()`, the event keywords, window and
+context values, image files (`../vm/src/graphics.c`). A display server
+owns the display. It opens windows, keeps the canvases, draws, and sends
+events back over a protocol modelled on Plan 9's draw protocol, as an X
+server would ([doc/internals/protocol.md](../doc/internals/protocol.md),
+version 4). gcon-vm starts one as `gcon-graphics -fd n`, the protocol on
+file descriptor n; `-version` says which it is.
 
-**Status: serving the whole protocol** in
-[doc/internals/protocol.md](../doc/internals/protocol.md) (version 2): canvases and their
-windows, graphics contexts, drawing, reading and writing pixels, X
-colour names, events, fonts and text, window management, window icons,
-and image files (PNG, JPEG, BMP and QOI encoded and decoded in memory;
-the server never opens the program's files, and GIF is gcon-vm's).
-gcon-vm starts it as `gcon-graphics -fd n`, the protocol on file
-descriptor n. `gcon-graphics -version` checks that SDL3 and Blend2D
-work.
+There are four, each `src/main.c` (the protocol reader) over the three
+layers of `src/sdlgfx.h` (canvases, windows and events, fonts):
+
+| Server | Directory | Draws with | Needs |
+|---|---|---|---|
+| Cocoa | `cocoa/` | Core Graphics and CoreText, antialiased | macOS |
+| X11 | `x11/` | X's own requests: Arizona Icon's pixels | Xlib |
+| SDL | `src/` (`plat.c`) | gcon's own rasterizer and fonts (`raster/`) | the system's SDL3, and fontconfig off macOS |
+| headless | `headless/` | gcon's own rasterizer, X's misc-fixed fonts; no windows | a C compiler |
+
+`../build.sh` builds the platform's own (Cocoa on macOS, X11 elsewhere),
+or those `--withCocoa`, `--withX11` and `--withSDL` name, and always the
+headless one, which gcon-vm runs where the default has no display. The
+design notes are in [design/design.md](design/design.md).
 
 ## Origin
 
-Forked from [icon-sdl](https://github.com/phonologus/icon-sdl), branch
-`sdl-graphics` at 3b5a888: its SDL3 + Blend2D backend (`src/sdl/`, now
-`src/`), the vendored, checksum-pinned dependencies (`deps/`), the X
-colour-name tools (`sdl/tools/`, now `tools/`) and the Linux package
-lists. The canvas layer's behaviour was checked there against Icon's X11
-backend, pixel for pixel where possible, and Gcon keeps that check
-(`../vm/tests/ref.sh`). Its design notes are in icon-sdl's
-`sdl/design.md`; this server's are in [design/design.md](design/design.md).
+The SDL server was forked from [icon-sdl](https://github.com/phonologus/icon-sdl),
+branch `sdl-graphics` at 3b5a888, whose SDL3 + Blend2D backend it was;
+since 2026-11-28 it draws with gcon's own rasterizer and stb_truetype
+instead of Blend2D, and links the system's SDL3, so no C++ and no CMake.
+Its platform layer (`src/plat.c`), the font lookups and the X colour-name
+tools are still icon-sdl's.
 
 ## Building
 
-    ./build.sh
-
-or Gcon's `../build.sh`, which installs the server as the root's
-`libexec/gcon-graphics`. You need a C and C++ compiler and CMake. On
-macOS, the Xcode Command Line Tools; on Linux, the packages in
-`linux-packages.txt` (Debian, Ubuntu) or `linux-packages-fedora.txt`
-(Fedora). SDL3, Blend2D and AsmJit are built statically from the
-tarballs in `deps/`, each checked against the SHA-256 in
-`deps/deps.lock`. Builds never use the network; only `deps/update.sh`
-downloads, to change a pinned version.
+Each server has its own `build.sh` (`./build.sh` here is the SDL one),
+all plain C with the platform's libraries; `../build.sh` runs them and
+installs the servers in the root's `libexec`. The SDL server needs
+SDL3's development files (and fontconfig's, but on macOS): on macOS,
+`brew install sdl3`; on Linux, the packages in `linux-packages.txt`
+(Debian, Ubuntu) or `linux-packages-fedora.txt` (Fedora). The vendored
+data (X's misc-fixed fonts, stb_truetype) is in `../deps`, checked
+against `../deps/deps.lock`. Builds never use the network.
 
 ## Testing
 
-The server is tested through gcon-vm, with Icon programs
-(`../vm/tests`): `graphics.sh` on a hidden canvas (no display needed),
-`ref.sh` against Arizona Icon's X11 images, and `window.sh` with real
-windows. For `window.sh`, `ICONSDL_TEST_EVENTS`, set when the first
-window opens, pushes scripted keystrokes, clicks and a close into it
-(`src/plat.c`, "scripted input").
+The servers are tested through gcon-vm, with Icon programs
+(`../vm/tests`): `graphics.sh` on a hidden canvas, `ref.sh` against
+Arizona Icon's X11 images (each server's tolerances), `window.sh` with
+real windows, scripted by `ICONSDL_TEST_EVENTS`; `x11.sh`, `cocoa.sh`
+and `headless.sh` run them for those servers.
 
 ## Layout
 
 | Path | Contents |
 |---|---|
-| `src/canvas.c` | Canvases: Icon's drawing operations with Blend2D, combined as an X server would (all 16 drawops, patterns, clipping); image files in memory |
-| `src/plat.c` | Platform: SDL3 windows, presentation, events in X conventions, cursors, icons, scripted input for tests |
-| `src/fontmac.c`, `src/fontlinux.c` | Font lookup by CoreText or fontconfig |
+| `src/main.c` | The protocol reader, common to all |
+| `src/sdlgfx.h` | The layers' interface |
+| `src/plat.c`, `src/sdlgfx.c` | The SDL server's windows, events and version |
+| `src/fontmac.c`, `src/fontlinux.c` | Font lookup by CoreText or fontconfig (the SDL server) |
 | `src/xcolors.c` | X's colour names, generated by `tools/mkxcolors.sh` |
-| `src/sdlgfx.h` | The C interface to all of the above |
-| `src/main.c` | The server: reads protocol requests, calls the layers above |
-| `deps/` | Vendored sources and `deps.lock` |
-| `../doc/internals/protocol.md` | The protocol (in the documentation: `gcon doc protocol`) |
+| `raster/` | gcon's rasterizer (`raster.c`), canvases on it (`rcanvas.c`), fonts (`rfont.c`: misc-fixed, and stb_truetype's outlines) |
+| `cocoa/`, `x11/`, `headless/` | The other servers |
 | `design/design.md` | Design notes |
 
 ## Licence
 
-MIT; see `LICENSE.md`. The vendored libraries keep their zlib licences,
-and the X colour names are X.Org's (`tools/rgb-COPYING`).
+MIT; see `LICENSE.md`. The X colour names are X.Org's
+(`tools/rgb-COPYING`); the vendored fonts and stb in `../deps` are in the
+public domain (`../NOTICE`).

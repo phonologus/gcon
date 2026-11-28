@@ -10,8 +10,8 @@ icont/iconx, it:
   own test suite, and the Icon Program Library runs, graphics included.
 - **Runs about twice as fast** as iconx, and co-expressions run hundreds
   of times faster ([Performance](doc/performance.md)).
-- **Uses a modern graphics backend:** SDL3 and Blend2D, in place of X11,
-  with antialiasing, HiDPI and native windows.
+- **Draws natively:** Core Graphics on macOS, X11 elsewhere, a portable SDL3
+  server, and a headless one for pictures without a screen.
 - **Keeps Icon 9.5's strings and csets,** which are bytes, and adds
   usets for UTF-8 text, kept apart from them
   ([Strings and Unicode](doc/unicode.md)).
@@ -47,9 +47,9 @@ gcon run hello.icn
 - On **macOS**, install the Xcode Command Line Tools.
 - `./build.sh --withX11` builds the X11 server instead (on macOS under
   XQuartz), for Arizona Icon's exact pictures; `--withSDL` the portable
-  SDL3 + Blend2D server, which also needs a C++ compiler and CMake (the
-  packages are listed in `graphics/linux-packages.txt` for Debian and
-  Ubuntu, `graphics/linux-packages-fedora.txt` for Fedora).
+  SDL3 server, which needs SDL3's development files (`brew install sdl3`;
+  on Linux, the packages are listed in `graphics/linux-packages.txt` for
+  Debian and Ubuntu, `graphics/linux-packages-fedora.txt` for Fedora).
   [Graphics](doc/graphics.md) says more.
 
 ```sh
@@ -86,7 +86,7 @@ Working on Gcon itself: [design/development.md](design/development.md)
 Gcon is under the MIT licence; see [LICENSE](LICENSE). The Icon Program
 Library in `lib/ipl` is in the public domain; [NOTICE](NOTICE)
 reproduces the copyright notices on the card bitmaps in
-`lib/ipl/gprocs/cardbits.icn`, as a precaution. The display server's
-vendored libraries keep their own licences (`graphics/deps`), and the
-Unicode Character Database in `deps/unicode` is under the Unicode
+`lib/ipl/gprocs/cardbits.icn`, as a precaution. The display servers'
+vendored fonts and stb_truetype (`deps/fixed`, `deps/stb`) are in the
+public domain, and the Unicode Character Database in `deps/unicode` is under the Unicode
 License v3 (`deps/unicode/LICENSE`).

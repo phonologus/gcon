@@ -30,8 +30,9 @@
 #                antialiased, at the display's scale
 #   --withX11    Xlib (graphics/x11/): X's own drawing, Arizona Icon's pixels
 #                (on macOS, under XQuartz)
-#   --withSDL    SDL3 + Blend2D (graphics/; needs C++ and CMake): portable,
-#                heavyweight; built only when named
+#   --withSDL    the system's SDL3, with gcon's own rasterizer and fonts
+#                (graphics/; needs SDL3, and fontconfig off macOS): portable;
+#                built only when named
 #
 # Builds never use the network. $CC and $CFLAGS are passed on.
 set -eu
@@ -83,17 +84,15 @@ put_server() {
 for s in $servers; do
 	case $s in
 	sdl)
-		if command -v cmake >/dev/null 2>&1 && command -v "${CXX:-c++}" >/dev/null 2>&1; then
-			mkdir -p graphics/build
-			graphics/build.sh >graphics/build/build-all.log 2>&1 || {
-				echo "build.sh: the SDL display server did not build: see graphics/build/build-all.log" >&2
-				exit 1
-			}
-			put_server sdl graphics/bin/gcon-graphics
-		else
-			echo "build.sh: --withSDL: no C++ compiler or CMake" >&2
+		if ! sh graphics/build.sh -check; then
+			echo "build.sh: --withSDL: no SDL3 (or, but on macOS, fontconfig) found by pkg-config" >&2
 			exit 1
 		fi
+		sh graphics/build.sh >/dev/null || {
+			echo "build.sh: --withSDL: the SDL display server did not build (graphics/build.sh)" >&2
+			exit 1
+		}
+		put_server sdl graphics/bin/gcon-graphics
 		;;
 	x11)
 		sh graphics/x11/build.sh >/dev/null || {

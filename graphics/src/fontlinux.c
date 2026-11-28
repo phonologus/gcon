@@ -6,7 +6,7 @@
  * other name must be one of the matched font's family names or its full
  * name (ignoring case): fontconfig always returns something, where X
  * fails a request for a font it doesn't have. Only outline fonts (TrueType
- * and OpenType) are used; Blend2D cannot draw bitmap fonts.
+ * and OpenType) are used: stb_truetype draws outlines only.
  */
 #include <string.h>
 #include <fontconfig/fontconfig.h>

@@ -2,8 +2,6 @@
 
 Everything in this repository is under the MIT licence below, except:
 
-- the vendored libraries in `deps/*.tar.gz` (SDL3, Blend2D, AsmJit), under
-  their own zlib licences, included in each tarball;
 - X.Org's colour-name database (`tools/rgb.txt`, and the tables generated
   from it in `src/xcolors.c`), under the licence in `tools/rgb-COPYING`.
 

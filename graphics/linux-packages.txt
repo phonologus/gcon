@@ -1,28 +1,14 @@
-# Packages needed to build gcon-graphics on Debian or Ubuntu:
+# Packages needed to build the SDL display server (./build.sh
+# --withSDL) on Debian or Ubuntu, whose SDL3 comes with its X11 and
+# Wayland video drivers:
 #
 #   sudo apt-get install $(grep -v '^#' linux-packages.txt)
 #
-# The compilers and build tools:
 build-essential
-cmake
+pkg-config
+libsdl3-dev
 # Fonts (fontconfig finds them; the fonts themselves come with any desktop):
 libfontconfig-dev
-# SDL3's video drivers: X11 ...
-libx11-dev
-libxext-dev
-libxrandr-dev
-libxcursor-dev
-libxi-dev
-libxss-dev
-libxfixes-dev
-libxtst-dev
-libxkbcommon-dev
-# ... and Wayland:
-libwayland-dev
-wayland-protocols
-libdecor-0-dev
 # Window title bars under Wayland desktops that leave them to applications
 # (GNOME): without a libdecor plugin, windows have none.
 libdecor-0-plugin-1-gtk
-libegl-dev
-libgl-dev

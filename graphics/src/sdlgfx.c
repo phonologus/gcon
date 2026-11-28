@@ -1,32 +1,22 @@
 /*
- * sdlgfx.c -- SDL3 + Blend2D side of Icon's SDL graphics backend.
+ * sdlgfx.c -- the SDL server's version (the system's SDL3).
  * (icon-sdl fork; MIT licence, see LICENSE.md.)
  */
 #include <stdio.h>
 #include <SDL3/SDL.h>
-#include <blend2d/blend2d.h>
 #include "sdlgfx.h"
 
 int sdlgfx_probe(void)
 {
-   BLImageCore img;
-   int ok, v = SDL_GetVersion();
-
-   bl_image_init(&img);
-   ok = bl_image_create(&img, 1, 1, BL_FORMAT_PRGB32) == BL_SUCCESS;
-   bl_image_destroy(&img);
-   if (!ok)
-      return 0;
+   int v = SDL_GetVersion();
    return SDL_VERSIONNUM_MAJOR(v) * 10000 + SDL_VERSIONNUM_MINOR(v) * 100
       + SDL_VERSIONNUM_MICRO(v);
 }
 
 const char *gfx_describe(void)
 {
-   static char s[32];
+   static char s[48];
    int v = sdlgfx_probe();
-   if (v == 0)
-      return NULL;
-   snprintf(s, sizeof s, "SDL %d.%d.%d", v / 10000, v / 100 % 100, v % 100);
+   snprintf(s, sizeof s, "SDL %d.%d.%d (gcon's rasterizer)", v / 10000, v / 100 % 100, v % 100);
    return s;
 }

@@ -9,8 +9,8 @@ Gcon is three programs and a library, in a root directory:
 | `libexec/gcon-graphics` | the display server: windows and drawing | `graphics/src/` |
 | `lib/ipl`, `lib/gcon` | the Icon Program Library, and Gcon's own | |
 
-All are C (the display server's libraries, SDL3 and Blend2D, are C and
-C++), built by one `build.sh`, which needs no network.
+All are C (the display servers use the platform's own libraries: AppKit,
+Xlib, SDL3), built by one `build.sh`, which needs no network.
 
 ## From source to running program
 
@@ -39,8 +39,8 @@ C++), built by one `build.sh`, which needs no network.
 The runtime is separate from the command so that a built program needs
 only gcon-vm, which starts in a few milliseconds, and so that each can
 change without the other; the program format's version is checked on
-every load. The display server is separate so that gcon-vm needs no C++
-and no windowing libraries, a program that draws nothing never loads
+every load. The display server is separate so that gcon-vm needs no
+windowing libraries, a program that draws nothing never loads
 them, and another server (on another platform, or for a terminal) can
 take its place by speaking the protocol. The reasons are recorded in
 Gcon's design notes (`design/design.md`).

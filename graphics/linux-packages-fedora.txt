@@ -1,25 +1,13 @@
-# Packages needed to build gcon-graphics on Fedora:
+# Packages needed to build the SDL display server (./build.sh
+# --withSDL) on Fedora:
 #
 #   sudo dnf install $(grep -v '^#' linux-packages-fedora.txt)
 #
 # (Fedora's libdecor package includes the plugins that draw window title
-# bars under Wayland.) Tested on Fedora 45.
+# bars under Wayland.)
 gcc
-gcc-c++
 make
-cmake
+pkgconf
+SDL3-devel
 fontconfig-devel
-libX11-devel
-libXext-devel
-libXrandr-devel
-libXcursor-devel
-libXi-devel
-libXScrnSaver-devel
-libXfixes-devel
-libXtst-devel
-libxkbcommon-devel
-wayland-devel
-wayland-protocols-devel
-libdecor-devel
-mesa-libEGL-devel
-mesa-libGL-devel
+libdecor

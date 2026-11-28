@@ -1,11 +1,14 @@
 #!/bin/sh
 # Graphics programs under gcon and under icon-sdl's iconx, whose SDL3 +
-# Blend2D backend gcon's display server is: each runs for TIMEOUT
-# seconds (default 20) with no input, and the two runs' output, exit
-# status and every canvas must be the same, pixel for pixel. The
-# canvases come from a test hook in both servers: with
-# ICONSDL_TEST_DUMP=dir, each canvas is written as dir/NNN.ppm when it
-# is freed and at exit (graphics/src/canvas.c).
+# Blend2D backend gcon's SDL server was: each runs for TIMEOUT seconds
+# (default 20) with no input, and the two runs' output, exit status and
+# canvases (how many, and their sizes) must be the same. Since gcon's
+# servers draw with gcon's own rasterizer and fonts, not Blend2D
+# (2026-11-28), the canvases' pixels are compared and the differences
+# reported, but not required to be none: ref.sh compares drawing with
+# Arizona Icon's own. The canvases come from a test hook in both
+# servers: with ICONSDL_TEST_DUMP=dir, each canvas is written as
+# dir/NNN.ppm when it is freed and at exit (graphics/raster/rcanvas.c).
 #
 #   tests/iconx.sh [prog.icn ...]
 #
@@ -93,9 +96,17 @@ for f in "$@"; do
 	else
 		for c in $gl; do
 			p=$("$tmp/ppmcmp" "$w/i/dump/$c" "$w/g/dump/$c")
-			case "$p" in "0 of"*) ;; *) r="$r; $c: $p" ;; esac
+			case "$p" in
+			"0 of"*) ;;
+			size*) r="$r; $c: $p" ;;
+			*) echo "  $n $c: $p (drawn by gcon's rasterizer, not Blend2D)" ;;
+			esac
 		done
 	fi
+	# where gcon follows Arizona and icon-sdl does not: colrpick's
+	# dialog passes display=, which icon-sdl's iconx refuses (gcon-vm,
+	# 780e765), so iconx has one canvas fewer and an error
+	case "$n" in colrpick) [ -n "$r" ] && { echo "known $n: ${r#; } (gcon as Arizona: display=)"; r=; } ;; esac
 	if [ -z "$r" ]; then
 		same=$((same + 1))
 	else

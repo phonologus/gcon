@@ -26,6 +26,7 @@ typedef struct {
    int pw, ph, s;		/* device size, scale */
    uint32_t *px;		/* pw * ph, 0xFFRRGGBB */
    uint8_t *mk;			/* the coverage mask, pw * ph */
+   int dirty, d[4];		/* changed since shown: device x0, y0, x1, y1 */
 } Canvas;
 
 #define OPAQUE 0xFF000000u
@@ -37,6 +38,22 @@ static void fill_device(Canvas *c, int x0, int y0, int x1, int y1, uint32_t v)
       for (int x = x0; x < x1; x++)
          p[x] = v;
    }
+}
+
+/* the device rectangle changed, to be shown (cv_take_dirty) */
+static void touch(Canvas *c, int x0, int y0, int x1, int y1)
+{
+   if (x0 >= x1 || y0 >= y1)
+      return;
+   if (!c->dirty) {
+      c->d[0] = x0; c->d[1] = y0; c->d[2] = x1; c->d[3] = y1;
+      c->dirty = 1;
+      return;
+   }
+   if (x0 < c->d[0]) c->d[0] = x0;
+   if (y0 < c->d[1]) c->d[1] = y0;
+   if (x1 > c->d[2]) c->d[2] = x1;
+   if (y1 > c->d[3]) c->d[3] = y1;
 }
 
 /* ---------- the test dump hook, as ../src/canvas.c's ---------- */
@@ -145,6 +162,7 @@ void *cv_new(int w, int h, int scale, unsigned int bg)
       return NULL;
    }
    fill_device(c, 0, 0, c->pw, c->ph, OPAQUE | bg);
+   touch(c, 0, 0, c->pw, c->ph);
    dump_register(c);
    return c;
 }
@@ -186,11 +204,37 @@ void cv_resize(void *cv, int w, int h, unsigned int bg)
    c->px = px;
    c->mk = mk;
    c->w = w; c->h = h; c->pw = pw; c->ph = ph;
+   touch(c, 0, 0, pw, ph);
 }
 
+/* mark a logical area as changed, to be shown again */
 void cv_dirty(void *cv, int x, int y, int w, int h)
 {
-   (void)cv; (void)x; (void)y; (void)w; (void)h;
+   Canvas *c = cv;
+   int x0 = x < 0 ? 0 : x, y0 = y < 0 ? 0 : y;
+   int x1 = x + w > c->w ? c->w : x + w, y1 = y + h > c->h ? c->h : y + h;
+   touch(c, x0 * c->s, y0 * c->s, x1 * c->s, y1 * c->s);
+}
+
+/* for a platform layer that shows the canvas: its device pixels, and
+ * what has changed since the last call (device x0, y0, x1, y1) */
+void cv_pixels(void *cv, unsigned char **p, long *stride, int *pw, int *ph)
+{
+   Canvas *c = cv;
+   *p = (unsigned char *)c->px;
+   *stride = (long)c->pw * 4;
+   *pw = c->pw;
+   *ph = c->ph;
+}
+
+int cv_take_dirty(void *cv, int r[4])
+{
+   Canvas *c = cv;
+   if (!c->dirty)
+      return 0;
+   memcpy(r, c->d, sizeof c->d);
+   c->dirty = 0;
+   return 1;
 }
 
 /* ---------- combining pixels: the X GC function ---------- */
@@ -284,6 +328,7 @@ static inline uint32_t mix(uint32_t s, uint32_t d, uint32_t a)
  * else a pixel at least half covered is combined by the drawop. */
 static void apply(Canvas *c, const sdlgc *gc, const int r[4], int which)
 {
+   touch(c, r[0], r[1], r[2], r[3]);
    uint32_t fg = gc->fg & 0xFFFFFF, bg = gc->bg & 0xFFFFFF;
    int s = c->s, op = gc->reverse ? 6 : gc->drawop, blend = smooth(gc);
    int stip = gc->fillstyle != 0 && gc->pat && gc->patw > 0 && gc->path > 0;
@@ -542,6 +587,7 @@ void cv_erase(void *cv, const sdlgc *gc, int x, int y, int w, int h)
    if (w <= 0 || h <= 0 || !region(c, gc, x, y, x + w, y + h, 0, r))
       return;
    fill_device(c, r[0], r[1], r[2], r[3], OPAQUE | (gc->bg & 0xFFFFFF));
+   touch(c, r[0], r[1], r[2], r[3]);
 }
 
 /* CopyArea, as canvas.c's */
@@ -576,6 +622,7 @@ void cv_copy(void *srcp, void *dstp, const sdlgc *gc, int x, int y, int w, int h
          p[dx] = op == 3 ? v : gx(op, v & 0xFFFFFF, p[dx]);
       }
    }
+   touch(dst, r[0], r[1], r[2], r[3]);
    free(tmp);
 }
 
@@ -613,6 +660,7 @@ void cv_write(void *cv, const sdlgc *gc, int x, int y, int w, int h, const unsig
          p[dx] = OPAQUE | (px[j * w + i] & 0xFFFFFF);
       }
    }
+   touch(c, r[0], r[1], r[2], r[3]);
 }
 
 /* ---------- text: the server's fonts (rfont.c) ---------- */

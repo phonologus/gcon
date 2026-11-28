@@ -10,7 +10,7 @@ otherwise none. `./build.sh --withCocoa`, `--withX11` or `--withSDL`
 names the servers to build instead, the first being the one gcon-vm
 runs: `--withX11` on macOS (under XQuartz) for Arizona Icon's exact
 pictures, say, or `--withSDL` for [the SDL server](#the-sdl-display-server),
-the portable one, which needs C++ and CMake and is built only when
+the portable one, which needs the system's SDL3 and is built only when
 named. Each is also installed as `libexec/gcon-graphics-NAME` (`cocoa`,
 `x11`, `sdl`), and `GCONGRAPHICS` chooses another at run time: anything
 that speaks the protocol.
@@ -89,24 +89,24 @@ through XWayland, and macOS through XQuartz.
 
 ## The SDL display server
 
-`gcon-graphics-sdl`, built by `./build.sh --withSDL`, draws with SDL3
-and Blend2D, vendored in the checkout (so it needs a C++ compiler and
-CMake to build, and is heavyweight). It is not an X11 client. The
-backend was first written for Arizona Icon itself, in
-[icon-sdl](https://github.com/phonologus/icon-sdl), a fork of Icon 9.5
-whose iconx draws with it; Gcon's SDL server is that backend in a
-process of its own.
+`gcon-graphics-sdl`, built by `./build.sh --withSDL`, opens its windows
+with the system's SDL3, and draws with Gcon's own rasterizer and fonts,
+as the headless server does: it needs SDL3's development files (and
+fontconfig's off macOS), and nothing else. It is not an X11 client. It
+began as the backend of [icon-sdl](https://github.com/phonologus/icon-sdl),
+a fork of Icon 9.5 whose iconx drew with SDL3 and Blend2D.
 
-- **Drawing is antialiased and HiDPI.** One Icon pixel is one point,
-  drawn at the display's scale; `ICONSDL_SCALE` overrides it. Axis-aligned
-  lines, fills, patterns, images and all 16 drawops match Arizona Icon's
-  X11 output exactly; the edges of circles, slanted lines and thin arcs
-  differ by a few pixels.
+- **HiDPI:** one Icon pixel is one point, drawn at the display's scale;
+  `ICONSDL_SCALE` overrides it. Lines, fills, patterns, images and all
+  16 drawops follow X's rules: Arizona Icon's X11 pictures but for a few
+  pixels at the edges of circles and arcs.
 - **Fonts are the system's own,** found through CoreText on macOS and
-  fontconfig on Linux. The portable families map to them: on macOS,
+  fontconfig on Linux, their TrueType and CFF outlines drawn by
+  stb_truetype, kerned. The portable families map to them: on macOS,
   `mono` is Menlo, `sans` Helvetica, `serif` Times and `typewriter`
   Courier. Metrics are close to X's but not identical. A font name that
-  isn't found fails, as under X.
+  isn't found fails, as under X; X's misc-fixed fonts (`6x13`, `7x13B`)
+  are there by their own names.
 - **Keys:** on macOS, Option is `&meta`; `ICONSDL_META=command` makes it
   the Command key. Keypad keys report the characters they type, not
   keypad keysyms.

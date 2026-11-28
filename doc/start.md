@@ -19,9 +19,9 @@ gcon run hello.icn
 - On **macOS**, install the Xcode Command Line Tools.
 - `./build.sh --withX11` builds the X11 server instead (on macOS under
   XQuartz), for Arizona Icon's exact pictures; `--withSDL` the portable
-  SDL3 + Blend2D server, which also needs a C++ compiler and CMake (the
-  packages are listed in `graphics/linux-packages.txt` for Debian and
-  Ubuntu, `graphics/linux-packages-fedora.txt` for Fedora).
+  SDL3 server, which needs SDL3's development files (`brew install sdl3`;
+  on Linux, the packages are listed in `graphics/linux-packages.txt` for
+  Debian and Ubuntu, `graphics/linux-packages-fedora.txt` for Fedora).
   [Graphics](graphics.md) says more.
 
 Builds never use the network: the SDL server's libraries and the

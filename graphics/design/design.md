@@ -315,3 +315,23 @@ of stb) the misc-fixed policy holds. A server built with the lookup on
 macOS gives the SDL server's `graphics.std` exactly (the same fonts,
 the same metrics, through stb instead of Blend2D), and renders a CFF
 font (Source Sans 3) cleanly, kerned.
+
+### The SDL server without Blend2D, on the system's SDL3 (Sean, 2026-11-28)
+
+The SDL server now draws with `raster/` (`rcanvas.c`, with dirty
+tracking and `cv_pixels` for `plat.c`, which shows the canvas as it
+did; `rfont.c` with the lookup, `fontmac.c` or `fontlinux.c`), and
+links the system's SDL3 (pkg-config's `sdl3`; fontconfig off macOS;
+AppKit on macOS for `plat.c`'s `NSBeep`, which the static SDL used to
+bring). Blend2D, AsmJit, the vendored SDL3 tarball, `CMakeLists.txt`,
+`graphics/deps` and `canvas.c` are gone: no C++, no CMake. 4.2 MB to
+281 KB. `--withSDL` needs SDL3's development files (`brew install
+sdl3`; `linux-packages.txt`, `linux-packages-fedora.txt`).
+
+Its pictures are the headless server's (aliased until the antialias
+attribute): `ref.sh` gives 2, 3 and 13 pixels where Blend2D needed 30,
+10 and 60 (`ref/tolerance` tightened to 6, 6, 20), and `graphics.std`
+holds, the fonts and metrics the same. `iconx.sh` no longer requires
+icon-sdl's pixels (Blend2D's): output, exit status and canvases must
+match, and pixel differences are reported; and it knows colrpick,
+where gcon follows Arizona's `display=` and icon-sdl does not.

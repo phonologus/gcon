@@ -1,10 +1,13 @@
 /*
- * sdlgfx.h -- interface between Icon's runtime (rsdlwin.ri, processed by
- * rtt) and the SDL3 + Blend2D code in src/sdl (plain C).
- * (icon-sdl fork; MIT licence, see LICENSE.md.)
+ * sdlgfx.h -- the interface between a display server's protocol reader
+ * (main.c, common to all) and its three layers: canvases (cv_*), windows
+ * and events (pl_*), fonts (ft_*). The SDL server's are plat.c and
+ * ../raster (rcanvas.c, rfont.c); the others' are in ../cocoa, ../x11
+ * and ../headless. (Forked from icon-sdl's interface between its
+ * runtime and its SDL3 + Blend2D backend; MIT licence, see LICENSE.md.)
  *
- * Only plain C types may appear here: rtt never sees SDL or Blend2D
- * headers. Canvases, fonts and windows are opaque pointers.
+ * Only plain C types appear here. Canvases, fonts and windows are
+ * opaque pointers.
  *
  * Coordinates are Icon's: integer logical pixels, origin top left. A
  * canvas stores its pixels at an integer scale (1 for hidden canvases,
@@ -15,8 +18,8 @@
 
 #include <stddef.h>
 
-/* Check that SDL3 and Blend2D are linked and working; returns the SDL
- * version as major*10000 + minor*100 + patch, or 0 on failure. */
+/* The SDL server: SDL's version (major*10000 + minor*100 + patch), or 0
+ * if SDL is not working. */
 int sdlgfx_probe(void);
 /* A description of the display system for -version ("SDL 3.4.20"), or
  * NULL if it is not working. */
