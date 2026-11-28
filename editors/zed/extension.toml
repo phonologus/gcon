@@ -1,6 +1,6 @@
 id = "gcon"
 name = "Icon (Gcon)"
-version = "0.5.0"
+version = "0.6.0"
 schema_version = 1
 authors = ["Sean Jensen"]
 description = "Icon as Gcon reads it: highlighting (with Gcon's \\u escapes, cset ranges and built-ins), outline, and Gcon's language server (diagnostics and vet warnings, hover, go to definition, references, completion, signature help, rename, formatting)."
