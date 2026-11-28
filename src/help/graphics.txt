@@ -32,8 +32,10 @@ never shown.
 On macOS, ICONSDL_META=command makes the Command key &meta, instead
 of Option, and ICONSDL_SCALE overrides the display's scale.
 
-Without a server, every other part of Gcon works; a program that
-opens a window stops with a message that the display server cannot be
-run.
+A fourth server, the headless one, is always built: it has no display,
+and gcon-vm runs it where its default server has none (no X display,
+say) or there is no default server, so hidden canvases work anywhere.
+A window cannot be opened there: open fails, as Icon's does without a
+display. A server GCONGRAPHICS names is used as it is.
 
 See also: gcon help environment, gcon doc graphics.

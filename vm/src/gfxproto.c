@@ -5,9 +5,10 @@
  *
  * The server is started on the first graphics request, as gcon's design
  * has it: a child on a socketpair, found by $GCONGRAPHICS, else as
- * gcon-graphics beside this executable, else on $PATH. Requests that
- * need no reply are buffered and sent when a reply is needed, when the
- * program waits, flushes or exits.
+ * gcon-graphics beside this executable (gcon-graphics-headless where that
+ * has no display, or there is none), else on $PATH (gp_connect).
+ * Requests that need no reply are buffered and sent when a reply is
+ * needed, when the program waits, flushes or exits.
  */
 #include "gfx.h"
 
@@ -24,7 +25,7 @@
 #include <mach-o/dyld.h>
 #endif
 
-enum { Version = 3 };
+enum { Version = 4 };
 
 static int sock = -1;
 static pid_t server;
@@ -54,21 +55,17 @@ bool selfexe(char *self) {
 #endif
 }
 
-/* serverpath finds the display server's executable. */
-static char *serverpath(void) {
-	const char *e = getenv("GCONGRAPHICS");
-	if (e && *e)
-		return strdup(e);
+/* beside returns the executable named name beside this one, or NULL
+ * if there is none. */
+static char *beside(const char *name) {
 	char self[PATH_MAX];
-	if (selfexe(self)) {
-		char *slash = strrchr(self, '/');
-		if (slash) {
-			strcpy(slash + 1, "gcon-graphics");
-			if (access(self, X_OK) == 0)
-				return strdup(self);
-		}
-	}
-	return strdup("gcon-graphics");
+	if (!selfexe(self))
+		return NULL;
+	char *slash = strrchr(self, '/');
+	if (!slash || (size_t)(slash + 1 - self) + strlen(name) >= sizeof self)
+		return NULL;
+	strcpy(slash + 1, name);
+	return access(self, X_OK) == 0 ? strdup(self) : NULL;
 }
 
 static void writeall(const uint8_t *p, size_t n) {
@@ -203,9 +200,9 @@ int64_t gr_i64(void) {
 
 /* ---- Connecting ---- */
 
-bool gp_connect(void) {
-	if (sock >= 0)
-		return true;
+/* start runs the display server at path on a socketpair and greets it;
+ * *display tells whether it has a display (can show windows). */
+static bool start(const char *path, bool *display) {
 	int sv[2];
 	if (socketpair(AF_UNIX, SOCK_STREAM, 0, sv) < 0)
 		return false;
@@ -214,29 +211,30 @@ bool gp_connect(void) {
 	setsockopt(sv[0], SOL_SOCKET, SO_NOSIGPIPE, &one, sizeof one);
 #endif
 	signal(SIGPIPE, SIG_IGN); /* a lost server is reported, not a signal */
-	char *path = serverpath();
 	files_flush_all();
 	server = fork();
 	if (server < 0) {
 		close(sv[0]);
 		close(sv[1]);
-		free(path);
 		return false;
 	}
 	if (server == 0) {
 		close(sv[0]);
 		char fd[16];
 		snprintf(fd, sizeof fd, "%d", sv[1]);
-		char *argv[] = {path, "-fd", fd, NULL};
+		char *argv[] = {(char *)path, "-fd", fd, NULL};
 		execvp(path, argv);
 		fprintf(stderr, "gcon-vm: cannot run the display server %s: %s\n", path, strerror(errno));
 		_exit(127);
 	}
-	free(path);
 	close(sv[1]);
 	fcntl(sv[0], F_SETFD, FD_CLOEXEC);
 	sock = sv[0];
-	atexit(gp_close); /* the server closes the windows and exits */
+	static bool registered;
+	if (!registered) {
+		atexit(gp_close); /* the server closes the windows and exits */
+		registered = true;
+	}
 	gp_begin(P_HELLO);
 	gp_u32(Version);
 	gp_end();
@@ -244,7 +242,36 @@ bool gp_connect(void) {
 	gr_u32();
 	if (!gr_u32())
 		lost("the display server speaks another version of the protocol");
+	*display = gr_u32() != 0;
 	return true;
+}
+
+/* gp_connect starts the display server, if it is not running: the one
+ * $GCONGRAPHICS names, as it is; else gcon-graphics beside this
+ * executable, if it has a display, else gcon-graphics-headless beside
+ * it, whose hidden canvases need none (a window cannot be opened there:
+ * open fails, as Icon's does without a display); else gcon-graphics on
+ * $PATH. */
+bool gp_connect(void) {
+	if (sock >= 0)
+		return true;
+	bool display;
+	const char *e = getenv("GCONGRAPHICS");
+	if (e && *e)
+		return start(e, &display);
+	char *def = beside("gcon-graphics"), *headless = beside("gcon-graphics-headless");
+	bool ok;
+	if (def) {
+		ok = start(def, &display);
+		if (ok && !display && headless) {
+			gp_close(); /* no display: the headless server instead */
+			ok = start(headless, &display);
+		}
+	} else
+		ok = start(headless ? headless : "gcon-graphics", &display);
+	free(def);
+	free(headless);
+	return ok;
 }
 
 /* gp_close ends the connection (at exit): the server closes the

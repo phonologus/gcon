@@ -33,8 +33,8 @@ héllo, wörld: 6 bytes
 You need a C compiler. For windows, `./build.sh` builds the platform's
 own display server: on macOS the Cocoa one, which needs nothing more;
 elsewhere the X11 one, which needs Xlib (`libx11-dev` on Debian and
-Ubuntu, `libX11-devel` on Fedora). Without either, everything except
-windows works.
+Ubuntu, `libX11-devel` on Fedora). Without either, everything but
+windows works, drawing on hidden canvases included.
 
 ```sh
 git clone https://github.com/phonologus/gcon

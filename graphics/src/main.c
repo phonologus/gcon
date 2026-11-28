@@ -17,7 +17,7 @@
 #include <unistd.h>
 #include "sdlgfx.h"
 
-enum { VERSION = 3 };
+enum { VERSION = 4 };
 
 enum {
    HELLO, CANVAS, FREE, RESIZE, GC, POINTS, LINES, FILLPOLY, SEGMENTS,
@@ -725,6 +725,7 @@ static int serve(int argc, char **argv)
          begin(HELLO);
          putu32(VERSION);
          putu32(v == VERSION);
+         putu32(pl_display() != 0);
          end();
          break;
       }

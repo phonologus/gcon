@@ -989,3 +989,16 @@ int pl_global_mouse(int *x, int *y)
    *x = q.a; *y = q.b;
    return 1;
 }
+
+/* Whether there is a display, without starting SDL (which would make the
+ * process an application with a Dock icon on macOS, for hidden canvases
+ * too): macOS always has one; elsewhere SDL needs X or Wayland. */
+int pl_display(void)
+{
+#ifdef __APPLE__
+   return 1;
+#else
+   const char *x = getenv("DISPLAY"), *w = getenv("WAYLAND_DISPLAY");
+   return (x && *x) || (w && *w);
+#endif
+}

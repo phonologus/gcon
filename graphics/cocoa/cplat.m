@@ -812,3 +812,11 @@ const char *gfx_describe(void)
    snprintf(s, sizeof s, "Cocoa (macOS %ld.%ld)", (long)v.majorVersion, (long)v.minorVersion);
    return s;
 }
+
+/* whether there is a display: a screen (none in a session without one) */
+int pl_display(void)
+{
+   __block int n = 0;
+   onmain(^{ n = (int)[NSScreen screens].count; });
+   return n > 0;
+}

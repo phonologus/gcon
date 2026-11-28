@@ -3,8 +3,11 @@
 #
 #   libexec/gcon-vm        the runtime (vm/; needs a C compiler)
 #   libexec/gcon-graphics  the display server gcon-vm runs: the first named
-#                          below, else the platform's own (none: no graphics)
+#                          below, else the platform's own (if it has one)
 #   libexec/gcon-graphics-NAME  each display server built (cocoa, x11, sdl)
+#   libexec/gcon-graphics-headless  the server with no display (graphics/headless/;
+#                          always built): gcon-vm runs it where the default
+#                          server has no display, or there is none
 #   bin/gcon               the command (src/)
 #   bin/colrbook ... bin/vib  the programs Arizona builds into its bin
 #                          (colrbook colrpick fontpick palette wevents
@@ -18,8 +21,8 @@
 #
 # The display servers (graphics/design/design.md, "Native display
 # servers"). With no flags, the platform's own: Cocoa on macOS, else X11
-# where Xlib is found, else none, and gcon is built without graphics
-# (programs that open a window stop with a message). The flags name the
+# where Xlib is found, else none: then programs cannot open windows
+# (hidden canvases still work, by the headless server). The flags name the
 # servers to build instead, the first being the one gcon-vm runs
 # ($GCONGRAPHICS names another at run time):
 #
@@ -108,10 +111,21 @@ for s in $servers; do
 		;;
 	esac
 done
+# The headless server, always (a C compiler is all it needs): gcon-vm
+# runs it where the default server has no display, or there is none, so
+# hidden canvases work anywhere (windows cannot be opened there).
+sh graphics/headless/build.sh >/dev/null || {
+	echo "build.sh: the headless display server did not build (graphics/headless/build.sh)" >&2
+	exit 1
+}
+cp graphics/bin/gcon-graphics-headless libexec/gcon-graphics-headless.new
+mv libexec/gcon-graphics-headless.new libexec/gcon-graphics-headless
+echo "built libexec/gcon-graphics-headless"
 if [ -z "$servers" ]; then
 	rm -f libexec/gcon-graphics	# not an earlier build's
-	echo "build.sh: no display server of this platform's (Cocoa is macOS's; X11 needs Xlib):"
-	echo "build.sh: gcon is built without graphics (./build.sh --withSDL builds the portable server)"
+	echo "build.sh: no display server of this platform's (Cocoa is macOS's; X11 needs Xlib): programs"
+	echo "build.sh: cannot open windows, and draw on hidden canvases with the headless server"
+	echo "build.sh: (./build.sh --withSDL builds the portable server)"
 fi
 
 # The version, by Go's rules for its own: a commit tagged vX.Y.Z is

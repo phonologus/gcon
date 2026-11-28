@@ -2,7 +2,7 @@
 
 The display server is a separate process (`libexec/gcon-graphics`) that
 the runtime starts when a program first opens a window, and talks to
-through [a protocol](internals/protocol.md). There are three.
+through [a protocol](internals/protocol.md). There are four.
 `./build.sh` builds the platform's own: on macOS
 [the Cocoa server](#the-cocoa-display-server), elsewhere
 [the X11 server](#the-x11-display-server) where Xlib is installed, and
@@ -14,6 +14,16 @@ the portable one, which needs C++ and CMake and is built only when
 named. Each is also installed as `libexec/gcon-graphics-NAME` (`cocoa`,
 `x11`, `sdl`), and `GCONGRAPHICS` chooses another at run time: anything
 that speaks the protocol.
+
+The fourth is always built: [the headless server](#the-headless-display-server),
+which has no display. gcon-vm runs it where its default server has no
+display (the X11 server where there is no X display, say) or there is
+no default server, so hidden canvases (drawing, `Pixel`, `WriteImage`)
+work anywhere: a filter can make pictures on a machine with no screen.
+A window cannot be opened there: `open` fails, as Icon's does without a
+display, and a program that goes on to draw on `&window` meets run-time
+error 140. A server `GCONGRAPHICS` names is used as it is, without this
+fallback.
 
 Whichever server draws:
 
@@ -30,10 +40,6 @@ Whichever server draws:
 - **Not supported:** the numeric colour forms `rgb:r/g/b` and `RGBi:...`.
   `iconlabel=` is accepted but never shown, since modern desktops have
   no icon labels.
-
-Without a display server, every other part of Gcon works; a program
-that opens a window stops with a message that the server cannot be
-run.
 
 A program can also be made without graphics, wherever it runs: `gcon
 build -nographics` (or `gcon run -nographics`) translates it as Icon
@@ -104,3 +110,17 @@ process of its own.
 - **Keys:** on macOS, Option is `&meta`; `ICONSDL_META=command` makes it
   the Command key. Keypad keys report the characters they type, not
   keypad keysyms.
+
+## The headless display server
+
+`gcon-graphics-headless` has no display and no windows, only hidden
+canvases. It needs a C compiler alone, and draws with Gcon's own
+rasterizer, by X's rules: its pictures are Arizona Icon's X11 ones but
+for a few pixels at the edges of circles and arcs (X computes arcs
+exactly; it flattens them), and for text.
+
+- **Fonts are X's misc-fixed bitmap fonts:** `fixed` is X's 6x13, and
+  `mono`, `typewriter`, `sans` and `serif` all take the misc-fixed font
+  nearest the size, with its bold and oblique faces; a font's own name
+  (`7x13B`) works too.
+- **No HiDPI scaling:** one Icon pixel is one pixel.

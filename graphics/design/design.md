@@ -261,3 +261,29 @@ text differs, and `graphics.sh` has its own expected output
 (`graphics-headless.std`: the X11 server's but for two font lines).
 `vm/tests/headless.sh` runs both; the tolerances
 (`ref/tolerance-headless`) allow a few pixels at arc edges and any text.
+
+### The headless server everywhere, as the fallback (Sean, 2026-11-28)
+
+`./build.sh` always builds the headless server (a C compiler is all it
+needs) as `libexec/gcon-graphics-headless`, never the default. gcon-vm
+runs it where its default server has no display, or there is none, so
+hidden canvases work on any machine: a filter that draws and writes
+PNGs needs no screen. The question was whether a program that expects
+a display should be left running: it is not, any more than under
+Arizona without an X display, because a window still cannot be opened
+there: `open` fails (a careful program stops with its own message), and
+drawing on `&window` after it is run-time error 140. Only hidden
+canvases change: they work instead of failing.
+
+To know in time, before any canvas exists (a program's canvases cannot
+be split between two servers: `CopyArea` would break), the protocol's
+`HELLO` reply says whether the server has a display (version 4):
+`pl_display` in each platform layer (X11: its display opens; Cocoa: a
+screen; SDL: on macOS always, elsewhere `DISPLAY` or `WAYLAND_DISPLAY`,
+without starting SDL, which would give a hidden canvas a Dock icon;
+headless: never). gcon-vm (`gp_connect`) starts `$GCONGRAPHICS` as it
+is (an explicit choice, and what the tests use); else the
+`gcon-graphics` beside it, replaced by `gcon-graphics-headless` if it
+reports no display; else the headless server if there is no default;
+else `gcon-graphics` on `$PATH`. `vm/tests/headless.sh` checks the
+fallback both ways (no default; the X11 server without `DISPLAY`).

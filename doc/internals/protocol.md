@@ -11,7 +11,7 @@ Another display server can take gcon-graphics's place: it speaks this
 protocol on the socket it is given, and `GCONGRAPHICS` names it (`gcon
 help environment`).
 
-Version 3. Everything here is implemented unless marked *(later)*.
+Version 4. Everything here is implemented unless marked *(later)*.
 
 ## Transport and framing
 
@@ -61,10 +61,14 @@ use:
 ### Connection
 
 `HELLO` (0) **reply**: `u32 version`. Reply: `u32 version` (the
-server's), `u32 ok` (1 if it speaks the client's version). First on
-every connection. This is version 3 (version 2 had `ENCODE` and `DECODE`,
-the server's image files, which are now the client's; version 1 lacked
-`ICON`).
+server's), `u32 ok` (1 if it speaks the client's version), `u32 display`
+(1 if it can show windows: the X11 server's display opens, the Cocoa
+server has a screen; 0 for the headless server). First on every
+connection. A client that finds no display where it wanted one may use
+another server instead: gcon-vm runs the headless one, so that hidden
+canvases work. This is version 4 (version 3 lacked `display`; version 2
+had `ENCODE` and `DECODE`, the server's image files, which are now the
+client's; version 1 lacked `ICON`).
 
 ### Canvases and windows
 

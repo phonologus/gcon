@@ -746,3 +746,6 @@ void pl_shutdown(void)
       xdpy = NULL;
    }
 }
+
+/* whether there is a display: whether the X display opens */
+int pl_display(void) { return x_open(); }

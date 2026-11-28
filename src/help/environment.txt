@@ -46,7 +46,8 @@ Running programs (gcon-vm):
 	GCONGRAPHICS
 		the display server to start, instead of the gcon-graphics
 		beside gcon-vm: libexec/gcon-graphics-x11, say (gcon doc
-		graphics).
+		graphics). It is used as it is: without the fallback to the
+		headless server where there is no display.
 
 The display servers:
 

@@ -168,4 +168,7 @@ typedef struct {
    } pl_event;
 
 int pl_poll(pl_event *e);		/* next event, or 0 if none */
+/* whether windows can be shown: a display (HELLO tells the client, which
+ * uses the headless server where its default has none) */
+int pl_display(void);
 int pl_wait(int timeout_ms);		/* wait for one (-1: forever) */

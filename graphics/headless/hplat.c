@@ -47,3 +47,5 @@ int pl_wait(int timeout_ms)
 
 const char *gfx_describe(void) { return "headless (gcon's rasterizer)"; }
 
+
+int pl_display(void) { return 0; }
