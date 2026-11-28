@@ -64,4 +64,11 @@ procedure main()
    write("closed; ", image(w))
    &error := -1
    DrawLine(w, 0, 0, 1, 1) | write("error ", &errornumber, " ", &errortext)
+   # display=: names the one display when a window is opened ("" or
+   # what WAttrib reports, as the IPL's vdialog passes it on); not after
+   d := open("d", "g", "canvas=hidden", "display=") | stop("display= refused")
+   write("display= ", type(d), " again ", type(open("e", "g", "canvas=hidden",
+      "display=" || WAttrib(d, "display"))) | "refused",
+      " later ", WAttrib(d, "display=x") | "refused",
+      " other ", type(open("f", "g", "canvas=hidden", "display=no such display")) | "refused")
 end

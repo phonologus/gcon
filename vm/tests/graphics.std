@@ -29,3 +29,4 @@ error 145 bad window attribute
 error 147 window attribute cannot be read or written as requested
 closed; window_1:1(test)
 error 142 attempt to read/write on closed window
+display= window again window later refused other refused

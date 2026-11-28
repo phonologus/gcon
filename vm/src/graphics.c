@@ -2109,7 +2109,16 @@ static int wattrib(WBinding *w, const char *s, size_t len, Value *answer) {
 			break;
 		case A_POINTER: AttemptAttr(setpointer(w, val)); break;
 		case A_DRAWOP: AttemptAttr(setdrawop(w, val)); break;
-		case A_DISPLAY: return Failed;
+		case A_DISPLAY: {
+			/* one display, the server's: as Arizona's X11 opens the
+			 * display named, display= may name it when a window is
+			 * opened ("", or $DISPLAY, as WAttrib reports it, which
+			 * vdialog passes on), and it cannot change once open */
+			const char *d = getenv("DISPLAY");
+			if (ws->id || (*val && !(d && !strcmp(val, d))))
+				return Failed;
+			break;
+		}
 		case A_X:
 			if (!cint(val, &tmp))
 				return Failed;
@@ -2266,7 +2275,7 @@ static int wattrib(WBinding *w, const char *s, size_t len, Value *answer) {
 		return Error;
 	case A_VISUAL: STR("4,8,256"); break;
 	case A_DEPTH: INT(24); break;
-	case A_DISPLAY: STR(""); break;
+	case A_DISPLAY: STR(getenv("DISPLAY") ? getenv("DISPLAY") : ""); break; /* Arizona's X11: $DISPLAY */
 	case A_ASCENT: INT(ASCENT(w)); break;
 	case A_DESCENT: INT(DESCENT(w)); break;
 	case A_FHEIGHT: INT(FHEIGHT(w)); break;
