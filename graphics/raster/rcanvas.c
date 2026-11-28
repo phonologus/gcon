@@ -3,7 +3,7 @@
  * rasterizer (raster.c), for the servers that have no drawing of their
  * own (headless, SDL, Wayland). MIT licence, see ../LICENSE.md.
  *
- * As ../src/canvas.c, without Blend2D: pixels are 0xFFRRGGBB at an
+ * As icon-sdl's canvas.c was, without Blend2D: pixels are 0xFFRRGGBB at an
  * integer scale; every shape is drawn into an A8 coverage mask and
  * applied to the canvas. Smooth (the gc's antialias, in copy mode
  * without a pattern): rasterized with coverage and blended. Otherwise
@@ -56,7 +56,7 @@ static void touch(Canvas *c, int x0, int y0, int x1, int y1)
    if (y1 > c->d[3]) c->d[3] = y1;
 }
 
-/* ---------- the test dump hook, as ../src/canvas.c's ---------- */
+/* ---------- the test dump hook (ICONSDL_TEST_DUMP) ---------- */
 
 typedef struct DumpEnt { void *cv; int id; struct DumpEnt *next; } DumpEnt;
 static const char *dumpdir;

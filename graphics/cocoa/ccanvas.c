@@ -8,8 +8,8 @@
  * antialias is off (the Mac's own quality, not X's pixels); everything
  * else is drawn aliased into an A8
  * coverage mask, and each covered device pixel is combined with the X
- * GC function, the pattern and the colours, as ../src/canvas.c does it
- * (whose pixel operations, copy, read, write and erase, are these).
+ * GC function, the pattern and the colours, as ../raster/rcanvas.c does it
+ * (whose pixel operations, copy, read, write and erase, these are).
  *
  * Geometry follows X's conventions: integer coordinates are pixel
  * centres, so outlines, lines, arcs and polygons go through (x + 0.5,
@@ -78,7 +78,7 @@ static void fill_device(Canvas *c, int x0, int y0, int x1, int y1, uint32_t v)
    }
 }
 
-/* ---------- the test dump hook, as ../src/canvas.c's ---------- */
+/* ---------- the test dump hook, as ../raster/rcanvas.c's ---------- */
 
 typedef struct DumpEnt { void *cv; int id; struct DumpEnt *next; } DumpEnt;
 static const char *dumpdir;
@@ -596,7 +596,7 @@ void cv_erase(void *cv, const sdlgc *gc, int x, int y, int w, int h)
    c->changed = 1;
 }
 
-/* CopyArea, as ../src/canvas.c's */
+/* CopyArea, as ../raster/rcanvas.c's */
 void cv_copy(void *srcp, void *dstp, const sdlgc *gc, int x, int y, int w, int h, int x2, int y2)
 {
    Canvas *src = srcp, *dst = dstp;

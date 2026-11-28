@@ -8,7 +8,7 @@
  * Helvetica, serif Times. Any other name must be the found font's family
  * or full name (ignoring case): CoreText would otherwise substitute a
  * fallback silently, where X fails the request. The metrics are the SDL
- * server's (../src/canvas.c): ascent and descent rounded up, and the
+ * server's (../raster/rfont.c): ascent and descent rounded up, and the
  * maximum width over the printable Latin-1 characters, as X's
  * max_bounds.width over a core font's repertoire.
  */

@@ -82,7 +82,7 @@ int x_take_dirty(void *cv, int r[4])
    return 1;
 }
 
-/* ---------- the test dump hook, as ../src/canvas.c's ---------- */
+/* ---------- the test dump hook, as ../raster/rcanvas.c's ---------- */
 
 /*
  * If ICONSDL_TEST_DUMP names a directory when the first canvas is made,
