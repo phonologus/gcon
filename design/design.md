@@ -819,11 +819,16 @@ counted characters in text files and had to go back to 9.5's bytes
 
 - **Literals** are their bytes. A UTF-8 character in the source is its
   bytes, as in icont. Escapes follow Go where 9.5 has none: `\x` gives a
-  byte, and `\u` (4 hex digits) or `\U` (up to 6) gives the code point's
-  UTF-8 bytes; a surrogate or a value above 0x10FFFF is a compile-time
-  error. In 9.5 `\u` is not an escape (icont reads `"\u00e9"` as the five
-  characters `u00e9`); no file in `icon/tests` or `icon/ipl` uses `\u` or
-  `\U` in a literal, so the incompatibility is accepted.
+  byte, and `\u` (exactly 4 hex digits) or `\U` (exactly 6) gives the
+  code point's UTF-8 bytes; a surrogate or a value above 0x10FFFF is a
+  compile-time error. In 9.5 `\u` is not an escape (icont reads
+  `"\u00e9"` as the five characters `u00e9`); no file in `icon/tests` or
+  `icon/ipl` uses `\u` or `\U` in a literal, so the incompatibility is
+  accepted. Both widths are fixed (Sean, 2026-11-28; `\U` took 1 to 6
+  before): reading "up to" made Go's `"\U0001f600"` silently U+01F6 and
+  `00`, the trap of octal escapes; with a fixed width what follows is
+  never part of the escape. One escape, `\U` alone, was tried and
+  dropped: `"caf\U0000e9"` is noise where `"caf\u00e9"` is not.
 - **Files** read and write bytes, unchanged, in every mode. Mode `"u"`
   is 9.5's ("untranslated"; below).
 - **`reads(f, n)` reads n bytes**, as in 9.5: it is what binary formats

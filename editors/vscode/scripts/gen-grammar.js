@@ -11,11 +11,11 @@ const table = catalog.split("static const BuiltinFunc functions[] = {")[1].split
 const builtins = [...table.matchAll(/^\t\{"([A-Za-z0-9]+)", /gm)].map((m) => m[1]);
 if (builtins.length < 100) throw new Error("built-in functions not found in catalogue");
 
-// Icon 9.5's escapes, and gcon's \u with four hex digits and \U with up
-// to six.
+// Icon 9.5's escapes, and gcon's \u with exactly four hex digits and \U with
+// exactly six.
 const escapes = {
   name: "constant.character.escape.icon",
-  match: "\\\\(\\^.|[0-7]{1,3}|x[0-9A-Fa-f]{1,2}|u[0-9A-Fa-f]{4}|U[0-9A-Fa-f]{1,6}|.)",
+  match: "\\\\(\\^.|[0-7]{1,3}|x[0-9A-Fa-f]{1,2}|u[0-9A-Fa-f]{4}|U[0-9A-Fa-f]{6}|.)",
 };
 
 // gcon's cset ranges, a..z (an escape comes first, so "\." is not one).

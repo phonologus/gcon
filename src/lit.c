@@ -147,7 +147,7 @@ static LitError *decode(const char *tok, size_t tn, Pieces *out) {
 			} else if (e == 'u' || e == 'U') {
 				int min = 4, max = 4, d;
 				if (e == 'U')
-					min = 1, max = 6;
+					min = max = 6; /* a fixed width: what follows is never part of it */
 				int32_t v = 0;
 				int k = 0;
 				while (k < max && i < n) {

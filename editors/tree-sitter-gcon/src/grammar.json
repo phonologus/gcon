@@ -2422,7 +2422,7 @@
             },
             {
               "type": "PATTERN",
-              "value": "\\\\U[0-9A-Fa-f]{1,6}"
+              "value": "\\\\U[0-9A-Fa-f]{6}"
             },
             {
               "type": "PATTERN",

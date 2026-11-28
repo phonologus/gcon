@@ -63,10 +63,12 @@ LC_ALL=C sort -k1,1 -k2,2n >"$tmp/ranges"
 
 # merge each name's ranges, and write a uset literal for it
 awk -v ver="$ver" '
-function hexs(v,   s) {
+# esc is the escape for code point v: \u and 4 hex digits, or \U and 6
+function esc(v,   s, w) {
+	w = v < 65536 ? 4 : 6
 	s = ""
-	do { s = substr("0123456789abcdef", v % 16 + 1, 1) s; v = int(v / 16) } while (v > 0)
-	return s
+	do { s = substr("0123456789abcdef", v % 16 + 1, 1) s; v = int(v / 16) } while (v > 0 || length(s) < w)
+	return (w == 4 ? "\\u" : "\\U") s
 }
 function add(t) {
 	if (col + length(t) > 72) { printf "_\n      "; col = 6 }
@@ -76,7 +78,7 @@ function add(t) {
 function flush() {
 	if (name == "") return
 	if (lo < 0) { printf "'"'"'\n"; return }
-	add(lo == hi ? "\\U" hexs(lo) : "\\U" hexs(lo) "..\\U" hexs(hi))
+	add(lo == hi ? esc(lo) : esc(lo) ".." esc(hi))
 	printf "'"'"'\n"
 }
 BEGIN {
@@ -122,7 +124,7 @@ $1 != name {
 $2 < 0 { next }
 lo < 0 { lo = $2; hi = $3; next }
 $2 <= hi + 1 { if ($3 > hi) hi = $3; next }
-{ add(lo == hi ? "\\U" hexs(lo) : "\\U" hexs(lo) "..\\U" hexs(hi)); lo = $2; hi = $3 }
+{ add(lo == hi ? esc(lo) : esc(lo) ".." esc(hi)); lo = $2; hi = $3 }
 END {
 	flush()
 	print "   return t"

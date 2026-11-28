@@ -1,11 +1,12 @@
 # gcon's literals, good and bad: the language server reports what
 # gcon build reports (src/tests/lsp.sh).
 procedure main()
-   write("caf\u00e9", "\U0001F600", "\x41\101\^A")
+   write("caf\u00e9", "\U01F600", "\x41\101\^A")
    write('a..z', '\u0100..\u017f', 'a..a', '\x00..\x7f')
    write("\u{zz}")
    write("\u12")
    write("\U110000")
+   write("\U1f6", "\U01f6000")
    write('z..a')
    write('a..')
    write('..z')

@@ -360,13 +360,14 @@ module.exports = grammar({
 
     // A backslash escapes any character (including a newline); "\^c"
     // takes one more. The longest form is taken: \x with up to two hex
-    // digits, up to three octal digits, gcon's \u with four hex digits
-    // and \U with up to six (in Icon 9.5, \u and \U are the letters).
+    // digits, up to three octal digits, gcon's \u with exactly four hex
+    // digits and \U with exactly six (in Icon 9.5, \u and \U are the
+    // letters).
     escape_sequence: $ => token.immediate(prec(2, choice(
       /\\x[0-9A-Fa-f]{1,2}/,
       /\\[0-7]{1,3}/,
       /\\u[0-9A-Fa-f]{4}/,
-      /\\U[0-9A-Fa-f]{1,6}/,
+      /\\U[0-9A-Fa-f]{6}/,
       /\\\^[\s\S]/,
       /\\[\s\S]/,
     ))),

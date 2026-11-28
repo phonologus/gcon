@@ -454,8 +454,9 @@ static const HelpPage helppages[] = {
 	 "uclass(\"L\"), uclass(\"Nd\") or uclass(\"Greek\") is that general category or\n"
 	 "script as a uset.\n"
 	 "\n"
-	 "In any literal, \\uXXXX and \\UXXXXXXXX give a code point's UTF-8 bytes,\n"
-	 "as in Go. image shows a valid, printable UTF-8 sequence as itself.\n"
+	 "In any literal, \\uXXXX and \\UXXXXXX (exactly 4 and exactly 6 hex\n"
+	 "digits) give a code point's UTF-8 bytes, after Go's. image shows a valid,\n"
+	 "printable UTF-8 sequence as itself.\n"
 	 "\n"
 	 "See also: gcon help icon95, gcon doc unicode.\n"
 	},
