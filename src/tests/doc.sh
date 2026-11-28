@@ -163,6 +163,18 @@ checks=$((checks + 1))
 "$G" doc -path nosuch >/dev/null 2>"$tmp/err"
 [ $? = 2 ] && grep -q 'no such page' "$tmp/err" || problem "gcon doc nosuch: not refused"
 
+# The help pages' HTML links to the other help pages: the overview's
+# commands and topics, and each "gcon help NAME" (not the title); the
+# text is as gcon help gives it.
+checks=$((checks + 3))
+"$G" doc -html help/index >"$tmp/h"
+grep -q '^	<a href="run.html">run</a>          run Icon source' "$tmp/h" && grep -q '^	<a href="unicode.html">unicode</a>  ' "$tmp/h" ||
+	problem "gcon doc -html help/index: not linked to the commands and topics"
+"$G" doc -html help/run >"$tmp/h"
+grep -q 'See also: gcon help <a href="build.html">build</a>, gcon help <a href="library.html">library</a>' "$tmp/h" &&
+	grep -q '<h1 id="[^"]*">gcon help run</h1>' "$tmp/h" || problem "gcon doc -html help/run: not linked to its see-alsos, or a linked title"
+if "$G" doc -raw help/index | grep -q "<a "; then problem "gcon doc -raw help/index: links in the text"; fi
+
 # doc/ref/uclass.md is what tools/uclass.sh makes of the Unicode data.
 mkdir "$tmp/uclass"
 checks=$((checks + 1))

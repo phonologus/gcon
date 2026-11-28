@@ -634,6 +634,62 @@ static char *relroot(const char *topic) {
  * their examples may be run (POST /run); NULL in the static HTML. */
 static const char *runtoken;
 
+/* helpnamed is the help page named by the n bytes at s ("gcon" is the
+ * overview), or -1. */
+static int helpnamed(const char *s, size_t n) {
+	for (int i = 0; i < help_count(); i++) {
+		const char *h = help_name(i);
+		if (strlen(h) == n && !strncmp(h, s, n))
+			return i;
+	}
+	return -1;
+}
+
+static bool isnamech(char c) { return (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9'); }
+
+/* helplinks appends html, a help page's (p->help) as md_html made it,
+ * with links to the other help pages in its text (the <pre>, not the
+ * title): each "gcon help NAME", and on the overview each command and
+ * topic in its lists (a line "\tNAME  ..."). A help page is plain text,
+ * shown as it is everywhere else; only its HTML has the links. */
+static void helplinks(Buf *out, const char *html, const Page *p) {
+	const char *pre = strstr(html, "<pre><code>");
+	if (!pre) {
+		bufputs(out, html);
+		return;
+	}
+	bool overview = !strcmp(help_name(p->help), "gcon");
+	const char *s = pre + strlen("<pre><code>");
+	bufadd(out, html, (size_t)(s - html));
+	bool bol = true;
+	while (*s) {
+		const char *name = NULL;
+		if (!strncmp(s, "gcon help ", 10) && !isnamech(s[-1]))
+			name = s + 10;
+		else if (overview && bol && *s == '\t')
+			name = s + 1;
+		if (name) {
+			size_t n = 0;
+			while (isnamech(name[n]))
+				n++;
+			int h = n ? helpnamed(name, n) : -1;
+			/* on the overview's lists, a name then its description */
+			bool listed = name == s + 10 || name[n] == ' ';
+			if (h >= 0 && h != p->help && listed) {
+				bufadd(out, s, (size_t)(name - s));
+				bufprintf(out, "<a href=\"%s.html\">", strcmp(help_name(h), "gcon") ? help_name(h) : "index");
+				bufadd(out, name, n);
+				bufputs(out, "</a>");
+				s = name + n;
+				bol = false;
+				continue;
+			}
+		}
+		bol = *s == '\n';
+		bufputc(out, *s++);
+	}
+}
+
 static void htmlpage(Buf *out, const Page *p, const MdDoc *d) {
 	char *up = relroot(p->topic);
 	bufputs(out, "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n"
@@ -650,7 +706,12 @@ static void htmlpage(Buf *out, const Page *p, const MdDoc *d) {
 		       "<input id=\"search\" type=\"search\" placeholder=\"Search\" aria-label=\"Search the documentation\" autocomplete=\"off\">"
 		       "<ul id=\"results\" hidden></ul></header>\n<main>\n",
 		up, GCON_VERSION);
-	md_html(out, d);
+	if (!p->file && p->help >= 0) {
+		Buf h = {0};
+		md_html(&h, d);
+		helplinks(out, h.b, p);
+	} else
+		md_html(out, d);
 	bufprintf(out, "</main>\n<script src=\"%ssearch-index.js\"></script>\n<script src=\"%ssearch.js\"></script>\n</body>\n</html>\n", up, up);
 }
 
