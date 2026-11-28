@@ -850,8 +850,10 @@ static int semacheck(int n, char **names, char *symstr) {
 	/* icont links only what translates without error */
 	if (errs.n)
 		warns.n = 0;
-	qsort(errs.v, errs.n, sizeof *errs.v, cmpstr);
-	qsort(warns.v, warns.n, sizeof *warns.v, cmpstr);
+	if (errs.n)
+		qsort(errs.v, errs.n, sizeof *errs.v, cmpstr);
+	if (warns.n)
+		qsort(warns.v, warns.n, sizeof *warns.v, cmpstr);
 	for (size_t i = 0; i < errs.n; i++)
 		printf("%s\n", errs.v[i]);
 	for (size_t i = 0; i < warns.n; i++)
@@ -891,8 +893,10 @@ static int semanorm(void) {
 		char *copy = xstrndup(line, (size_t)n);
 		VPUSH(*(!strncmp(line, "File ", 5) ? &errs : &warns), copy);
 	}
-	qsort(errs.v, errs.n, sizeof *errs.v, cmpstr);
-	qsort(warns.v, warns.n, sizeof *warns.v, cmpstr);
+	if (errs.n)
+		qsort(errs.v, errs.n, sizeof *errs.v, cmpstr);
+	if (warns.n)
+		qsort(warns.v, warns.n, sizeof *warns.v, cmpstr);
 	for (size_t i = 0; i < errs.n; i++)
 		printf("%s\n", errs.v[i]);
 	for (size_t i = 0; i < warns.n; i++)

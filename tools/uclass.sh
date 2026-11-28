@@ -137,20 +137,22 @@ mv "$tmp/uclass.icn" "$out"
 # number of characters in it, and examples whose output comes from the
 # same data, so that gcon doc -test checks the page against the module.
 awk -v ver="$ver" '
-function cat(c) {
-	return c == "L" ? "letters" : c == "Lu" ? "uppercase letters" : c == "Ll" ? "lowercase letters" : \
-		c == "Lt" ? "titlecase letters" : c == "Lm" ? "modifier letters" : c == "Lo" ? "other letters" : \
-		c == "M" ? "marks" : c == "Mn" ? "nonspacing marks" : c == "Mc" ? "spacing marks" : \
-		c == "Me" ? "enclosing marks" : c == "N" ? "numbers" : c == "Nd" ? "decimal digits" : \
-		c == "Nl" ? "letter numbers" : c == "No" ? "other numbers" : c == "P" ? "punctuation" : \
-		c == "Pc" ? "connector punctuation" : c == "Pd" ? "dashes" : c == "Ps" ? "opening punctuation" : \
-		c == "Pe" ? "closing punctuation" : c == "Pi" ? "initial quotes" : c == "Pf" ? "final quotes" : \
-		c == "Po" ? "other punctuation" : c == "S" ? "symbols" : c == "Sm" ? "mathematical symbols" : \
-		c == "Sc" ? "currency symbols" : c == "Sk" ? "modifier symbols" : c == "So" ? "other symbols" : \
-		c == "Z" ? "separators" : c == "Zs" ? "spaces" : c == "Zl" ? "the line separator" : \
-		c == "Zp" ? "the paragraph separator" : c == "C" ? "other: control, format, private use" : \
-		c == "Cc" ? "control characters" : c == "Cf" ? "format characters" : \
-		c == "Cs" ? "surrogates (none in a uset)" : c == "Co" ? "private use" : "?"
+# cat describes a category (a table: mawk cannot parse a long ?: chain)
+function cat(c,   n, i, t) {
+	n = split("L=letters;Lu=uppercase letters;Ll=lowercase letters;Lt=titlecase letters;" \
+		"Lm=modifier letters;Lo=other letters;M=marks;Mn=nonspacing marks;Mc=spacing marks;" \
+		"Me=enclosing marks;N=numbers;Nd=decimal digits;Nl=letter numbers;No=other numbers;" \
+		"P=punctuation;Pc=connector punctuation;Pd=dashes;Ps=opening punctuation;" \
+		"Pe=closing punctuation;Pi=initial quotes;Pf=final quotes;Po=other punctuation;" \
+		"S=symbols;Sm=mathematical symbols;Sc=currency symbols;Sk=modifier symbols;" \
+		"So=other symbols;Z=separators;Zs=spaces;Zl=the line separator;" \
+		"Zp=the paragraph separator;C=other: control, format, private use;" \
+		"Cc=control characters;Cf=format characters;Cs=surrogates (none in a uset);" \
+		"Co=private use", t, ";")
+	for (i = 1; i <= n; i++)
+		if (index(t[i], c "=") == 1)
+			return substr(t[i], length(c) + 2)
+	return "?"
 }
 $2 >= 0 { n[$1] += $3 - $2 + 1 }
 { if (!($1 in seen)) { seen[$1] = 1; names[++nn] = $1 }; if (!($1 in n)) n[$1] = 0 }

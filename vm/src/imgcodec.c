@@ -283,3 +283,9 @@ int img_encode(const char *ext, const uint32_t *px, int w, int h, unsigned char 
 	*len = o.n;
 	return 1;
 }
+
+/* stb_image declares its GIF loader static, which (without GIF) is never
+ * defined: GCC warns of that by the state at the end of the file, not
+ * the push in force at the declaration (clang checks the rest of this
+ * file). */
+#pragma GCC diagnostic ignored "-Wunused-function"

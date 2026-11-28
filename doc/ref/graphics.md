@@ -328,7 +328,8 @@ not a number; 146 if a group is incomplete.
 
 ```icon
 procedure main()
-   w := open("demo", "g", "canvas=hidden", "size=50,50", "fg=red")
+   # a wide line: an antialiased one-pixel line only nearly covers a pixel
+   w := open("demo", "g", "canvas=hidden", "size=50,50", "fg=red", "linewidth=3")
    DrawArc(w, 10, 10, 20, 20)
    write(Pixel(w, 30, 20, 1, 1), " ", Pixel(w, 20, 20, 1, 1))
 end
@@ -359,7 +360,8 @@ an angle is not a number; 146 if a group is incomplete.
 
 ```icon
 procedure main()
-   w := open("demo", "g", "canvas=hidden", "size=50,50", "fg=red")
+   # a wide line: an antialiased one-pixel line only nearly covers a pixel
+   w := open("demo", "g", "canvas=hidden", "size=50,50", "fg=red", "linewidth=3")
    DrawCircle(w, 25, 25, 10)
    write(Pixel(w, 35, 25, 1, 1), " ", Pixel(w, 25, 25, 1, 1))
 end

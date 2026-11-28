@@ -1473,7 +1473,8 @@ static void walk(const char *root) {
 			if (strcmp(e->d_name, ".") && strcmp(e->d_name, ".."))
 				VPUSH(names, xstrndup(e->d_name, strlen(e->d_name)));
 		closedir(d);
-		qsort(names.v, names.n, sizeof *names.v, cmpname);
+		if (names.n)
+			qsort(names.v, names.n, sizeof *names.v, cmpname);
 		for (size_t i = names.n; i-- > 0;) {
 			Buf c = {0};
 			bufputs(&c, p);

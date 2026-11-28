@@ -19,10 +19,16 @@
  *	a filter: the diagnostics in a server's output, as gcon build reports
  *	errors ("LINE # MESSAGE")
  */
+#if defined(__APPLE__)
+#define _DARWIN_C_SOURCE
+#else
+#define _DEFAULT_SOURCE
+#endif
 #include "../json.h"
 #include "../lexer.h"
 
 #include <limits.h>
+#include <strings.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

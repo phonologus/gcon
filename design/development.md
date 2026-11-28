@@ -106,6 +106,29 @@ tests pass, `vm/tests/conformance.sh -update`.
 against recorded runs (`vm/tests/expected/`); the other runtime tests
 are described in [vm/README.md](../vm/README.md).
 
+## On Linux
+
+Every suite runs on Linux as on macOS (checked on Debian 13, arm64,
+GCC 14). The packages, on Debian: `build-essential pkg-config
+libx11-dev libxpm-dev xvfb xfonts-base xfonts-75dpi xfonts-100dpi
+xfonts-scalable`, and for the SDL server `libsdl3-dev
+libfontconfig-dev fonts-dejavu-core`. Without `DISPLAY` the graphics
+tests use the headless server, as gcon-vm does, and `window.sh` says
+it has nothing to check; `x11.sh` and `arizona.sh` start their own
+Xvfb. Things Linux showed that macOS does not:
+
+- GCC fuses multiply-adds under `-std=gnu11` on arm64, which moved a
+  curve's pixel: gcon-vm is built with `-ffp-contract=off`.
+- glibc declares `qsort`'s and `memcpy`'s pointers non-null even for
+  no elements, which UBSan enforces; and strict C11 hides POSIX names
+  (`strdup`, `M_PI`, `strncasecmp`, `PATH_MAX`).
+- ASan checks leaks at exit by default: the tests turn that off, as
+  gcon, like icont, exits without freeing.
+- Debian's awk is mawk, which cannot parse a long `?:` chain.
+- Runs recorded on macOS that show the host (its tools' messages,
+  "Macintosh" in `&features`) are marked `NAME.macos` in
+  `vm/tests/expected` and skipped elsewhere.
+
 ## Editor support
 
 `editors/test.sh` tests the tree-sitter grammar, the Zed extension and

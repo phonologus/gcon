@@ -22,6 +22,9 @@
 #
 #   src/tests/help.sh
 set -u
+# gcon exits without freeing what it built, as icont does: no leak checks
+# (ASan makes them on Linux, by default)
+export ASAN_OPTIONS=detect_leaks=0${ASAN_OPTIONS:+:$ASAN_OPTIONS}
 here=$(cd "$(dirname "$0")/../.." && pwd)
 pages=$here/src/help
 tmp=$(mktemp -d)

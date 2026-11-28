@@ -2247,7 +2247,8 @@ static Proc *compileproc(Compiler *c, Node *d, CompileFile *cf) {
 	Symbol **syms = xmalloc((ns + 1) * sizeof *syms);
 	for (size_t i = 0; i < ns; i++)
 		syms[i] = pl->syms.v[i];
-	qsort(syms, ns, sizeof *syms, cmplocals);
+	if (ns)
+		qsort(syms, ns, sizeof *syms, cmplocals);
 	for (size_t i = 0; i < ns; i++) {
 		Symbol *s = syms[i];
 		if (strmap_get(&p->locals, (const char *)&s, sizeof s))
@@ -2342,7 +2343,8 @@ Prog *compile_program(Program *sp, CompileFile *files, size_t nfiles, StrVec *er
 	/* Globals, procedures and records, in name order. */
 	StrVec names = {0};
 	strmap_each(&sp->globals, collectname, &names);
-	qsort(names.v, names.n, sizeof *names.v, cmpstr);
+	if (names.n)
+		qsort(names.v, names.n, sizeof *names.v, cmpstr);
 	for (size_t i = 0; i < names.n; i++)
 		global(c, names.v[i], nullv());
 

@@ -13,6 +13,9 @@
 #
 # Needs gcon ($GCON, or built from $GCONSRC, default this checkout).
 set -u
+# gcon exits without freeing what it built, as icont does: no leak checks
+# (ASan makes them on Linux, by default)
+export ASAN_OPTIONS=detect_leaks=0${ASAN_OPTIONS:+:$ASAN_OPTIONS}
 here=$(cd "$(dirname "$0")/.." && pwd)
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
@@ -22,8 +25,8 @@ if [ -z "${GCON:-}" ]; then
 	GCON=$tmp/gcon
 	export GCONROOT="${GCONROOT:-$src}"
 fi
-${CC:-cc} -std=gnu11 -g -O1 -fsanitize=address,undefined -fno-sanitize-recover=all \
-	-o "$tmp/gcon-vm" "$here"/src/*.c -lm || exit 2
+${CC:-cc} -std=gnu11 -ffp-contract=off -g -O1 -fsanitize=address,undefined -fno-sanitize-recover=all \
+	-I"$here/../deps/stb" -o "$tmp/gcon-vm" "$here"/src/*.c -lm || exit 2
 ${CC:-cc} -std=c11 -O1 -o "$tmp/damage" "$here/tests/damage.c" || exit 2
 pass=0 fail=0
 for f in "$@"; do

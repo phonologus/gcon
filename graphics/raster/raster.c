@@ -131,7 +131,8 @@ static int crossings(const Edge *e, int ne, double yc, Cross *c)
          nc++;
       }
    if (nc > 1)
-      qsort(c, (size_t)nc, sizeof *c, cmpcross);
+      if (nc > 0)
+         qsort(c, (size_t)nc, sizeof *c, cmpcross);
    return nc;
 }
 

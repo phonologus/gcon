@@ -17,6 +17,11 @@
 #define GCON_RASTER_H
 #include <stdint.h>
 
+#include <math.h>
+#ifndef M_PI	/* math.h's, but not in strict C (glibc) */
+#define M_PI 3.14159265358979323846
+#endif
+
 typedef struct {
    double x, y;
 } RPt;

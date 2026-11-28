@@ -18,6 +18,9 @@
 #
 # JOBS workers share the corpus (default: one per CPU).
 set -u
+# gcon exits without freeing what it built, as icont does: no leak checks
+# (ASan makes them on Linux, by default)
+export ASAN_OPTIONS=detect_leaks=0${ASAN_OPTIONS:+:$ASAN_OPTIONS}
 here=$(cd "$(dirname "$0")/../.." && pwd)
 gold=$here/src/tests/fmt
 update=

@@ -476,7 +476,8 @@ static bool openfile(String name, String mode, File **out) {
 			names[k++] = strdup(e->d_name);
 		}
 		closedir(d);
-		qsort(names, (size_t)k, sizeof(char *), cmpstr);
+		if (k > 0)
+			qsort(names, (size_t)k, sizeof(char *), cmpstr);
 		f->dir = xmalloc((size_t)(k + 2) * sizeof(char *));
 		f->dir[0] = ".";
 		f->dir[1] = "..";

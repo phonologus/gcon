@@ -709,7 +709,8 @@ void listing(Buf *b, int64_t n) {
 	for (int i = 0; i < p->nglobals; i++)
 		if (!memchr(p->globalnames[i].s, ' ', p->globalnames[i].n) && (!p->invocable || p->invocable[i]))
 			gs[k++] = i;
-	qsort(gs, (size_t)k, sizeof(int), cmpglobal);
+	if (k > 0)
+		qsort(gs, (size_t)k, sizeof(int), cmpglobal);
 	for (int i = 0; i < k; i++) {
 		bufputs(b, "   ");
 		bufstr(b, p->globalnames[gs[i]]);

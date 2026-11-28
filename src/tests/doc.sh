@@ -27,6 +27,9 @@
 #   src/tests/doc.sh            check
 #   src/tests/doc.sh -update    rewrite the golden files
 set -u
+# gcon exits without freeing what it built, as icont does: no leak checks
+# (ASan makes them on Linux, by default)
+export ASAN_OPTIONS=detect_leaks=0${ASAN_OPTIONS:+:$ASAN_OPTIONS}
 here=$(cd "$(dirname "$0")/../.." && pwd)
 probes=$here/src/tests/doc
 update=

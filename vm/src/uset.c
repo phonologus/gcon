@@ -83,7 +83,8 @@ static RL unionr(Range2 *a, int na, Range2 *b, int nb) {
 	Range2 *all = xmalloc((size_t)(na + nb + 1) * sizeof(Range2));
 	memcpy(all, a, (size_t)na * sizeof(Range2));
 	memcpy(all + na, b, (size_t)nb * sizeof(Range2));
-	qsort(all, (size_t)(na + nb), sizeof(Range2), rcmp);
+	if (na + nb > 0)
+		qsort(all, (size_t)(na + nb), sizeof(Range2), rcmp);
 	RL r = normalize(all, na + nb);
 	free(all);
 	return r;

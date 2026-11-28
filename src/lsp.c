@@ -600,7 +600,8 @@ static Program *program(Workspace *w, Doc *d, DocVec *order) {
 		}
 		OpenCtx oc = {dir, &paths};
 		strmap_each(&w->open, opendir_each, &oc);
-		qsort(paths.v, paths.n, sizeof *paths.v, cmpstr);
+		if (paths.n)
+			qsort(paths.v, paths.n, sizeof *paths.v, cmpstr);
 		for (size_t i = 0; i < paths.n; i++) {
 			Doc *x = load(w, paths.v[i]);
 			if (x && !(mainhere && x != d && definesmain(x)))
@@ -910,7 +911,8 @@ static void collectdoc(void *ctx, const char *key, size_t n, void *val) {
 static DocVec opendocs(Server *s) {
 	DocVec v = {0};
 	strmap_each(&s->docs, collectdoc, &v);
-	qsort(v.v, v.n, sizeof *v.v, cmpuri);
+	if (v.n)
+		qsort(v.v, v.n, sizeof *v.v, cmpuri);
 	return v;
 }
 
@@ -2127,7 +2129,8 @@ static RefVec refs(Server *s, PosCtx *c) {
 					addref(&out, d, &d->file->toks.v[k], false);
 		}
 	}
-	qsort(out.v, out.n, sizeof *out.v, cmpref);
+	if (out.n)
+		qsort(out.v, out.n, sizeof *out.v, cmpref);
 	return out;
 }
 
@@ -2312,7 +2315,8 @@ static void identcompletions(PosCtx *c, ItemVec *items) {
 		ADDITEM(it);
 	}
 #undef ADDITEM
-	qsort(items->v, items->n, sizeof *items->v, cmpitem);
+	if (items->n)
+		qsort(items->v, items->n, sizeof *items->v, cmpitem);
 }
 
 static void completion(PosCtx *c, Buf *b) {
@@ -2333,7 +2337,8 @@ static void completion(PosCtx *c, Buf *b) {
 		CharVec names = {0};
 		NameCtx nc = {&names};
 		strmap_each(&c->prog->fields, collectkey, &nc);
-		qsort(names.v, names.n, sizeof *names.v, cmpstr);
+		if (names.n)
+			qsort(names.v, names.n, sizeof *names.v, cmpstr);
 		for (size_t i = 0; i < names.n; i++) {
 			SymVec *fs = strmap_get(&c->prog->fields, names.v[i], strlen(names.v[i]));
 			Buf det = {0};
@@ -2629,7 +2634,8 @@ static void renamesym(Server *s, PosCtx *c, const char *newname, Buf *b, int *co
 		if (!have)
 			VPUSH(uris, rs.v[i].d->uri);
 	}
-	qsort(uris.v, uris.n, sizeof *uris.v, cmpstr);
+	if (uris.n)
+		qsort(uris.v, uris.n, sizeof *uris.v, cmpstr);
 	bufputs(b, "{\"changes\":{");
 	for (size_t k = 0; k < uris.n; k++) {
 		if (k)

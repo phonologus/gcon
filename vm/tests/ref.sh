@@ -33,7 +33,15 @@ if [ -z "${GCON:-}" ]; then
 fi
 GCONROOT=${GCONROOT:-$src}
 export GCONROOT
-export GCONGRAPHICS=${GCONGRAPHICS:-$src/libexec/gcon-graphics}
+# the default server, or (as gcon-vm falls back) the headless one where
+# that is the X11 server and there is no X display
+if [ -z "${GCONGRAPHICS:-}" ]; then
+	GCONGRAPHICS=$src/libexec/gcon-graphics
+	case $("$GCONGRAPHICS" -version 2>/dev/null) in
+	*X11*) [ -n "${DISPLAY:-}" ] || GCONGRAPHICS=$src/libexec/gcon-graphics-headless ;;
+	esac
+fi
+export GCONGRAPHICS
 if [ ! -x "$GCONGRAPHICS" ]; then
 	echo "ref: no display server ($GCONGRAPHICS): not checked"
 	exit 0

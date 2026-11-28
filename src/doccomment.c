@@ -254,7 +254,8 @@ DocDecls doccomment_file(const char *src, size_t n, char **filedoc) {
 			while (hl && (s[hl - 1] == ' ' || s[hl - 1] == '\t' || s[hl - 1] == '\r'))
 				hl--;
 			char **lines = xcalloc(above + 1, sizeof *lines);
-			memcpy(lines, cmt.v, above * sizeof *lines);
+			if (above)
+				memcpy(lines, cmt.v, above * sizeof *lines);
 			DocDecl d = {(char *)kind, xstrndup(name, nl), xstrndup(s, hl), doccomment_md(cmt.v, cmt.n), line,
 				lines, above, cmtline};
 			VPUSH(v, d);

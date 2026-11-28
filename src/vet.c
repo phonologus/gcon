@@ -558,7 +558,8 @@ void vet_file(Program *p, SemaInfo *info, VetResolver *resolve, void *ctx, VetOp
 	docwarnings(&v);
 	if (opts.icon95)
 		literals95(&v);
-	qsort(mine.v, mine.n, sizeof *mine.v, cmpfinding);
+	if (mine.n)
+		qsort(mine.v, mine.n, sizeof *mine.v, cmpfinding);
 	for (size_t i = 0; i < mine.n; i++)
 		VPUSH(*out, mine.v[i]);
 }

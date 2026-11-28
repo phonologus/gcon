@@ -29,6 +29,10 @@ if [ ! -x "$GCONGRAPHICS" ]; then
 	echo "window: no display server ($GCONGRAPHICS): not checked"
 	exit 0
 fi
+case $("$GCONGRAPHICS" -version 2>/dev/null) in
+*X11*) [ -n "${DISPLAY:-}" ] || { echo "window: no X display (DISPLAY): not checked"; exit 0; } ;;
+*headless*) echo "window: the headless server has no windows: not checked"; exit 0 ;;
+esac
 export GCONVM=${GCONVM:-$here/bin/gcon-vm}
 if [ $# -eq 0 ]; then
 	set -- $(cd "$here/tests/window" && ls *.icn | sed 's/\.icn$//')

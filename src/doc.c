@@ -99,7 +99,8 @@ static Tree loadtree(const char *dir) {
 		Page p = {b.b, NULL, i};
 		VPUSH(t.pages, p);
 	}
-	qsort(t.pages.v, t.pages.n, sizeof *t.pages.v, cmptopic);
+	if (t.pages.n)
+		qsort(t.pages.v, t.pages.n, sizeof *t.pages.v, cmptopic);
 	linktree = t;
 	return t;
 }
@@ -485,7 +486,7 @@ static int testexamples(Tree *t, Target *only, int *nrun, int *ntrans) {
 				return bad + 1;
 			}
 			char *argv[] = {"gcon", e->want ? "run" : "dis", file, NULL};
-			int st;
+			int st = -1;
 			char *got = runself(argv, &st);
 			if (e->want) {
 				(*nrun)++;
@@ -1004,7 +1005,8 @@ static StrList iplfiles(const char *root) {
 			}
 		closedir(d);
 	}
-	qsort(v.v, v.n, sizeof *v.v, cmpstr);
+	if (v.n)
+		qsort(v.v, v.n, sizeof *v.v, cmpstr);
 	return v;
 }
 

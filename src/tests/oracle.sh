@@ -27,6 +27,9 @@
 # icont rejects only for errors that are not syntax (redeclarations,
 # unknown keywords) are skipped. VERBOSE=1 shows each difference.
 set -u
+# gcon exits without freeing what it built, as icont does: no leak checks
+# (ASan makes them on Linux, by default)
+export ASAN_OPTIONS=detect_leaks=0${ASAN_OPTIONS:+:$ASAN_OPTIONS}
 here=$(cd "$(dirname "$0")/../.." && pwd)
 root=${ICON_SRC:-$here/../icon}
 [ -f "$root/src/h/features.h" ] || { echo "oracle.sh: no Icon tree at $root" >&2; exit 2; }

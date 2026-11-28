@@ -496,7 +496,8 @@ void buildinfo(const Config *c, const char ***keys, const char ***vals, size_t *
 		const char *syms[NPredefined];
 		for (int i = 0; i < np; i++)
 			syms[i] = predefined[i];
-		qsort(syms, (size_t)np, sizeof *syms, cmpstrs);
+		if (np > 0)
+			qsort(syms, (size_t)np, sizeof *syms, cmpstrs);
 		Buf b = {0};
 		for (int i = 0; i < np; i++) {
 			if (i)

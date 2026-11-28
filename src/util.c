@@ -49,7 +49,8 @@ void bufadd(Buf *b, const void *p, size_t n) {
 		b->cap = (b->n + n + 1) * 2;
 		b->b = xrealloc(b->b, b->cap);
 	}
-	memcpy(b->b + b->n, p, n);
+	if (n)
+		memcpy(b->b + b->n, p, n);
 	b->n += n;
 	b->b[b->n] = 0;
 }

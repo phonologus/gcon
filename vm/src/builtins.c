@@ -406,7 +406,8 @@ GENFN(f_function) {
 	g->n = nfns;
 	g->b = gcnew((size_t)nfns * sizeof *g->b, T_RAW); /* static builtins */
 	memcpy(g->b, fntab, (size_t)nfns * sizeof *g->b);
-	qsort(g->b, (size_t)nfns, sizeof *g->b, cmpfn);
+	if (nfns > 0)
+		qsort(g->b, (size_t)nfns, sizeof *g->b, cmpfn);
 	return &g->g;
 }
 

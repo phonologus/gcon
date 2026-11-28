@@ -163,7 +163,13 @@ static unsigned char *readfile(const char *path)
       free(b);
       return NULL;
    }
-   f->path = strdup(path);
+   size_t pn = strlen(path) + 1;
+   if (!(f->path = malloc(pn))) { /* strdup is not strict C */
+      free(f);
+      free(b);
+      return NULL;
+   }
+   memcpy(f->path, path, pn);
    f->data = b;
    f->next = files;
    files = f;

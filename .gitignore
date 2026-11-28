@@ -1,6 +1,7 @@
 /gcon
 *.test
 *.out
+!/vm/tests/ref/expected/*.out
 /bin/
 /libexec/
 /lib/libcfunc.so

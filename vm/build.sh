@@ -29,4 +29,7 @@ grep -v '^#' ../deps/deps.lock | awk 'index($1, "stb/") == 1' | while read -r na
 		{ echo "vm/build.sh: deps/$name does not match deps/deps.lock" >&2; exit 1; }
 done
 mkdir -p bin
-$CC -std=gnu11 -O2 $LTO -Wall -Wextra ${CFLAGS:-} -I../deps/stb -o bin/gcon-vm src/*.c -lm $EXPORT
+# -ffp-contract=off: no fused multiply-adds, which GCC makes by default
+# under gnu11 on arm64, so that reals (and so where curves and arcs fall)
+# are the same whatever the compiler and machine
+$CC -std=gnu11 -O2 -ffp-contract=off $LTO -Wall -Wextra ${CFLAGS:-} -I../deps/stb -o bin/gcon-vm src/*.c -lm $EXPORT

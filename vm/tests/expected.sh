@@ -18,7 +18,10 @@
 # decision (features the Go VM lacked), its run is recorded instead
 # (-accept), and the reason added to tests/expected/ACCEPTED; new
 # programs are recorded the same way, once their runs are checked
-# against iconx. TIMEOUT (seconds, default 10) limits each run.
+# against iconx. TIMEOUT (seconds, default 10) limits each run. The runs
+# were recorded on macOS: one that shows the host (its tools' messages,
+# "Macintosh" in &features) is marked NAME.macos with the reason, and
+# skipped elsewhere.
 #
 # Needs gcon ($GCON, or built from $GCONSRC, default this checkout).
 set -u
@@ -85,7 +88,7 @@ while read -r f; do
 		fi
 		;;
 	check)
-		if [ -f "$e.skip" ]; then
+		if [ -f "$e.skip" ] || { [ -f "$e.macos" ] && [ "$(uname)" != Darwin ]; }; then
 			skip=$((skip + 1))
 			continue
 		fi
