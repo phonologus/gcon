@@ -3,7 +3,8 @@
 # needed) and compares its output with tests/graphics.std. Needs gcon
 # ($GCON, or built from $GCONSRC, default this checkout) and the display
 # server: $GCONGRAPHICS, by default ../graphics/bin/gcon-graphics in this
-# checkout.
+# checkout. GRAPHICSSTD names other expected output (tests/x11.sh gives
+# the X11 server's, whose fonts are X's: tests/graphics-x11.std).
 set -eu
 here=$(cd "$(dirname "$0")/.." && pwd)
 vm=${VM:-$here/bin/gcon-vm}
@@ -18,7 +19,7 @@ export GCONGRAPHICS=${GCONGRAPHICS:-$here/../graphics/bin/gcon-graphics}
 cp "$here/tests/graphics.icn" "$tmp"
 (cd "$tmp" && "$GCON" build -o graphics graphics.icn)
 (cd "$tmp" && "$vm" ./graphics >out 2>&1) || true
-if diff "$here/tests/graphics.std" "$tmp/out"; then
+if diff "${GRAPHICSSTD:-$here/tests/graphics.std}" "$tmp/out"; then
 	echo "graphics: pass"
 else
 	echo "graphics: FAIL"

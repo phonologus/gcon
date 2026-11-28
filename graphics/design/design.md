@@ -77,3 +77,45 @@ So the reader stays one thread that only ever answers, the client never
 has to read the socket asynchronously, and the order of replies is
 simply the order of requests. Pushed events can be added later (a
 second message direction) if a client needs them.
+
+## Native display servers (Sean, 2026-11-28)
+
+With the protocol in place, a display server no longer has to be
+portable: each platform can have a light server of its own, built on
+the platform's graphics, and `./build.sh --withX11`, `--withCocoa` and
+so on choose which are built. The SDL3 + Blend2D server stays, as the
+portable one (and the default) and as an oracle, until the native ones
+have earned trust.
+
+- **X11 first** (`x11/`): Xlib only, plain C. The protocol is X's
+  model already (the GC function as drawop, X's line and fill styles,
+  `XDrawImageString` for `write`, Icon's arcs), so the server is close
+  to a transliteration, and its pixels are X's own: `vm/tests/ref.sh`
+  compares with Arizona Icon's X11 images, which this server should
+  match exactly but for fonts. It also runs under XWayland, and under
+  XQuartz (and its `Xvfb`, for headless tests) on macOS.
+- **Cocoa next**, drawing natively with Core Graphics and CoreText:
+  graphics are the Mac's strong suit, so the Mac's server exploits it
+  (antialiased, its own fonts) rather than imitating X, and X11 and
+  Wayland are second-class in image quality.
+- **Wayland later**: Wayland has no drawing API, only buffers, so a
+  native Wayland server needs a rasterizer of its own (X's core
+  semantics in C, drawing into shared memory).
+- The native servers reuse `src/main.c` (the protocol reader) and
+  `src/xcolors.c`, and supply the three layers of `src/sdlgfx.h`
+  (`cv_*` canvases, `pl_*` windows and events, `ft_*` fonts), as the
+  SDL server does with `canvas.c`, `plat.c` and the font files. The
+  interface is already single-threaded underneath: only SDL's `pl_main`
+  needs a second thread.
+- Gcon's rule of libc only becomes, for display servers, libc and the
+  platform's own graphics libraries, found when built (Xlib; AppKit,
+  Core Graphics and CoreText). Nothing is vendored for them.
+- Image files: PNG, JPEG, BMP and QOI are the server's (`ENCODE`,
+  `DECODE`), and X11 has no codecs; until they move into gcon-vm (a
+  vendored public-domain codec in C), the X11 server answers that it
+  writes no such format and reads none. GIF, Icon's own, is the
+  client's already.
+- Icon 9.5's `Win` functions (`WinButton`, `WinOpenDialog`, ...; MS
+  Windows only in 9.5, and used by nothing in Icon's tree, the IPL or
+  `../icn`) are for after the servers, on Cocoa first: dialogs map well
+  onto AppKit, while X11 and Wayland have no toolkit of their own.

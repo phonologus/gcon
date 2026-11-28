@@ -9,6 +9,9 @@
 #
 #   tests/ref.sh [OUTDIR]
 #
+# REFTOLERANCE names another tolerance file (tests/x11.sh gives the X11
+# server's, tests/ref/tolerance-x11).
+#
 # OUTDIR (default: a temporary directory) keeps the outputs, with
 # NAME.diff.png for each image that differs. Needs gcon ($GCON, or
 # built from $GCONSRC, default this checkout) and the display server.
@@ -33,7 +36,7 @@ export GCONVM=${GCONVM:-$here/bin/gcon-vm}
 # tolerance NAME FIELD: the accepted difference from the tolerance file
 tolerance() {
 	awk -v n="$1" -v f="$2" '$1 == n { print $f; found = 1 }
-		END { if (!found) print (f == 2 ? 0 : "same") }' "$ref/tolerance"
+		END { if (!found) print (f == 2 ? 0 : "same") }' "${REFTOLERANCE:-$ref/tolerance}"
 }
 
 bad=0

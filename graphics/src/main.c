@@ -824,13 +824,12 @@ static int serve(int argc, char **argv)
 int main(int argc, char **argv)
 {
    if (argc == 2 && strcmp(argv[1], "-version") == 0) {
-      int v = sdlgfx_probe();
-      if (v == 0) {
-         fprintf(stderr, "gcon-graphics: SDL3 or Blend2D not working\n");
+      const char *d = gfx_describe();
+      if (d == NULL) {
+         fprintf(stderr, "gcon-graphics: the display system is not working\n");
          return 1;
       }
-      printf("gcon-graphics protocol %d; SDL %d.%d.%d\n", VERSION,
-         v / 10000, v / 100 % 100, v % 100);
+      printf("gcon-graphics protocol %d; %s\n", VERSION, d);
       return 0;
    }
    if (argc == 3 && strcmp(argv[1], "-fd") == 0) {

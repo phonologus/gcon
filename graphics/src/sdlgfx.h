@@ -18,6 +18,9 @@
 /* Check that SDL3 and Blend2D are linked and working; returns the SDL
  * version as major*10000 + minor*100 + patch, or 0 on failure. */
 int sdlgfx_probe(void);
+/* A description of the display system for -version ("SDL 3.4.20"), or
+ * NULL if it is not working. */
+const char *gfx_describe(void);
 
 /*
  * The graphics state of one drawing call, filled in from Icon's context.

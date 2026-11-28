@@ -2,9 +2,9 @@
 # build.sh: build gcon into this checkout, which is a gcon root:
 #
 #   libexec/gcon-vm        the runtime (vm/; needs a C compiler)
-#   libexec/gcon-graphics  the display server (graphics/; needs C++ and
-#                          CMake; skipped without them, and then programs
-#                          cannot open windows)
+#   libexec/gcon-graphics  the display server gcon-vm runs: the first of
+#                          those chosen below (by default the SDL one)
+#   libexec/gcon-graphics-NAME  each display server built (sdl, x11)
 #   bin/gcon               the command (src/)
 #   bin/colrbook ... bin/vib  the programs Arizona builds into its bin
 #                          (colrbook colrpick fontpick palette wevents
@@ -14,9 +14,42 @@
 #                          (with doc/ref/uclass.md, its page, which is committed)
 #   doc/html               the documentation as HTML (gcon doc -build)
 #
+#   ./build.sh [--withSDL] [--withX11] [--withCocoa]
+#
+# The flags choose the display servers (graphics/design/design.md,
+# "Native display servers"); the first is the one gcon-vm runs, and
+# $GCONGRAPHICS names another at run time:
+#
+#   --withSDL    SDL3 + Blend2D (graphics/; needs C++ and CMake), portable;
+#                the default, skipped without C++ or CMake (and then
+#                programs cannot open windows)
+#   --withX11    Xlib (graphics/x11/; needs Xlib)
+#   --withCocoa  AppKit and Core Graphics, on macOS (not yet written)
+#
 # Builds never use the network. $CC and $CFLAGS are passed on.
 set -eu
 cd "$(dirname "$0")"
+servers=
+chosen=
+for a; do
+	case $a in
+	--withSDL) servers="$servers sdl" ;;
+	--withX11) servers="$servers x11" ;;
+	--withCocoa)
+		echo "build.sh: --withCocoa: the Cocoa display server is not written yet" >&2
+		exit 2
+		;;
+	*)
+		echo "usage: ./build.sh [--withSDL] [--withX11] [--withCocoa]" >&2
+		exit 2
+		;;
+	esac
+done
+if [ -n "$servers" ]; then
+	chosen=1
+else
+	servers=sdl
+fi
 mkdir -p bin libexec
 
 vm/build.sh
@@ -28,18 +61,46 @@ echo "built libexec/gcon-vm"
 # database (deps/unicode, checked against deps/deps.lock).
 sh tools/uclass.sh
 
-if command -v cmake >/dev/null 2>&1 && command -v "${CXX:-c++}" >/dev/null 2>&1; then
-	mkdir -p graphics/build
-	graphics/build.sh >graphics/build/build-all.log 2>&1 || {
-		echo "build.sh: the display server did not build: see graphics/build/build-all.log" >&2
-		exit 1
-	}
-	cp graphics/bin/gcon-graphics libexec/gcon-graphics.new
-	mv libexec/gcon-graphics.new libexec/gcon-graphics
-	echo "built libexec/gcon-graphics"
-else
-	echo "build.sh: no C++ compiler or CMake: the display server is not built"
-fi
+# put_server NAME BIN: the display server NAME, built as BIN; the first is
+# libexec/gcon-graphics, the one gcon-vm runs
+first=1
+put_server() {
+	cp "$2" "libexec/gcon-graphics-$1.new"
+	mv "libexec/gcon-graphics-$1.new" "libexec/gcon-graphics-$1"
+	echo "built libexec/gcon-graphics-$1"
+	if [ $first = 1 ]; then
+		cp "$2" libexec/gcon-graphics.new
+		mv libexec/gcon-graphics.new libexec/gcon-graphics
+		echo "libexec/gcon-graphics is gcon-graphics-$1"
+		first=0
+	fi
+}
+for s in $servers; do
+	case $s in
+	sdl)
+		if command -v cmake >/dev/null 2>&1 && command -v "${CXX:-c++}" >/dev/null 2>&1; then
+			mkdir -p graphics/build
+			graphics/build.sh >graphics/build/build-all.log 2>&1 || {
+				echo "build.sh: the SDL display server did not build: see graphics/build/build-all.log" >&2
+				exit 1
+			}
+			put_server sdl graphics/bin/gcon-graphics
+		elif [ -n "$chosen" ]; then
+			echo "build.sh: --withSDL: no C++ compiler or CMake" >&2
+			exit 1
+		else
+			echo "build.sh: no C++ compiler or CMake: the display server is not built"
+		fi
+		;;
+	x11)
+		sh graphics/x11/build.sh >/dev/null || {
+			echo "build.sh: --withX11: the X11 display server did not build (graphics/x11/build.sh)" >&2
+			exit 1
+		}
+		put_server x11 graphics/bin/gcon-graphics-x11
+		;;
+	esac
+done
 
 # The version, by Go's rules for its own: a commit tagged vX.Y.Z is
 # vX.Y.Z; a later commit is the pseudo-version vX.Y.(Z+1)-0.DATE-COMMIT,

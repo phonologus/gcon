@@ -206,8 +206,9 @@ Not in `gcon help environment`, which is for users:
 |---|---|---|
 | `GCONVMSTRESS=n` | gcon-vm (`vm/src/gc.c`) | collect every n allocations, poisoning freed blocks |
 | `GCONVMDEBUG=gc` | gcon-vm (`vm/src/gc.c`) | a line on standard error for each collection; freed blocks poisoned |
-| `ICONSDL_TEST_DUMP=dir` | gcon-graphics (`graphics/src/canvas.c`) | write each canvas to dir at exit, for `vm/tests/iconx.sh` |
-| `ICONSDL_TEST_EVENTS=script` | gcon-graphics (`graphics/src/plat.c`) | scripted keys, clicks and a close for the first window, for `vm/tests/window.sh` |
+| `ICONSDL_TEST_DUMP=dir` | gcon-graphics (`graphics/src/canvas.c`, `graphics/x11/xcanvas.c`) | write each canvas to dir at exit, for `vm/tests/iconx.sh` |
+| `ICONSDL_TEST_EVENTS=script` | gcon-graphics (`graphics/src/plat.c`, `graphics/x11/xplat.c`) | scripted keys, clicks and a close for the first window, for `vm/tests/window.sh` |
+| `GRAPHICSSTD`, `REFTOLERANCE` | `vm/tests/graphics.sh`, `ref.sh` | other expected output and tolerances (`vm/tests/x11.sh` gives the X11 server's) |
 | `GCON`, `GCONSRC` | the test drivers | the gcon to test, or the checkout to build it from |
 | `LSPCOMPLETE=n`, `LSPICON95` | `src/tests/lspsession.c` | completion at every nth position only; ask for vet's Icon 9.5 checks |
 | `VSCODE_TEST_VERSION`, `VSCODE_TEST_CACHE` | `editors/vscode` tests | the VS Code to test with, and where it is cached |

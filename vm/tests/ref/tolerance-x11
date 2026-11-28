@@ -1,0 +1,7 @@
+# The X11 display server's accepted differences from the X11 reference
+# (tests/x11.sh): it draws with X's own requests, so every image must
+# match exactly but text, whose glyphs and metrics are the fonts the X
+# server has. Format as tests/ref/tolerance.
+#
+# name      pixels  output
+text        -1      differs  # the X server's fonts
