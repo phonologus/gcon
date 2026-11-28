@@ -133,7 +133,6 @@ typedef struct Resolver {
 	SemaFile *f;
 	Node *proc;
 	ProcLocals *locals;
-	StrMap macros; /* MacroDef * (as bytes) -> Symbol *: one per definition */
 } Resolver;
 
 /* diag records a diagnostic at t: "\"<t's text>\": msg". */
@@ -209,11 +208,11 @@ static Symbol *macro(Resolver *r, Token *t) {
 	}
 	char key[sizeof def];
 	memcpy(key, &def, sizeof def);
-	Symbol *s = strmap_get(&r->macros, key, sizeof key);
+	Symbol *s = strmap_get(&r->info->macrosyms, key, sizeof key);
 	if (!s) {
 		s = newsym(def->name, strlen(def->name), S_MACRO, NULL, NULL, NULL);
 		s->macro = def;
-		strmap_put(&r->macros, key, sizeof key, s);
+		strmap_put(&r->info->macrosyms, key, sizeof key, s);
 	}
 	return s;
 }
@@ -359,6 +358,7 @@ static void decl(Resolver *r, Node *d) {
 				diag(r, t, SEV_ERROR, "redeclared identifier");
 			strmap_put(&seen, text(r->f, t), t->len, t);
 		}
+		strmap_free(&seen);
 		break;
 	}
 	case N_INVOCABLE:
@@ -448,4 +448,57 @@ ProcLocals *sema_locals(SemaInfo *info, Node *proc) {
 		if (info->locals.v[i]->proc == proc)
 			return info->locals.v[i];
 	return NULL;
+}
+
+static void freesym(Symbol *s) {
+	free((char *)s->name);
+	free(s);
+}
+
+static void freesyms(void *ctx, const char *key, size_t n, void *val) {
+	(void)ctx, (void)key, (void)n;
+	SymVec *v = val;
+	for (size_t i = 0; i < v->n; i++)
+		freesym(v->v[i]);
+	free(v->v);
+	free(v);
+}
+
+void sema_free_program(Program *p) {
+	if (!p)
+		return;
+	strmap_each(&p->globals, freesyms, NULL);
+	strmap_free(&p->globals);
+	strmap_each(&p->fields, freesyms, NULL);
+	strmap_free(&p->fields);
+	free(p);
+}
+
+static void freemacrosym(void *ctx, const char *key, size_t n, void *val) {
+	(void)ctx, (void)key, (void)n;
+	freesym(val);
+}
+
+void sema_free_info(SemaInfo *info) {
+	if (!info)
+		return;
+	free(info->uses);
+	free(info->fielduses);
+	free((void *)info->keywords);
+	free(info->iskeyword);
+	for (size_t i = 0; i < info->locals.n; i++) {
+		ProcLocals *pl = info->locals.v[i];
+		for (size_t j = 0; j < pl->syms.n; j++)
+			freesym(pl->syms.v[j]);
+		free(pl->syms.v);
+		strmap_free(&pl->byname);
+		free(pl);
+	}
+	free(info->locals.v);
+	for (size_t i = 0; i < info->diags.n; i++)
+		free((char *)info->diags.v[i].msg);
+	free(info->diags.v);
+	strmap_each(&info->macrosyms, freemacrosym, NULL);
+	strmap_free(&info->macrosyms);
+	free(info);
 }

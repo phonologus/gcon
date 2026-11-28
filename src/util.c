@@ -329,6 +329,17 @@ void strmap_put(StrMap *m, const char *key, size_t n, void *val) {
 	m->n++;
 }
 
+void strmap_free(StrMap *m) {
+	for (size_t i = 0; i < m->nbins; i++)
+		for (struct StrEntry *e = m->bins[i], *next; e; e = next) {
+			next = e->next;
+			free(e->key);
+			free(e);
+		}
+	free(m->bins);
+	memset(m, 0, sizeof *m);
+}
+
 void strmap_each(const StrMap *m, void (*f)(void *ctx, const char *key, size_t n, void *val), void *ctx) {
 	for (size_t i = 0; i < m->nbins; i++)
 		for (struct StrEntry *e = m->bins[i]; e; e = e->next)

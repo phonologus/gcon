@@ -130,6 +130,7 @@ typedef struct SemaInfo {
 	bool *iskeyword;
 	VEC(ProcLocals *) locals; /* one for each procedure, in order */
 	VEC(Diagnostic) diags;    /* sorted by offset */
+	StrMap macrosyms;         /* MacroDef * (as bytes) -> Symbol *: one per definition */
 } SemaInfo;
 
 /* sema_program collects the global declarations of files. */
@@ -150,5 +151,11 @@ SemaInfo *sema_resolve(Program *p, SemaFile *f);
 
 /* sema_locals returns the locals of procedure proc, or NULL. */
 ProcLocals *sema_locals(SemaInfo *info, Node *proc);
+
+/* sema_free_program and sema_free_info free what sema_program and
+ * sema_resolve made (not the files): a long-running caller's (gcon
+ * lsp). An info must be freed before its program. */
+void sema_free_program(Program *p);
+void sema_free_info(SemaInfo *info);
 
 #endif

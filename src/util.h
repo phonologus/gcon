@@ -51,6 +51,8 @@ void *strmap_get(const StrMap *m, const char *key, size_t n); /* NULL if absent 
 void strmap_put(StrMap *m, const char *key, size_t n, void *val);
 /* strmap_each calls f for every entry, in no particular order. */
 void strmap_each(const StrMap *m, void (*f)(void *ctx, const char *key, size_t n, void *val), void *ctx);
+/* strmap_free frees the map's entries and keys (not the values), leaving it empty. */
+void strmap_free(StrMap *m);
 
 /* UTF-8, as Go's: an invalid sequence decodes as RuneError with width 1
  * (width 0 for no input). */

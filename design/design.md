@@ -195,6 +195,26 @@ redistributable. No Gcon test needs Go.
 icontools stays as it is, standalone (above); Gcon's formatter and
 language server are ported from Gcon's own fork.
 
+**The language server's memory (2026-11-28).** Ported from Go, `gcon
+lsp` built a document's whole program (every file of its directory and
+their links) and resolved its names afresh for every request, and freed
+none of it, as Go's collector had: 4 GB for the test's features session
+on the IPL's `gprocs/dialog.icn`, which a Linux VM's 8 GB could not
+hold. Now the workspace has a generation, moved on by every open,
+change and close (and a file changed on disk); each open document's
+program, its files in order and the resolutions made in it are kept
+for the generation they were made in (`ProgCache`), and freed
+(`sema_free_program`, `sema_free_info`) when the next is made. A
+file's macro scopes are kept while it and the files it includes are
+the same documents, and own their definitions. Requests free what they
+build (replies, completion items, document symbols). The same session
+takes 216 MB and a fifteenth of the time, with the same replies; 200
+edits with requests between them, 408 MB, not 4 GB. What remains per
+edit is the replaced document itself (its text and syntax tree): the
+parser has no free yet, and older caches may still point at it.
+`src/tests/lsp.sh` has an editing session, run under the sanitizers
+with `SANITIZE=1`.
+
 **Two oracles (2026-11-26, after the parser's port).** Checking the C
 only against the Go would make the port C to Go to C, with Icon itself
 reached only through the Go. So the authorities are:

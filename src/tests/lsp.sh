@@ -221,6 +221,48 @@ grep -q 'general category or script' "$tmp/hover2" && grep -q 'gcon doc uclass' 
 	head -c 400 "$tmp/hover2"
 	fail=$((fail + 1))
 }
+# Editing: a document of a large directory (the IPL's gprocs) changed
+# again and again, with requests between the edits, closed and opened
+# again: programs and resolutions are kept between edits and freed when
+# the next comes (once made for every request, and never freed: 4 GB
+# for lspsession's features session on dialog.icn). Every request must
+# be answered, without an error, nothing on standard error.
+ed=$here/lib/ipl/gprocs/dialog.icn
+uri="file://$ed"
+text=$(awk '{ gsub(/\\/, "\\\\"); gsub(/"/, "\\\""); gsub(/\t/, "\\t"); gsub(/\r/, ""); printf "%s\\n", $0 }' "$ed")
+{
+	frame '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"processId":null,"rootUri":null,"capabilities":{}}}'
+	frame '{"jsonrpc":"2.0","method":"initialized","params":{}}'
+	frame "{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{\"textDocument\":{\"uri\":\"$uri\",\"languageId\":\"icon\",\"version\":1,\"text\":\"$text\"}}}"
+	id=2
+	for v in 2 3 4 5 6 7 8 9 10 11; do
+		for at in '"line":70,"character":8' '"line":75,"character":3'; do
+			for m in hover references completion; do
+				frame "{\"jsonrpc\":\"2.0\",\"id\":$id,\"method\":\"textDocument/$m\",\"params\":{\"textDocument\":{\"uri\":\"$uri\"},\"position\":{$at},\"context\":{\"includeDeclaration\":true}}}"
+				id=$((id + 1))
+			done
+		done
+		frame "{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didChange\",\"params\":{\"textDocument\":{\"uri\":\"$uri\",\"version\":$v},\"contentChanges\":[{\"text\":\"# edit $v\\n$text\"}]}}"
+		frame "{\"jsonrpc\":\"2.0\",\"id\":$id,\"method\":\"workspace/symbol\",\"params\":{\"query\":\"Dialog\"}}"
+		id=$((id + 1))
+	done
+	frame "{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didClose\",\"params\":{\"textDocument\":{\"uri\":\"$uri\"}}}"
+	frame "{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{\"textDocument\":{\"uri\":\"$uri\",\"languageId\":\"icon\",\"version\":12,\"text\":\"$text\"}}}"
+	frame "{\"jsonrpc\":\"2.0\",\"id\":$id,\"method\":\"textDocument/hover\",\"params\":{\"textDocument\":{\"uri\":\"$uri\"},\"position\":{\"line\":70,\"character\":8}}}"
+	frame "{\"jsonrpc\":\"2.0\",\"id\":$((id + 1)),\"method\":\"shutdown\"}"
+	frame '{"jsonrpc":"2.0","method":"exit"}'
+} >"$tmp/edits.sess"
+GCONROOT=$here "$tmp/gcon" lsp -docs "$tmp/nodocs" <"$tmp/edits.sess" 2>"$tmp/edits.err" | "$tmp/lspsession" split >"$tmp/edits.out"
+st=$?
+want=$(grep -o '"jsonrpc":"2.0","id":' "$tmp/edits.sess" | wc -l | tr -d ' ')
+got=$(grep -c '^{"jsonrpc":"2.0","id":' "$tmp/edits.out")
+efail=0
+if [ $st != 0 ] || [ -s "$tmp/edits.err" ] || [ "$want" != "$got" ] || grep -q '"error":{' "$tmp/edits.out"; then
+	echo "FAIL editing session: status $st, $got of $want requests answered, $(grep -c '"error":{' "$tmp/edits.out") errors; $(head -3 "$tmp/edits.err")"
+	efail=1
+fi
+echo "lsp: editing session, $efail problems"
+fail=$((fail + efail))
 fail=$((fail + hfail))
 fail=$((fail + wfail))
 [ $fail -eq 0 ]

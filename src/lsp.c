@@ -206,6 +206,11 @@ typedef struct Doc {
 	File *file;
 	Mapper m;
 	SemaFile sf;
+	/* sf.macros: checked in workspace generation macrogen - 1 (0: never
+	 * made), from the files in incs, owning macroheap's definitions */
+	unsigned long macrogen;
+	VEC(struct Doc *) incs;
+	VEC(void *) macroheap;
 } Doc;
 
 static Doc *docof(SemaFile *sf) { return (Doc *)((char *)sf - offsetof(Doc, sf)); }
@@ -239,6 +244,11 @@ typedef struct Workspace {
 	StrVec folders; /* the client's workspace folders */
 	bool utf8;
 	const char *root; /* gcon's root, or NULL */
+	/* the generation: it moves on whenever a document opens, changes or
+	 * closes, or a file on disk changes, and every program and macro
+	 * scope made in an earlier one is made again (and freed) */
+	unsigned long gen;
+	StrMap progs; /* uri -> ProgCache *: each open document's program */
 } Workspace;
 
 static long long mtime(const struct stat *st) {
@@ -261,6 +271,8 @@ static Doc *load(Workspace *w, const char *path) {
 	DiskFile *c = strmap_get(&w->cache, path, strlen(path));
 	if (c && c->mod == mtime(&st) && c->size == (long long)st.st_size)
 		return c->doc;
+	if (c)
+		w->gen++; /* changed on disk */
 	FILE *f = fopen(path, "rb");
 	if (!f)
 		return NULL;
@@ -444,11 +456,36 @@ static void define(MacroFrame *f, MacroDef *def, size_t from) {
 	VPUSH(f->out, s);
 }
 
+/* macroheap_free frees what d's macro scopes own. */
+static void macroheap_free(Doc *d) {
+	for (size_t i = 0; i < d->macroheap.n; i++)
+		free(d->macroheap.v[i]);
+	d->macroheap.n = 0;
+	free(d->sf.macros);
+	d->sf.macros = NULL;
+	d->sf.nmacros = 0;
+}
+
 /* macros computes the preprocessor symbols in force in each part of d,
  * following $define, $undef and $include directives in order, without
  * recursion (an explicit stack of included files; the stack guards
- * against include cycles). */
+ * against include cycles). They are kept while d and the files it
+ * includes are the same documents (an edit makes a new one), so an
+ * edit elsewhere costs nothing; d owns the definitions (macroheap). */
 static void macros(Workspace *w, Doc *d) {
+	if (d->macrogen == w->gen + 1)
+		return; /* checked in this generation */
+	if (d->macrogen) {
+		bool same = true;
+		for (size_t i = 0; i < d->incs.n && same; i++)
+			same = load(w, d->incs.v[i]->path) == d->incs.v[i];
+		if (same) {
+			d->macrogen = w->gen + 1;
+			return;
+		}
+	}
+	macroheap_free(d);
+	d->incs.n = 0;
 	VEC(MacroFrame) stk = {0};
 	MacroFrame f0 = {0};
 	f0.d = d;
@@ -471,13 +508,15 @@ static void macros(Workspace *w, Doc *d) {
 			char *cmd, *name, *rest;
 			size_t nameoff;
 			parsedirective(x->text + tr->offset, tr->len, &cmd, &name, &nameoff, &rest);
-			if (!strcmp(cmd, "define")) {
-				if (!name[0])
-					continue;
+			if (!strcmp(cmd, "define") && name[0]) {
 				MacroDef *def = xcalloc(1, sizeof *def);
 				def->name = name, def->value = rest, def->path = x->path;
 				def->offset = tr->offset + nameoff, def->end = def->offset + strlen(name);
+				VPUSH(d->macroheap, def);
+				VPUSH(d->macroheap, name);
+				VPUSH(d->macroheap, rest);
 				define(f, def, tr->offset);
+				name = rest = NULL; /* d's now */
 			} else if (!strcmp(cmd, "undef")) {
 				size_t i = (size_t)(uintptr_t)strmap_get(&f->active, name, strlen(name));
 				if (i) {
@@ -494,24 +533,35 @@ static void macros(Workspace *w, Doc *d) {
 					a++;
 				while (fn > a && file[fn - 1] == '"')
 					fn--;
-				Doc *inc = findinclude(w, xstrndup(file + a, fn - a), x);
-				if (!inc || strmap_get(&onstack, inc->path, strlen(inc->path)))
-					continue;
-				strmap_put(&onstack, inc->path, strlen(inc->path), (void *)1);
-				MacroFrame c = {0};
-				c.d = inc;
-				c.incfrom = tr->offset;
-				VPUSH(stk, c);
-				pushed = true;
+				char *incname = xstrndup(file + a, fn - a);
+				Doc *inc = findinclude(w, incname, x);
+				free(incname);
+				free(file);
+				free(both.b);
+				if (inc)
+					VPUSH(d->incs, inc);
+				if (inc && !strmap_get(&onstack, inc->path, strlen(inc->path))) {
+					strmap_put(&onstack, inc->path, strlen(inc->path), (void *)1);
+					MacroFrame c = {0};
+					c.d = inc;
+					c.incfrom = tr->offset;
+					VPUSH(stk, c);
+					pushed = true;
+				}
 			}
+			free(cmd);
+			free(name);
+			free(rest);
 		}
 		if (pushed)
 			continue;
 		/* this file is done */
 		MacroFrame done = stk.v[--stk.n];
+		strmap_free(&done.active);
 		if (!stk.n) {
 			d->sf.macros = done.out.v;
 			d->sf.nmacros = done.out.n;
+			d->macrogen = w->gen + 1;
 			break;
 		}
 		strmap_put(&onstack, done.d->path, strlen(done.d->path), (void *)0);
@@ -519,7 +569,9 @@ static void macros(Workspace *w, Doc *d) {
 		for (size_t i = 0; i < done.out.n; i++)
 			if (done.out.v[i].until == SIZE_MAX) /* still defined at the end of the included file */
 				define(parent, done.out.v[i].def, done.incfrom);
+		free(done.out.v);
 	}
+	strmap_free(&onstack);
 	free(stk.v);
 }
 
@@ -628,6 +680,66 @@ static Program *program(Workspace *w, Doc *d, DocVec *order) {
 	return sema_program(files, order->n, complete);
 }
 
+/* A document's program, its files in order, and the resolutions made in
+ * it: kept for the generation it was made in, so that the requests
+ * between two edits share one (gcon lsp made one per request, and freed
+ * none: gigabytes over a long session). */
+typedef struct ProgCache {
+	unsigned long gen;
+	Program *prog;
+	DocVec order;
+	StrMap infos; /* uri -> SemaInfo * */
+} ProgCache;
+
+static void freeinfo(void *ctx, const char *key, size_t n, void *val) {
+	(void)ctx, (void)key, (void)n;
+	sema_free_info(val);
+}
+
+/* progfor returns d's program, made again if the generation has moved
+ * on (and the old one freed). */
+static ProgCache *progfor(Workspace *w, Doc *d) {
+	ProgCache *pc = strmap_get(&w->progs, d->uri, strlen(d->uri));
+	if (pc && pc->gen == w->gen)
+		return pc;
+	if (!pc) {
+		pc = xcalloc(1, sizeof *pc);
+		strmap_put(&w->progs, d->uri, strlen(d->uri), pc);
+	} else {
+		strmap_each(&pc->infos, freeinfo, NULL);
+		strmap_free(&pc->infos);
+		free(pc->prog->files);
+		sema_free_program(pc->prog);
+	}
+	pc->prog = program(w, d, &pc->order);
+	pc->gen = w->gen; /* after: program may load a file changed on disk */
+	return pc;
+}
+
+/* dropprog frees a closed document's program. */
+static void dropprog(Workspace *w, const char *uri) {
+	ProgCache *pc = strmap_get(&w->progs, uri, strlen(uri));
+	if (!pc)
+		return;
+	strmap_each(&pc->infos, freeinfo, NULL);
+	strmap_free(&pc->infos);
+	free(pc->prog->files);
+	sema_free_program(pc->prog);
+	free(pc->order.v);
+	free(pc);
+	strmap_put(&w->progs, uri, strlen(uri), NULL);
+}
+
+/* resolved returns d's names resolved in pc's program. */
+static SemaInfo *resolved(ProgCache *pc, Doc *d) {
+	SemaInfo *info = strmap_get(&pc->infos, d->uri, strlen(d->uri));
+	if (!info) {
+		info = sema_resolve(pc->prog, &d->sf);
+		strmap_put(&pc->infos, d->uri, strlen(d->uri), info);
+	}
+	return info;
+}
+
 /* ------------------------------------------------------------------ */
 /* The connection (jsonrpc.go) */
 
@@ -690,6 +802,7 @@ static void reply(Server *s, JVal *id, const char *result, int code, const char 
 	}
 	bufputc(&b, '}');
 	send(s, &b);
+	free(b.b);
 }
 
 static void notify(Server *s, const char *method, const char *params) {
@@ -769,8 +882,9 @@ static void diagnostic(Buf *b, const Mapper *m, size_t a, size_t z, int sev, con
 	json_stringz(b, msg);
 }
 
-/* vetresolve resolves another file of the program, for vet. */
-static SemaInfo *vetresolve(void *ctx, SemaFile *f) { return sema_resolve(ctx, f); }
+/* vetresolve resolves another file of the program, for vet: ctx is the
+ * ProgCache, which keeps it. */
+static SemaInfo *vetresolve(void *ctx, SemaFile *f) { return resolved(ctx, docof(f)); }
 
 /* vet's link resolver here: where the workspace finds a link
  * declaration's file. VetLinkSelf if it is a file of the program that
@@ -810,9 +924,10 @@ static void diagnostics(Server *s, Doc *d, Buf *b) {
 	bufputc(b, '[');
 	bool first = true;
 	if (d->file->errs.n == 0) {
-		DocVec order = {0};
-		Program *p = program(&s->ws, d, &order);
-		SemaInfo *info = sema_resolve(p, &d->sf);
+		ProgCache *pc = progfor(&s->ws, d);
+		DocVec order = pc->order;
+		Program *p = pc->prog;
+		SemaInfo *info = resolved(pc, d);
 		for (size_t i = 0; i < info->diags.n; i++) {
 			Diagnostic *e = &info->diags.v[i];
 			if (!first)
@@ -869,7 +984,7 @@ static void diagnostics(Server *s, Doc *d, Buf *b) {
 		VetFindings vf = {0};
 		VetLinkCtx lc = {&s->ws, &order};
 		VetOptions vo = {s->icon95, wslink, &lc};
-		vet_file(p, info, vetresolve, p, vo, &vf);
+		vet_file(p, info, vetresolve, pc, vo, &vf);
 		for (size_t i = 0; i < vf.n; i++) {
 			if (!first)
 				bufputc(b, ',');
@@ -936,6 +1051,7 @@ static void publishall(Server *s) {
  * the names declared in others). */
 static void update(Server *s, const char *uri, long version, const char *text, size_t n) {
 	Doc *d = newdoc(uri, version, text, n, s->utf8);
+	s->ws.gen++;
 	strmap_put(&s->docs, uri, strlen(uri), d);
 	if (d->path[0])
 		strmap_put(&s->ws.open, d->path, strlen(d->path), d);
@@ -1033,6 +1149,20 @@ static char *paramlist(Doc *d, TokList *l, bool variadic) {
 	return b.b;
 }
 
+static void freedsyms(DSymVec *v) {
+	for (size_t i = 0; i < v->n; i++) {
+		DSym *s = &v->v[i];
+		for (size_t k = 0; k < s->children.n; k++) {
+			free(s->children.v[k].name);
+			free(s->children.v[k].detail);
+		}
+		free(s->children.v);
+		free(s->name);
+		free(s->detail);
+	}
+	free(v->v);
+}
+
 static DSymVec docsymbols(Doc *d) {
 	DSymVec syms = {0};
 	DSym s, c;
@@ -1051,9 +1181,13 @@ static DSymVec docsymbols(Doc *d) {
 			break;
 		case N_RECORD: {
 			Buf det = {0};
+			char *pl = paramlist(d, &x->record.fields, false);
 			bufputs(&det, "record");
-			bufputs(&det, paramlist(d, &x->record.fields, false));
-			if (!mksym(d, x->record.name, SymbolStruct, det.b, x, &s))
+			bufputs(&det, pl);
+			free(pl);
+			bool ok = mksym(d, x->record.name, SymbolStruct, det.b, x, &s);
+			free(det.b);
+			if (!ok)
 				break;
 			for (size_t k = 0; k < x->record.fields.elems.n; k++)
 				if (mksym(d, x->record.fields.elems.v[k], SymbolField, "field", NULL, &c))
@@ -1063,9 +1197,13 @@ static DSymVec docsymbols(Doc *d) {
 		}
 		case N_PROC: {
 			Buf det = {0};
+			char *pl = paramlist(d, &x->proc.params, x->proc.lbrack != NULL);
 			bufputs(&det, "procedure");
-			bufputs(&det, paramlist(d, &x->proc.params, x->proc.lbrack != NULL));
-			if (!mksym(d, x->proc.name, SymbolFunction, det.b, x, &s))
+			bufputs(&det, pl);
+			free(pl);
+			bool ok = mksym(d, x->proc.name, SymbolFunction, det.b, x, &s);
+			free(det.b);
+			if (!ok)
 				break;
 			for (size_t k = 0; k < x->proc.params.elems.n; k++)
 				if (mksym(d, x->proc.params.elems.v[k], SymbolVariable, "parameter", NULL, &c))
@@ -1076,6 +1214,7 @@ static DSymVec docsymbols(Doc *d) {
 				for (size_t j = 0; j < l->local.names.elems.n; j++)
 					if (mksym(d, l->local.names.elems.v[j], SymbolVariable, kw, NULL, &c))
 						VPUSH(s.children, c);
+				free(kw);
 			}
 			VPUSH(syms, s);
 			break;
@@ -1151,6 +1290,7 @@ static void documentsymbols(Server *s, Doc *d, Buf *b) {
 		}
 	}
 	bufputc(b, ']');
+	freedsyms(&syms);
 }
 
 /* The first and last tokens of a node, down its first or last
@@ -1276,6 +1416,8 @@ static void dispatch(Server *s, const char *method, JVal *params, Buf *b, int *c
 		if (d)
 			strmap_put(&s->ws.open, d->path, strlen(d->path), NULL);
 		strmap_put(&s->docs, uri, strlen(uri), NULL);
+		s->ws.gen++;
+		dropprog(&s->ws, uri);
 		/* Clear the diagnostics of the closed document, and refresh the
 		 * others (the file on disk may differ from the closed buffer). */
 		Buf p = {0};
@@ -1476,6 +1618,7 @@ static char *relpath(Doc *from, Doc *to) {
 typedef struct PosCtx {
 	Doc *d;
 	size_t off;
+	ProgCache *pc;
 	Program *prog;
 	DocVec docs;
 	SemaInfo *info;
@@ -1526,8 +1669,10 @@ static bool at(Server *s, JVal *p, PosCtx *c, int *code, char **err) {
 	c->d = d;
 	Pos ps = {json_int(p, "position.line"), json_int(p, "position.character")};
 	c->off = offsetof_pos(&d->m, ps);
-	c->prog = program(&s->ws, d, &c->docs);
-	c->info = sema_resolve(c->prog, &d->sf);
+	c->pc = progfor(&s->ws, d);
+	c->prog = c->pc->prog;
+	c->docs = c->pc->order;
+	c->info = resolved(c->pc, d);
 	c->tok = identat(d->file, c->off);
 	return true;
 }
@@ -2066,7 +2211,7 @@ static int cmpref(const void *a, const void *b) {
 	return x->tok->offset < y->tok->offset ? -1 : x->tok->offset > y->tok->offset;
 }
 
-static SemaInfo *infofor(PosCtx *c, Doc *d) { return d == c->d ? c->info : sema_resolve(c->prog, &d->sf); }
+static SemaInfo *infofor(PosCtx *c, Doc *d) { return resolved(c->pc, d); }
 
 static void addref(RefVec *v, Doc *d, Token *t, bool isdecl) {
 	Ref r = {d, t, isdecl};
@@ -2186,6 +2331,22 @@ typedef struct Item {
 } Item;
 typedef VEC(Item) ItemVec;
 
+/* An item owns its strings (a static one is copied: sdup). */
+static char *sdup(const char *s) { return s ? xstrndup(s, strlen(s)) : NULL; }
+
+static void freeitem(Item *it) {
+	free(it->label);
+	free(it->detail);
+	free(it->doc);
+	free(it->sorttext);
+}
+
+static void freeitems(ItemVec *v) {
+	for (size_t i = 0; i < v->n; i++)
+		freeitem(&v->v[i]);
+	free(v->v);
+}
+
 static void jitem(Buf *b, Item *it) {
 	bufputs(b, "{\"label\":");
 	json_stringz(b, it->label);
@@ -2266,7 +2427,8 @@ static void identcompletions(PosCtx *c, ItemVec *items) {
 		if (!strmap_get(&seen, x_.label, strlen(x_.label))) {                    \
 			strmap_put(&seen, x_.label, strlen(x_.label), (void *)1);        \
 			VPUSH(*items, x_);                                               \
-		}                                                                        \
+		} else                                                                   \
+			freeitem(&x_);                                                   \
 	} while (0)
 	for (size_t i = 0; i < c->d->sf.nmacros; i++) {
 		MacroScope *m = &c->d->sf.macros[i];
@@ -2294,29 +2456,34 @@ static void identcompletions(PosCtx *c, ItemVec *items) {
 	for (size_t i = 0; i < names.n; i++) {
 		Symbol *sym = sema_global(c->prog, names.v[i], strlen(names.v[i]));
 		Item it = {names.v[i], NULL, NULL, cat2("1", names.v[i]), 6};
-		if (sym->kind == S_PROCEDURE)
-			it.kind = 3, it.detail = cat2("procedure ", procsignature(docof(sym->file), sym->node));
+		if (sym->kind == S_PROCEDURE) {
+			char *sig = procsignature(docof(sym->file), sym->node);
+			it.kind = 3, it.detail = cat2("procedure ", sig);
+			free(sig);
+		}
 		else if (sym->kind == S_RECORD) {
 			Buf det = {0};
 			bufprintf(&det, "record %s%s", names.v[i], toklist(docof(sym->file), &sym->node->record.fields));
 			it.kind = 22, it.detail = det.b;
 		} else
-			it.detail = "global";
+			it.detail = sdup("global");
 		ADDITEM(it);
 	}
 	size_t nf;
 	const BuiltinFunc *fs = builtin_functions(&nf);
 	for (size_t i = 0; i < nf; i++) {
-		Item it = {(char *)fs[i].name, (char *)fs[i].signature, capitalize(fs[i].summary), cat2("2", fs[i].name), 3};
+		Item it = {sdup(fs[i].name), sdup(fs[i].signature), capitalize(fs[i].summary), cat2("2", fs[i].name), 3};
 		ADDITEM(it);
 	}
 	for (size_t i = 0; i < sizeof reservedwords / sizeof reservedwords[0]; i++) {
-		Item it = {(char *)reservedwords[i], NULL, NULL, cat2("3", reservedwords[i]), 14};
+		Item it = {sdup(reservedwords[i]), NULL, NULL, cat2("3", reservedwords[i]), 14};
 		ADDITEM(it);
 	}
 #undef ADDITEM
 	if (items->n)
 		qsort(items->v, items->n, sizeof *items->v, cmpitem);
+	free(names.v); /* the names are the items' labels */
+	strmap_free(&seen);
 }
 
 static void completion(PosCtx *c, Buf *b) {
@@ -2330,7 +2497,7 @@ static void completion(PosCtx *c, Buf *b) {
 		size_t nk;
 		const Keyword *ks = builtin_keywords(&nk);
 		for (size_t i = 0; i < nk; i++) {
-			Item it = {(char *)ks[i].name, cat2("&", ks[i].name), capitalize(ks[i].summary), NULL, 21};
+			Item it = {sdup(ks[i].name), cat2("&", ks[i].name), capitalize(ks[i].summary), NULL, 21};
 			VPUSH(items, it);
 		}
 	} else if (prev && prev->kind == T_DOT && tend(prev) == start && before && tok_ender(before->kind)) {
@@ -2356,6 +2523,7 @@ static void completion(PosCtx *c, Buf *b) {
 			Item it = {names.v[i], det.b, NULL, NULL, 5};
 			VPUSH(items, it);
 		}
+		free(names.v); /* the names are the items' labels */
 	} else
 		identcompletions(c, &items);
 	bufputs(b, "{\"isIncomplete\":false,\"items\":[");
@@ -2365,6 +2533,7 @@ static void completion(PosCtx *c, Buf *b) {
 		jitem(b, &items.v[i]);
 	}
 	bufputs(b, "]}");
+	freeitems(&items);
 }
 
 /* ---- signature help */
@@ -2683,8 +2852,7 @@ static void workspacesymbols(Server *s, const char *query, Buf *b) {
 	bufputc(b, '[');
 	int n = 0;
 	for (size_t i = 0; i < open.n; i++) {
-		DocVec order = {0};
-		program(&s->ws, open.v[i], &order);
+		DocVec order = progfor(&s->ws, open.v[i])->order;
 		for (size_t j = 0; j < order.n; j++) {
 			Doc *d = order.v[j];
 			if (strmap_get(&seen, d->uri, strlen(d->uri)))
@@ -2699,9 +2867,13 @@ static void workspacesymbols(Server *s, const char *query, Buf *b) {
 				jsyminfo(b, syms.v[k].name, syms.v[k].kind, d->uri, &d->m, syms.v[k].sa, syms.v[k].sz,
 					d->path[0] ? basename_(d->path) : ".");
 			}
+			freedsyms(&syms);
 		}
 	}
 	bufputc(b, ']');
+	strmap_free(&seen);
+	free(open.v);
+	free(q);
 }
 
 /* ---- dispatch */
