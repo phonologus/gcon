@@ -1,10 +1,7 @@
 /*
- * hplat.c -- the headless display server's platform layer and fonts:
- * no display, so no windows (opening one fails) and no events; hidden
- * canvases are all it has. MIT licence, see ../LICENSE.md.
- *
- * Fonts, for now: any family opens, with X's "fixed" metrics (6x13,
- * ascent 11, descent 2), and draws nothing (hcanvas.c's cv_text).
+ * hplat.c -- the headless display server's platform layer: no display,
+ * so no windows (opening one fails) and no events; hidden canvases
+ * are all it has (its fonts are hfont.c's). MIT licence, see ../LICENSE.md.
  */
 #include <poll.h>
 #include <stdlib.h>
@@ -50,26 +47,3 @@ int pl_wait(int timeout_ms)
 
 const char *gfx_describe(void) { return "headless (gcon's rasterizer)"; }
 
-/* ---------- fonts, for now ---------- */
-
-static int fixedfont;
-
-void *ft_open(const char *family, int bold, int italic, int size)
-{
-   (void)family; (void)bold; (void)italic; (void)size;
-   return &fixedfont;
-}
-
-void ft_metrics(void *f, int *ascent, int *descent, int *maxwidth)
-{
-   (void)f;
-   *ascent = 11;
-   *descent = 2;
-   *maxwidth = 6;
-}
-
-int ft_width(void *f, const char *s, int n)
-{
-   (void)f; (void)s;
-   return 6 * n;
-}

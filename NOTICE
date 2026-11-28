@@ -136,3 +136,10 @@ gcon-vm includes stb_image and stb_image_write by Sean Barrett
 (github.com/nothings/stb), vendored unmodified in deps/stb. They are
 offered under the MIT licence or as public domain, the user's choice;
 gcon takes them as public domain (deps/stb/LICENSE).
+
+------------------------------------------------------------------------
+
+The headless display server draws text with X's misc-fixed bitmap fonts
+(gitlab.freedesktop.org/xorg/font/misc-misc; their Latin-1 glyphs, kept in
+deps/fixed), which are in the public domain: "Public domain font. Share
+and enjoy." (deps/fixed/COPYING).

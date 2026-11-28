@@ -4,8 +4,9 @@
 # ($GCON, or built from $GCONSRC, default this checkout) and a display
 # server: $GCONGRAPHICS, by default the one build.sh installed
 # (../libexec/gcon-graphics); without one it says so and checks nothing.
-# The X11 server's fonts are X's, so its output is
-# tests/graphics-x11.std; GRAPHICSSTD names other expected output.
+# The X11 server's fonts are X's, so its output is tests/graphics-x11.std,
+# and the headless server's misc-fixed, tests/graphics-headless.std;
+# GRAPHICSSTD names other expected output.
 set -eu
 here=$(cd "$(dirname "$0")/.." && pwd)
 vm=${VM:-$here/bin/gcon-vm}
@@ -24,6 +25,7 @@ fi
 # the X11 server's fonts are X's
 case $("$GCONGRAPHICS" -version 2>/dev/null) in
 *X11*) GRAPHICSSTD=${GRAPHICSSTD:-$here/tests/graphics-x11.std} ;;
+*headless*) GRAPHICSSTD=${GRAPHICSSTD:-$here/tests/graphics-headless.std} ;;
 esac
 cp "$here/tests/graphics.icn" "$tmp"
 (cd "$tmp" && "$GCON" build -o graphics graphics.icn)

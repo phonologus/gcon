@@ -7,8 +7,8 @@
  * integer scale; every shape is drawn into an A8 coverage mask (here by
  * raster.c, by X's rules, so aliased) and each covered device pixel is
  * combined with the X GC function, the pattern and the colours. The
- * pixel operations (copy, read, write, erase) are canvas.c's. Text: not
- * yet (the spike's font draws nothing).
+ * pixel operations (copy, read, write, erase) are canvas.c's. Text is
+ * X's misc-fixed bitmap fonts (hfont.c).
  */
 #include <math.h>
 #include <signal.h>
@@ -18,6 +18,7 @@
 #include <string.h>
 #include "sdlgfx.h"
 #include "raster.h"
+#include "bdf.h"
 
 typedef struct {
    int w, h;			/* logical size */
@@ -586,14 +587,50 @@ void cv_write(void *cv, const sdlgc *gc, int x, int y, int w, int h, const unsig
    }
 }
 
-/* ---------- text: not yet ---------- */
+/* ---------- text: bitmap fonts (hfont.c) ---------- */
 
+const BdfFont *h_font(void *f);
+
+/* DrawString (image 0), or write()'s text (image 1: as X's
+ * XDrawImageString, the text's cell filled with bg and the glyphs drawn
+ * in fg, both in copy mode, whatever the drawop and fill style); the
+ * glyphs' pixels go through the mask; returns the width */
 int cv_text(void *cv, const sdlgc *gc, void *font, int x, int y, const char *s, int n, int image)
 {
-   int asc, desc, maxw, w = ft_width(font, s, n);
+   Canvas *c = cv;
+   const BdfFont *f = h_font(font);
+   int w = ft_width(font, s, n), r[4], sc = c->s;
+   sdlgc g = *gc;
+   if (!f || n <= 0)
+      return 0;
    if (image) {
-      ft_metrics(font, &asc, &desc, &maxw);
-      cv_erase(cv, gc, x, y - asc, w, asc + desc);
+      cv_erase(c, gc, x, y - f->ascent, w, f->ascent + f->descent);
+      g.drawop = 3;
+      g.reverse = 0;
+      g.fillstyle = 0;
    }
+   if (!region(c, &g, x - f->maxw, y - f->ascent - 1, x + w + f->maxw, y + f->descent + 1, 0, r))
+      return w;
+   mask_clear(c, r);
+   for (int i = 0, pen = x; i < n; i++) {
+      const BdfGlyph *gl = &f->g[(unsigned char)s[i]];
+      if (gl->bits >= 0) {
+         int bpr = (gl->w + 7) / 8, top = y - gl->yo - gl->h;
+         for (int row = 0; row < gl->h; row++) {
+            const unsigned char *b = f->bits + gl->bits + row * bpr;
+            for (int col = 0; col < gl->w; col++) {
+               if (!(b[col >> 3] & (0x80 >> (col & 7))))
+                  continue;
+               int dx = (pen + gl->xo + col) * sc, dy = (top + row) * sc;
+               for (int yy = dy; yy < dy + sc; yy++)
+                  for (int xx = dx; xx < dx + sc; xx++)
+                     if (xx >= r[0] && xx < r[2] && yy >= r[1] && yy < r[3])
+                        c->mk[(size_t)yy * c->pw + xx] = 255;
+            }
+         }
+      }
+      pen += gl->dw;
+   }
+   apply(c, &g, r, 0);
    return w;
 }

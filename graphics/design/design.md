@@ -237,3 +237,27 @@ Not wired into `./build.sh` yet. Open: text (bitmap fonts first: X's
 public-domain `misc-fixed`, embedded; scalable ones would need a font
 rasterizer and a font to ship), whether the headless server becomes the
 fallback where there is no display, and the Wayland server.
+
+### Text in the headless server: X's misc-fixed (2026-11-28)
+
+Bitmap fonts first: X's misc-fixed, the fonts behind X's own `fixed`,
+in the public domain. `deps/update.sh fixed [COMMIT]` fetches them from
+xorg/font/misc-misc and keeps their Latin-1 glyphs (some 190 of each
+font's 4000), still as BDF, in `deps/fixed` (18 fonts, 5x8 to 10x20
+with the bold and oblique faces, 496 KB), pinned in `deps/deps.lock`.
+`raster/bdf2c.sh` (awk) turns them into C tables when the server is
+built; nothing generated is committed. The server is 221 KB with them.
+
+`fixed` is 6x13, as X's; Icon's portable families take the nearest
+size, with the B and O faces for bold and italic; a font's own name
+(`7x13B`) opens it, as an X font name would; any other name fails.
+Glyphs go through the mask like shapes, so drawops and patterns apply;
+image text (`write` to a canvas) is X's `XDrawImageString`, the cell
+filled with bg and the glyphs in fg, in copy mode whatever the drawop.
+
+Against the reference, `fixed` has Arizona's metrics exactly; the other
+families are Arizona's Lucida, Courier, Helvetica and Times there, so
+text differs, and `graphics.sh` has its own expected output
+(`graphics-headless.std`: the X11 server's but for two font lines).
+`vm/tests/headless.sh` runs both; the tolerances
+(`ref/tolerance-headless`) allow a few pixels at arc edges and any text.

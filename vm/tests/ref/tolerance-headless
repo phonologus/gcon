@@ -1,0 +1,13 @@
+# The headless display server's accepted differences from the X11
+# reference: it draws with gcon's own rasterizer (graphics/raster), by
+# X's rules but with arcs flattened to polygons, where X rasterizes them
+# exactly (a few pixels at the edges of circles and pies, with room over
+# 2, 3 and 13 when recorded); its text is X's misc-fixed fonts alone,
+# where the reference has Lucida, Courier, Helvetica and Times. Format as
+# tests/ref/tolerance.
+#
+# name      pixels  output
+clipcopy    6       same     # arc edges
+lines       6       same     # arc edges
+shapes      20      same     # the edges of a filled circle and a pie
+text        -1      differs  # misc-fixed for every family
