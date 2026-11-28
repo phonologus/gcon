@@ -11,8 +11,10 @@ and these help pages. By default it serves the documentation on this
 machine and opens the page in the web browser, as go doc -http does:
 the installed version's documentation, offline, with every example
 program editable and runnable (Run gives it to gcon run, Stop kills
-it; a run is killed after 60 seconds). Doc keeps serving until the
-browser has closed its pages (or it is interrupted). The browser is
+it; a run is killed after 60 seconds). The server runs in the
+background, and the command returns at once; it stops a few seconds
+after the browser has closed its pages (or after two minutes if no page
+ever opens, as in a browser without JavaScript: use -http). The browser is
 $BROWSER, else open on macOS, else xdg-open where there is a display;
 where there is none, doc shows the page as text.
 
@@ -46,7 +48,8 @@ The flags are:
 		subset, and links to pages or headings that do not exist.
 	-http addr
 		serve the documentation on addr (host:port) and open no
-		browser: for a browser elsewhere, or a port of your choosing.
+		browser, in the foreground until interrupted: for a browser
+		elsewhere, or a port of your choosing.
 		Examples run only when addr is a loopback address (127.0.0.1).
 	-html
 		print the page's HTML.

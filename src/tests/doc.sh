@@ -237,23 +237,24 @@ export GCONROOT
 "$G" doc -text help/run >"$tmp/text"
 printf '#!/bin/sh\necho "$1" >"%s.new" && mv "%s.new" "%s"\n' "$tmp/url" "$tmp/url" "$tmp/url" >"$tmp/browser"
 chmod +x "$tmp/browser"
-# serve NAME: start gcon doc NAME, wait for the browser's URL
+# serve NAME: start gcon doc NAME, which gives the browser the URL and
+# leaves the server in the background, its pid in the message
 serve() {
 	rm -f "$tmp/url"
-	TMPDIR=$tmp/t BROWSER=$tmp/browser "$G" doc "$1" >"$tmp/out" 2>"$tmp/err" &
-	server=$!
-	n=0
-	while [ ! -s "$tmp/url" ] && [ $n -lt 100 ] && kill -0 $server 2>/dev/null; do
-		sleep 0.1
-		n=$((n + 1))
-	done
+	TMPDIR=$tmp/t BROWSER=$tmp/browser "$G" doc "$1" >"$tmp/out" 2>"$tmp/err" || problem "gcon doc $1: exit status $?: $(cat "$tmp/err")"
+	server=$(sed -n 's/.*in the background (pid \([0-9]*\);.*/\1/p' "$tmp/err")
 	url=$(cat "$tmp/url" 2>/dev/null)
 	base=$(echo "$url" | sed -n 's|^\(http://127\.0\.0\.1:[0-9]*\)/.*|\1|p')
 }
-stop() { kill $server 2>/dev/null; wait $server 2>/dev/null; }
-checks=$((checks + 2))
+stop() {
+	[ -n "$server" ] || return 0
+	kill $server 2>/dev/null; wait $server 2>/dev/null # (-http's, a child)
+	while kill -0 $server 2>/dev/null; do sleep 0.1; done
+}
+checks=$((checks + 3))
 serve run
 echo "$url" | grep -q '^http://127\.0\.0\.1:[0-9]*/help/run\.html$' || problem "BROWSER was not given help/run's URL: $url $(cat "$tmp/err")"
+[ -n "$server" ] && kill -0 $server 2>/dev/null || problem "gcon doc: no server left in the background: $(cat "$tmp/err")"
 stop
 serve upto
 echo "$url" | grep -q '^http://127\.0\.0\.1:[0-9]*/ref/scanning\.html#upto$' || problem "BROWSER was not given upto's URL, at its anchor: $url"
@@ -302,7 +303,7 @@ if command -v curl >/dev/null 2>&1 && [ -n "$base" ]; then
 		sleep 0.1
 		n=$((n + 1))
 	done
-	! kill -0 $server 2>/dev/null && [ $n -ge 30 ] && grep -q 'closed its pages' "$tmp/err" ||
+	! kill -0 $server 2>/dev/null && [ $n -ge 30 ] ||
 		problem "the server: not stopped a grace after its last page went ($n tenths)"
 	server=
 	TMPDIR=$tmp/t "$G" doc -http 127.0.0.1:0 index >/dev/null 2>"$tmp/err" &

@@ -2139,6 +2139,17 @@ so there was nothing to open), and examples had no Run button, which a
   `-http addr` serves on addr, opens nothing and stops only when
   interrupted. Where there is no browser to open, the page is shown as
   text, as before.
+- The default server goes into the background (2026-11-28), as a
+  daemon, once the browser has been given the URL (its requests wait in
+  the listen queue): the command prints the URL and the server's pid
+  and returns, so the command line is free at once and the grace after
+  the last page goes costs nothing. The child calls `setsid` and sends
+  its standard streams to `/dev/null`, so ^C and a closed terminal
+  leave it alone and nothing it says lands on a later prompt. Nobody
+  can interrupt it there, so it also stops if no page has said hello
+  within 2 minutes (a browser without JavaScript; `-http` serves those,
+  in the foreground). The browser is opened before the fork, so a
+  failing one still falls back to text in the foreground.
 - Pages are rendered on request from the tree (the stylesheet, script
   and search index from memory), so the server needs no built HTML.
   The IPL is served too, at `/ipl/index.html` and `/ipl/NAME.html` (a

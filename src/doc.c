@@ -1333,8 +1333,11 @@ static void aliveq(HttpReq *r) {
  * server stops when the last has gone (a bye, or no ping for
  * PageExpire seconds) and none comes for PageGrace seconds, enough to
  * go from page to page or reload. Until the first page says hello it
- * waits. Only when gcon doc opened the browser itself, not with -http. */
-enum { PageGrace = 5, PageExpire = 300 };
+ * waits, but no more than PageHello seconds: it runs in the background,
+ * where nobody would stop it (a browser without JavaScript never says
+ * hello; -http serves those). Only when gcon doc opened the browser
+ * itself, not with -http. */
+enum { PageGrace = 5, PageExpire = 300, PageHello = 120 };
 
 typedef struct OpenPage {
 	char *id;
@@ -1343,6 +1346,7 @@ typedef struct OpenPage {
 
 static VEC(OpenPage) openpages;
 static bool autostop;
+static time_t started; /* when the background server began */
 
 static void pagestick(const char *msg, void *arg) {
 	(void)arg;
@@ -1373,6 +1377,8 @@ static void pagestick(const char *msg, void *arg) {
 			openpages.v[i] = openpages.v[--openpages.n];
 		else
 			i++;
+	if (autostop && !greeted && now - started >= PageHello)
+		exit(0); /* no page ever came */
 	if (!autostop || !greeted || openpages.n) {
 		empty = 0;
 		return;
@@ -1405,7 +1411,7 @@ static char *newtoken(void) {
  * "/ref/strings.html#find"). It returns only if it cannot: 1 if it
  * cannot listen, -1 if there is no browser to open. */
 static int serveat(Site *s, const char *addr, const char *page, const char *extramd) {
-	bool open = !addr;
+	bool browsing = !addr;
 	char *bound;
 	int fd = http_listen(addr ? addr : "127.0.0.1:0", &bound);
 	if (fd < 0)
@@ -1430,16 +1436,42 @@ static int serveat(Site *s, const char *addr, const char *page, const char *extr
 	}
 	Buf url = {0};
 	bufprintf(&url, "http://%s%s", bound, page);
-	if (open && !browse(url.b)) {
+	if (browsing && !browse(url.b)) {
 		close(fd);
 		runtoken = NULL;
 		fprintf(stderr, "gcon doc: no browser to open (set BROWSER, or use -http); showing text\n");
 		return -1;
 	}
-	fprintf(stderr, open ? "gcon doc: serving %s (it stops when the browser closes its pages)\n" : "gcon doc: serving %s (interrupt to stop)\n", url.b);
-	if (!runtoken)
-		fprintf(stderr, "gcon doc: examples cannot be run when served beyond this machine\n");
-	autostop = open;
+	if (browsing) {
+		/* In the background, as a daemon: the browser has the URL (its
+		 * requests wait in the listen queue), the command line comes
+		 * back at once, and the server goes when the pages do. */
+		fflush(stderr);
+		pid_t pid = fork();
+		if (pid < 0) {
+			perror("gcon doc: fork");
+			exit(1);
+		}
+		if (pid > 0) {
+			fprintf(stderr, "gcon doc: serving %s in the background (pid %d; it stops when the browser closes its pages)\n", url.b, (int)pid);
+			exit(0);
+		}
+		setsid(); /* no terminal: no ^C, no hangup */
+		int null = open("/dev/null", O_RDWR);
+		if (null >= 0) {
+			dup2(null, 0);
+			dup2(null, 1);
+			dup2(null, 2);
+			if (null > 2)
+				close(null);
+		}
+		started = time(NULL);
+	} else {
+		fprintf(stderr, "gcon doc: serving %s (interrupt to stop)\n", url.b);
+		if (!runtoken)
+			fprintf(stderr, "gcon doc: examples cannot be run when served beyond this machine\n");
+	}
+	autostop = browsing;
 	http_serve(fd, serve, pagestick, s);
 }
 
