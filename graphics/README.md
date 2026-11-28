@@ -6,7 +6,7 @@ context values, image files (`../vm/src/graphics.c`). A display server
 owns the display. It opens windows, keeps the canvases, draws, and sends
 events back over a protocol modelled on Plan 9's draw protocol, as an X
 server would ([doc/internals/protocol.md](../doc/internals/protocol.md),
-version 4). gcon-vm starts one as `gcon-graphics -fd n`, the protocol on
+version 5). gcon-vm starts one as `gcon-graphics -fd n`, the protocol on
 file descriptor n; `-version` says which it is.
 
 There are four, each `src/main.c` (the protocol reader) over the three
