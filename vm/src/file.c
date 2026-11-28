@@ -509,6 +509,8 @@ FN(f_open) {
 		mode = muststr(a[1]);
 	if (memchr(mode.s, 'g', (size_t)mode.n) || memchr(mode.s, 'G', (size_t)mode.n) ||
 	    memchr(mode.s, 'x', (size_t)mode.n) || memchr(mode.s, 'X', (size_t)mode.n)) { /* x: as iconx, a window too */
+		if (nographics) /* as fsys.r without Graphics */
+			return false;
 		/* a window: the other arguments are its attributes */
 		File *w = gfx_open(muststr(ARG(0)), a + 2, n > 2 ? n - 2 : 0);
 		if (!w)

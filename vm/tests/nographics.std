@@ -1,0 +1,16 @@
+_GRAPHICS not defined
+open g: fails
+open x: fails
+&window fails; &x fails; &y fails; &row fails; &col fails; &interval fails; &control fails; &shift fails; &meta fails; 
+&lpress: -1
+proc DrawLine: fails
+open a file: file
+DrawLine: &null
+
+Run-time error 106
+File nographics.icn; Line 22
+procedure or integer expected
+offending value: &null
+Traceback:
+main()
+&null(0,0,1,1) from line 22 in nographics.icn

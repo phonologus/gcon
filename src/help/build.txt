@@ -1,4 +1,4 @@
-usage: gcon build [-o out] file.icn
+usage: gcon build [-nographics] [-o out] file.icn
 
 Build translates file.icn and the files it links into one executable
 file. By default the file is named as icont names its output: the
@@ -6,6 +6,9 @@ source file's name without ".icn", in the current directory.
 
 The flags are:
 
+	-nographics
+		build the program as Icon built without graphics, as
+		gcon help run says: it never has graphics, wherever it runs.
 	-o out
 		write the program to out instead.
 

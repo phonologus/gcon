@@ -139,7 +139,11 @@ each, least significant first; `invocable all` sets them all), else 0.
 
 **`info`**: a count, then pairs of strings: `gcon`, the version that
 built the program, and `predefined`, the preprocessor symbols it was
-built with. gcon-vm reads it but needs none of it.
+built with. gcon-vm uses one thing from it: a program whose `predefined`
+lacks `_GRAPHICS` was built with `gcon build -nographics`, and runs as
+under an Icon built without graphics (no graphics functions; `open`
+fails for a window; `&window`, `&x` and the other graphics keywords
+fail). A program without the section has graphics.
 
 ## What the loader checks
 

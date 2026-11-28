@@ -830,3 +830,31 @@ is (protocol version 3; `../graphics/design/design.md`, "Image files
 move into gcon-vm"). `WriteImage` reads the region's pixels with `READ`
 (`getpixels`) only for those formats; GIF keeps its own path
 (`capture`). gcon-vm is 474 KB with them, from 388 KB.
+
+## Programs without graphics: gcon -nographics (Sean, 2026-11-28)
+
+`gcon build -nographics` and `gcon run -nographics` (a flag of the
+build commands, as Go's are) make a program as Icon built without
+graphics, for a filter or a server, whatever display servers the root
+has. Arizona's model, without `Graphics`: `_GRAPHICS` is not
+predefined (`fsys.r`'s `"g"` mode fails; `keyword.r`'s graphics
+keywords are its `keyword{0}` arms, which fail; the graphics functions
+of `fwindow.r` do not exist). Where Arizona can only find out at run
+time, gcon says so as soon as it can: the graphics library's
+directories (`lib/ipl/gprocs`, `gincl`) leave the search paths, so
+`link graphics` is an error when the program is translated.
+
+- The translator: the predefined symbols lack `_GRAPHICS` and
+  `_SDL_GRAPHICS` (`driver.c`, the last two), and the graphics built-ins
+  (`builtin.inc`'s graphics flag; `open` is not one: only its mode is)
+  are not declared (`sema_graphics`), so a name like `DrawLine` is an
+  undeclared local and calling it is run-time error 106, as in Arizona.
+- The built program records it in its build information, the
+  `predefined` symbols of its `info` section: gcon-vm sets `nographics`
+  when they lack `_GRAPHICS` (a whole symbol: not `_SDL_GRAPHICS`), and
+  then registers no graphics functions (so `proc` and string invocation
+  find none), registers the graphics keywords as failing (`k_none`),
+  fails `open` for a window, and leaves "graphics" and "SDL graphics"
+  out of `&features`. A program without the section has graphics.
+- `vm/tests/nographics.sh` builds and runs `tests/nographics.icn` both
+  ways, with no display server to start, and checks the `link`.

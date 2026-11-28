@@ -114,7 +114,7 @@ static const BuiltinFunc functions[] = {
 	{"move", 1, "move(i)", "move &pos by i, return substring of &subject spanned. Reverses effects if resumed.", false, false},
 	{"name", 1, "name(v)", "return the name of a variable.", false, false},
 	{"numeric", 1, "numeric(x)", "produces an integer or real number resulting from the type conversion of x, but fails if the conversion is not possible.", false, false},
-	{"open", -1, "open(s1,s2,...)", "open file named s1 with options s2 and attributes given in trailing arguments.", true, false},
+	{"open", -1, "open(s1,s2,...)", "open file named s1 with options s2 and attributes given in trailing arguments.", false, false}, /* not graphics: only its "g" mode (fsys.r) */
 	{"ord", 1, "ord(s)", "produce integer ordinal (value) of single character.", false, false},
 	{"pop", 1, "pop(L)", "remove and produce an element from the left end of list L (as get).", false, false},
 	{"pos", 1, "pos(i)", "test if &pos is at position i in &subject.", false, false},

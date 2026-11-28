@@ -35,6 +35,15 @@ Without a display server, every other part of Gcon works; a program
 that opens a window stops with a message that the server cannot be
 run.
 
+A program can also be made without graphics, wherever it runs: `gcon
+build -nographics` (or `gcon run -nographics`) translates it as Icon
+built without graphics. `_GRAPHICS` is not defined, the graphics
+functions do not exist (calling one is run-time error 106), linking the
+graphics library (`link graphics`) is an error when the program is
+translated, `open` fails for a window, and `&window`, `&x`, `&y` and
+the other graphics keywords fail. It never starts a display server: for
+a filter, or a server.
+
 ## The Cocoa display server
 
 `gcon-graphics-cocoa` draws with the Mac's own graphics: AppKit's

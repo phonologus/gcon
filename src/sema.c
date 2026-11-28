@@ -85,6 +85,11 @@ Program *sema_program(SemaFile **files, size_t n, bool complete) {
 
 static StrMap builtinsyms; /* name -> Symbol *, shared */
 
+/* withgraphics: whether the graphics built-ins exist (sema_graphics) */
+static bool withgraphics = true;
+
+void sema_graphics(bool on) { withgraphics = on; }
+
 Symbol *sema_global(Program *p, const char *name, size_t n) {
 	SymVec *syms = strmap_get(&p->globals, name, n);
 	if (syms) {
@@ -95,7 +100,7 @@ Symbol *sema_global(Program *p, const char *name, size_t n) {
 			return syms->v[0];
 	}
 	const BuiltinFunc *bf = builtin_function(name, n);
-	if (!bf)
+	if (!bf || (bf->graphics && !withgraphics))
 		return NULL;
 	Symbol *s = strmap_get(&builtinsyms, name, n);
 	if (!s) {

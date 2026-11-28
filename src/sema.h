@@ -140,6 +140,11 @@ Program *sema_program(SemaFile **files, size_t n, bool complete);
  * first global declaration, else a built-in function; or NULL. */
 Symbol *sema_global(Program *p, const char *name, size_t n);
 
+/* sema_graphics says whether the graphics built-ins exist (by default
+ * they do); without them, as in Icon built without graphics, their names
+ * are undeclared (gcon -nographics). */
+void sema_graphics(bool on);
+
 /* sema_resolve resolves the identifiers of f, one of p's files. */
 SemaInfo *sema_resolve(Program *p, SemaFile *f);
 

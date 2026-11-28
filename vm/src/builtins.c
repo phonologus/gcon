@@ -633,7 +633,8 @@ static const char *const features[] = {
 
 GENFN(k_features) {
 	(void)b; (void)a; (void)n;
-	return strsgen(features, NULL, sizeof features / sizeof features[0]);
+	/* the last two, "graphics" and "SDL graphics", only with graphics */
+	return strsgen(features, NULL, sizeof features / sizeof features[0] - (nographics ? 2 : 0));
 }
 
 GENFN(k_collections) {

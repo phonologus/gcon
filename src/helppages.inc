@@ -2,7 +2,7 @@
 
 static const HelpPage helppages[] = {
 	{"build",
-	 "usage: gcon build [-o out] file.icn\n"
+	 "usage: gcon build [-nographics] [-o out] file.icn\n"
 	 "\n"
 	 "Build translates file.icn and the files it links into one executable\n"
 	 "file. By default the file is named as icont names its output: the\n"
@@ -10,6 +10,9 @@ static const HelpPage helppages[] = {
 	 "\n"
 	 "The flags are:\n"
 	 "\n"
+	 "\t-nographics\n"
+	 "\t\tbuild the program as Icon built without graphics, as\n"
+	 "\t\tgcon help run says: it never has graphics, wherever it runs.\n"
 	 "\t-o out\n"
 	 "\t\twrite the program to out instead.\n"
 	 "\n"
@@ -419,7 +422,7 @@ static const HelpPage helppages[] = {
 	 "See also: gcon help fmt, gcon help vet, gcon doc editors.\n"
 	},
 	{"run",
-	 "usage: gcon run file [arguments]\n"
+	 "usage: gcon run [-nographics] file [arguments]\n"
 	 "\n"
 	 "Run translates the Icon program in file, with the files it links, and\n"
 	 "runs it on gcon-vm. The arguments are passed to the program: main\n"
@@ -427,7 +430,17 @@ static const HelpPage helppages[] = {
 	 ".u1 or .u2 files and no executable.\n"
 	 "\n"
 	 "The file may also be a program written by gcon build, which is run as\n"
-	 "it is.\n"
+	 "it is (as built, with or without graphics).\n"
+	 "\n"
+	 "The flags, before the file, are:\n"
+	 "\n"
+	 "\t-nographics\n"
+	 "\t\ttranslate and run the program as Icon built without\n"
+	 "\t\tgraphics: _GRAPHICS is not defined, the graphics functions\n"
+	 "\t\tdo not exist (a call is run-time error 106), linking the\n"
+	 "\t\tgraphics library (link graphics) is an error, open fails for\n"
+	 "\t\ta window, and &window, &x, &y, ... fail. For a filter or a\n"
+	 "\t\tserver: it never starts a display server.\n"
 	 "\n"
 	 "The exit status is the program's. If the program cannot be translated,\n"
 	 "run prints the errors and exits with status 1.\n"

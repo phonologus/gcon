@@ -85,6 +85,27 @@ static void fpath_root(void) {
 	setenv("FPATH", b.b, 1);
 }
 
+bool nographics;
+
+/* withgraphics reports whether p was built with graphics: whether the
+ * preprocessor symbols its build information records include
+ * _GRAPHICS, which gcon -nographics leaves out. A program without them
+ * has graphics. */
+static bool withgraphics(const Program *p) {
+	static const char sym[] = "_GRAPHICS=1";
+	size_t k = sizeof sym - 1;
+	for (int i = 0; i < p->ninfo; i++) {
+		Str key = p->infokeys[i], v = p->infovals[i];
+		if (key.n != 10 || memcmp(key.s, "predefined", 10))
+			continue;
+		for (size_t j = 0; j + k <= v.n; j++) /* a whole symbol: not _SDL_GRAPHICS */
+			if ((j == 0 || v.s[j - 1] == ' ') && !memcmp(v.s + j, sym, k) && (j + k == v.n || v.s[j + k] == ' '))
+				return true;
+		return false;
+	}
+	return true;
+}
+
 int main(int argc, char **argv) {
 	if (argc == 2 && strcmp(argv[1], "-version") == 0) {
 		printf("gcon-vm %s\n", GCONVM_VERSION);
@@ -110,6 +131,7 @@ int main(int argc, char **argv) {
 	if (i < argc && argv[i][0] != '-') {
 		fpath_root();
 		Program *p = load(argv[i]);
+		nographics = !withgraphics(p);
 		builtins_init();
 		link_program(p);
 		return run_program(p, progname ? progname : argv[i], argc - i - 1, argv + i + 1);

@@ -298,6 +298,11 @@ typedef struct VM {
 
 extern VM vm;
 
+/* nographics: the program was built without graphics (gcon -nographics):
+ * no graphics functions, open fails for a window, and &window, &x, ...
+ * fail, as in Icon built without graphics (main.c). */
+extern bool nographics;
+
 /* newgen makes a builtin generator of the given size and next function,
  * reusing the one the call replaces if it is of the same kind. The
  * caller sets every field. */

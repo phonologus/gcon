@@ -219,22 +219,25 @@ static StrVec searchpath(const char *var, const char *root, const char *a, const
 	StrVec v = envpath(var);
 	if (root) {
 		VPUSH(v, pathjoin(root, a));
-		VPUSH(v, pathjoin(root, b));
+		if (b)
+			VPUSH(v, pathjoin(root, b));
 	}
 	return v;
 }
 
 /* cfg_libpath: $IPATH, then the IPL's procs and gprocs, then lib/gcon,
- * gcon's own library, last so that it never shadows an IPL file. */
+ * gcon's own library, last so that it never shadows an IPL file. With
+ * -nographics, not gprocs: linking a graphics module is an error found
+ * when the program is translated, not when it runs. */
 StrVec cfg_libpath(const Config *c) {
-	StrVec v = searchpath("IPATH", c->root, "lib/ipl/procs", "lib/ipl/gprocs");
+	StrVec v = searchpath("IPATH", c->root, "lib/ipl/procs", c->nographics ? NULL : "lib/ipl/gprocs");
 	if (c->root)
 		VPUSH(v, pathjoin(c->root, "lib/gcon"));
 	return v;
 }
 
 StrVec cfg_includepath(const Config *c) {
-	return searchpath("LPATH", c->root, "lib/ipl/incl", "lib/ipl/gincl");
+	return searchpath("LPATH", c->root, "lib/ipl/incl", c->nographics ? NULL : "lib/ipl/gincl");
 }
 
 /* ------------------------------------------------------------------ */
@@ -255,6 +258,11 @@ static const char *const predefined[] = {
 	"_SDL_GRAPHICS",
 };
 enum { NPredefined = sizeof predefined / sizeof predefined[0] };
+
+/* the graphics symbols, _GRAPHICS and _SDL_GRAPHICS, are the last two:
+ * -nographics leaves them out, as Icon built without graphics does */
+enum { NGraphicsSyms = 2 };
+static int npredef(const Config *c) { return NPredefined - (c->nographics ? NGraphicsSyms : 0); }
 
 static const char *const ones[NPredefined] = {
 	"1", "1", "1", "1", "1", "1", "1", "1", "1", "1", "1", "1",
@@ -281,11 +289,11 @@ static char *errline(const char *file, long line, const char *msg) {
 /* load preprocesses and parses the source of a file known as name.
  * Each file is preprocessed on its own, from the predefined symbols, as
  * icont translates each file on its own. */
-static Unit *load(const char *path, const char *name, const char *src, size_t n, const StrVec *incpath) {
+static Unit *load(const char *path, const char *name, const char *src, size_t n, const StrVec *incpath, int npre) {
 	Unit *u = xcalloc(1, sizeof *u);
 	u->path = xstrndup(path, strlen(path));
 	u->name = xstrndup(name, strlen(name));
-	PPOptions o = {predefined, ones, NPredefined, incpath->v, incpath->n};
+	PPOptions o = {predefined, ones, npre, incpath->v, incpath->n};
 	u->pp = ipp_preprocess(u->name, src, n, &o);
 	for (size_t i = 0; i < u->pp->errs.n; i++)
 		VPUSH(u->errs, ipp_error(&u->pp->errs.v[i]));
@@ -343,7 +351,7 @@ static StrVec findlink(const char *name, const StrVec *libpath) {
 Front *front_end(const char *path, const char *src, size_t n, const Config *c, StrVec *errs) {
 	StrVec libpath = cfg_libpath(c), incpath = cfg_includepath(c);
 	VEC(Unit *) units = {0};
-	VPUSH(units, load(path, path, src, n, &incpath));
+	VPUSH(units, load(path, path, src, n, &incpath, npredef(c)));
 	StrMap seen = {0};
 	VEC(LinkRes) lres = {0};
 	/* gcon's own library, to tell its files (a trailing / so as to match
@@ -400,7 +408,7 @@ Front *front_end(const char *path, const char *src, size_t n, const Config *c, S
 					Buf uname = {0};
 					bufputs(&uname, name);
 					bufputs(&uname, ".icn");
-					Unit *cu = load(cands.v[m], uname.b, b.b, b.n, &incpath);
+					Unit *cu = load(cands.v[m], uname.b, b.b, b.n, &incpath, npredef(c));
 					if (!hasmain(cu)) {
 						found = cu;
 						break;
@@ -432,6 +440,7 @@ Front *front_end(const char *path, const char *src, size_t n, const Config *c, S
 		files[i]->syn = units.v[i]->file;
 		files[i]->preprocessed = true;
 	}
+	sema_graphics(!c->nographics);
 	Program *p = sema_program(files, units.n, true);
 	CompileFile *cfs = xcalloc(units.n, sizeof *cfs);
 	for (size_t i = 0; i < units.n; i++) {
@@ -477,24 +486,26 @@ static const char marker[] = "[gcon program follows]\n";
 
 static int cmpstrs(const void *a, const void *b) { return strcmp(*(char *const *)a, *(char *const *)b); }
 
-void buildinfo(const char ***keys, const char ***vals, size_t *n) {
+void buildinfo(const Config *c, const char ***keys, const char ***vals, size_t *n) {
 	static const char *k[2] = {"gcon", "predefined"};
-	static const char *v[2];
-	if (!v[0]) {
-		v[0] = GCON_VERSION;
+	static const char *v[2][2]; /* with graphics, without */
+	const char **w = v[c->nographics];
+	if (!w[0]) {
+		int np = npredef(c);
+		w[0] = GCON_VERSION;
 		const char *syms[NPredefined];
-		for (int i = 0; i < NPredefined; i++)
+		for (int i = 0; i < np; i++)
 			syms[i] = predefined[i];
-		qsort(syms, NPredefined, sizeof *syms, cmpstrs);
+		qsort(syms, (size_t)np, sizeof *syms, cmpstrs);
 		Buf b = {0};
-		for (int i = 0; i < NPredefined; i++) {
+		for (int i = 0; i < np; i++) {
 			if (i)
 				bufputc(&b, ' ');
 			bufprintf(&b, "%s=1", syms[i]);
 		}
-		v[1] = b.b;
+		w[1] = b.b;
 	}
-	*keys = k, *vals = v, *n = 2;
+	*keys = k, *vals = w, *n = 2;
 }
 
 /* shellquote quotes s for sh. */
@@ -560,7 +571,7 @@ bool buildfile(const char *path, const char *out, const char *self, const Config
 		return false;
 	const char **k, **v;
 	size_t ni;
-	buildinfo(&k, &v, &ni);
+	buildinfo(c, &k, &v, &ni);
 	Buf enc = {0};
 	const char *err = encode(prog, k, v, ni, &enc);
 	if (err) {
@@ -664,7 +675,7 @@ int execvm(const char *vm, const char *path, char **args, int nargs, bool dis, c
 		const char **k = NULL, **v = NULL;
 		size_t ni = 0;
 		if (!dis)
-			buildinfo(&k, &v, &ni);
+			buildinfo(c, &k, &v, &ni);
 		Buf enc = {0};
 		const char *err = encode(prog, k, v, ni, &enc);
 		if (err) {

@@ -35,7 +35,7 @@
 static Root root;
 
 static Config config(void) {
-	Config c = {root.dir};
+	Config c = {root.dir, false};
 	return c;
 }
 
@@ -55,6 +55,7 @@ static const char *vm(void) {
  * directory. Flags are parsed as Go's flag package parses them. */
 static int build(int argc, char **argv, const char *argv0) {
 	const char *out = NULL;
+	bool nographics = false;
 	int i = 0;
 	for (; i < argc; i++) {
 		char *a = argv[i];
@@ -69,6 +70,10 @@ static int build(int argc, char **argv, const char *argv0) {
 		size_t nl = eq ? (size_t)(eq - name) : strlen(name);
 		if ((nl == 1 && name[0] == 'h') || (nl == 4 && !strncmp(name, "help", 4)))
 			help_page("build");
+		if (nl == 10 && !strncmp(name, "nographics", 10) && !eq) {
+			nographics = true;
+			continue;
+		}
 		if (nl != 1 || name[0] != 'o') {
 			fprintf(stderr, "flag provided but not defined: -%.*s\n", (int)nl, name);
 			help_usage("build");
@@ -96,6 +101,7 @@ static int build(int argc, char **argv, const char *argv0) {
 		out = xstrndup(base, n - 4);
 	}
 	Config c = config();
+	c.nographics = nographics;
 	StrVec errs = {0};
 	if (!buildfile(src, out, executable(argv0), &c, &errs)) {
 		report(&errs, &c);
@@ -258,11 +264,26 @@ int main(int argc, char **argv) {
 	root = root_find();
 	Config c = config();
 	if (!strcmp(cmd, "run")) {
-		if (argc >= 3 && help_isflag(argv[2]))
-			help_page("run");
-		if (argc < 3)
+		/* flags before the file, as Go's; everything after it is the
+		 * program's */
+		int i = 2;
+		for (; i < argc && argv[i][0] == '-' && argv[i][1]; i++) {
+			const char *name = argv[i] + 1 + (argv[i][1] == '-');
+			if (help_isflag(argv[i]))
+				help_page("run");
+			if (!strcmp(argv[i], "--")) {
+				i++;
+				break;
+			}
+			if (strcmp(name, "nographics")) {
+				fprintf(stderr, "flag provided but not defined: -%s\n", name);
+				help_usage("run");
+			}
+			c.nographics = true;
+		}
+		if (i >= argc)
 			help_usage("run");
-		return execvm(vm(), argv[2], argv + 3, argc - 3, false, &c);
+		return execvm(vm(), argv[i], argv + i + 1, argc - i - 1, false, &c);
 	}
 	if (!strcmp(cmd, "build"))
 		return build(argc - 2, argv + 2, argv[0]);

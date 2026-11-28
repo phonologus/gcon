@@ -1,0 +1,39 @@
+# A program built with gcon -nographics, as Icon built without graphics
+# (tests/nographics.sh): no _GRAPHICS, no graphics functions, open fails
+# for a window, and the graphics keywords fail. Its last line is run-time
+# error 106: DrawLine is an undeclared (local) variable.
+procedure main()
+$ifdef _GRAPHICS
+   write("_GRAPHICS defined")
+$else
+   write("_GRAPHICS not defined")
+$endif
+   every f := &features do
+      if find("graphics", f) then write("feature: ", f)
+   write("open g: ", image(open("w", "g", "canvas=hidden")) | "fails")
+   write("open x: ", image(open("w", "x")) | "fails")
+   every k := "&window" | "&x" | "&y" | "&row" | "&col" | "&interval" | "&control" | "&shift" | "&meta" do
+      writes(k, " ", image(keyword(k)) | "fails", "; ")
+   write()
+   write("&lpress: ", &lpress)
+   write("proc DrawLine: ", image(proc("DrawLine")) | "fails")
+   write("open a file: ", type(open("nographics.icn")) | "fails")
+   write("DrawLine: ", image(DrawLine))
+   DrawLine(0, 0, 1, 1)
+end
+
+# keyword produces the graphics keyword named k
+procedure keyword(k)
+   return case k of {
+      "&window":   &window
+      "&x":        &x
+      "&y":        &y
+      "&row":      &row
+      "&col":      &col
+      "&interval": &interval
+      "&control":  &control
+      "&shift":    &shift
+      "&meta":     &meta
+   }
+end
+status 0

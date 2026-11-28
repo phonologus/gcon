@@ -1,4 +1,4 @@
-usage: gcon run file [arguments]
+usage: gcon run [-nographics] file [arguments]
 
 Run translates the Icon program in file, with the files it links, and
 runs it on gcon-vm. The arguments are passed to the program: main
@@ -6,7 +6,17 @@ receives them as a list of strings. Nothing is written: there are no
 .u1 or .u2 files and no executable.
 
 The file may also be a program written by gcon build, which is run as
-it is.
+it is (as built, with or without graphics).
+
+The flags, before the file, are:
+
+	-nographics
+		translate and run the program as Icon built without
+		graphics: _GRAPHICS is not defined, the graphics functions
+		do not exist (a call is run-time error 106), linking the
+		graphics library (link graphics) is an error, open fails for
+		a window, and &window, &x, &y, ... fail. For a filter or a
+		server: it never starts a display server.
 
 The exit status is the program's. If the program cannot be translated,
 run prints the errors and exits with status 1.

@@ -36,6 +36,7 @@ bool root_is(const char *dir); /* dir holds the library */
 /* The configuration for translating. */
 typedef struct Config {
 	const char *root; /* gcon's root, or NULL */
+	bool nographics;  /* -nographics: as Icon built without graphics */
 } Config;
 
 /* The directories link and $include search after the current
@@ -71,7 +72,7 @@ Prog *translate(const char *path, const char *src, size_t n, const Config *c, St
 
 /* buildinfo gives the build information recorded in a built program:
  * gcon's version and the predefined symbols. */
-void buildinfo(const char ***keys, const char ***vals, size_t *n);
+void buildinfo(const Config *c, const char ***keys, const char ***vals, size_t *n);
 
 /* encoded returns the encoded program within data if data is a built
  * program (a file starting "#!" in which a line holding the marker is

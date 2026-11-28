@@ -4176,7 +4176,19 @@ static Builtin ops[] = {
 	{.name = "&meta", .key = "&meta", .fn = k_meta},
 };
 
+/* k_none: a graphics keyword in a program without graphics, which
+ * fails, as in Icon built without graphics (keyword.r's keyword{0}) */
+FN(k_none) { (void)b, (void)a, (void)n, (void)out; return false; }
+
 void graphics_init(void) {
+	if (nographics) {
+		/* no graphics functions; the keywords exist, and fail */
+		for (size_t i = 0; i < sizeof ops / sizeof ops[0]; i++) {
+			ops[i].fn = k_none;
+			reg(&ops[i], BuiltinOp);
+		}
+		return;
+	}
 	for (size_t i = 0; i < sizeof fns / sizeof fns[0]; i++)
 		reg(&fns[i], BuiltinFunction);
 	for (size_t i = 0; i < sizeof ops / sizeof ops[0]; i++)
