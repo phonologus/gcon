@@ -184,7 +184,9 @@ renderer shows in full; `gcon doc` reports anything else, with its line:
 - **Blocks:** `#` to `####` headings (one `#` heading, the title, first);
   paragraphs; lists with `- ` or `1. `, nested one level by indenting to
   the item's text, and paragraphs or code inside an item indented the
-  same; fenced code, ```` ``` ```` with an optional language; tables, a
+  same; fenced code, ```` ``` ```` with an optional language (or `folded
+  TITLE`: in HTML a block shown when its title is opened, in text and
+  man pages the title alone; the IPL's sources); tables, a
   header row, a `|---|` row, then rows with the same number of cells.
 - **Inline:** `` `code` ``, `*emphasis*`, `**strong**`, `[text](target)`,
   and a backslash before punctuation for the character itself (`\*`,

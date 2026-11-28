@@ -517,3 +517,12 @@ MdDoc *md_parse(const char *src, size_t n) {
 	endtext(p);
 	return d;
 }
+
+const char *md_folded(const char *lang) {
+	if (!lang || strncmp(lang, "folded", 6) || (lang[6] && lang[6] != ' '))
+		return NULL;
+	const char *t = lang + 6;
+	while (*t == ' ')
+		t++;
+	return t;
+}

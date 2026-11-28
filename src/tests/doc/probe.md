@@ -47,4 +47,12 @@ Repeated heading:
 
 ## Lists
 
+A folded block, shown in HTML when its title is opened:
+
+```folded The source: probe.icn
+procedure main()
+   write("a < b & \"c\"")
+end
+```
+
 The end.

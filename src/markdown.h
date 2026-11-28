@@ -7,8 +7,10 @@
  *
  *   blocks:  # to #### headings; paragraphs; "- " and "1. " list items,
  *            nested one level (by indenting to the item's text); fenced
- *            code (```, with an optional language); tables (a header
- *            row, a |---| row, then rows, all with the same cells)
+ *            code (```, with an optional language, or "folded TITLE":
+ *            in HTML a block shown when its title is opened, elsewhere
+ *            its title alone); tables (a header row, a |---| row, then
+ *            rows, all with the same cells)
  *   inline:  `code`, *emphasis*, **strong**, [text](target), and a
  *            backslash before punctuation for the character itself
  *
@@ -80,5 +82,9 @@ void md_plain(Buf *b, const MdSpans *s);
 /* md_slug is the anchor GitHub makes of a heading's plain text (without
  * the repeat suffix). */
 char *md_slug(const char *text);
+
+/* md_folded is a folded code block's title (a fence's "folded TITLE";
+ * "" without a title), or NULL if lang does not fold. */
+const char *md_folded(const char *lang);
 
 #endif

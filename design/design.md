@@ -2262,8 +2262,13 @@ so there was nothing to open), and examples had no Run button, which a
 5. IPL procedures from their header comments. Done (2026-11-27), but
    not anointed (Sean): the IPL is shown apart from the tree, its header
    comments as Arizona wrote them (`gcon doc ipl`, `gcon doc ipl/strings`,
-   `gcon doc WOpen` when the tree has no such name), not in the static HTML,
-   the search or `-list` (served, though: see "Served, with Run"). Candidates for Gcon's standard library carry a
+   `gcon doc WOpen` when the tree has no such name), not in the search or
+   `-list`. Since 2026-11-28 (Sean) its index and file pages are pages of
+   the tree (so linked from the landing page's "The library", checked,
+   and in the static HTML), and each file's page and each procedure's
+   carries the file's whole source, folded (a fence `folded TITLE`: in
+   HTML a `<details>` opened by its title, elsewhere the title alone).
+   Candidates for Gcon's standard library carry a
    banner, as rustdoc marks nightly items (Sean): the list is
    `doc/ipl-candidates.txt`; see "What of the IPL is essential". Hover
    on a procedure of `lib/gcon` with a reference entry shows the entry.

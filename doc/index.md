@@ -4,8 +4,8 @@ Gcon is an implementation of the [Icon](https://www.cs.arizona.edu/icon/)
 programming language, version 9.5, written in C: a translator, a virtual
 machine and a graphics display server, with modern tools in one `gcon`
 command. Icon 9.5 programs run unchanged, about twice as fast as under
-iconx, and graphics draw natively (Cocoa on macOS, X11 elsewhere), not
-only through X11.
+iconx, and graphics draw natively (Cocoa on macOS, Wayland or X11
+elsewhere), not only through X11.
 
 This is the documentation of the Gcon you have installed. `gcon doc`
 opens it in your browser; `gcon doc NAME` opens one page, and `gcon doc
@@ -32,15 +32,19 @@ be edited and run where it stands.
 - [Where linked files are found](help/library.md)
 - [The reference](ref/index.md): the built-in functions and keywords
 
+## The library
+
+- [The Icon Program Library](ipl/index.md): Arizona's library, shipped
+  so that Icon programs run unchanged: each file's documentation and
+  source
+- [Gcon's standard library](stdlib.md): to come
+
 ## About Gcon
 
 - [Performance](performance.md): measurements against iconx
 - [How Gcon is checked](checking.md), its history and licence
 
 ## Internals
-
-For the curious, and for anyone building on Gcon: another display
-server, a tool that reads built programs.
 
 - [How Gcon is built](internals/index.md): the parts and how they meet
 - [The built program](internals/program.md): the file `gcon build`

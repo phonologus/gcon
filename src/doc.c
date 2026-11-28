@@ -53,6 +53,18 @@ typedef struct Tree {
  * in (helplinks): the last loadtree loaded. */
 static Tree linktree;
 
+/* The IPL's pages (below): ipl/index and ipl/procs/strings, ... are
+ * pages of the tree, made from the IPL's sources in the root (iplroot),
+ * so that links to them are checked and -build writes them; they are
+ * kept out of the search, -list and the lookup of a page's last
+ * element, as the IPL is Arizona's, not Gcon's documentation. */
+static const char *iplroot;
+static bool isipl(const char *topic) { return !strncmp(topic, "ipl/", 4); }
+typedef VEC(char *) StrList;
+static StrList iplfiles(const char *root);
+static char *iplmd(const char *root, const char *name);
+static char *iplindexmd(const char *root);
+
 static int cmptopic(const void *a, const void *b) { return strcmp(((const Page *)a)->topic, ((const Page *)b)->topic); }
 
 static bool hassuffix(const char *s, const char *suf) {
@@ -99,6 +111,19 @@ static Tree loadtree(const char *dir) {
 		Page p = {b.b, NULL, i};
 		VPUSH(t.pages, p);
 	}
+	/* the IPL's, from the root's lib/ipl, where dir is the root's doc */
+	if (hassuffix(dir, "/doc")) {
+		iplroot = xstrndup(dir, strlen(dir) - 4);
+		StrList files = iplfiles(iplroot);
+		if (files.n) {
+			Page ix = {"ipl/index", NULL, -1};
+			VPUSH(t.pages, ix);
+		}
+		for (size_t i = 0; i < files.n; i++) {
+			Page p = {pathjoin("ipl", files.v[i]), NULL, -1};
+			VPUSH(t.pages, p);
+		}
+	}
 	if (t.pages.n)
 		qsort(t.pages.v, t.pages.n, sizeof *t.pages.v, cmptopic);
 	linktree = t;
@@ -136,6 +161,9 @@ static char *source(const Page *p, size_t *n) {
 			fprintf(stderr, "gcon doc: %s: %s\n", p->file, strerror(errno));
 			exit(1);
 		}
+	} else if (p->help < 0 && isipl(p->topic) && iplroot) {
+		char *md = !strcmp(p->topic, "ipl/index") ? iplindexmd(iplroot) : iplmd(iplroot, p->topic + 4);
+		bufputs(&b, md ? md : "# Not found\n");
 	} else {
 		const char *name = help_name(p->help);
 		if (strcmp(name, "gcon"))
@@ -219,7 +247,7 @@ static Target lookup(Tree *t, const char *name) {
 		for (size_t i = 0; i < t->pages.n; i++) {
 			const char *tp = t->pages.v[i].topic;
 			const char *slash = strrchr(tp, '/');
-			if (tier(tp) == tr && !strcmp(slash ? slash + 1 : tp, nm)) {
+			if (tier(tp) == tr && !isipl(tp) && !strcmp(slash ? slash + 1 : tp, nm)) {
 				r.page = &t->pages.v[i];
 				count++;
 			}
@@ -835,6 +863,8 @@ static void searchindex(Buf *idx, Tree *t, MdDoc **docs) {
 	bufputs(idx, "var GCONDOC = [\n");
 	for (size_t i = 0; i < t->pages.n; i++) {
 		const Page *p = &t->pages.v[i];
+		if (isipl(p->topic))
+			continue;
 		for (size_t bi = 0; bi < docs[i]->blocks.n; bi++) {
 			const MdBlock *h = &docs[i]->blocks.v[bi];
 			if (h->kind != MB_HEADING)
@@ -882,9 +912,10 @@ static int build(Tree *t, MdDoc **docs, const char *outdir) {
 /* The Icon Program Library */
 
 /* The IPL is shipped for compatibility, not documented by Gcon: its
- * files' header comments are shown as Arizona wrote them, apart from
- * the tree (not in the HTML, the search or -list). design/design.md,
- * "Documentation". */
+ * files' header comments are shown as Arizona wrote them, with each
+ * file's source, folded. Its pages are in the tree (ipl/index, linked
+ * from the landing page's "The library"; Sean, 2026-11-28), but not in
+ * the search or -list. design/design.md, "Documentation". */
 static const char *const ipldirs[] = {"lib/ipl/procs", "lib/ipl/gprocs"};
 enum { NIplDirs = sizeof ipldirs / sizeof ipldirs[0] };
 
@@ -987,7 +1018,6 @@ static char *subject(const char *src) {
 
 static int cmpstr(const void *a, const void *b) { return strcmp(*(char *const *)a, *(char *const *)b); }
 
-typedef VEC(char *) StrList;
 
 /* iplfiles lists the IPL's files, "procs/strings", sorted. */
 static StrList iplfiles(const char *root) {
@@ -1045,6 +1075,14 @@ static char *iplsource(const char *root, const char *file) {
 	return readall(p.b, &b) ? b.b : NULL;
 }
 
+/* iplsrcblock appends file's whole source, folded (shown when opened,
+ * to read or copy; the text and man pages name it only) */
+static void iplsrcblock(Buf *md, const char *file, const char *src) {
+	size_t n = strlen(src);
+	bufprintf(md, "\n```folded The source: lib/ipl/%s.icn\n%s%s```\n", file, src,
+		n && src[n - 1] != '\n' ? "\n" : "");
+}
+
 /* iplmd is the page for name, an IPL file ("strings") or procedure
  * ("WOpen"), as Markdown; NULL if it is neither. */
 static char *iplmd(const char *root, const char *name) {
@@ -1069,9 +1107,11 @@ static char *iplmd(const char *root, const char *name) {
 		char *procs = iplprocs(src);
 		if (procs)
 			bufprintf(&md, "\nIts procedures (`link %s`):\n\n```\n%s```\n", fb, procs);
+		iplsrcblock(&md, files.v[i], src);
 		return md.b;
 	}
 	/* a procedure: the files that declare it */
+	const char *firstfile = NULL, *firstsrc = NULL;
 	Buf head = {0};
 	bufprintf(&head, "procedure %s(", base);
 	int found = 0;
@@ -1092,14 +1132,18 @@ static char *iplmd(const char *root, const char *name) {
 			const char *fb = strrchr(files.v[i], '/') + 1;
 			if (found++)
 				bufprintf(&also, "%s`ipl/%s`", also.n ? ", " : "", files.v[i]);
-			else
+			else {
+				firstfile = files.v[i], firstsrc = src;
 				bufprintf(&md, "# %s\n\n%s%s\n\n```\n%s\n```\n\nIn `ipl/%s` (`link %s`), whose header says:\n\n```\n%s```\n",
 					base, candidate(root, files.v[i]) ? candidatebanner : "", iplnote, decl, files.v[i], fb, iplheader(src));
+			}
 			break;
 		}
 	}
 	if (also.n)
 		bufprintf(&md, "\nAlso declared in %s.\n", also.b);
+	if (found)
+		iplsrcblock(&md, firstfile, firstsrc);
 	return found ? md.b : NULL;
 }
 
@@ -1829,7 +1873,8 @@ int doc_main(int argc, char **argv) {
 		MdDoc **docs;
 		parseall(&t, &docs);
 		for (size_t i = 0; i < t.pages.n; i++)
-			printf("%-28s %s\n", t.pages.v[i].topic, docs[i]->title);
+			if (!isipl(t.pages.v[i].topic))
+				printf("%-28s %s\n", t.pages.v[i].topic, docs[i]->title);
 		return 0;
 	}
 	if (check || dobuild) {

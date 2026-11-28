@@ -49,4 +49,10 @@
 .SS "Smallest heading"
 \&Repeated heading:
 .SH "LISTS"
+\&A folded block, shown in HTML when its title is opened:
+.PP
+.RS 4
+\&The source: probe.icn (folded: in the HTML)
+.RE
+.PP
 \&The end.

@@ -47,4 +47,8 @@ Repeated heading:
 Lists
 -----
 
+A folded block, shown in HTML when its title is opened:
+
+    The source: probe.icn (folded: in the HTML)
+
 The end.

@@ -119,7 +119,16 @@ void md_html(Buf *out, const MdDoc *d) {
 			htmlspans(out, &b->spans);
 			bufputs(out, "</p>\n");
 			break;
-		case MB_CODE:
+		case MB_CODE: {
+			const char *title = md_folded(b->lang);
+			if (title) { /* shown when opened: the IPL's sources */
+				bufputs(out, "<details class=\"folded\"><summary>");
+				esc(out, *title ? title : "Show");
+				bufputs(out, "</summary>\n<pre><code>");
+				esc(out, b->code);
+				bufputs(out, "</code></pre>\n</details>\n");
+				break;
+			}
 			bufputs(out, "<pre><code");
 			if (b->lang && *b->lang) {
 				bufputs(out, " class=\"language-");
@@ -130,6 +139,7 @@ void md_html(Buf *out, const MdDoc *d) {
 			esc(out, b->code);
 			bufputs(out, "</code></pre>\n");
 			break;
+		}
 		case MB_TABLE:
 			bufputs(out, "<table>\n<thead>\n");
 			for (int r = 0; r < b->nrows; r++) {
@@ -307,6 +317,12 @@ void md_text(Buf *out, const MdDoc *d, int cols) {
 			break;
 		}
 		case MB_CODE:
+			if (md_folded(b->lang)) { /* its title alone */
+				spaces(out, indent + 4);
+				bufputs(out, *md_folded(b->lang) ? md_folded(b->lang) : "(folded)");
+				bufputs(out, " (folded: in the HTML)\n");
+				break;
+			}
 			for (const char *s = b->code; *s;) {
 				const char *e = strchr(s, '\n');
 				size_t n = e ? (size_t)(e - s) : strlen(s);
@@ -443,6 +459,12 @@ void md_roff(Buf *out, const MdDoc *d, const char *name, const char *footer) {
 			break;
 		case MB_CODE:
 			paragraph(out, b->depth, fresh);
+			if (md_folded(b->lang)) { /* its title alone */
+				bufputs(out, ".RS 4\n\\&");
+				roffesc(out, *md_folded(b->lang) ? md_folded(b->lang) : "(folded)", false);
+				bufputs(out, " (folded: in the HTML)\n.RE\n");
+				break;
+			}
 			bufputs(out, ".RS 4\n.nf\n");
 			for (const char *s = b->code; *s;) {
 				const char *e = strchr(s, '\n');
