@@ -64,5 +64,53 @@ procedure main()
    write("closed; ", image(w))
    &error := -1
    DrawLine(w, 0, 0, 1, 1) | write("error ", &errornumber, " ", &errortext)
+   # image files: written and read back by gcon-vm (imgcodec.c), whatever
+   # the server (rectangles alone, which every server draws alike)
+   p := open("p", "g", "canvas=hidden", "size=40,30", "bg=white") | stop("no canvas")
+   Fg(p, "red"); FillRectangle(p, 0, 0, 20, 15)
+   Fg(p, "dark blue"); FillRectangle(p, 20, 15, 20, 15)
+   Fg(p, "#4080c0"); FillRectangle(p, 5, 20, 10, 8)
+   every ext := "png" | "bmp" | "qoi" | "jpg" | "xyz" do {
+      f := "img." || ext
+      WriteImage(p, f) | { write(ext, ": not written"); next }
+      q := open("q", "g", "canvas=hidden", "image=" || f) | { write(ext, ": not read"); next }
+      same := worst := 0
+      every y := 0 to 29 & x := 0 to 39 do {
+         a := Pixel(p, x, y, 1, 1)
+         b := Pixel(q, x, y, 1, 1)
+         if a == b then same +:= 1 else worst <:= colourdiff(a, b)
+      }
+      write(ext, ": ", WAttrib(q, "width"), "x", WAttrib(q, "height"), ", ", same, " of 1200 the same",
+         if worst > 0 then ", the rest within " || (worst + 255) / 256 || "/256" else "")
+      close(q)
+   }
+   close(p)
+   # display=: names the one display when a window is opened ("" or
+   # what WAttrib reports, as the IPL's vdialog passes it on); not after
+   d := open("d", "g", "canvas=hidden", "display=") | stop("display= refused")
+   write("display= ", type(d), " again ", type(open("e", "g", "canvas=hidden",
+      "display=" || WAttrib(d, "display"))) | "refused",
+      " later ", WAttrib(d, "display=x") | "refused",
+      " other ", type(open("f", "g", "canvas=hidden", "display=no such display")) | "refused")
+end
+
+# colourdiff is the largest difference between two colours' channels
+# ("r,g,b", as Pixel gives them).
+procedure colourdiff(a, b)
+   local la, lb, d, i
+   la := chans(a)
+   lb := chans(b)
+   d := 0
+   every i := 1 to 3 do
+      d <:= abs(la[i] - lb[i])
+   return d
+end
+
+procedure chans(s)
+   local l
+   l := []
+   s ? while put(l, integer(tab(upto(',') | 0))) do
+      move(1) | break
+   return l
 end
 status 0
