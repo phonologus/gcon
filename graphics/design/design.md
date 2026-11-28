@@ -200,3 +200,40 @@ server no longer links ImageIO).
 - `vm/tests/graphics.icn` round-trips each format under each server:
   the lossless exactly; damaged files (truncated, bytes flipped) are
   refused or decoded without fault under ASan and UBSan.
+
+### Our own rasterizer: the spike (2026-11-28)
+
+Cocoa draws with Core Graphics, and X11 with X; Blend2D is in the SDL
+server alone, which uses it only to fill coverage masks (the X way of
+combining pixels, `canvas.c`'s `apply`, is our own C) and for text. So
+a rasterizer of our own, in plain C, replaces Blend2D's mask filling:
+for a Wayland server (Wayland has no drawing), for a headless server
+(hidden canvases where there is no display: the X11 server needs an X
+display even for those), and perhaps one day for the SDL server.
+
+`raster/raster.c` (about 300 lines): a scanline filler through pixel
+centres with half-open spans, so a centre on a top or left edge is in
+and one on a bottom or right edge out (X's rule, with no tie-breaking
+nudge); even-odd or nonzero. Strokes are the union of convex pieces,
+each filled alone: a rectangle per segment, a mitre (or, under X's 11
+degrees, a bevel) per join, projecting squares for square caps. Arcs
+are flattened to polygons (finely enough for the scale), dashes cut
+along the path as `canvas.c` cuts them.
+
+`headless/` is the first server on it: `main.c`, `hcanvas.c` (the Cocoa
+server's pixel layer with every shape through `raster.c`) and `hplat.c`
+(no windows: opening one fails; no events). 88 KB, a C compiler alone.
+Text is a placeholder: any font opens with `fixed`'s metrics and draws
+nothing.
+
+Against Arizona's X11 images (`vm/tests/ref.sh`), first time: bounds,
+colours, drawops, images and patterns exact; clipcopy 2 pixels, lines
+3, shapes 13 (the edges of a filled circle and a pie: X rasterizes arcs
+exactly, we flatten them), against the SDL server's allowances of 30,
+10 and 60; text differs, having no glyphs. Clean under ASan and UBSan.
+`vm/tests/graphics.sh` differs only in font metrics.
+
+Not wired into `./build.sh` yet. Open: text (bitmap fonts first: X's
+public-domain `misc-fixed`, embedded; scalable ones would need a font
+rasterizer and a font to ship), whether the headless server becomes the
+fallback where there is no display, and the Wayland server.
